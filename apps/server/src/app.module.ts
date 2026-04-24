@@ -25,7 +25,7 @@ import { AllExceptionsFilter } from './common/all-exceptions.filter';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
         type: 'postgres',
-        host: config.get('DB_HOST', '192.168.10.99'),
+        host: config.get<string>('DB_HOST')!,
         port: config.get<number>('DB_PORT', 5432),
         username: config.get('DB_USER', 'postgres'),
         password: config.get<string>('DB_PASS'),

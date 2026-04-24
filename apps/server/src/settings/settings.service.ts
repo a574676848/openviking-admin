@@ -17,7 +17,7 @@ const DEFAULTS: Record<string, { value: string; description: string }> = {
     description: 'Grep 前后上下文行数',
   },
   'ov.base_url': {
-    value: 'http://192.168.10.99:1933',
+    value: '',
     description: 'OpenViking 引擎基础地址',
   },
   'ov.api_key': { value: '', description: 'OpenViking 访问令牌 (X-API-KEY)' },
