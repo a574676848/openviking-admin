@@ -21,13 +21,13 @@
 ### 1. 全栈产品架构
 本项目采用高度模块化的"私域代理"架构，支持从 AI 算力端点到物理存储层的全链路私有化挂载。
 
-![项目全景架构图](./docs/images/architecture_full_view.png)
+![项目全景架构图](./docs/images/OpenViking%20%E4%BC%81%E4%B8%9A%20AI%20%E7%9F%A5%E8%AF%86%E4%B8%AD%E5%8F%B0%E6%9E%B6%E6%9E%84%E5%85%A8%E6%99%AF%E5%9B%BE.png)
 *(图 1：展示了系统从 SSO 接入到 S/M/L 隔离存储的全路径逻辑)*
 
 ### 2. 金融级多租户安全矩阵
 我们提供了业内领先的三级物理隔离方案（Small/Medium/Large），通过动态 Schema 切换与独立数据库连接池满足不同合规标准的业务场景。
 
-![安全隔离矩阵图](./docs/images/security_matrix.png)
+![安全隔离矩阵图](./docs/images/OpenViking%20%E5%A4%9A%E7%BB%B4%E5%BA%A6%E5%AE%89%E5%85%A8%E9%9A%94%E7%A6%BB%E4%B8%8E%E5%90%88%E8%A7%84%E7%9F%A9%E9%98%B5.png)
 *(图 2：展示了如何通过 DDL 自动克隆与动态连接池实现租户间的物理绝缘)*
 
 ---
