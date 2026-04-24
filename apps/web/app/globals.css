@@ -1,0 +1,209 @@
+@import "tailwindcss";
+
+/* ─── OpenViking Admin Design Tokens (Neo / Swiss Theme) ─── */
+:root {
+  /* 浅色主题：Neo-Brutalism (现代波普极客风) */
+  --bg-base:     #FFFFFF;
+  --bg-card:     #FFFFFF;
+  --bg-elevated: #F8F9FA;
+  --bg-input:    #FFFFFF;
+
+  --border-width: 2px;
+  --border:       #000000;
+  --shadow-base:  4px 4px 0px #000000;
+  --shadow-hover: 0px 0px 0px #000000; /* 按压感 */
+  --radius-base:  6px;
+
+  --brand:       #0011FF;
+  --brand-hover: #0000CC;
+  --brand-muted: #E5E7FE;
+  --brand-text:  #FFFFFF;
+
+  --text-primary:   #000000;
+  --text-secondary: #4A4A4A;
+  --text-muted:     #8C8C8C;
+
+  --success: #00E676;
+  --warning: #FFE600;
+  --danger:  #FF4A4A;
+  --info:    #00E5FF;
+}
+
+/* ─── Swiss Minimal Style Overrides ─── */
+.theme-swiss {
+  --bg-base: #FAFAFA;
+  --bg-card: #FFFFFF;
+  --bg-elevated: #F4F4F2;
+  --bg-input: #FFFFFF;
+  --border: #E5E7EB;
+  --border-width: 1px;
+  --shadow-base: none;
+  --shadow-hover: none;
+  --radius-base: 0px;
+  --brand: #0055FF;
+  --brand-hover: #0047D6;
+  --brand-muted: #EEF3FF;
+  --brand-text: #FFFFFF;
+  --text-primary: #0A0A0A;
+  --text-secondary: #4B5563;
+  --text-muted: #9CA3AF;
+  --success: #0A7A35;
+  --warning: #D39A00;
+  --danger: #B42318;
+  --info: #0055FF;
+}
+
+@theme inline {
+  --color-background:   var(--bg-base);
+  --color-foreground:   var(--text-primary);
+  --color-card:         var(--bg-card);
+  --color-elevated:     var(--bg-elevated);
+  --color-brand:        var(--brand);
+  --color-brand-hover:  var(--brand-hover);
+  --color-brand-muted:  var(--brand-muted);
+  --color-border:       var(--border);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted:   var(--text-muted);
+  --color-success:      var(--success);
+  --color-warning:      var(--warning);
+  --color-danger:       var(--danger);
+  --color-info:         var(--info);
+}
+
+* { box-sizing: border-box; }
+html, body { min-height: 100%; }
+body {
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-geist), "PingFang SC", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 0.4s ease, color 0.4s ease;
+}
+
+.font-sans {
+  font-family: var(--font-space-grotesk), var(--font-geist), "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+.font-mono {
+  font-family: var(--font-geist-mono), "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+/* Base Classes */
+.ov-card {
+  background: var(--bg-card);
+  border: var(--border-width) solid var(--border);
+  box-shadow: var(--shadow-base);
+  border-radius: var(--radius-base);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ov-button {
+  background: var(--brand);
+  color: var(--brand-text);
+  border: var(--border-width) solid var(--border);
+  box-shadow: var(--shadow-base);
+  border-radius: var(--radius-base);
+  transition: all 0.15s ease-out;
+  font-weight: bold;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  text-transform: uppercase;
+}
+.ov-button:hover:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: var(--shadow-hover);
+  background: var(--brand-hover);
+}
+.theme-swiss .ov-button:hover:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: none;
+}
+.ov-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.ov-input {
+  background: var(--bg-input);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-base);
+  color: var(--text-primary);
+  transition: all 0.2s;
+  width: 100%;
+}
+.ov-input:focus {
+  outline: none;
+  border-color: var(--brand);
+  background: var(--brand-muted);
+  box-shadow: 4px 4px 0px var(--brand);
+}
+.theme-swiss .ov-input:focus {
+  box-shadow: none;
+}
+
+@keyframes auth-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+
+.animate-auth-shake {
+  animation: auth-shake 0.36s ease-out;
+}
+
+
+/* DESIGN.md 交互特效 */
+
+/* 边缘脉冲电流 (Edge Pulse) */
+@keyframes edge-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(0, 112, 243, 0.4); }
+  70% { box-shadow: 0 0 0 10px rgba(0, 112, 243, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(0, 112, 243, 0); }
+}
+.edge-pulse {
+  animation: edge-pulse 2s infinite cubic-bezier(0.66, 0, 0, 1);
+}
+
+/* 坍缩碎裂删除 (Collapse Delete) */
+@keyframes collapse-delete {
+  0% { transform: scale(1); filter: brightness(1); opacity: 1; }
+  50% { transform: scale(1.05) skewX(5deg); filter: brightness(2) contrast(2); background: var(--danger); opacity: 0.8; }
+  100% { transform: scale(0) rotateX(90deg) rotateY(45deg); opacity: 0; filter: blur(10px); }
+}
+.animate-collapse {
+  animation: collapse-delete 0.6s cubic-bezier(0.55, 0.085, 0.68, 0.53) forwards !important;
+  pointer-events: none;
+}
+
+/* 知识向量空间 (Knowledge Vector Space) */
+.vector-space-bg {
+  position: relative;
+  overflow: hidden;
+}
+.vector-space-bg::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 200%;
+  height: 200%;
+  background-image: radial-gradient(var(--text-secondary) 1px, transparent 1px), radial-gradient(var(--text-secondary) 1px, transparent 1px);
+  background-size: 40px 40px;
+  background-position: 0 0, 20px 20px;
+  opacity: 0.05;
+  transform-origin: 0 0;
+  animation: vector-drift 60s linear infinite;
+  z-index: 0;
+  pointer-events: none;
+}
+@keyframes vector-drift {
+  0% { transform: translate(0, 0) rotate(0deg); }
+  100% { transform: translate(-100px, -100px) rotate(5deg); }
+}

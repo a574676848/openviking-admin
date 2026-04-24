@@ -1,0 +1,10 @@
+.gitnexus
+.env
+.env.local
+node_modules/
+dist/
+.next/
+.claude/*
+*.tsbuildinfo
+next-env.d.ts
+eslint-report.json
