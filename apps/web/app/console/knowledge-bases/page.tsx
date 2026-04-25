@@ -5,7 +5,6 @@ import Link from "next/link";
 import { ArrowRight, Database, FolderTree, Plus, Search } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 import {
-  ConsoleBadge,
   ConsoleButton,
   ConsoleEmptyState,
   ConsoleField,
@@ -13,6 +12,10 @@ import {
   ConsoleMetricCard,
   ConsolePageHeader,
   ConsolePanel,
+  ConsolePanelHeader,
+  ConsoleListRow,
+  ConsoleStatsGrid,
+  ConsoleTableShell,
 } from "@/components/console/primitives";
 
 interface KnowledgeBase {
@@ -32,8 +35,10 @@ interface DashboardSnapshot {
 const STATUS_MAP: Record<string, { label: string; className: string }> = {
   active: { label: "运行中", className: "bg-[var(--success)] text-white" },
   building: { label: "构建中", className: "bg-[var(--warning)] text-black" },
-  archived: { label: "已归档", className: "bg-black text-white" },
+  archived: { label: "已归档", className: "bg-[var(--text-muted)] text-white" },
 };
+
+const TABLE_COLUMNS = "lg:grid-cols-[minmax(0,1fr)_150px_150px_150px]";
 
 export default function KnowledgeBasesPage() {
   const [items, setItems] = useState<KnowledgeBase[]>([]);
@@ -111,21 +116,16 @@ export default function KnowledgeBasesPage() {
         }
       />
 
-      <section className="grid grid-cols-1 gap-[var(--border-width)] border-[var(--border-width)] border-[var(--border)] bg-[var(--border)] lg:grid-cols-4">
+      <ConsoleStatsGrid className="lg:grid-cols-4">
         <ConsoleMetricCard label="Active Bases" value={(items.length || 0).toLocaleString()} tone="brand" />
         <ConsoleMetricCard label="Documents" value={totals.docs.toLocaleString()} />
         <ConsoleMetricCard label="Vectors" value={totals.vectors.toLocaleString()} tone="warning" />
         <ConsoleMetricCard label="Quota Usage" value={`${usagePercent}%`} tone="danger" />
-      </section>
+      </ConsoleStatsGrid>
 
       <section className="grid grid-cols-1 gap-8 xl:grid-cols-[0.92fr_1.08fr]">
         <ConsolePanel className="p-6">
-          <div className="border-b-[3px] border-[var(--border)] pb-4">
-            <p className="font-mono text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">
-              Namespace Capacity
-            </p>
-            <h2 className="mt-3 font-sans text-2xl font-black">配额与命名空间概况</h2>
-          </div>
+          <ConsolePanelHeader eyebrow="Namespace Capacity" title="配额与命名空间概况" />
 
           <div className="mt-6 border-[3px] border-[var(--border)] bg-[var(--bg-elevated)] p-5">
             <div className="flex items-center justify-between gap-4">
@@ -163,80 +163,60 @@ export default function KnowledgeBasesPage() {
           </div>
         </ConsolePanel>
 
-        <ConsolePanel className="overflow-hidden">
-          <div className="grid grid-cols-[minmax(0,1fr)_150px_150px_150px] border-b-[3px] border-[var(--border)] bg-[var(--bg-elevated)]">
-            <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">
-              Knowledge Base
+        <ConsoleTableShell
+          columns={
+            <>
+              <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">Knowledge Base</div>
+              <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">Docs</div>
+              <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">Vectors</div>
+              <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">Actions</div>
+            </>
+          }
+          headerClassName={`grid ${TABLE_COLUMNS}`}
+          isLoading={loading}
+          hasData={filtered.length > 0}
+          loadingState={
+            <div className="bg-[var(--bg-card)] px-6 py-16 text-center font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-secondary)]">
+              正在读取知识库注册表...
             </div>
-            <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">
-              Docs
-            </div>
-            <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">
-              Vectors
-            </div>
-            <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">
-              Actions
-            </div>
-          </div>
+          }
+          emptyState={
+            <ConsoleEmptyState icon={Database} title="暂无匹配知识库" description="registry is empty or filtered out" />
+          }
+        >
+          {filtered.map((item) => {
+            const status = STATUS_MAP[item.status] ?? {
+              label: item.status || "unknown",
+              className: "bg-[var(--bg-card)] text-[var(--text-primary)]",
+            };
 
-          <div className="grid grid-cols-1 gap-px bg-[var(--border)]">
-            {loading ? (
-              <div className="bg-[var(--bg-card)] px-6 py-16 text-center font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-secondary)]">
-                正在读取知识库注册表...
-              </div>
-            ) : filtered.length === 0 ? (
-              <ConsoleEmptyState icon={Database} title="暂无匹配知识库" description="registry is empty or filtered out" />
-            ) : (
-              filtered.map((item) => {
-                const status = STATUS_MAP[item.status] ?? {
-                  label: item.status || "unknown",
-                  className: "bg-[var(--bg-card)] text-[var(--text-primary)]",
-                };
-
-                return (
-                  <div
-                    key={item.id}
-                    className="grid gap-px bg-[var(--border)] lg:grid-cols-[minmax(0,1fr)_150px_150px_150px]"
-                  >
-                    <div className="bg-[var(--bg-card)] px-5 py-5">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="min-w-0">
-                          <p className="truncate font-sans text-xl font-black text-[var(--text-primary)]" title={item.name}>
-                            {item.name}
-                          </p>
-                          <p className="mt-2 font-mono text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-muted)]">
-                            {item.id}
-                          </p>
-                          <p className="mt-2 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--text-secondary)]">
-                            创建于 {new Date(item.createdAt).toLocaleString("zh-CN", { hour12: false })}
-                          </p>
-                        </div>
-                        <ConsoleBadge className={status.className}>
-                          {status.label}
-                        </ConsoleBadge>
-                      </div>
-                    </div>
-                    <div className="bg-[var(--bg-card)] px-5 py-5 font-mono text-3xl font-black tabular-nums text-[var(--text-primary)]">
-                      {item.docCount ?? 0}
-                    </div>
-                    <div className="bg-[var(--bg-card)] px-5 py-5 font-mono text-3xl font-black tabular-nums text-[var(--brand)]">
-                      {(item.vectorCount ?? 0).toLocaleString()}
-                    </div>
-                    <div className="bg-[var(--bg-card)] px-5 py-5">
-                      <Link href={`/console/knowledge-tree?kbId=${item.id}`}>
-                        <ConsoleButton tone="dark" className="px-4 py-3 tracking-[0.16em]">
-                          <FolderTree size={14} strokeWidth={2.6} />
-                          查看知识树
-                          <ArrowRight size={14} strokeWidth={2.6} />
-                        </ConsoleButton>
-                      </Link>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </ConsolePanel>
+            return (
+              <ConsoleListRow
+                key={item.id}
+                name={item.name}
+                detailId={item.id}
+                date={`创建于 ${new Date(item.createdAt).toLocaleString("zh-CN", { hour12: false })}`}
+                badges={[
+                  { label: status.label, className: status.className },
+                ]}
+                metrics={[
+                  { value: item.docCount ?? 0 },
+                  { value: (item.vectorCount ?? 0).toLocaleString(), className: "text-[var(--brand)]" },
+                ]}
+                columns={TABLE_COLUMNS}
+                actions={
+                  <Link href={`/console/knowledge-tree?kbId=${item.id}`}>
+                    <ConsoleButton tone="dark" className="px-4 py-3 tracking-[0.16em]">
+                      <FolderTree size={14} strokeWidth={2.6} />
+                      查看知识树
+                      <ArrowRight size={14} strokeWidth={2.6} />
+                    </ConsoleButton>
+                  </Link>
+                }
+              />
+            );
+          })}
+        </ConsoleTableShell>
       </section>
     </div>
   );

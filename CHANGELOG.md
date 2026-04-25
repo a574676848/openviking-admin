@@ -19,13 +19,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 系统监控仪表盘
 - 前端双色主题系统 (Neo-Brutalism / Swiss)
 - VikingWatcher 交互组件
+- Console 复合组件基座：`ConsoleStatsGrid`、`ConsoleTableShell`、`ConsoleControlPanel`
+- 页面级稳定复合组件：列表行、检查器、遥测面板、消息气泡、引用卡
+- 2026-04-25 收口评审报告：`REVIEW_TODOLIST_2026-04-25.md`
 
 ### Changed
 - 移除临时重构脚本
+- 主题契约正式收敛为 `neo` / `swiss` 两套，移除运行时第三主题漂移
+- 平台页与租户控制台页统一回到同一套 Console primitives 与 Neo 终端视觉语言
+- `integrations`、`knowledge-bases`、`graph`、`dashboard`、`system` 等高频页面骨架重做并统一交互语义
+- 认证链路统一为 Bearer-only JWT，移除对 cookie 鉴权的依赖
+- 前端会话读写统一走 `Authorization: Bearer`，主题与登录态恢复逻辑同步收敛
+- 多处服务端 DTO、Repository、Guard、外部 API 返回值完成类型收敛，减少 `any` 与隐式契约
+- MCP/Search/Integration/ImportTask 等核心模块完成生产化清理，降低硬编码与边界泄漏
+- OV 连接配置移除本地兜底地址，缺配置时显式失败，不再静默回退到 `localhost:1933`
 
 ### Fixed
 - 修复数据库迁移中的 schema 不一致问题
 - 修复 SSO ticket 服务缺少 crypto 导入的问题
+- 修复主题切换弹层被遮挡、选项不可点击的问题
+- 修复 `activeSource === "git"` 一类来源分支硬编码问题
+- 修复 MCP 文本输出中的 Emoji，不再违背 `docs/DESIGN.md`
+- 修复图谱页裸色值与局部强样式，收敛到统一视觉 token
+- 修复认证与租户边界上的类型缺失，减少请求上下文的 `any` 传播
+- 修复服务端关键模块 lint/build 阻断，并完成一轮生产上线前收口
+
+### Security
+- 收紧前端安全基线，围绕 Bearer-only 会话模式同步约束认证存储与服务端鉴权边界
+- 租户端与平台端的配置读取、会话恢复和接口访问统一走显式鉴权链路
+
+### Validation
+- `npm run lint --workspace server` 通过
+- `npm run build --workspace server` 通过
+- `npm run lint --workspace web` 通过
+- `npm run build --workspace web` 通过
+- 最终收口评审结论更新为 `96 / 100`
 
 ---
 

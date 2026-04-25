@@ -14,7 +14,7 @@ export class OVClientService {
     conn: OVConnection,
     path: string,
     method: string = 'GET',
-    body?: any,
+    body?: Record<string, unknown>,
   ) {
     const url = `${conn.baseUrl}${path}`;
     const headers: Record<string, string> = {
@@ -36,9 +36,10 @@ export class OVClientService {
         throw new Error(`底层引擎响应异常 [${res.status}]`);
       }
 
-      return await res.json();
+      return (await res.json()) as Record<string, unknown>;
     } catch (e) {
-      this.logger.error(`Failed to connect to OpenViking: ${e.message}`);
+      const message = e instanceof Error ? e.message : '未知错误';
+      this.logger.error(`Failed to connect to OpenViking: ${message}`);
       throw e;
     }
   }
@@ -46,7 +47,7 @@ export class OVClientService {
   async getHealth(baseUrl: string) {
     try {
       const res = await fetch(`${baseUrl}/health`);
-      return await res.json();
+      return (await res.json()) as Record<string, unknown>;
     } catch {
       return null;
     }

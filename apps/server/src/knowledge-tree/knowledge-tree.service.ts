@@ -10,14 +10,11 @@ export class KnowledgeTreeService {
     private readonly nodeRepo: IKnowledgeNodeRepository,
   ) {}
 
-  /**
-   * 获取某知识库的全量树节点 (层级视图)
-   */
   async findByKb(
     kbId: string,
     tenantId: string | null,
   ): Promise<KnowledgeNode[]> {
-    const where: any = { kbId };
+    const where: Record<string, string> = { kbId };
     if (tenantId) where.tenantId = tenantId;
     return this.nodeRepo.find({
       where,
@@ -25,22 +22,18 @@ export class KnowledgeTreeService {
     });
   }
 
-  /**
-   * Phase 2.4: 获取图谱可视化数据 (扁平视图)
-   * 返回标准的 { nodes: [], links: [] } 结构
-   */
   async getGraphData(kbId: string, tenantId: string | null) {
     const allNodes = await this.findByKb(kbId, tenantId);
 
     const nodes = allNodes.map((n) => ({
       id: n.id,
       name: n.name,
-      val: 1, // 节点权重，未来可根据向量数动态计算
+      val: 1,
       vikingUri: n.vikingUri,
     }));
 
     const links = allNodes
-      .filter((n) => n.parentId) // 仅处理有父节点的节点
+      .filter((n) => n.parentId)
       .map((n) => ({
         source: n.parentId,
         target: n.id,
@@ -57,7 +50,7 @@ export class KnowledgeTreeService {
   }
 
   async findOne(id: string, tenantId: string | null): Promise<KnowledgeNode> {
-    const where: any = { id };
+    const where: Record<string, string> = { id };
     if (tenantId) where.tenantId = tenantId;
     const node = await this.nodeRepo.findOne({ where });
     if (!node) throw new NotFoundException(`节点不存在`);

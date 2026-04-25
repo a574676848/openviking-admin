@@ -1,7 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from './auth.service';
 import { USER_REPOSITORY } from './domain/repositories/user.repository.interface';
+import type { IUserRepository } from './domain/repositories/user.repository.interface';
 import { TENANT_REPOSITORY } from '../tenant/domain/repositories/tenant.repository.interface';
+import type { ITenantRepository } from '../tenant/domain/repositories/tenant.repository.interface';
 import { JwtService } from '@nestjs/jwt';
 import { AuditService } from '../audit/audit.service';
 import { UnauthorizedException } from '@nestjs/common';
@@ -9,8 +11,12 @@ import * as bcrypt from 'bcryptjs';
 
 describe('AuthService', () => {
   let service: AuthService;
-  let mockUserRepo: any;
-  let mockTenantRepo: any;
+  let mockUserRepo: jest.Mocked<
+    Pick<IUserRepository, 'findOneByUsername' | 'findOneById'>
+  >;
+  let mockTenantRepo: jest.Mocked<
+    Pick<ITenantRepository, 'findByTenantId' | 'findById'>
+  >;
 
   beforeEach(async () => {
     mockUserRepo = {
@@ -43,7 +49,7 @@ describe('AuthService', () => {
       mockUserRepo.findOneByUsername.mockResolvedValue({
         username: 'test',
         passwordHash: await bcrypt.hash('correct', 10),
-      });
+      } as never);
 
       await expect(
         service.login({ username: 'test', password: 'wrong' }),
@@ -57,7 +63,7 @@ describe('AuthService', () => {
         passwordHash: await bcrypt.hash('pass', 10),
         role: 'super_admin',
       };
-      mockUserRepo.findOneByUsername.mockResolvedValue(mockUser);
+      mockUserRepo.findOneByUsername.mockResolvedValue(mockUser as never);
 
       const result = await service.login({
         username: 'admin',

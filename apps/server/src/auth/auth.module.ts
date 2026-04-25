@@ -1,4 +1,4 @@
-import { Module, OnModuleInit } from '@nestjs/common';
+import { Module, OnModuleInit, Logger } from '@nestjs/common';
 import * as passport from 'passport';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
@@ -17,6 +17,10 @@ import { DingTalkSsoProvider } from './sso/providers/dingtalk-sso.provider';
 import { SsoTicketService } from './sso/sso-ticket.service';
 import { UsersModule } from '../users/users.module';
 import { TenantModule } from '../tenant/tenant.module';
+
+interface PassportInternal {
+  _strategies?: Record<string, unknown>;
+}
 
 @Module({
   imports: [
@@ -46,14 +50,17 @@ import { TenantModule } from '../tenant/tenant.module';
   exports: [AuthService, SSOPortalService],
 })
 export class AuthModule implements OnModuleInit {
+  private readonly logger = new Logger(AuthModule.name);
+
   constructor(private jwtStrategy: JwtStrategy) {}
 
   onModuleInit() {
-    console.log('--- Passport Strategy Debug ---');
-    console.log(
+    this.logger.log('--- Passport Strategy Debug ---');
+    const internal = passport as unknown as PassportInternal;
+    this.logger.log(
       'Registered Strategies Keys:',
-      Object.keys((passport as any)._strategies || {}),
+      Object.keys(internal._strategies || {}),
     );
-    console.log('-------------------------------');
+    this.logger.log('-------------------------------');
   }
 }

@@ -11,7 +11,7 @@ export class GitIntegrator implements IPlatformIntegrator {
     return ['github', 'gitlab'].includes(type);
   }
 
-  async resolveConfig(
+  resolveConfig(
     integration: Integration,
     sourceUrl: string,
   ): Promise<PlatformInjectConfig> {
@@ -28,9 +28,9 @@ export class GitIntegrator implements IPlatformIntegrator {
       }
     }
 
-    return {
+    return Promise.resolve({
       path: finalPath,
       config: { source_type: 'git_repo' },
-    };
+    });
   }
 }

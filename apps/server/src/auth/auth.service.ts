@@ -1,7 +1,8 @@
 import { Injectable, UnauthorizedException, Inject } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
-import { User, SystemRoles } from '../users/entities/user.entity';
+import { SystemRoles } from '../users/entities/user.entity';
+import type { User } from '../users/entities/user.entity';
 import { LoginDto } from './dto/login.dto';
 import { AuditService } from '../audit/audit.service';
 import { USER_REPOSITORY } from '../users/domain/repositories/user.repository.interface';
@@ -87,7 +88,7 @@ export class AuthService {
     return this.userRepo.findById(userId);
   }
 
-  async generateToken(user: User) {
+  generateToken(user: User) {
     const payload = {
       sub: user.id,
       username: user.username,

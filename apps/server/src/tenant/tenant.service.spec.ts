@@ -1,14 +1,16 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { TenantService } from './tenant.service';
 import { TENANT_REPOSITORY } from './domain/repositories/tenant.repository.interface';
+import type { ITenantRepository } from './domain/repositories/tenant.repository.interface';
 import { AuditService } from '../audit/audit.service';
 import { SchemaInitializerService } from './schema-initializer.service';
 import { TenantCacheService } from './tenant-cache.service';
 import { Tenant } from './entities/tenant.entity';
+import { EncryptionService } from '../common/encryption.service';
 
 describe('TenantService', () => {
   let service: TenantService;
-  let mockRepository: any;
+  let mockRepository: jest.Mocked<ITenantRepository>;
 
   beforeEach(async () => {
     mockRepository = {
@@ -31,6 +33,10 @@ describe('TenantService', () => {
           useValue: { initialize: jest.fn() },
         },
         { provide: TenantCacheService, useValue: { invalidate: jest.fn() } },
+        {
+          provide: EncryptionService,
+          useValue: { encrypt: jest.fn(), decrypt: jest.fn() },
+        },
       ],
     }).compile();
 

@@ -1,23 +1,25 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { Integration } from '../../../tenant/entities/integration.entity';
+import type {
+  DingTalkTokenResponse,
+  DingTalkUserResponse,
+} from '../../../common/external-api.types';
 
 @Injectable()
 export class DingTalkSsoProvider {
-  async authenticate(config: Integration, payload: any) {
+  async authenticate(config: Integration, payload: { code?: string }) {
     const { appId, appSecret } = config.credentials;
     const { code } = payload;
 
     if (!code) throw new UnauthorizedException('钉钉授权码缺失');
 
-    // 获取企业内部应用的 access_token
     const tokenRes = await fetch(
       `https://oapi.dingtalk.com/gettoken?appkey=${appId}&appsecret=${appSecret}`,
     );
-    const tokenData = await tokenRes.json();
+    const tokenData = (await tokenRes.json()) as DingTalkTokenResponse;
     if (tokenData.errcode !== 0)
       throw new UnauthorizedException('钉钉获取 Token 失败');
 
-    // 通过免登授权码获取用户信息
     const userRes = await fetch(
       `https://oapi.dingtalk.com/topapi/v2/user/getuserinfo`,
       {
@@ -30,7 +32,7 @@ export class DingTalkSsoProvider {
       },
     );
 
-    const userData = await userRes.json();
+    const userData = (await userRes.json()) as DingTalkUserResponse;
     if (userData.errcode !== 0)
       throw new UnauthorizedException('钉钉获取用户信息失败');
 

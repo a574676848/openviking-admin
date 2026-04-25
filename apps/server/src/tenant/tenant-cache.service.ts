@@ -2,9 +2,20 @@ import { Injectable, Inject } from '@nestjs/common';
 import { TENANT_REPOSITORY } from './domain/repositories/tenant.repository.interface';
 import type { ITenantRepository } from './domain/repositories/tenant.repository.interface';
 
+interface IsolationConfig {
+  level: string;
+  dbConfig?: {
+    host?: string;
+    port?: number;
+    username?: string;
+    password?: string;
+    database?: string;
+  };
+}
+
 @Injectable()
 export class TenantCacheService {
-  private cache = new Map<string, { level: string; dbConfig?: any }>();
+  private cache = new Map<string, IsolationConfig>();
 
   constructor(
     @Inject(TENANT_REPOSITORY)
@@ -17,12 +28,14 @@ export class TenantCacheService {
     const tenant = await this.repo.findByTenantId(tenantId);
     if (!tenant) return null;
 
-    const config = { level: tenant.isolationLevel, dbConfig: tenant.dbConfig };
+    const config: IsolationConfig = {
+      level: tenant.isolationLevel,
+      dbConfig: tenant.dbConfig,
+    };
     this.cache.set(tenantId, config);
     return config;
   }
 
-  /** 当租户配置更新时清除缓存 */
   invalidate(tenantId: string) {
     this.cache.delete(tenantId);
   }

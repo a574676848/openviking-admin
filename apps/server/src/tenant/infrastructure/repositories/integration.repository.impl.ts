@@ -1,14 +1,28 @@
 import { Injectable, Inject, Scope } from '@nestjs/common';
 import { REQUEST } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import {
+  Repository,
+  DataSource,
+  type FindManyOptions,
+  type FindOneOptions,
+} from 'typeorm';
 import { Integration } from '../../entities/integration.entity';
 import { IIntegrationRepository } from '../../domain/repositories/integration.repository.interface';
+
+interface TenantRequest {
+  tenantQueryRunner?: {
+    manager: {
+      getRepository: (entity: typeof Integration) => Repository<Integration>;
+    };
+  };
+  tenantDataSource?: DataSource;
+}
 
 @Injectable({ scope: Scope.REQUEST })
 export class IntegrationRepositoryImpl implements IIntegrationRepository {
   constructor(
-    @Inject(REQUEST) private readonly request: any,
+    @Inject(REQUEST) private readonly request: TenantRequest,
     @InjectRepository(Integration)
     private readonly defaultRepo: Repository<Integration>,
   ) {}
@@ -23,18 +37,20 @@ export class IntegrationRepositoryImpl implements IIntegrationRepository {
     return this.defaultRepo;
   }
 
-  async find(options: any): Promise<Integration[]> {
+  async find(options: FindManyOptions<Integration>): Promise<Integration[]> {
     return this.repo.find(options);
   }
 
-  async findOne(options: any): Promise<Integration | null> {
+  async findOne(
+    options: FindOneOptions<Integration>,
+  ): Promise<Integration | null> {
     return this.repo.findOne(options);
   }
 
   async save(integration: Partial<Integration>): Promise<Integration> {
-    if ((integration as any).id) {
+    if (integration.id) {
       const existing = await this.repo.findOne({
-        where: { id: (integration as any).id },
+        where: { id: integration.id },
       });
       if (existing) {
         return this.repo.save({ ...existing, ...integration });

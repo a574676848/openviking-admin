@@ -1,14 +1,15 @@
 import { Injectable, Inject, Scope } from '@nestjs/common';
 import { REQUEST } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, type FindManyOptions } from 'typeorm';
 import { User } from '../../../users/entities/user.entity';
 import { IUserRepository } from '../../domain/repositories/user.repository.interface';
+import type { RepositoryRequest } from '../../../common/repository-request.interface';
 
 @Injectable({ scope: Scope.REQUEST })
 export class UserRepository implements IUserRepository {
   constructor(
-    @Inject(REQUEST) private readonly request: any,
+    @Inject(REQUEST) private readonly request: RepositoryRequest,
     @InjectRepository(User)
     private readonly defaultRepo: Repository<User>,
   ) {}
@@ -39,8 +40,8 @@ export class UserRepository implements IUserRepository {
     return this.repo.create(user);
   }
 
-  async find(options?: any): Promise<User[]> {
-    return this.repo.find(options);
+  async find(options?: FindManyOptions<User>): Promise<User[]> {
+    return this.repo.find(options ?? {});
   }
 
   async delete(id: string): Promise<void> {

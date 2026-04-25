@@ -25,7 +25,7 @@ export class Integration {
    * 凭证信息 (已在 Service 层实现 AES 加密)
    */
   @Column({ type: 'jsonb', default: {} })
-  credentials: Record<string, any>;
+  credentials: Record<string, string>;
 
   @Column({ type: 'jsonb', nullable: true })
   config: Record<string, any>;

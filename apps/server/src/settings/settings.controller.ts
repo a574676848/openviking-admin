@@ -4,6 +4,7 @@ import { Roles } from '../common/roles.decorator';
 import { SettingsService } from './settings.service';
 import { RolesGuard } from '../common/roles.guard';
 import { SystemRoles } from '../users/entities/user.entity';
+import type { AuthenticatedRequest } from '../common/authenticated-request.interface';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('settings')
@@ -17,7 +18,10 @@ export class SettingsController {
 
   @Patch()
   @Roles(SystemRoles.SUPER_ADMIN)
-  batchSet(@Body() body: Record<string, string>, @Req() req: any) {
+  batchSet(
+    @Body() body: Record<string, string>,
+    @Req() req: AuthenticatedRequest,
+  ) {
     return this.svc.batchSet(body, req.user);
   }
 }

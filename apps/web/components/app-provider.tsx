@@ -1,8 +1,8 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { apiClient } from '../lib/apiClient';
-import { clearSessionToken, readSessionToken, writeSessionToken } from '../lib/session';
+import { destroySession, readSessionToken, writeSessionToken } from '../lib/session';
 
 interface User {
   id: string;
@@ -25,6 +25,21 @@ interface AppState {
 
 const AppContext = createContext<AppState | undefined>(undefined);
 
+/** 结构化日志通道，生产环境可替换为外部监控服务 */
+function log(level: 'info' | 'warn' | 'error', message: string, detail?: unknown) {
+  if (process.env.NODE_ENV === 'development') {
+    const fn = level === 'error' ? console.error : level === 'warn' ? console.warn : console.log;
+    fn(`[AppProvider] ${message}`, detail ?? '');
+    return;
+  }
+  // 生产环境：收敛到统一日志端点
+  try {
+    navigator.sendBeacon?.('/api/audit/client-log', JSON.stringify({ level, message, detail, ts: Date.now() }));
+  } catch {
+    // 静默失败，不阻塞用户操作
+  }
+}
+
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const normalizeTheme = (value: string | null): ThemeType => {
     return value === 'swiss' ? 'swiss' : 'neo';
@@ -38,49 +53,48 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return normalizeTheme(localStorage.getItem('ov_theme'));
   });
 
-  const setTheme = (newTheme: ThemeType) => {
+  const setTheme = useCallback((newTheme: ThemeType) => {
     setThemeState(newTheme);
     localStorage.setItem("ov_theme", newTheme);
-    applyTheme(newTheme);
-  };
-
-  const applyTheme = (t: ThemeType) => {
     const root = document.documentElement;
     root.setAttribute("data-theme", "neo");
-    if (t === "swiss") {
+    if (newTheme === "swiss") {
       root.classList.add("theme-swiss");
     } else {
       root.classList.remove("theme-swiss");
     }
-  };
+  }, []);
 
-  const login = (token: string, userData: User) => {
+  const login = useCallback((token: string, userData: User) => {
     writeSessionToken(token);
     setUser(userData);
-  };
+  }, []);
 
-  const logout = () => {
-    clearSessionToken();
+  const logout = useCallback(() => {
+    destroySession();
     setUser(null);
-    window.location.href = '/login';
-  };
+  }, []);
 
-  const refreshUser = async () => {
+  const refreshUser = useCallback(async () => {
     try {
       const data = await apiClient.get<User>('/auth/me');
       setUser(data);
     } catch (err) {
-      console.error('Failed to fetch user', err);
-      // 如果 401，apiClient 会自动处理
+      log('error', 'Failed to fetch user', err instanceof Error ? err.message : err);
     }
-  };
+  }, []);
 
   useEffect(() => {
     const token = readSessionToken();
-    applyTheme(theme);
+    const root = document.documentElement;
+    root.setAttribute("data-theme", "neo");
+    if (theme === "swiss") {
+      root.classList.add("theme-swiss");
+    } else {
+      root.classList.remove("theme-swiss");
+    }
 
     if (token) {
-      // 从 token 解析或重新获取
       queueMicrotask(() => {
         void refreshUser().finally(() => setIsLoading(false));
       });
@@ -89,7 +103,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setIsLoading(false);
       });
     }
-  }, [theme]);
+  }, [theme, refreshUser]);
 
   return (
     <AppContext.Provider value={{ user, isLoading, theme, setTheme, login, logout, refreshUser }}>

@@ -2,6 +2,10 @@ import { Injectable, NotFoundException, Inject } from '@nestjs/common';
 import { Integration } from './entities/integration.entity';
 import { EncryptionService } from '../common/encryption.service';
 import { IIntegrationRepository } from './domain/repositories/integration.repository.interface';
+import type {
+  CreateIntegrationInput,
+  UpdateIntegrationInput,
+} from './domain/integration-input.model';
 
 @Injectable()
 export class IntegrationService {
@@ -17,24 +21,26 @@ export class IntegrationService {
   }
 
   async findOne(id: string, tenantId: string | null) {
-    const where: any = { id };
+    const where: Record<string, string> = { id };
     if (tenantId) where.tenantId = tenantId;
     const item = await this.repo.findOne({ where });
     if (!item) throw new NotFoundException('集成配置不存在');
-
-    // 关键：返回供业务使用的实体时自动解密
     return this.decryptItem(item);
   }
 
-  async create(dto: any, tenantId: string) {
-    const encryptedDto = this.encryptDto(dto);
-    return this.repo.save({ ...encryptedDto, tenantId });
+  async create(input: CreateIntegrationInput, tenantId: string) {
+    const encrypted = this.encryptCredentials(input);
+    return this.repo.save({ ...encrypted, tenantId });
   }
 
-  async update(id: string, dto: any, tenantId: string | null) {
+  async update(
+    id: string,
+    input: UpdateIntegrationInput,
+    tenantId: string | null,
+  ) {
     const item = await this.findOne(id, tenantId);
-    const encryptedDto = this.encryptDto(dto);
-    Object.assign(item, encryptedDto);
+    const encrypted = this.encryptCredentials(input);
+    Object.assign(item, encrypted);
     return this.repo.save(item);
   }
 
@@ -43,7 +49,6 @@ export class IntegrationService {
     return this.repo.remove(item);
   }
 
-  /** 生产级：定义需要加密和脱敏的核心字段 */
   private readonly SENSITIVE_KEYS = [
     'token',
     'password',
@@ -51,9 +56,6 @@ export class IntegrationService {
     'clientSecret',
   ];
 
-  /**
-   * 脱敏处理：返回给前端时完全抹除关键敏感信息
-   */
   mask(item: Integration) {
     const masked = { ...item };
     if (masked.credentials) {
@@ -64,14 +66,18 @@ export class IntegrationService {
     return masked;
   }
 
-  private encryptDto(dto: any) {
-    if (!dto.credentials) return dto;
+  private encryptCredentials(
+    input: CreateIntegrationInput | UpdateIntegrationInput,
+  ): Record<string, unknown> {
+    const result: Record<string, unknown> = { ...input };
+    if (!result.credentials) return result;
+    const creds = result.credentials as Record<string, string>;
     this.SENSITIVE_KEYS.forEach((k) => {
-      if (dto.credentials[k] && dto.credentials[k] !== '********') {
-        dto.credentials[k] = this.encryption.encrypt(dto.credentials[k]);
+      if (creds[k] && creds[k] !== '********') {
+        creds[k] = this.encryption.encrypt(creds[k]);
       }
     });
-    return dto;
+    return result;
   }
 
   private decryptItem(item: Integration) {

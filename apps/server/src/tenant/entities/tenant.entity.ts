@@ -5,6 +5,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { TenantIsolationLevel } from '../../common/constants/system.enum';
 
 @Entity('tenants')
 export class Tenant {
@@ -23,7 +24,7 @@ export class Tenant {
 
   /** 隔离等级：small (字段), medium (schema), large (独立库) */
   @Column({ name: 'isolation_level', default: 'small', length: 20 })
-  isolationLevel: 'small' | 'medium' | 'large';
+  isolationLevel: TenantIsolationLevel;
 
   /** 独立数据库配置 (仅针对 large 等级) */
   @Column({ name: 'db_config', type: 'jsonb', nullable: true })

@@ -20,7 +20,6 @@ import { toast } from "sonner";
 import { useConfirm } from "@/components/ui/ConfirmProvider";
 import { apiClient } from "@/lib/apiClient";
 import {
-  ConsoleBadge,
   ConsoleButton,
   ConsoleEmptyState,
   ConsoleField,
@@ -31,6 +30,9 @@ import {
   ConsolePanelHeader,
   ConsoleSelect,
   ConsoleIconButton,
+  ConsoleListRow,
+  ConsoleStatsGrid,
+  ConsoleTableShell,
 } from "@/components/console/primitives";
 
 interface Integration {
@@ -122,7 +124,7 @@ const TYPE_META: Record<
     label: "OIDC",
     icon: Globe,
     description: "标准单点登录联邦",
-    className: "bg-black text-white",
+    className: "bg-[var(--brand)] text-white",
     fields: [
       { key: "issuer", label: "Issuer", placeholder: "https://sso.example.com" },
       { key: "clientId", label: "Client ID", placeholder: "client_id" },
@@ -142,6 +144,8 @@ const TYPE_META: Record<
     ],
   },
 };
+
+const TABLE_COLUMNS = "xl:grid-cols-[minmax(0,1fr)_140px_120px_180px_160px]";
 
 export default function IntegrationsPage() {
   const confirm = useConfirm();
@@ -237,12 +241,12 @@ export default function IntegrationsPage() {
         }
       />
 
-      <section className="grid grid-cols-1 gap-[var(--border-width)] border-[var(--border-width)] border-[var(--border)] bg-[var(--border)] lg:grid-cols-4">
+      <ConsoleStatsGrid className="lg:grid-cols-4">
         <ConsoleMetricCard label="Total" value={items.length.toLocaleString()} />
         <ConsoleMetricCard label="Active" value={stats.active.toLocaleString()} tone="success" />
         <ConsoleMetricCard label="Data Sources" value={stats.source.toLocaleString()} tone="brand" />
         <ConsoleMetricCard label="Identity" value={stats.identity.toLocaleString()} tone="warning" />
-      </section>
+      </ConsoleStatsGrid>
 
       {showForm && (
         <ConsolePanel className="p-6">
@@ -317,98 +321,69 @@ export default function IntegrationsPage() {
         </ConsolePanel>
       )}
 
-      <ConsolePanel className="overflow-hidden">
-        <div className="grid grid-cols-[minmax(0,1fr)_140px_120px_180px_160px] border-b-[3px] border-[var(--border)] bg-[var(--bg-elevated)]">
-          <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">
-            Integration
+      <ConsoleTableShell
+        columns={
+          <>
+            <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">Integration</div>
+            <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">Type</div>
+            <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">Status</div>
+            <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">Created</div>
+            <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">Actions</div>
+          </>
+        }
+        headerClassName={`grid ${TABLE_COLUMNS}`}
+        isLoading={loading}
+        hasData={items.length > 0}
+        loadingState={
+          <div className="bg-[var(--bg-card)] px-6 py-16 text-center font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-secondary)]">
+            正在读取集成注册表...
           </div>
-          <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">
-            Type
-          </div>
-          <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">
-            Status
-          </div>
-          <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">
-            Created
-          </div>
-          <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">
-            Actions
-          </div>
-        </div>
+        }
+        emptyState={
+          <ConsoleEmptyState icon={Link2} title="暂无集成" description="create a source or identity connector first" />
+        }
+      >
+        {items.map((item) => {
+          const meta = TYPE_META[item.type as IntegrationType] ?? {
+            label: item.type,
+            icon: Link2,
+            description: "未知类型",
+            className: "bg-[var(--bg-card)] text-[var(--text-primary)]",
+            fields: [],
+          };
 
-        <div className="grid grid-cols-1 gap-px bg-[var(--border)]">
-          {loading ? (
-            <div className="bg-[var(--bg-card)] px-6 py-16 text-center font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-secondary)]">
-              正在读取集成注册表...
-            </div>
-          ) : items.length === 0 ? (
-              <ConsoleEmptyState icon={Link2} title="暂无集成" description="create a source or identity connector first" />
-            ) : (
-            items.map((item) => {
-              const meta = TYPE_META[item.type as IntegrationType] ?? {
-                label: item.type,
-                icon: Link2,
-                description: "未知类型",
-                className: "bg-[var(--bg-card)] text-[var(--text-primary)]",
-                fields: [],
-              };
-              const Icon = meta.icon;
-
-              return (
-                <div
-                  key={item.id}
-                  className="grid gap-px bg-[var(--border)] xl:grid-cols-[minmax(0,1fr)_140px_120px_180px_160px]"
-                >
-                  <div className="bg-[var(--bg-card)] px-5 py-5">
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center border-[3px] border-[var(--border)] bg-[var(--bg-elevated)]">
-                        <Icon size={16} strokeWidth={2.6} />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="truncate font-sans text-xl font-black text-[var(--text-primary)]">{item.name}</p>
-                        <p className="mt-2 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--text-secondary)]">
-                          {meta.description}
-                        </p>
-                        <p className="mt-2 font-mono text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-muted)]">
-                          {item.id}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="bg-[var(--bg-card)] px-5 py-5">
-                    <ConsoleBadge className={meta.className}>
-                      {meta.label}
-                    </ConsoleBadge>
-                  </div>
-                  <div className="bg-[var(--bg-card)] px-5 py-5">
-                    <ConsoleBadge tone={item.active ? "success" : "default"}>
-                      {item.active ? "active" : "disabled"}
-                    </ConsoleBadge>
-                  </div>
-                  <div className="bg-[var(--bg-card)] px-5 py-5 font-mono text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">
-                    {new Date(item.createdAt).toLocaleString("zh-CN", { hour12: false })}
-                  </div>
-                  <div className="bg-[var(--bg-card)] px-5 py-5">
-                    <div className="flex gap-3">
-                      <ConsoleIconButton
-                        type="button"
-                        onClick={() => void handleToggle(item)}
-                        title={item.active ? "停用" : "启用"}
-                      >
-                        {item.active ? <ToggleRight size={16} strokeWidth={2.6} /> : <ToggleLeft size={16} strokeWidth={2.6} />}
-                      </ConsoleIconButton>
-                      <ConsoleButton type="button" tone="danger" onClick={() => void handleDelete(item.id, item.name)} className="h-11 px-4 tracking-[0.16em]">
-                        <Trash2 size={14} strokeWidth={2.6} />
-                        删除
-                      </ConsoleButton>
-                    </div>
-                  </div>
+          return (
+            <ConsoleListRow
+              key={item.id}
+              icon={meta.icon}
+              name={item.name}
+              description={meta.description}
+              detailId={item.id}
+              date={new Date(item.createdAt).toLocaleString("zh-CN", { hour12: false })}
+              badges={[
+                { label: meta.label, className: meta.className },
+                { label: item.active ? "active" : "disabled", tone: item.active ? "success" : "default" },
+              ]}
+              columns={TABLE_COLUMNS}
+              actions={
+                <div className="flex gap-3">
+                  <ConsoleIconButton
+                    type="button"
+                    onClick={() => void handleToggle(item)}
+                    title={item.active ? "停用" : "启用"}
+                  >
+                    {item.active ? <ToggleRight size={16} strokeWidth={2.6} /> : <ToggleLeft size={16} strokeWidth={2.6} />}
+                  </ConsoleIconButton>
+                  <ConsoleButton type="button" tone="danger" onClick={() => void handleDelete(item.id, item.name)} className="h-11 px-4 tracking-[0.16em]">
+                    <Trash2 size={14} strokeWidth={2.6} />
+                    删除
+                  </ConsoleButton>
                 </div>
-              );
-            })
-          )}
-        </div>
-      </ConsolePanel>
+              }
+            />
+          );
+        })}
+      </ConsoleTableShell>
     </div>
   );
 }

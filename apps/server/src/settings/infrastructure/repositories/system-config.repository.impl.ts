@@ -1,14 +1,15 @@
 import { Injectable, Inject, Scope } from '@nestjs/common';
 import { REQUEST } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, type FindManyOptions, type FindOneOptions } from 'typeorm';
 import { SystemConfig } from '../../entities/system-config.entity';
 import { ISystemConfigRepository } from '../../domain/repositories/system-config.repository.interface';
+import type { RepositoryRequest } from '../../../common/repository-request.interface';
 
 @Injectable({ scope: Scope.REQUEST })
 export class SystemConfigRepositoryImpl implements ISystemConfigRepository {
   constructor(
-    @Inject(REQUEST) private readonly request: any,
+    @Inject(REQUEST) private readonly request: RepositoryRequest,
     @InjectRepository(SystemConfig)
     private readonly defaultRepo: Repository<SystemConfig>,
   ) {}
@@ -23,11 +24,13 @@ export class SystemConfigRepositoryImpl implements ISystemConfigRepository {
     return this.defaultRepo;
   }
 
-  async find(options?: any): Promise<SystemConfig[]> {
-    return this.repo.find(options);
+  async find(options?: FindManyOptions<SystemConfig>): Promise<SystemConfig[]> {
+    return this.repo.find(options ?? {});
   }
 
-  async findOne(options: any): Promise<SystemConfig | null> {
+  async findOne(
+    options: FindOneOptions<SystemConfig>,
+  ): Promise<SystemConfig | null> {
     return this.repo.findOne(options);
   }
 

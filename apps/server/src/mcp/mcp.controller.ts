@@ -18,15 +18,16 @@ import { McpService } from './mcp.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CreateMcpKeyDto } from './dto/mcp-key.dto';
 import { McpSessionService } from './mcp-session.service';
+import type { AuthenticatedRequest } from '../common/authenticated-request.interface';
 
-type JsonRpcRequest = {
+interface JsonRpcRequest {
   id?: string | number | null;
   method?: string;
   params?: {
     name?: string;
     arguments?: unknown;
   };
-};
+}
 
 @Controller('api/mcp')
 export class McpController {
@@ -35,10 +36,6 @@ export class McpController {
     private readonly mcpSessionService: McpSessionService,
   ) {}
 
-  /**
-   * MCP SSE 建立连接
-   * GET /api/mcp/sse?key=ov-sk-xxx
-   */
   @Sse('sse')
   async sse(
     @Query('key') key: string,
@@ -95,9 +92,6 @@ export class McpController {
     });
   }
 
-  /**
-   * 接收客户端的 JSON-RPC 消息
-   */
   @Post('message')
   async handleMessage(
     @Query('sessionId') sessionId: string,
@@ -215,23 +209,24 @@ export class McpController {
     }
   }
 
-  // --- MCP Key Management ---
-
   @Post('keys')
   @UseGuards(JwtAuthGuard)
-  async createMyKey(@Req() req: any, @Body() dto: CreateMcpKeyDto) {
+  async createMyKey(
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: CreateMcpKeyDto,
+  ) {
     return this.mcpService.createKey(req.user.id, req.user.tenantId, dto.name);
   }
 
   @Get('keys')
   @UseGuards(JwtAuthGuard)
-  async getMyKeys(@Req() req: any) {
+  async getMyKeys(@Req() req: AuthenticatedRequest) {
     return this.mcpService.getKeysByUser(req.user.id);
   }
 
   @Delete('keys/:id')
   @UseGuards(JwtAuthGuard)
-  async deleteMyKey(@Req() req: any, @Param('id') id: string) {
+  async deleteMyKey(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.mcpService.deleteKey(id, req.user.id);
   }
 }

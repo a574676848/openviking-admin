@@ -1,5 +1,5 @@
 import { Injectable, OnModuleDestroy, Logger } from '@nestjs/common';
-import { DataSource, DataSourceOptions } from 'typeorm';
+import { DataSource } from 'typeorm';
 import { User } from '../users/entities/user.entity';
 import { Tenant } from '../tenant/entities/tenant.entity';
 import { KnowledgeNode } from '../knowledge-tree/entities/knowledge-node.entity';
@@ -8,15 +8,19 @@ import { ImportTask } from '../import-task/entities/import-task.entity';
 import { KnowledgeBase } from '../knowledge-base/entities/knowledge-base.entity';
 import { Integration } from '../tenant/entities/integration.entity';
 
+interface DbConfig {
+  host?: string;
+  port?: number;
+  username?: string;
+  password?: string;
+  database?: string;
+}
+
 @Injectable()
 export class DynamicDataSourceService implements OnModuleDestroy {
   private readonly logger = new Logger(DynamicDataSourceService.name);
   private pool = new Map<string, DataSource>();
 
-  /**
-   * 生产级：显式声明业务实体清单
-   * 避免使用不稳定的 glob 物理路径扫描
-   */
   private readonly CORE_ENTITIES = [
     User,
     Tenant,
@@ -29,7 +33,7 @@ export class DynamicDataSourceService implements OnModuleDestroy {
 
   async getTenantDataSource(
     tenantId: string,
-    dbConfig: any,
+    dbConfig: DbConfig,
   ): Promise<DataSource> {
     if (this.pool.has(tenantId)) {
       const ds = this.pool.get(tenantId)!;
@@ -48,11 +52,11 @@ export class DynamicDataSourceService implements OnModuleDestroy {
       username: dbConfig.username,
       password: dbConfig.password,
       database: dbConfig.database,
-      entities: this.CORE_ENTITIES, // 显式引用，严禁硬编码路径
+      entities: this.CORE_ENTITIES,
       synchronize: false,
       logging: ['error'],
       extra: {
-        max: 10, // 连接池限制
+        max: 10,
         idleTimeoutMillis: 30000,
       },
     });
@@ -62,8 +66,9 @@ export class DynamicDataSourceService implements OnModuleDestroy {
       this.pool.set(tenantId, ds);
       return ds;
     } catch (err) {
+      const message = err instanceof Error ? err.message : '未知错误';
       this.logger.error(
-        `Failed to connect to LARGE tenant DB [${tenantId}]: ${err.message}`,
+        `Failed to connect to LARGE tenant DB [${tenantId}]: ${message}`,
       );
       throw err;
     }

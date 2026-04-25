@@ -6,7 +6,6 @@ import {
 } from '@nestjs/common';
 import { KnowledgeBase } from './entities/knowledge-base.entity';
 import { CreateKnowledgeBaseDto } from './dto/create-kb.dto';
-import { UpdateKnowledgeBaseDto } from './dto/update-kb.dto';
 import { TenantService } from '../tenant/tenant.service';
 import { KNOWLEDGE_BASE_REPOSITORY } from './domain/repositories/knowledge-base.repository.interface';
 import type { IKnowledgeBaseRepository } from './domain/repositories/knowledge-base.repository.interface';
@@ -33,7 +32,8 @@ export class KnowledgeBaseService {
     const tenant = await this.tenantService.findOne(dto.tenantId);
     const currentCount = await this.kbRepo.count(dto.tenantId);
 
-    const maxDocs = tenant.quota?.maxDocs || 0;
+    const maxDocs =
+      (tenant.quota as Record<string, number> | undefined)?.maxDocs || 0;
     if (maxDocs > 0 && currentCount >= maxDocs) {
       throw new ForbiddenException(
         `已达到租户知识库配额上限 (${maxDocs})，请联系管理员扩容`,
@@ -46,7 +46,7 @@ export class KnowledgeBaseService {
 
   async update(
     id: string,
-    attrs: Partial<KnowledgeBase> | UpdateKnowledgeBaseDto,
+    attrs: Partial<KnowledgeBase>,
     tenantId: string | null,
   ) {
     const kb = await this.findOne(id, tenantId);

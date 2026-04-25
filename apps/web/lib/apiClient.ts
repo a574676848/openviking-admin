@@ -1,5 +1,5 @@
 type JsonBody = BodyInit | Record<string, unknown> | unknown[] | null | undefined;
-import { clearSessionToken, readSessionToken } from "./session";
+import { destroySession, readSessionToken } from "./session";
 
 type ApiErrorPayload = {
   message?: string;
@@ -56,8 +56,8 @@ export const apiClient = {
 
     if (!response.ok) {
       if (response.status === 401 && typeof window !== "undefined") {
-        clearSessionToken();
-        window.location.assign("/login");
+        destroySession();
+        return {} as T;
       }
       const errorData = await readErrorPayload(response);
       throw new ApiError(response.status, errorData.message || "请求失败", errorData);

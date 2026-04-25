@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsNumber, IsUUID } from 'class-validator';
+import { IsString, IsOptional, IsNumber } from 'class-validator';
 
 export class CreateNodeDto {
   @IsString()

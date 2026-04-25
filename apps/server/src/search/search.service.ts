@@ -1,4 +1,4 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable, Inject, Logger } from '@nestjs/common';
 import { SEARCH_LOG_REPOSITORY } from './domain/repositories/search-log.repository.interface';
 import type { ISearchLogRepository } from './domain/repositories/search-log.repository.interface';
 import { IKnowledgeNodeRepository } from '../knowledge-tree/domain/repositories/knowledge-node.repository.interface';
@@ -11,8 +11,34 @@ export interface FindParams {
   scoreThreshold?: number;
 }
 
+export interface OVSearchResource {
+  uri: string;
+  score: number;
+  content?: string;
+  title?: string;
+  abstract?: string;
+  [key: string]: unknown;
+}
+
+interface OVSearchResponse {
+  result?: {
+    resources: OVSearchResource[];
+  };
+}
+
+interface RerankResult {
+  index: number;
+  relevance_score: number;
+}
+
+interface RerankResponse {
+  results?: RerankResult[];
+}
+
 @Injectable()
 export class SearchService {
+  private readonly logger = new Logger(SearchService.name);
+
   constructor(
     @Inject(SEARCH_LOG_REPOSITORY)
     private readonly logRepo: ISearchLogRepository,
@@ -31,9 +57,6 @@ export class SearchService {
     };
   }
 
-  /**
-   * Phase 2.2: Rerank 二阶段强化检索
-   */
   async find(
     params: FindParams,
     tenantId: string,
@@ -42,13 +65,11 @@ export class SearchService {
     const config = await this.settings.resolveOVConfig(tenantId);
     const start = Date.now();
 
-    // 1. ACL 权限前置过滤 (Repository 层)
     const allowedUris = await this.nodeRepo.findAllowedUris(tenantId, user);
 
-    // 2. Stage 1: 向量召回
     const stage1TopK = config.rerankEndpoint ? 20 : params.topK || 5;
 
-    const body: any = {
+    const body: Record<string, unknown> = {
       query: params.query,
       top_k: stage1TopK,
       score_threshold: params.scoreThreshold || 0.3,
@@ -62,10 +83,9 @@ export class SearchService {
       body: JSON.stringify(body),
     });
 
-    const data = await res.json();
+    const data = (await res.json()) as OVSearchResponse;
     let resources = data?.result?.resources ?? [];
 
-    // 3. Stage 2: Rerank 重排序
     if (config.rerankEndpoint && resources.length > 0) {
       try {
         const controller = new AbortController();
@@ -77,19 +97,19 @@ export class SearchService {
           signal: controller.signal,
           body: JSON.stringify({
             query: params.query,
-            documents: resources.map((r: any) => r.content || r.title || ''),
+            documents: resources.map((r) => r.content || r.title || ''),
             model: config.rerankModel,
           }),
         });
         clearTimeout(timeoutId);
 
         if (rerankRes.ok) {
-          const rerankData = await rerankRes.json();
+          const rerankData = (await rerankRes.json()) as RerankResponse;
           const results = rerankData.results || [];
 
           resources = resources
-            .map((r: any, i: number) => {
-              const rerankMatch = results.find((item: any) => item.index === i);
+            .map((r, i) => {
+              const rerankMatch = results.find((item) => item.index === i);
               return {
                 ...r,
                 stage1Score: r.score,
@@ -97,21 +117,20 @@ export class SearchService {
                 reranked: true,
               };
             })
-            .sort((a: any, b: any) => b.score - a.score);
+            .sort((a, b) => b.score - a.score);
 
           resources = resources.slice(0, params.topK || 5);
         }
       } catch (err) {
-        console.error(
-          'Rerank failed, falling back to Stage 1 results:',
-          err.message,
+        const message = err instanceof Error ? err.message : '未知错误';
+        this.logger.warn(
+          `Rerank failed, falling back to Stage 1 results: ${message}`,
         );
       }
     }
 
     const latency = Date.now() - start;
 
-    // 记录分析日志
     await this.logRepo.save({
       tenantId,
       query: params.query,
@@ -132,7 +151,7 @@ export class SearchService {
       headers: await this.getHeaders(tenantId),
       body: JSON.stringify({ pattern, uri, case_insensitive: true }),
     });
-    return res.json();
+    return res.json() as Promise<Record<string, unknown>>;
   }
 
   async getAnalysis(tenantId: string | null) {

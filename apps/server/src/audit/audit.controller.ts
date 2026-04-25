@@ -1,8 +1,8 @@
 import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { TenantGuard } from '../common/tenant.guard';
-import { Roles } from '../common/roles.decorator';
 import { AuditService } from './audit.service';
+import type { AuthenticatedRequest } from '../common/authenticated-request.interface';
 
 @UseGuards(JwtAuthGuard, TenantGuard)
 @Controller('audit')
@@ -11,7 +11,7 @@ export class AuditController {
 
   @Get()
   findAll(
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
     @Query('action') action?: string,
@@ -30,7 +30,7 @@ export class AuditController {
   }
 
   @Get('stats')
-  stats(@Req() req: any) {
+  stats(@Req() req: AuthenticatedRequest) {
     return this.svc.getActionStats(req.tenantScope);
   }
 }

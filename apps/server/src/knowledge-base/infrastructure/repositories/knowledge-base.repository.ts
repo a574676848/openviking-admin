@@ -4,11 +4,12 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { KnowledgeBase } from '../../entities/knowledge-base.entity';
 import { IKnowledgeBaseRepository } from '../../domain/repositories/knowledge-base.repository.interface';
+import type { RepositoryRequest } from '../../../common/repository-request.interface';
 
 @Injectable({ scope: Scope.REQUEST })
 export class TypeOrmKnowledgeBaseRepository implements IKnowledgeBaseRepository {
   constructor(
-    @Inject(REQUEST) private readonly request: any,
+    @Inject(REQUEST) private readonly request: RepositoryRequest,
     @InjectRepository(KnowledgeBase)
     private readonly defaultRepo: Repository<KnowledgeBase>,
   ) {}
@@ -34,13 +35,13 @@ export class TypeOrmKnowledgeBaseRepository implements IKnowledgeBaseRepository 
     id: string,
     tenantId?: string | null,
   ): Promise<KnowledgeBase | null> {
-    const where: any = { id };
+    const where: Record<string, string> = { id };
     if (tenantId) where.tenantId = tenantId;
     return this.repo.findOne({ where });
   }
 
-  async count(options?: any): Promise<number> {
-    const where = typeof options === 'string' ? { tenantId: options } : options;
+  async count(tenantId?: string | null): Promise<number> {
+    const where = tenantId ? { tenantId } : {};
     return this.repo.count({ where });
   }
 

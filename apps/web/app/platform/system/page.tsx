@@ -64,7 +64,7 @@ export default function SystemPage() {
       setStats(sData);
       setLastRefresh(new Date());
     } catch (e) {
-      console.error(e);
+      if (process.env.NODE_ENV === "development") console.error(e);
     } finally {
       setLoading(false);
     }

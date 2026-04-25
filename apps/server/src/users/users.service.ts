@@ -24,7 +24,7 @@ export class UsersService {
   async create(
     dto: CreateUserDto & { tenantId?: string; passwordHash?: string },
   ) {
-    const user = this.userRepo.create(dto as any);
+    const user = this.userRepo.create(dto as Partial<User>);
     return this.userRepo.save(user);
   }
 

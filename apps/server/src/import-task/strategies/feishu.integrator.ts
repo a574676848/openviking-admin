@@ -5,6 +5,7 @@ import {
 } from './platform-integrator.interface';
 import { Integration } from '../../tenant/entities/integration.entity';
 import { PLATFORM_ENDPOINTS } from '../constants';
+import type { FeishuAppTokenResponse } from '../../common/external-api.types';
 
 @Injectable()
 export class FeishuIntegrator implements IPlatformIntegrator {
@@ -24,7 +25,7 @@ export class FeishuIntegrator implements IPlatformIntegrator {
       body: JSON.stringify({ app_id: appId, app_secret: appSecret }),
     });
 
-    const data = await res.json();
+    const data = (await res.json()) as FeishuAppTokenResponse;
     if (!res.ok) throw new Error(`飞书鉴权失败: ${data.msg}`);
 
     return {

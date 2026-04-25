@@ -1,14 +1,23 @@
 import { Injectable, Inject, Scope } from '@nestjs/common';
 import { REQUEST } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { Tenant } from '../../entities/tenant.entity';
 import { ITenantRepository } from '../../domain/repositories/tenant.repository.interface';
+
+interface TenantRequest {
+  tenantQueryRunner?: {
+    manager: {
+      getRepository: (entity: typeof Tenant) => Repository<Tenant>;
+    };
+  };
+  tenantDataSource?: DataSource;
+}
 
 @Injectable({ scope: Scope.REQUEST })
 export class TenantRepository implements ITenantRepository {
   constructor(
-    @Inject(REQUEST) private readonly request: any,
+    @Inject(REQUEST) private readonly request: TenantRequest,
     @InjectRepository(Tenant)
     private readonly defaultRepo: Repository<Tenant>,
   ) {}

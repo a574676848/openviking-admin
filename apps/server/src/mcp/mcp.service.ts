@@ -9,13 +9,60 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { UserMcpKey } from './entities/user-mcp-key.entity';
 import { Tenant } from '../tenant/entities/tenant.entity';
 import { SystemConfig } from '../settings/entities/system-config.entity';
 import { EncryptionService } from '../common/encryption.service';
-import { OVClientService } from '../common/ov-client.service';
+import {
+  OVClientService,
+  type OVConnection,
+} from '../common/ov-client.service';
 import { MCP_KEY_REPOSITORY } from './domain/repositories/mcp-key.repository.interface';
 import type { IMcpKeyRepository } from './domain/repositories/mcp-key.repository.interface';
+
+interface OVConfig {
+  baseUrl: string;
+  apiKey: string;
+  account: string;
+  rerankEndpoint?: string;
+  rerankModel?: string;
+}
+
+interface SearchArgs {
+  query: string;
+  limit?: number;
+  score_threshold?: number;
+}
+
+interface GrepArgs {
+  pattern: string;
+  uri?: string;
+  case_insensitive?: boolean;
+}
+
+interface ResourceArgs {
+  uri?: string;
+  depth?: number;
+}
+
+interface OVResource {
+  uri: string;
+  score: number;
+  abstract?: string;
+  content?: string;
+  title?: string;
+}
+
+interface OVGrepMatch {
+  line: number;
+  uri: string;
+  content: string;
+}
+
+interface OVFsNode {
+  uri: string;
+  isDir: boolean;
+  rel_path?: string;
+}
 
 @Injectable()
 export class McpService {
@@ -32,32 +79,26 @@ export class McpService {
     private readonly ovClient: OVClientService,
   ) {}
 
-  /**
-   * 验证用户 MCP Key 并获取其租户对应的 OV 配置
-   */
   async validateKeyAndGetConfig(apiKey: string) {
     const keyRecord = await this.mcpKeyRepo.findOne({ where: { apiKey } });
     if (!keyRecord) {
       throw new UnauthorizedException('无效的 MCP API Key');
     }
 
-    // 更新最后使用时间
     await this.mcpKeyRepo.update(keyRecord.id, { lastUsedAt: new Date() });
 
-    // 获取租户配置
     const tenant = await this.tenantRepo.findOne({
       where: { tenantId: keyRecord.tenantId },
     });
 
-    let ovConfig: any = null;
+    let ovConfig: OVConfig | null = null;
     if (tenant?.ovConfig?.apiKey) {
       ovConfig = {
         ...tenant.ovConfig,
         apiKey: this.encryptionService.decrypt(tenant.ovConfig.apiKey),
         account: tenant.vikingAccount || tenant.ovConfig.account || 'default',
-      };
+      } as OVConfig;
     } else {
-      // 尝试获取系统默认配置
       const defaultConfig = await this.configRepo.findOne({
         where: { key: 'DEFAULT_OV_CONFIG' },
       });
@@ -65,9 +106,9 @@ export class McpService {
         try {
           const parsed = JSON.parse(
             this.encryptionService.decrypt(defaultConfig.value),
-          );
+          ) as OVConfig;
           ovConfig = parsed;
-        } catch (e) {
+        } catch {
           this.logger.error('Failed to parse default OV config');
         }
       }
@@ -84,9 +125,6 @@ export class McpService {
     };
   }
 
-  /**
-   * 生成新的 MCP Key
-   */
   async createKey(userId: string, tenantId: string, name: string) {
     const count = await this.mcpKeyRepo.count({ where: { userId } });
     if (count >= 10)
@@ -104,9 +142,6 @@ export class McpService {
     return await this.mcpKeyRepo.save(key);
   }
 
-  /**
-   * 获取用户的所有 Keys
-   */
   async getKeysByUser(userId: string) {
     return this.mcpKeyRepo.find({
       where: { userId },
@@ -114,9 +149,6 @@ export class McpService {
     });
   }
 
-  /**
-   * 删除 Key
-   */
   async deleteKey(id: string, userId: string) {
     const key = await this.mcpKeyRepo.findOne({ where: { id, userId } });
     if (!key) throw new NotFoundException('Key 不存在或无权操作');
@@ -124,45 +156,61 @@ export class McpService {
     return { success: true };
   }
 
-  /**
-   * 处理 MCP 工具调用请求
-   */
-  async handleToolCall(apiKey: string, name: string, args: any) {
+  async handleToolCall(apiKey: string, name: string, args: unknown) {
     const { ovConfig, tenantId } = await this.validateKeyAndGetConfig(apiKey);
 
-    const connection = {
+    const connection: OVConnection = {
       baseUrl: ovConfig.baseUrl,
       apiKey: ovConfig.apiKey,
       account: ovConfig.account,
     };
 
-    // 权限隔离：强制注入租户 Scope
-    // 假设每个租户在 OV 里的资源路径是 viking://resources/tenants/{tenantId}/
     const tenantScope = `viking://resources/tenants/${tenantId}/`;
 
     try {
       switch (name) {
         case 'search_knowledge':
-          return await this.searchKnowledge(connection, tenantScope, args);
+          return await this.searchKnowledge(
+            connection,
+            tenantScope,
+            args as SearchArgs,
+          );
         case 'grep_knowledge':
-          return await this.grepKnowledge(connection, tenantScope, args);
+          return await this.grepKnowledge(
+            connection,
+            tenantScope,
+            args as GrepArgs,
+          );
         case 'list_resources':
-          return await this.listResources(connection, tenantScope, args);
+          return await this.listResources(
+            connection,
+            tenantScope,
+            args as ResourceArgs,
+          );
         case 'tree_resources':
-          return await this.treeResources(connection, tenantScope, args);
+          return await this.treeResources(
+            connection,
+            tenantScope,
+            args as ResourceArgs,
+          );
         default:
           throw new Error(`未知工具: ${name}`);
       }
     } catch (err) {
-      this.logger.error(`MCP Tool Call Error [${name}]: ${err.message}`);
+      const message = err instanceof Error ? err.message : '未知错误';
+      this.logger.error(`MCP Tool Call Error [${name}]: ${message}`);
       return {
-        content: [{ type: 'text', text: `❌ 调用失败: ${err.message}` }],
+        content: [{ type: 'text', text: `调用失败: ${message}` }],
         isError: true,
       };
     }
   }
 
-  private async searchKnowledge(conn: any, scope: string, args: any) {
+  private async searchKnowledge(
+    conn: OVConnection,
+    scope: string,
+    args: SearchArgs,
+  ) {
     const { query, limit, score_threshold } = args;
     const res = await this.ovClient.request(
       conn,
@@ -170,20 +218,20 @@ export class McpService {
       'POST',
       {
         query,
-        scope, // 强制覆盖为租户 Scope
+        scope,
         limit: limit ?? 5,
         score_threshold: score_threshold ?? 0.5,
       },
     );
 
-    const result = res.result;
+    const result = res.result as { resources: OVResource[] } | undefined;
     if (!result || result.resources.length === 0) {
       return {
         content: [{ type: 'text', text: `未找到与"${query}"相关的知识。` }],
       };
     }
 
-    const lines = result.resources.map((r: any, i: number) => {
+    const lines = result.resources.map((r, i) => {
       return [
         `## ${i + 1}. [score=${r.score.toFixed(3)}]`,
         `**URI**: ${r.uri}`,
@@ -201,9 +249,12 @@ export class McpService {
     };
   }
 
-  private async grepKnowledge(conn: any, scope: string, args: any) {
+  private async grepKnowledge(
+    conn: OVConnection,
+    scope: string,
+    args: GrepArgs,
+  ) {
     const { pattern, uri, case_insensitive } = args;
-    // 确保 uri 在租户范围内
     const targetUri = uri && uri.startsWith(scope) ? uri : scope;
 
     const res = await this.ovClient.request(
@@ -218,7 +269,8 @@ export class McpService {
       },
     );
 
-    const matches = res.result?.matches || [];
+    const result = res.result as { matches?: OVGrepMatch[] } | undefined;
+    const matches: OVGrepMatch[] = result?.matches || [];
     if (matches.length === 0) {
       return {
         content: [{ type: 'text', text: `未找到包含"${pattern}"的内容。` }],
@@ -227,7 +279,7 @@ export class McpService {
 
     const lines = matches
       .slice(0, 20)
-      .map((m: any) => `L${m.line} | ${m.uri}\n  > ${m.content.trim()}`);
+      .map((m) => `L${m.line} | ${m.uri}\n  > ${m.content.trim()}`);
 
     return {
       content: [
@@ -239,7 +291,11 @@ export class McpService {
     };
   }
 
-  private async listResources(conn: any, scope: string, args: any) {
+  private async listResources(
+    conn: OVConnection,
+    scope: string,
+    args: ResourceArgs,
+  ) {
     const { uri } = args;
     const targetUri = uri && uri.startsWith(scope) ? uri : scope;
     const encoded = encodeURIComponent(targetUri);
@@ -248,9 +304,9 @@ export class McpService {
       `/api/v1/fs/ls?uri=${encoded}`,
     );
 
-    const nodes = res.result || [];
-    const lines = nodes.map((n: any) => {
-      const icon = n.isDir ? '📁' : '📄';
+    const nodes: OVFsNode[] = (res.result as OVFsNode[]) || [];
+    const lines = nodes.map((n) => {
+      const icon = n.isDir ? '[DIR]' : '[FILE]';
       return `${icon} ${n.uri}`;
     });
 
@@ -264,7 +320,11 @@ export class McpService {
     };
   }
 
-  private async treeResources(conn: any, scope: string, args: any) {
+  private async treeResources(
+    conn: OVConnection,
+    scope: string,
+    args: ResourceArgs,
+  ) {
     const { uri, depth } = args;
     const targetUri = uri && uri.startsWith(scope) ? uri : scope;
     const encoded = encodeURIComponent(targetUri);
@@ -273,10 +333,10 @@ export class McpService {
       `/api/v1/fs/tree?uri=${encoded}&depth=${depth ?? 2}`,
     );
 
-    const nodes = res.result || [];
-    const lines = nodes.map((n: any) => {
+    const nodes: OVFsNode[] = (res.result as OVFsNode[]) || [];
+    const lines = nodes.map((n) => {
       const level = (n.rel_path || '').split('/').length - 1;
-      const icon = n.isDir ? '📁' : '📄';
+      const icon = n.isDir ? '[DIR]' : '[FILE]';
       const name = n.uri.split('/').pop() || n.uri;
       return '  '.repeat(level > 0 ? level : 0) + `${icon} ${name}`;
     });

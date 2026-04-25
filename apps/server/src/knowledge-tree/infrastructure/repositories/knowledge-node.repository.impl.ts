@@ -1,14 +1,15 @@
 import { Injectable, Inject, Scope } from '@nestjs/common';
 import { REQUEST } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, type FindManyOptions, type FindOneOptions } from 'typeorm';
 import { KnowledgeNode } from '../../entities/knowledge-node.entity';
 import { IKnowledgeNodeRepository } from '../../domain/repositories/knowledge-node.repository.interface';
+import type { RepositoryRequest } from '../../../common/repository-request.interface';
 
 @Injectable({ scope: Scope.REQUEST })
 export class KnowledgeNodeRepositoryImpl implements IKnowledgeNodeRepository {
   constructor(
-    @Inject(REQUEST) private readonly request: any,
+    @Inject(REQUEST) private readonly request: RepositoryRequest,
     @InjectRepository(KnowledgeNode)
     private readonly defaultRepo: Repository<KnowledgeNode>,
   ) {}
@@ -25,18 +26,22 @@ export class KnowledgeNodeRepositoryImpl implements IKnowledgeNodeRepository {
     return this.defaultRepo;
   }
 
-  async find(options: any): Promise<KnowledgeNode[]> {
+  async find(
+    options: FindManyOptions<KnowledgeNode>,
+  ): Promise<KnowledgeNode[]> {
     return this.repo.find(options);
   }
 
-  async findOne(options: any): Promise<KnowledgeNode | null> {
+  async findOne(
+    options: FindOneOptions<KnowledgeNode>,
+  ): Promise<KnowledgeNode | null> {
     return this.repo.findOne(options);
   }
 
   async save(node: Partial<KnowledgeNode>): Promise<KnowledgeNode> {
-    if ((node as any).id) {
+    if (node.id) {
       const existing = await this.repo.findOne({
-        where: { id: (node as any).id },
+        where: { id: node.id },
       });
       if (existing) {
         return this.repo.save({ ...existing, ...node });

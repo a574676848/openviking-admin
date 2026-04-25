@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import ForceGraph2D, { type ForceGraphLink, type ForceGraphNode } from "react-force-graph-2d";
-import { ArrowRight, Box, Crosshair, Network, Radar, RefreshCw } from "lucide-react";
+import { Box, Crosshair, Network, Radar, RefreshCw } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 import {
   ConsoleButton,
@@ -11,8 +11,40 @@ import {
   ConsoleMetricCard,
   ConsolePageHeader,
   ConsolePanel,
-  ConsolePanelHeader,
+  ConsoleInspectorStack,
+  ConsoleTelemetryPanel,
+  ConsoleStatsGrid,
 } from "@/components/console/primitives";
+
+/** Neo 主题色板 SSR 兜底值 — 与 CSS 自定义属性语义一致 */
+const SSR_GRAPH_COLORS = {
+  particle: "#0011FF",   // --brand
+  nodeActive: "#FFE600", // --warning
+  nodeNeighbor: "#FFFFFF", // --bg-card
+  nodeDefault: "rgba(255,255,255,0.88)",
+  stroke: "#000",        // --text-primary
+  text: "#000",          // --text-primary
+  linkActive: "#000",    // --text-primary
+  linkMuted: "rgba(0,0,0,0.12)",
+} as const;
+
+/** 从 CSS 自定义属性读取 Neo 主题色板，用于 Canvas 渲染层 */
+function readGraphColors(): Record<keyof typeof SSR_GRAPH_COLORS, string> {
+  if (typeof window === "undefined") {
+    return SSR_GRAPH_COLORS;
+  }
+  const style = getComputedStyle(document.documentElement);
+  return {
+    particle: style.getPropertyValue("--brand").trim() || SSR_GRAPH_COLORS.particle,
+    nodeActive: style.getPropertyValue("--warning").trim() || SSR_GRAPH_COLORS.nodeActive,
+    nodeNeighbor: style.getPropertyValue("--bg-card").trim() || SSR_GRAPH_COLORS.nodeNeighbor,
+    nodeDefault: SSR_GRAPH_COLORS.nodeDefault,
+    stroke: style.getPropertyValue("--text-primary").trim() || SSR_GRAPH_COLORS.stroke,
+    text: style.getPropertyValue("--text-primary").trim() || SSR_GRAPH_COLORS.text,
+    linkActive: style.getPropertyValue("--text-primary").trim() || SSR_GRAPH_COLORS.linkActive,
+    linkMuted: SSR_GRAPH_COLORS.linkMuted,
+  };
+}
 
 interface KnowledgeBase {
   id: string;
@@ -125,6 +157,16 @@ export default function GraphPage() {
 
   const density = data && data.nodes.length > 0 ? (data.links.length / data.nodes.length).toFixed(2) : "0.00";
 
+  const graphColors = readGraphColors();
+
+  const inspectorFields = activeNode
+    ? [
+        { label: "Label", value: activeNode.name },
+        { label: "Node ID", value: activeNode.id, mono: true },
+        { label: "Anchor URI", value: activeNode.vikingUri || "viking://unmapped", mono: true, tone: "brand" as const },
+      ]
+    : undefined;
+
   return (
     <div className="flex min-h-full flex-col gap-8">
       <ConsolePageHeader
@@ -154,7 +196,7 @@ export default function GraphPage() {
         }
       />
 
-      <section className="grid grid-cols-1 gap-[var(--border-width)] border-[var(--border-width)] border-[var(--border)] bg-[var(--border)] lg:grid-cols-4">
+      <ConsoleStatsGrid className="lg:grid-cols-4">
         <ConsoleMetricCard label="Nodes" value={(data?.nodes.length ?? 0).toLocaleString()} />
         <ConsoleMetricCard label="Links" value={(data?.links.length ?? 0).toLocaleString()} tone="brand" />
         <ConsoleMetricCard label="Density" value={density} tone="warning" />
@@ -163,7 +205,7 @@ export default function GraphPage() {
           value={activeNode ? String(neighbors.size).padStart(2, "0") : "00"}
           tone="danger"
         />
-      </section>
+      </ConsoleStatsGrid>
 
       <section className="grid grid-cols-1 gap-8 xl:grid-cols-[1.15fr_0.85fr]">
         <ConsolePanel className="relative min-h-[640px] overflow-hidden">
@@ -187,11 +229,11 @@ export default function GraphPage() {
               linkDirectionalParticles={2}
               linkDirectionalParticleSpeed={0.006}
               linkDirectionalParticleWidth={2}
-              linkDirectionalParticleColor={() => "#0011FF"}
+              linkDirectionalParticleColor={() => graphColors.particle}
               linkColor={(link) => {
                 const sourceId = getLinkNodeId(link.source);
                 const targetId = getLinkNodeId(link.target);
-                return neighbors.has(sourceId) && neighbors.has(targetId) ? "#000" : "rgba(0,0,0,0.12)";
+                return neighbors.has(sourceId) && neighbors.has(targetId) ? graphColors.linkActive : graphColors.linkMuted;
               }}
               linkWidth={(link) => {
                 const sourceId = getLinkNodeId(link.source);
@@ -207,16 +249,16 @@ export default function GraphPage() {
                 const isActive = activeNode?.id === node.id;
                 const isNeighbor = neighbors.has(node.id);
 
-                ctx.fillStyle = isActive ? "#FFE600" : isNeighbor ? "#FFFFFF" : "rgba(255,255,255,0.88)";
+                ctx.fillStyle = isActive ? graphColors.nodeActive : isNeighbor ? graphColors.nodeNeighbor : graphColors.nodeDefault;
                 ctx.fillRect(node.x - dimensions[0] / 2, node.y - dimensions[1] / 2, dimensions[0], dimensions[1]);
 
                 ctx.lineWidth = 2 / globalScale;
-                ctx.strokeStyle = "#000";
+                ctx.strokeStyle = graphColors.stroke;
                 ctx.strokeRect(node.x - dimensions[0] / 2, node.y - dimensions[1] / 2, dimensions[0], dimensions[1]);
 
                 ctx.textAlign = "center";
                 ctx.textBaseline = "middle";
-                ctx.fillStyle = "#000";
+                ctx.fillStyle = graphColors.text;
                 ctx.fillText(label, node.x, node.y);
 
                 node.__bckgDimensions = dimensions;
@@ -245,61 +287,43 @@ export default function GraphPage() {
             />
           )}
 
-          <div className="absolute bottom-4 left-4 flex items-center gap-3 border-[3px] border-[var(--border)] bg-black px-3 py-2 font-mono text-[10px] font-black uppercase tracking-[0.16em] text-white shadow-[4px_4px_0px_var(--brand)]">
+          <div className="absolute bottom-4 left-4 flex items-center gap-3 border-[3px] border-[var(--border)] bg-[var(--bg-inverse)] px-3 py-2 font-mono text-[10px] font-black uppercase tracking-[0.16em] text-[var(--bg-card)] shadow-[4px_4px_0px_var(--brand)]">
             {loading ? <RefreshCw size={12} strokeWidth={2.6} className="animate-spin" /> : <Radar size={12} strokeWidth={2.6} />}
             {loading ? "rendering graph" : "graph online"}
           </div>
         </ConsolePanel>
 
         <div className="flex flex-col gap-8">
-          <ConsolePanel className="p-6">
-            <ConsolePanelHeader eyebrow="Node Inspector" title="节点详情与跳转" />
-            {activeNode ? (
-              <div className="mt-6 space-y-4">
-                <div className="border-[3px] border-[var(--border)] bg-[var(--bg-elevated)] p-5">
-                  <p className="font-mono text-[10px] font-black uppercase tracking-[0.16em] text-[var(--text-muted)]">
-                    Label
-                  </p>
-                  <p className="mt-3 break-all font-sans text-3xl font-black text-[var(--text-primary)]">{activeNode.name}</p>
-                </div>
-                <div className="border-[3px] border-[var(--border)] bg-[var(--bg-card)] p-5">
-                  <p className="font-mono text-[10px] font-black uppercase tracking-[0.16em] text-[var(--text-muted)]">
-                    Node ID
-                  </p>
-                  <p className="mt-3 break-all font-mono text-xs font-bold text-[var(--text-secondary)]">{activeNode.id}</p>
-                </div>
-                <div className="border-[3px] border-[var(--border)] bg-[var(--bg-card)] p-5">
-                  <p className="font-mono text-[10px] font-black uppercase tracking-[0.16em] text-[var(--text-muted)]">
-                    Anchor URI
-                  </p>
-                  <p className="mt-3 break-all font-mono text-xs font-bold text-[var(--brand)]">
-                    {activeNode.vikingUri || "viking://unmapped"}
-                  </p>
-                </div>
-                <ConsoleButton
-                  type="button"
-                  onClick={() =>
-                    router.push(`/console/knowledge-tree?kbId=${selectedKb}&nodeId=${encodeURIComponent(activeNode.id)}`)
+          <ConsoleInspectorStack
+            eyebrow="Node Inspector"
+            title="节点详情与跳转"
+            fields={inspectorFields}
+            action={
+              activeNode
+                ? {
+                    label: "进入知识树定位",
+                    onClick: () =>
+                      router.push(
+                        `/console/knowledge-tree?kbId=${selectedKb}&nodeId=${encodeURIComponent(activeNode.id)}`,
+                      ),
                   }
-                  className="w-full justify-center py-4"
-                >
-                  进入知识树定位
-                  <ArrowRight size={14} strokeWidth={2.6} />
-                </ConsoleButton>
-              </div>
-            ) : (
-              <ConsoleEmptyState icon={Box} title="尚未选中节点" description="hover or click a node to inspect it" className="mt-6 py-10" />
-            )}
-          </ConsolePanel>
+                : undefined
+            }
+            emptyState={
+              !activeNode
+                ? { icon: Box, title: "尚未选中节点", description: "hover or click a node to inspect it" }
+                : undefined
+            }
+          />
 
-          <ConsolePanel className="p-6">
-            <ConsolePanelHeader eyebrow="Graph Rules" />
-            <div className="mt-6 space-y-4 font-mono text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">
-              <p>黄底节点 = 当前焦点</p>
-              <p>黑线 = 焦点邻接关系</p>
-              <p>蓝色粒子 = 关系方向流</p>
-            </div>
-          </ConsolePanel>
+          <ConsoleTelemetryPanel
+            eyebrow="Graph Rules"
+            rules={[
+              { text: "黄底节点 = 当前焦点" },
+              { text: "黑线 = 焦点邻接关系" },
+              { text: "蓝色粒子 = 关系方向流" },
+            ]}
+          />
         </div>
       </section>
     </div>

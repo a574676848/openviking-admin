@@ -7,26 +7,29 @@ import {
 } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { finalize } from 'rxjs/operators';
-import { QueryRunner } from 'typeorm';
+import type { QueryRunner } from 'typeorm';
+
+interface RequestWithQueryRunner {
+  tenantQueryRunner?: QueryRunner;
+}
 
 @Injectable()
 export class TenantCleanupInterceptor implements NestInterceptor {
   private readonly logger = new Logger(TenantCleanupInterceptor.name);
 
-  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
-    const request = context.switchToHttp().getRequest();
+  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
+    const request = context.switchToHttp().getRequest<RequestWithQueryRunner>();
 
     return next.handle().pipe(
-      finalize(async () => {
-        const qr: QueryRunner = request.tenantQueryRunner;
+      finalize(() => {
+        const qr = request.tenantQueryRunner;
         if (qr && !qr.isReleased) {
-          try {
-            await qr.release();
-          } catch (err) {
+          qr.release().catch((err: unknown) => {
+            const message = err instanceof Error ? err.message : '未知错误';
             this.logger.error(
-              `Failed to release tenant QueryRunner: ${err.message}`,
+              `Failed to release tenant QueryRunner: ${message}`,
             );
-          }
+          });
         }
       }),
     );

@@ -1,9 +1,13 @@
 import { Injectable, OnModuleInit, Inject } from '@nestjs/common';
-import { SystemConfig } from './entities/system-config.entity';
-import { AuditService } from '../audit/audit.service';
 import { ISystemConfigRepository } from './domain/repositories/system-config.repository.interface';
 import { TENANT_REPOSITORY } from '../tenant/domain/repositories/tenant.repository.interface';
 import type { ITenantRepository } from '../tenant/domain/repositories/tenant.repository.interface';
+import { AuditService } from '../audit/audit.service';
+
+interface AdminContext {
+  id: string;
+  username: string;
+}
 
 const DEFAULTS: Record<string, { value: string; description: string }> = {
   'search.top_k': { value: '5', description: '默认返回结果数量' },
@@ -31,6 +35,7 @@ const DEFAULTS: Record<string, { value: string; description: string }> = {
     description: '重排序模型名称',
   },
 };
+
 @Injectable()
 export class SettingsService implements OnModuleInit {
   constructor(
@@ -41,7 +46,6 @@ export class SettingsService implements OnModuleInit {
     private readonly auditService: AuditService,
   ) {}
 
-  // ...
   async resolveOVConfig(tenantId?: string | null) {
     const global = {
       baseUrl: await this.get('ov.base_url'),
@@ -92,7 +96,7 @@ export class SettingsService implements OnModuleInit {
     return this.repo.save({ key, value });
   }
 
-  async batchSet(updates: Record<string, string>, adminContext?: any) {
+  async batchSet(updates: Record<string, string>, adminContext?: AdminContext) {
     const results = [];
     for (const [key, value] of Object.entries(updates)) {
       results.push(await this.set(key, value));

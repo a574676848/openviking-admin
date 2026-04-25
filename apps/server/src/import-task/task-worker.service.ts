@@ -1,5 +1,4 @@
 import { Injectable, Logger, OnModuleInit, Inject } from '@nestjs/common';
-import { In } from 'typeorm';
 import { ImportTask } from './entities/import-task.entity';
 import { QUEUE_CONFIG } from './constants';
 import { SettingsService } from '../settings/settings.service';
@@ -10,6 +9,7 @@ import { DingTalkIntegrator } from './strategies/dingtalk.integrator';
 import { GitIntegrator } from './strategies/git.integrator';
 import { IMPORT_TASK_REPOSITORY } from './domain/repositories/import-task.repository.interface';
 import type { IImportTaskRepository } from './domain/repositories/import-task.repository.interface';
+import type { PlatformInjectConfig } from '../common/external-api.types';
 
 @Injectable()
 export class TaskWorkerService implements OnModuleInit {
@@ -34,7 +34,6 @@ export class TaskWorkerService implements OnModuleInit {
     this.startWorker();
   }
 
-  /** 容灾：系统重启时恢复僵尸任务 */
   private async recoverZombieTasks() {
     const zombies = await this.taskRepo.findAll(null);
     const runningZombies = zombies.filter((t) => t.status === 'running');
@@ -50,7 +49,9 @@ export class TaskWorkerService implements OnModuleInit {
   }
 
   private startWorker() {
-    setInterval(() => this.poll(), QUEUE_CONFIG.POLLING_INTERVAL_MS);
+    setInterval(() => {
+      void this.poll();
+    }, QUEUE_CONFIG.POLLING_INTERVAL_MS);
   }
 
   private async poll() {
@@ -73,7 +74,7 @@ export class TaskWorkerService implements OnModuleInit {
 
       for (const task of pendingTasks) {
         if (this.currentConcurrency < QUEUE_CONFIG.GLOBAL_MAX_CONCURRENCY) {
-          this.processTask(task);
+          void this.processTask(task);
         }
       }
     } finally {
@@ -101,7 +102,7 @@ export class TaskWorkerService implements OnModuleInit {
         rerankModel: rawConn.rerankModel || '',
       };
 
-      const injectBody: any = {
+      const injectBody: Record<string, unknown> = {
         path: task.sourceUrl,
         to: task.targetUri,
         reason: `Queue Task: ${task.id}`,
@@ -117,7 +118,7 @@ export class TaskWorkerService implements OnModuleInit {
         const strategy = integrators.find((s) => s.supports(integration.type));
 
         if (strategy) {
-          const resolved = await strategy.resolveConfig(
+          const resolved: PlatformInjectConfig = await strategy.resolveConfig(
             integration,
             task.sourceUrl,
           );
@@ -140,12 +141,13 @@ export class TaskWorkerService implements OnModuleInit {
         `<< [Task:${task.id.slice(0, 8)}] Successfully ingested.`,
       );
     } catch (err) {
+      const message = err instanceof Error ? err.message : '未知错误';
       this.logger.error(
-        `!! [Task:${task.id.slice(0, 8)}] Fatal failure: ${err.message}`,
+        `!! [Task:${task.id.slice(0, 8)}] Fatal failure: ${message}`,
       );
       await this.taskRepo.update(task.id, {
         status: 'failed',
-        errorMsg: err.message,
+        errorMsg: message,
         updatedAt: new Date(),
       });
     } finally {

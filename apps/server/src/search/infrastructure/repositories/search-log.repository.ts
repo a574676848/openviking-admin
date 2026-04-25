@@ -1,14 +1,23 @@
 import { Injectable, Inject, Scope } from '@nestjs/common';
 import { REQUEST } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, DataSource, type FindManyOptions } from 'typeorm';
 import { SearchLog } from '../../entities/search-log.entity';
 import { ISearchLogRepository } from '../../domain/repositories/search-log.repository.interface';
+
+interface TenantRequest {
+  tenantQueryRunner?: {
+    manager: {
+      getRepository: (entity: typeof SearchLog) => Repository<SearchLog>;
+    };
+  };
+  tenantDataSource?: DataSource;
+}
 
 @Injectable({ scope: Scope.REQUEST })
 export class SearchLogRepository implements ISearchLogRepository {
   constructor(
-    @Inject(REQUEST) private readonly request: any,
+    @Inject(REQUEST) private readonly request: TenantRequest,
     @InjectRepository(SearchLog)
     private readonly defaultRepo: Repository<SearchLog>,
   ) {}
@@ -31,11 +40,11 @@ export class SearchLogRepository implements ISearchLogRepository {
     return this.repo.create(log);
   }
 
-  async count(options?: any): Promise<number> {
+  async count(options?: FindManyOptions<SearchLog>): Promise<number> {
     return this.repo.count(options);
   }
 
-  async find(options?: any): Promise<SearchLog[]> {
+  async find(options?: FindManyOptions<SearchLog>): Promise<SearchLog[]> {
     return this.repo.find(options);
   }
 
@@ -46,7 +55,7 @@ export class SearchLogRepository implements ISearchLogRepository {
     if (tenantId) {
       query.where('l.tenantId = :tenantId', { tenantId });
     }
-    const result = await query.getRawOne();
+    const result = await query.getRawOne<{ avg: string | null }>();
     return result?.avg ? Number(result.avg) : 0;
   }
 
@@ -60,11 +69,9 @@ export class SearchLogRepository implements ISearchLogRepository {
     const hitCount = await this.repo.count({
       where: {
         ...where,
-        resultCount: 0, // 这里逻辑在 service 里是 Not(0)，我们这里保持简单，后面在 service 调用处微调
+        resultCount: 0,
       },
     });
-    // 注意：这里的 resultCount 逻辑需要 typeorm 的 Not，但在 repo 里我们尽量保持简单
-    // 实际实现建议在 repo 里注入 Not 或者在 service 里传 params
     const avgLatency = await this.getAverageLatency(tenantId);
 
     return { total, hitCount, avgLatency };

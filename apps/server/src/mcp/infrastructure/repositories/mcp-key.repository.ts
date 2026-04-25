@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, type FindManyOptions, type FindOneOptions } from 'typeorm';
 import { UserMcpKey } from '../../entities/user-mcp-key.entity';
-import { IMcpKeyRepository } from '../../domain/repositories/mcp-key.repository.interface';
+import type { IMcpKeyRepository } from '../../domain/repositories/mcp-key.repository.interface';
 
 @Injectable()
 export class TypeOrmMcpKeyRepository implements IMcpKeyRepository {
@@ -17,13 +17,13 @@ export class TypeOrmMcpKeyRepository implements IMcpKeyRepository {
   save(key: UserMcpKey) {
     return this.repo.save(key);
   }
-  find(options: any) {
+  find(options: FindManyOptions<UserMcpKey>) {
     return this.repo.find(options);
   }
-  findOne(options: any) {
+  findOne(options: FindOneOptions<UserMcpKey>) {
     return this.repo.findOne(options);
   }
-  count(options: any) {
+  count(options: FindManyOptions<UserMcpKey>) {
     return this.repo.count(options);
   }
   remove(key: UserMcpKey) {

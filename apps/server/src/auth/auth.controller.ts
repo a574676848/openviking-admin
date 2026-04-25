@@ -20,6 +20,7 @@ import { IntegrationType } from '../common/constants/system.enum';
 import { SSOPortalService } from './sso/sso-portal.service';
 import type { Response } from 'express';
 import { SsoTicketService } from './sso/sso-ticket.service';
+import type { AuthenticatedRequest } from '../common/authenticated-request.interface';
 
 @Controller('auth')
 @UseGuards(RolesGuard)
@@ -31,27 +32,20 @@ export class AuthController {
   ) {}
 
   @Post('login')
-  async login(@Body() loginDto: LoginDto, @Req() req: any) {
-    return this.authService.login(loginDto, req.ip);
+  async login(@Body() loginDto: LoginDto, @Req() req: AuthenticatedRequest) {
+    return this.authService.login(loginDto, req.ip ?? '');
   }
 
-  /**
-   * Phase 2.3: SSO 重定向引导 (飞书/OIDC 等)
-   */
   @Get('sso/redirect/:tenantId/:type')
-  async ssoRedirect(
+  ssoRedirect(
     @Param('tenantId') tenantId: string,
     @Param('type') type: IntegrationType,
     @Res() res: Response,
   ) {
-    // 实际生产环境：根据不同 Provider 生成跳转 URL（含 State, Nonce）
     const redirectUrl = `https://open.feishu.cn/open-apis/authen/v1/index?app_id=...&redirect_uri=...`;
     return res.redirect(redirectUrl);
   }
 
-  /**
-   * SSO 统一回调处理
-   */
   @Get('sso/callback/:tenantId/:type')
   async ssoCallback(
     @Param('tenantId') tenantId: string,
@@ -62,7 +56,7 @@ export class AuthController {
     try {
       const user = await this.ssoService.authenticate(tenantId, type, { code });
       if (!user) throw new UnauthorizedException('SSO 认证返回空用户');
-      const tokenData = await this.authService.generateToken(user);
+      const tokenData = this.authService.generateToken(user);
       const ticket = this.ssoTicketService.create({
         accessToken: tokenData.accessToken,
         user: {
@@ -74,7 +68,7 @@ export class AuthController {
       });
 
       return res.redirect(`/login?sso_ticket=${encodeURIComponent(ticket)}`);
-    } catch (err) {
+    } catch {
       return res.redirect(`/login?error=${encodeURIComponent('企业认证失败')}`);
     }
   }
@@ -87,13 +81,16 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @Roles(SystemRoles.SUPER_ADMIN)
   @Post('switch-role')
-  async switchRole(@Body('tenantId') tenantId: string, @Req() req: any) {
+  async switchRole(
+    @Body('tenantId') tenantId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
     return this.authService.switchRole(req.user.id, tenantId);
   }
 
   @UseGuards(JwtAuthGuard)
   @Get('me')
-  async getMe(@Req() req: any) {
+  async getMe(@Req() req: AuthenticatedRequest) {
     const user = await this.authService.validateUser(req.user.id);
     if (!user) {
       throw new UnauthorizedException('用户不存在');

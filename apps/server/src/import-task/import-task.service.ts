@@ -1,10 +1,11 @@
-import { Injectable, Logger, NotFoundException, Inject } from '@nestjs/common';
+import { Injectable, NotFoundException, Inject, Logger } from '@nestjs/common';
+import type { ImportTask } from './entities/import-task.entity';
 import { CreateImportTaskDto } from './dto/create-import-task.dto';
 import { SettingsService } from '../settings/settings.service';
 import { OVClientService } from '../common/ov-client.service';
-import { TaskStatus } from '../common/constants/system.enum';
 import { IMPORT_TASK_REPOSITORY } from './domain/repositories/import-task.repository.interface';
 import type { IImportTaskRepository } from './domain/repositories/import-task.repository.interface';
+import { TaskStatus } from '../common/constants/system.enum';
 
 @Injectable()
 export class ImportTaskService {
@@ -17,54 +18,31 @@ export class ImportTaskService {
     private readonly ovClient: OVClientService,
   ) {}
 
-  getStatusLabel(status: string) {
-    const labels: Record<string, string> = {
-      [TaskStatus.PENDING]: '等待处理',
-      [TaskStatus.RUNNING]: '正在解析并向量化',
-      [TaskStatus.DONE]: '向量化成功',
-      [TaskStatus.FAILED]: '处理异常',
-    };
-    return labels[status] || status;
-  }
-
   findAll(tenantId: string | null) {
     return this.taskRepo.findAll(tenantId);
   }
 
   async findOne(id: string, tenantId: string | null) {
     const task = await this.taskRepo.findById(id, tenantId);
-    if (!task) throw new NotFoundException(`任务不存在`);
+    if (!task) throw new NotFoundException(`导入任务 ${id} 不存在`);
     return task;
   }
 
-  /** 支持批量任务创建 */
   async create(dto: CreateImportTaskDto, tenantId: string) {
-    const urls = dto.sourceUrls || (dto.sourceUrl ? [dto.sourceUrl] : []);
-
-    const tasks = urls.map((url) => {
-      return this.taskRepo.create({
-        kbId: dto.kbId,
-        sourceType: dto.sourceType as any,
-        sourceUrl: url,
-        targetUri: dto.targetUri,
-        integrationId: dto.integrationId,
-        tenantId,
-        status: TaskStatus.PENDING,
-      });
-    });
-
-    const saved = await this.taskRepo.save(tasks);
-    this.logger.log(
-      `Provisioned ${saved.length} import tasks for tenant ${tenantId}`,
-    );
-    return saved;
+    const dispatch = this.taskRepo.create({
+      ...dto,
+      tenantId,
+      status: TaskStatus.PENDING,
+    } as Partial<ImportTask>);
+    const saved = await this.taskRepo.save(dispatch);
+    return Array.isArray(saved) ? saved[0] : saved;
   }
 
   async syncResult(id: string, tenantId: string | null) {
     const task = await this.findOne(id, tenantId);
-    if (task.status !== TaskStatus.DONE) return task;
+    if (!task) return null;
 
-    const rawConn = await this.settings.resolveOVConfig(tenantId);
+    const rawConn = await this.settings.resolveOVConfig(task.tenantId);
     const conn = {
       baseUrl: rawConn.baseUrl || '',
       apiKey: rawConn.apiKey || '',
@@ -77,19 +55,23 @@ export class ImportTaskService {
         conn,
         `/api/v1/fs/stat?uri=${encodeURIComponent(task.targetUri)}`,
       );
-      const nodeCount = statData?.result?.children_count ?? 0;
+      const statResult = statData?.result as
+        | Record<string, unknown>
+        | undefined;
+      const nodeCount = (statResult?.children_count as number) ?? 0;
 
       const vecData = await this.ovClient.request(
         conn,
         `/api/v1/debug/vector/count?uri=${encodeURIComponent(task.targetUri)}`,
       );
-      const vectorCount = vecData?.result?.count ?? 0;
+      const vecResult = vecData?.result as Record<string, unknown> | undefined;
+      const vectorCount = (vecResult?.count as number) ?? 0;
 
       await this.taskRepo.update(id, { nodeCount, vectorCount });
       return this.taskRepo.findById(id, tenantId);
     } catch (err) {
-      this.logger.warn(`Sync result for task ${id} failed: ${err.message}`);
+      const message = err instanceof Error ? err.message : '未知错误';
+      this.logger.warn(`Sync result for task ${id} failed: ${message}`);
     }
-    return task;
   }
 }

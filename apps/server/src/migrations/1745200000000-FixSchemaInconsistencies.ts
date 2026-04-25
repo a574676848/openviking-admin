@@ -44,7 +44,7 @@ export class FixSchemaInconsistencies1745200000000 implements MigrationInterface
     }
   }
 
-  async down(queryRunner: QueryRunner): Promise<void> {
+  async down(): Promise<void> {
     // 回滚逻辑（可选）
   }
 }

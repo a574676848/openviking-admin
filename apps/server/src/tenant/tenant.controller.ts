@@ -16,6 +16,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../common/roles.guard';
 import { Roles } from '../common/roles.decorator';
 import { SystemRoles } from '../users/entities/user.entity';
+import type { AuthenticatedRequest } from '../common/authenticated-request.interface';
 
 @Controller('tenants')
 export class TenantController {
@@ -31,13 +32,12 @@ export class TenantController {
     return this.tenantService.findAll();
   }
 
-  /** 公开接口：检测租户认证配置（无需 JWT） */
   @Get('check-auth/:code')
   async checkAuth(@Param('code') code: string) {
     const items = await this.integrationService.findAll(code);
     return {
-      oidc: !!items.find((i) => i.type === 'oidc' && i.active),
-      feishu: !!items.find((i) => i.type === 'feishu' && i.active),
+      oidc: items.some((i) => (i.type as string) === 'oidc' && i.active),
+      feishu: items.some((i) => (i.type as string) === 'feishu' && i.active),
     };
   }
 
@@ -51,7 +51,7 @@ export class TenantController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(SystemRoles.SUPER_ADMIN)
   @Post()
-  create(@Body() dto: CreateTenantDto, @Req() req: any) {
+  create(@Body() dto: CreateTenantDto, @Req() req: AuthenticatedRequest) {
     return this.tenantService.create(dto, req.user);
   }
 
@@ -61,7 +61,7 @@ export class TenantController {
   update(
     @Param('id') id: string,
     @Body() dto: UpdateTenantDto,
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ) {
     return this.tenantService.update(id, dto, req.user);
   }
@@ -69,7 +69,7 @@ export class TenantController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(SystemRoles.SUPER_ADMIN)
   @Delete(':id')
-  remove(@Param('id') id: string, @Req() req: any) {
+  remove(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     return this.tenantService.remove(id, req.user);
   }
 }

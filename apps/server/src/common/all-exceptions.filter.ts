@@ -8,6 +8,11 @@ import {
 } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
 
+interface ErrorLike {
+  message?: string;
+  stack?: string;
+}
+
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger(AllExceptionsFilter.name);
@@ -23,17 +28,19 @@ export class AllExceptionsFilter implements ExceptionFilter {
         ? exception.getStatus()
         : HttpStatus.INTERNAL_SERVER_ERROR;
 
+    const err = exception as ErrorLike;
+    const requestUrl = httpAdapter.getRequestUrl(ctx.getRequest()) as string;
     const responseBody = {
       statusCode: httpStatus,
       timestamp: new Date().toISOString(),
-      path: httpAdapter.getRequestUrl(ctx.getRequest()),
-      message: (exception as any)?.message || 'Internal Server Error',
+      path: requestUrl,
+      message: err?.message || 'Internal Server Error',
     };
 
-    if (httpStatus === HttpStatus.INTERNAL_SERVER_ERROR) {
+    if (httpStatus === 500) {
       this.logger.error(
         `Unhandled Exception: ${JSON.stringify(exception)}`,
-        (exception as any)?.stack,
+        err?.stack,
       );
     }
 

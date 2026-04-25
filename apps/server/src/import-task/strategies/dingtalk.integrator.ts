@@ -5,6 +5,7 @@ import {
 } from './platform-integrator.interface';
 import { Integration } from '../../tenant/entities/integration.entity';
 import { PLATFORM_ENDPOINTS } from '../constants';
+import type { DingTalkTokenResponse } from '../../common/external-api.types';
 
 @Injectable()
 export class DingTalkIntegrator implements IPlatformIntegrator {
@@ -21,7 +22,7 @@ export class DingTalkIntegrator implements IPlatformIntegrator {
     const res = await fetch(
       `${PLATFORM_ENDPOINTS.DINGTALK.AUTH_URL}?appkey=${appId}&appsecret=${appSecret}`,
     );
-    const data = await res.json();
+    const data = (await res.json()) as DingTalkTokenResponse;
 
     if (data.errcode !== 0) throw new Error(`钉钉鉴权失败: ${data.errmsg}`);
 

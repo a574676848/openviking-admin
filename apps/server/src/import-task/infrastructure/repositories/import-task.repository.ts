@@ -1,14 +1,15 @@
 import { Injectable, Inject, Scope } from '@nestjs/common';
 import { REQUEST } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, type FindOneOptions } from 'typeorm';
 import { ImportTask } from '../../entities/import-task.entity';
 import { IImportTaskRepository } from '../../domain/repositories/import-task.repository.interface';
+import type { RepositoryRequest } from '../../../common/repository-request.interface';
 
 @Injectable({ scope: Scope.REQUEST })
 export class TypeOrmImportTaskRepository implements IImportTaskRepository {
   constructor(
-    @Inject(REQUEST) private readonly request: any,
+    @Inject(REQUEST) private readonly request: RepositoryRequest,
     @InjectRepository(ImportTask)
     private readonly defaultRepo: Repository<ImportTask>,
   ) {}
@@ -32,7 +33,7 @@ export class TypeOrmImportTaskRepository implements IImportTaskRepository {
     id: string,
     tenantId?: string | null,
   ): Promise<ImportTask | null> {
-    const where: any = { id };
+    const where: Record<string, string> = { id };
     if (tenantId) where.tenantId = tenantId;
     return this.repo.findOne({ where });
   }
@@ -41,23 +42,29 @@ export class TypeOrmImportTaskRepository implements IImportTaskRepository {
     return this.repo.create(data);
   }
 
-  async save(task: ImportTask | ImportTask[]): Promise<any> {
-    return this.repo.save(task as any);
+  async save(task: ImportTask): Promise<ImportTask> {
+    return this.repo.save(task);
   }
 
   async update(id: string, data: Partial<ImportTask>): Promise<void> {
     await this.repo.update(id, data);
   }
 
-  async findOne(options: any): Promise<ImportTask | null> {
+  async findOne(
+    options: FindOneOptions<ImportTask>,
+  ): Promise<ImportTask | null> {
     return this.repo.findOne(options);
   }
 
-  async count(options?: any): Promise<number> {
-    return this.repo.count({ where: options });
+  async count(where?: Record<string, unknown>): Promise<number> {
+    return this.repo.count({ where: where ?? {} });
   }
 
-  async find(where?: any, order?: any, take?: number): Promise<ImportTask[]> {
+  async find(
+    where?: Record<string, unknown>,
+    order?: Record<string, 'ASC' | 'DESC'>,
+    take?: number,
+  ): Promise<ImportTask[]> {
     return this.repo.find({ where, order, take });
   }
 }
