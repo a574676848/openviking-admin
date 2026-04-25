@@ -1,4 +1,4 @@
-# SSO 集成指南 (SSO Integration Guide)
+# SSO 集成指南
 
 OpenViking Admin 支持四种企业 SSO 认证方式，采用 Provider 适配器模式统一管理。
 

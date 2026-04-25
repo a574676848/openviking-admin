@@ -7,8 +7,8 @@ import {
   Index,
 } from 'typeorm';
 
-@Entity('user_mcp_keys')
-export class UserMcpKey {
+@Entity('capability_keys')
+export class CapabilityKey {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 

@@ -1,4 +1,4 @@
-# 故障排查指南 (Troubleshooting Guide)
+# 故障排查指南
 
 本文档汇总常见问题及其解决方案。
 
@@ -192,15 +192,15 @@ cat apps/server/.env | grep OV_
 
 **解决**:
 - 如果使用 Nginx，确保 `/api/mcp/sse` 配置了 `proxy_buffering off` 和 `chunked_transfer_encoding off` (见 `DEPLOYMENT.md`)
-- 检查 MCP API Key 是否有效
-- 确认 MCP Key 未过期且未被删除
+- 检查 API key 或 session key 是否有效
+- 确认 Capability Key 未过期且未被删除
 
 ### 17. MCP 工具调用返回空结果
 
 **原因**: 租户 Scope 未正确注入或知识库为空。
 
 **解决**:
-- 确认 MCP Key 绑定的租户下有可用的知识库
+- 确认 Capability Key 绑定的租户下有可用的知识库
 - 检查知识树节点是否已关联 `viking_uri`
 - 通过 `GET /api/system/dashboard` 确认知识库文档数 > 0
 

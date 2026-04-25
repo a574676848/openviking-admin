@@ -1,18 +1,20 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { UnauthorizedException } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import * as bcrypt from 'bcryptjs';
 import { AuthService } from './auth.service';
-import { USER_REPOSITORY } from './domain/repositories/user.repository.interface';
-import type { IUserRepository } from './domain/repositories/user.repository.interface';
+import { AuditService } from '../audit/audit.service';
+import { SystemRoles } from '../users/entities/user.entity';
+import { USER_REPOSITORY } from '../users/domain/repositories/user.repository.interface';
+import type { IUserRepository } from '../users/domain/repositories/user.repository.interface';
 import { TENANT_REPOSITORY } from '../tenant/domain/repositories/tenant.repository.interface';
 import type { ITenantRepository } from '../tenant/domain/repositories/tenant.repository.interface';
-import { JwtService } from '@nestjs/jwt';
-import { AuditService } from '../audit/audit.service';
-import { UnauthorizedException } from '@nestjs/common';
-import * as bcrypt from 'bcryptjs';
 
 describe('AuthService', () => {
   let service: AuthService;
+  let jwtService: jest.Mocked<Pick<JwtService, 'sign' | 'verify'>>;
   let mockUserRepo: jest.Mocked<
-    Pick<IUserRepository, 'findOneByUsername' | 'findOneById'>
+    Pick<IUserRepository, 'findByUsername' | 'findById'>
   >;
   let mockTenantRepo: jest.Mocked<
     Pick<ITenantRepository, 'findByTenantId' | 'findById'>
@@ -20,12 +22,16 @@ describe('AuthService', () => {
 
   beforeEach(async () => {
     mockUserRepo = {
-      findOneByUsername: jest.fn(),
-      findOneById: jest.fn(),
+      findByUsername: jest.fn(),
+      findById: jest.fn(),
     };
     mockTenantRepo = {
       findByTenantId: jest.fn(),
       findById: jest.fn(),
+    };
+    jwtService = {
+      sign: jest.fn((payload: unknown) => JSON.stringify(payload)),
+      verify: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -33,10 +39,7 @@ describe('AuthService', () => {
         AuthService,
         { provide: USER_REPOSITORY, useValue: mockUserRepo },
         { provide: TENANT_REPOSITORY, useValue: mockTenantRepo },
-        {
-          provide: JwtService,
-          useValue: { sign: jest.fn(() => 'mock-token') },
-        },
+        { provide: JwtService, useValue: jwtService },
         { provide: AuditService, useValue: { log: jest.fn() } },
       ],
     }).compile();
@@ -46,7 +49,7 @@ describe('AuthService', () => {
 
   describe('login', () => {
     it('应该在密码错误时抛出 UnauthorizedException', async () => {
-      mockUserRepo.findOneByUsername.mockResolvedValue({
+      mockUserRepo.findByUsername.mockResolvedValue({
         username: 'test',
         passwordHash: await bcrypt.hash('correct', 10),
       } as never);
@@ -63,14 +66,55 @@ describe('AuthService', () => {
         passwordHash: await bcrypt.hash('pass', 10),
         role: 'super_admin',
       };
-      mockUserRepo.findOneByUsername.mockResolvedValue(mockUser as never);
+      mockUserRepo.findByUsername.mockResolvedValue(mockUser as never);
 
       const result = await service.login({
         username: 'admin',
         password: 'pass',
       });
-      expect(result.accessToken).toBe('mock-token');
+      expect(result.accessToken).toContain('"tokenType":"access_token"');
+      expect(result.refreshToken).toContain('"tokenType":"refresh_token"');
       expect(result.user.role).toBe('super_admin');
+    });
+  });
+
+  describe('refreshAccessToken', () => {
+    it('应该基于 refresh token 重新签发 token pair', async () => {
+      jwtService.verify.mockReturnValue({
+        sub: 'user-1',
+        username: 'alice',
+        role: SystemRoles.TENANT_ADMIN,
+        tenantId: 'tenant-1',
+        scope: 'tenant',
+        tokenType: 'refresh_token',
+      });
+      mockUserRepo.findById.mockResolvedValue({
+        id: 'user-1',
+        username: 'alice',
+        role: SystemRoles.TENANT_ADMIN,
+        tenantId: 'tenant-1',
+      } as never);
+
+      const result = await service.refreshAccessToken('refresh-token');
+
+      expect(result.accessToken).toContain('"tokenType":"access_token"');
+      expect(result.refreshToken).toContain('"tokenType":"refresh_token"');
+      expect(mockUserRepo.findById).toHaveBeenCalledWith('user-1');
+    });
+
+    it('refresh token 类型错误时应该抛错', async () => {
+      jwtService.verify.mockReturnValue({
+        sub: 'user-1',
+        username: 'alice',
+        role: SystemRoles.TENANT_ADMIN,
+        tenantId: 'tenant-1',
+        scope: 'tenant',
+        tokenType: 'access_token',
+      });
+
+      await expect(
+        service.refreshAccessToken('invalid-refresh-token'),
+      ).rejects.toThrow(UnauthorizedException);
     });
   });
 });

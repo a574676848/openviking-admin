@@ -1,4 +1,4 @@
-# 部署指南 (Deployment Guide)
+# 部署指南
 
 本指南覆盖从本地开发到生产部署的完整流程。
 
@@ -246,7 +246,7 @@ pnpm typeorm migration:revert -d src/data-source.ts
 | `AddMissingTables` | 创建 tenants, knowledge_nodes, system_configs 表 |
 | `FixSchemaInconsistencies` | 添加 SSO 字段、隔离等级字段、修复列类型 |
 
-> **注意**: `integrations` 和 `user_mcp_keys` 表目前依赖 TypeORM `synchronize: true` 自动建表，生产环境建议补充正式迁移。
+> **注意**: `capability_keys` 等运行表应通过正式迁移创建；生产环境不要依赖 TypeORM `synchronize: true`。
 
 ---
 

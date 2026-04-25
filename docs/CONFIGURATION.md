@@ -1,4 +1,4 @@
-# 配置参考 (Configuration Reference)
+# 配置参考
 
 本文详细说明所有环境变量和系统配置项。
 

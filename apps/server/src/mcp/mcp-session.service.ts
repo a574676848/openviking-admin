@@ -23,7 +23,10 @@ export class McpSessionService {
     private readonly eventRepo: Repository<McpSessionEvent>,
   ) {}
 
-  async createSession(apiKey: string) {
+  async createSession(
+    credential: string,
+    credentialQueryName: 'key' | 'sessionKey' = 'key',
+  ) {
     await this.cleanupExpiredRecords();
 
     const sessionId = randomUUID();
@@ -31,9 +34,9 @@ export class McpSessionService {
     const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
 
     await this.sessionRepo.save(
-      this.sessionRepo.create({
+        this.sessionRepo.create({
         sessionId,
-        apiKeyHash: this.hashValue(apiKey),
+        credentialHash: this.hashValue(credential),
         sessionTokenHash: this.hashValue(sessionToken),
         expiresAt,
         lastSeenAt: new Date(),
@@ -44,19 +47,19 @@ export class McpSessionService {
     return {
       sessionId,
       sessionToken,
-      endpoint: `/api/mcp/message?sessionId=${sessionId}&sessionToken=${sessionToken}&key=${encodeURIComponent(apiKey)}`,
+      endpoint: `/api/mcp/message?sessionId=${sessionId}&sessionToken=${sessionToken}&${credentialQueryName}=${encodeURIComponent(credential)}`,
     };
   }
 
   async validateSession(
     sessionId: string,
-    apiKey: string,
+    credential: string,
     sessionToken: string,
   ) {
     const session = await this.sessionRepo.findOne({
       where: {
         sessionId,
-        apiKeyHash: this.hashValue(apiKey),
+        credentialHash: this.hashValue(credential),
         sessionTokenHash: this.hashValue(sessionToken),
         closedAt: IsNull(),
         expiresAt: MoreThan(new Date()),

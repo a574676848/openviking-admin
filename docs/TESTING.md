@@ -1,4 +1,4 @@
-# 测试指南 (Testing Guide)
+# 测试指南
 
 本文档描述项目的测试策略、测试框架和编写测试的最佳实践。
 
@@ -42,7 +42,7 @@ pnpm test -- -t "AuthService"  # 运行特定测试
 
 ## 测试策略
 
-### 1. 单元测试 (Unit Tests)
+### 1. 单元测试
 
 测试单个 Service/Provider/Strategy 的逻辑，不依赖真实数据库。
 

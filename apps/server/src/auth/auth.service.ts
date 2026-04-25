@@ -10,6 +10,15 @@ import type { IUserRepository } from '../users/domain/repositories/user.reposito
 import { TENANT_REPOSITORY } from '../tenant/domain/repositories/tenant.repository.interface';
 import type { ITenantRepository } from '../tenant/domain/repositories/tenant.repository.interface';
 
+type AuthTokenPayload = {
+  sub: string;
+  username: string;
+  role: string;
+  tenantId: string | null;
+  scope: string;
+  isAdminSwitch?: boolean;
+};
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -65,7 +74,7 @@ export class AuthService {
       ip,
     });
 
-    const payload = {
+    const payload: AuthTokenPayload = {
       sub: user.id,
       username: user.username,
       role: user.role,
@@ -74,7 +83,7 @@ export class AuthService {
     };
 
     return {
-      accessToken: this.jwtService.sign(payload),
+      ...this.issueTokenPair(payload),
       user: {
         id: user.id,
         username: user.username,
@@ -89,16 +98,46 @@ export class AuthService {
   }
 
   generateToken(user: User) {
-    const payload = {
+    const payload: AuthTokenPayload = {
       sub: user.id,
       username: user.username,
       role: user.role,
       tenantId: user.tenantId || null,
       scope: user.role === SystemRoles.SUPER_ADMIN ? 'platform' : 'tenant',
     };
-    return {
-      accessToken: this.jwtService.sign(payload),
+    return this.issueTokenPair(payload);
+  }
+
+  async refreshAccessToken(refreshToken: string) {
+    let payload: AuthTokenPayload & { tokenType?: string };
+
+    try {
+      payload = this.jwtService.verify<AuthTokenPayload & { tokenType?: string }>(
+        refreshToken,
+      );
+    } catch {
+      throw new UnauthorizedException('refresh token 无效或已过期');
+    }
+
+    if (payload.tokenType !== 'refresh_token') {
+      throw new UnauthorizedException('refresh token 类型错误');
+    }
+
+    const user = await this.userRepo.findById(payload.sub);
+    if (!user) {
+      throw new UnauthorizedException('用户不存在');
+    }
+
+    const nextPayload: AuthTokenPayload = {
+      sub: user.id,
+      username: user.username,
+      role: payload.isAdminSwitch ? SystemRoles.TENANT_ADMIN : user.role,
+      tenantId: payload.tenantId,
+      scope: payload.scope,
+      isAdminSwitch: payload.isAdminSwitch,
     };
+
+    return this.issueTokenPair(nextPayload);
   }
 
   async switchRole(adminId: string, tenantId: string) {
@@ -119,7 +158,7 @@ export class AuthService {
       meta: { impersonating: tenant.displayName },
     });
 
-    const payload = {
+    const payload: AuthTokenPayload = {
       sub: admin.id,
       username: admin.username,
       role: SystemRoles.TENANT_ADMIN, // 模拟为租户管理员
@@ -129,8 +168,26 @@ export class AuthService {
     };
 
     return {
-      accessToken: this.jwtService.sign(payload),
+      ...this.issueTokenPair(payload),
       tenantName: tenant.displayName,
+    };
+  }
+
+  private issueTokenPair(payload: AuthTokenPayload) {
+    const accessExpiresInSeconds = 2 * 60 * 60;
+    const refreshExpiresInSeconds = 7 * 24 * 60 * 60;
+
+    return {
+      accessToken: this.jwtService.sign(
+        { ...payload, tokenType: 'access_token' },
+        { expiresIn: `${accessExpiresInSeconds}s` },
+      ),
+      refreshToken: this.jwtService.sign(
+        { ...payload, tokenType: 'refresh_token' },
+        { expiresIn: `${refreshExpiresInSeconds}s` },
+      ),
+      expiresInSeconds: accessExpiresInSeconds,
+      refreshExpiresInSeconds,
     };
   }
 }

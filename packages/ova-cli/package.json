@@ -1,0 +1,38 @@
+{
+  "name": "@openviking-admin/ova-cli",
+  "version": "0.1.0",
+  "description": "OpenViking Admin capability-first CLI",
+  "keywords": [
+    "openviking",
+    "cli",
+    "capability-platform",
+    "agent-tools"
+  ],
+  "homepage": "https://github.com/openviking/openviking-knowdge",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/openviking/openviking-knowdge.git",
+    "directory": "packages/ova-cli"
+  },
+  "bugs": {
+    "url": "https://github.com/openviking/openviking-knowdge/issues"
+  },
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "ova": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true}); require('fs').rmSync('openviking-admin-ova-cli-0.1.0.tgz',{force:true});\"",
+    "build": "tsc -p tsconfig.json",
+    "dev": "ts-node src/index.ts",
+    "test": "jest --config jest.config.js",
+    "prepack": "npm run clean && npm run build"
+  }
+}

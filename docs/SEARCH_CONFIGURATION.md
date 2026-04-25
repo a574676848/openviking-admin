@@ -1,6 +1,10 @@
-# 检索配置指南 (Search Configuration Guide)
+# 检索配置指南
 
 OpenViking Admin 实现了二阶段语义检索系统。本文档详细说明各检索参数的含义、调优建议和配置方法。
+
+![基于 MCP 与 Rerank 的高精准检索流](<./images/基于 MCP 与 Rerank 的高精准检索流.png>)
+
+检索链路会先根据身份与 ACL 收敛可访问范围，再执行向量召回，并在需要时接入 Rerank 做二阶段排序。
 
 ---
 

@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "openviking": {
+      "command": "npx",
+      "args": [
+        "@anthropic-ai/mcp-remote",
+        "--url",
+        "http://localhost:6001/api/mcp/sse?key=<ov-sk-...>"
+      ]
+    }
+  }
+}

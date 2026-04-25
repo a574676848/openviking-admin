@@ -8,58 +8,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- 初始项目脚手架，包含完整的后端 (NestJS) 和前端 (Next.js) 架构
-- 多租户三级隔离架构 (Small/Medium/Large)
-- JWT 认证 + SSO 集成 (飞书/钉钉/OIDC/LDAP)
-- 知识库管理、知识树/图谱可视化
-- 二阶段语义检索 (向量召回 + BGE-Rerank)
-- 导入任务流水线 (飞书/钉钉/Git 集成)
-- MCP 协议支持 (SSE + JSON-RPC)
-- 审计日志系统
-- 系统监控仪表盘
-- 前端双色主题系统 (Neo-Brutalism / Swiss)
-- VikingWatcher 交互组件
-- Console 复合组件基座：`ConsoleStatsGrid`、`ConsoleTableShell`、`ConsoleControlPanel`
-- 页面级稳定复合组件：列表行、检查器、遥测面板、消息气泡、引用卡
-- 2026-04-25 收口评审报告：`REVIEW_TODOLIST_2026-04-25.md`
+
+- 新增 `capabilities` 模块，收口统一 capability contract、execution、authorization、discovery、credential exchange
+- 新增平铺 HTTP 接口：`/api/capabilities`、`/api/knowledge/search`、`/api/knowledge/grep`、`/api/resources`、`/api/resources/tree`
+- 新增 capability 换证接口：`/api/auth/token/exchange`、`/api/auth/session/exchange`、`/api/auth/client-credentials`
+- 新增登录态刷新接口：`/api/auth/refresh`
+- 新增凭证发现接口：`/api/auth/credential-options`
+- 新增 `ov` CLI 命令树
+- 新增 capability 观测快照接口：`/api/observability/capabilities`
+- 新增 Prometheus 导出接口：`/api/observability/capabilities/prometheus`
+- 新增 capability 架构、CLI、skill、认证、可观测性、ADR 与 examples 文档
+- 新增 HTTP e2e、CLI integration、MCP protocol integration 测试
+- 新增 capability authorization、audit persistence、skill smoke 与跨租户隔离测试
+- 新增统一 HTTP 错误 envelope 与错误码映射测试
+- 新增 cluster-ready observability / rate limit store ADR
 
 ### Changed
-- 移除临时重构脚本
-- 主题契约正式收敛为 `neo` / `swiss` 两套，移除运行时第三主题漂移
-- 平台页与租户控制台页统一回到同一套 Console primitives 与 Neo 终端视觉语言
-- `integrations`、`knowledge-bases`、`graph`、`dashboard`、`system` 等高频页面骨架重做并统一交互语义
-- 认证链路统一为 Bearer-only JWT，移除对 cookie 鉴权的依赖
-- 前端会话读写统一走 `Authorization: Bearer`，主题与登录态恢复逻辑同步收敛
-- 多处服务端 DTO、Repository、Guard、外部 API 返回值完成类型收敛，减少 `any` 与隐式契约
-- MCP/Search/Integration/ImportTask 等核心模块完成生产化清理，降低硬编码与边界泄漏
-- OV 连接配置移除本地兜底地址，缺配置时显式失败，不再静默回退到 `localhost:1933`
 
-### Fixed
-- 修复数据库迁移中的 schema 不一致问题
-- 修复 SSO ticket 服务缺少 crypto 导入的问题
-- 修复主题切换弹层被遮挡、选项不可点击的问题
-- 修复 `activeSource === "git"` 一类来源分支硬编码问题
-- 修复 MCP 文本输出中的 Emoji，不再违背 `docs/DESIGN.md`
-- 修复图谱页裸色值与局部强样式，收敛到统一视觉 token
-- 修复认证与租户边界上的类型缺失，减少请求上下文的 `any` 传播
-- 修复服务端关键模块 lint/build 阻断，并完成一轮生产上线前收口
+- 架构中心从“扩展 MCP”调整为 “Capability-First”
+- MCP adapter 改为复用统一 capability catalog 与 execution service
+- CLI 与 skill 改为调用平铺 capability，而非通用 tool runner
+- README、API 参考、MCP 指南、Server 文档全部按新架构重写
+- 清理迁移后未再使用的 MCP key 仓储孤儿代码，并将 MCP 文档重命名为 `MCP_ADAPTER_GUIDE.md`
+- 将 `UserMcpKey` 重命名为 `CapabilityKey`，并补 capability key / MCP session key 迁移与文档收口
+- CLI 改为缓存 `accessToken + refreshToken` 并在过期前自动刷新登录态
+- 控制台支持显式签发 capability access token、session key 与 apiKey
+- capability contract 增加 `minimumRole`，资源浏览能力默认至少要求 `tenant_operator`
+- capability 平台新增进程内 metrics、P95/P99 快照与四维 rate limit / quota
+- HTTP adapter 移除未上线前遗留的 `x-mcp-key` 兼容头，统一收口到 `x-capability-key`
+- `x-request-id` 现可在换证、能力执行与 OV 下游请求间透传，观测快照新增 alerts 计算
+- rate limit 状态存储已抽象为可替换 store，默认实现仍为内存版
 
 ### Security
-- 收紧前端安全基线，围绕 Bearer-only 会话模式同步约束认证存储与服务端鉴权边界
-- 租户端与平台端的配置读取、会话恢复和接口访问统一走显式鉴权链路
+
+- capability 调用统一要求租户上下文
+- 新增 capability access token / session key / apiKey 分层模型
+- 新增 `refreshToken` 分层与生命周期边界
+- apiKey 调用统一收敛到租户资源域
+- 对租户范围外 URI 改为显式拒绝，不再静默降级
+
+### Docs
+
+- 完成新一轮 capability platform 文档体系重构
 
 ### Validation
-- `npm run lint --workspace server` 通过
-- `npm run build --workspace server` 通过
-- `npm run lint --workspace web` 通过
-- `npm run build --workspace web` 通过
-- 最终收口评审结论更新为 `96 / 100`
 
----
-
-## [0.1.0] - 2024-04-17
-
-### Added
-- 初始数据库迁移 (InitSchema, AddMissingTables, FixSchemaInconsistencies)
-- 基础认证模块
-- 项目基础架构搭建
+- `npm test -- --runInBand` in `apps/server`
+- `npm run test:e2e -- --runInBand` in `apps/server`
+- `npm run build` in `apps/server`

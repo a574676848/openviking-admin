@@ -1,4 +1,4 @@
-# 💻 开发者指南 (Contributor Guide)
+# 开发者指南
 
 感谢你关注 `OpenViking Admin`！本指南将帮助你快速搭建开发环境并参与社区贡献。
 
@@ -131,7 +131,7 @@ cd apps/web && pnpm dev
 
 ---
 
-## 4. 代码规范 (Coding Standards)
+## 4. 代码规范
 
 ### 4.1 架构约束
 
@@ -147,7 +147,7 @@ cd apps/web && pnpm dev
 - 方法名: camelCase (`findAllByTenantId()`)
 - 常量: UPPER_SNAKE_CASE (`TENANT_CACHE_TTL`)
 
-### 4.3 提交规范 (Commit Convention)
+### 4.3 提交规范
 
 我们遵循 Conventional Commits 规范：
 
@@ -224,7 +224,7 @@ pnpm test:e2e      # E2E 测试
 | [API 参考手册](./API_REFERENCE.md) | 完整端点文档 |
 | [配置参考](./CONFIGURATION.md) | 环境变量和系统配置 |
 | [SSO 集成指南](./SSO_INTEGRATION.md) | 四种 SSO 配置步骤 |
-| [MCP 协议手册](./MCP_GUIDE.md) | AI 客户端接入 |
+| [MCP 指南](./MCP_GUIDE.md) | MCP 协议接入与客户端配置 |
 | [部署指南](./DEPLOYMENT.md) | 本地开发到生产部署 |
 | [数据库 Schema](./DATABASE_SCHEMA.md) | 表结构和关系图 |
 | [安全策略](./SECURITY.md) | 威胁模型和最佳实践 |

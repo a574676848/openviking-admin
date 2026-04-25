@@ -1,0 +1,12 @@
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/call",
+  "params": {
+    "name": "knowledge.search",
+    "arguments": {
+      "query": "如何配置多租户隔离",
+      "limit": 5
+    }
+  }
+}

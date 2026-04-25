@@ -13,6 +13,7 @@ import { TenantModule } from './tenant/tenant.module';
 import { SettingsModule } from './settings/settings.module';
 import { AuditModule } from './audit/audit.module';
 import { CommonModule } from './common/common.module';
+import { CapabilitiesModule } from './capabilities/capabilities.module';
 import { McpModule } from './mcp/mcp.module';
 import { RolesGuard } from './common/roles.guard';
 import { TenantCleanupInterceptor } from './common/tenant-cleanup.interceptor';
@@ -47,6 +48,7 @@ import { AllExceptionsFilter } from './common/all-exceptions.filter';
     TenantModule,
     SettingsModule,
     AuditModule,
+    CapabilitiesModule,
     McpModule,
   ],
   providers: [

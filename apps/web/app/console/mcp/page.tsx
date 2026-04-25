@@ -17,7 +17,7 @@ import {
   ConsolePanelHeader,
 } from "@/components/console/primitives";
 
-interface McpKey {
+interface CapabilityKey {
   id: string;
   name: string;
   apiKey: string;
@@ -25,25 +25,52 @@ interface McpKey {
   createdAt: string;
 }
 
-interface CreateMcpKeyResult {
+interface CreateCapabilityKeyResult {
   apiKey: string;
+}
+
+interface IssuedCredential {
+  credentialType: string;
+  accessToken?: string;
+  sessionKey?: string;
+  apiKey?: string;
+  expiresInSeconds?: number | null;
+}
+
+interface CredentialOption {
+  channel: string;
+  credentialType: string;
+  issueEndpoint: string;
+  ttlSeconds: number | null;
+  recommendedFor: string[];
+}
+
+interface CredentialOptionsResponse {
+  data: {
+    capabilities: CredentialOption[];
+  };
 }
 
 export default function McpPage() {
   const confirm = useConfirm();
-  const [keys, setKeys] = useState<McpKey[]>([]);
+  const [keys, setKeys] = useState<CapabilityKey[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [name, setName] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [newlyCreatedKey, setNewlyCreatedKey] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [credentialOptions, setCredentialOptions] = useState<CredentialOption[]>([]);
+  const [issuingType, setIssuingType] = useState<string | null>(null);
+  const [issuedCredential, setIssuedCredential] = useState<IssuedCredential | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await apiClient.get<McpKey[]>("/mcp/keys");
+      const response = await apiClient.get<CapabilityKey[]>("/mcp/keys");
       setKeys(Array.isArray(response) ? response : []);
+      const options = await apiClient.get<CredentialOptionsResponse>("/auth/credential-options");
+      setCredentialOptions(Array.isArray(options.data?.capabilities) ? options.data.capabilities : []);
     } finally {
       setLoading(false);
     }
@@ -66,11 +93,12 @@ export default function McpPage() {
     event.preventDefault();
     setSubmitting(true);
     try {
-      const result = await apiClient.post<CreateMcpKeyResult>("/mcp/keys", { name });
+      const result = await apiClient.post<CreateCapabilityKeyResult>("/mcp/keys", { name });
       setNewlyCreatedKey(result.apiKey);
+      setIssuedCredential(null);
       setName("");
       setShowCreate(false);
-      toast.success("MCP Key 已创建");
+      toast.success("Capability Key 已创建");
       await load();
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : "创建失败");
@@ -79,10 +107,32 @@ export default function McpPage() {
     }
   }
 
+  async function handleIssueCredential(option: CredentialOption) {
+    setIssuingType(option.credentialType);
+    try {
+      const payload =
+        option.credentialType === "api_key"
+          ? await apiClient.post<{ data: IssuedCredential }>("/auth/client-credentials", {
+              name: `console-${option.channel}`,
+            })
+          : await apiClient.post<{ data: IssuedCredential }>(option.issueEndpoint, {});
+      setIssuedCredential(payload.data);
+      setNewlyCreatedKey(null);
+      toast.success(`${option.credentialType} 已签发`);
+      if (option.credentialType === "api_key") {
+        await load();
+      }
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "签发失败");
+    } finally {
+      setIssuingType(null);
+    }
+  }
+
   async function handleDelete(id: string, keyName: string) {
     const approved = await confirm({
-      title: "吊销 MCP Key",
-      description: `将吊销「${keyName}」，所有已接入客户端会立即失去连接权限。`,
+      title: "吊销 Capability Key",
+      description: `将吊销「${keyName}」，所有依赖该凭证的客户端会立即失去连接权限。`,
       confirmText: "吊销",
       cancelText: "保留",
       tone: "danger",
@@ -91,7 +141,7 @@ export default function McpPage() {
       return;
     }
     await apiClient.delete(`/mcp/keys/${id}`);
-    toast.success("MCP Key 已吊销");
+    toast.success("Capability Key 已吊销");
     await load();
   }
 
@@ -108,8 +158,8 @@ export default function McpPage() {
   return (
     <div className="flex min-h-full flex-col gap-8">
       <ConsolePageHeader
-        title="MCP 智能助手"
-        subtitle="MCP Access / Tooling Bridge Endpoint"
+        title="Capability Keys"
+        subtitle="Shared Credentials For MCP / HTTP / CLI / Skill"
         actions={
           <ConsoleButton
             type="button"
@@ -173,7 +223,7 @@ export default function McpPage() {
               </div>
               <div className="border-[3px] border-[var(--border)] bg-[var(--bg-card)] p-5">
                 <p className="font-mono text-[10px] font-black uppercase tracking-[0.16em] text-[var(--text-muted)]">
-                  接入方式
+                  MCP 接入方式
                 </p>
                 <div className="mt-3 space-y-2 font-mono text-xs font-bold text-[var(--text-secondary)]">
                   <p>1. 打开客户端 MCP 配置。</p>
@@ -187,9 +237,52 @@ export default function McpPage() {
         </ConsolePanel>
       )}
 
+      {issuedCredential && (
+        <ConsolePanel className="p-6">
+          <ConsolePanelHeader eyebrow="Issued Credential" title="控制台即时签发结果" />
+          <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[1fr_0.9fr]">
+            <div className="space-y-4">
+              <div className="border-[3px] border-[var(--border)] bg-[var(--bg-elevated)] p-5">
+                <p className="font-mono text-[10px] font-black uppercase tracking-[0.16em] text-[var(--text-muted)]">
+                  {issuedCredential.credentialType}
+                </p>
+                <div className="mt-3 flex items-start gap-3">
+                  <code className="min-w-0 flex-1 break-all font-mono text-xs font-black text-[var(--text-primary)]">
+                    {issuedCredential.accessToken ?? issuedCredential.sessionKey ?? issuedCredential.apiKey ?? ""}
+                  </code>
+                  <ConsoleIconButton
+                    type="button"
+                    onClick={() =>
+                      copyText(
+                        issuedCredential.accessToken ??
+                          issuedCredential.sessionKey ??
+                          issuedCredential.apiKey ??
+                          "",
+                        "issued",
+                      )
+                    }
+                  >
+                    {copiedKey === "issued" ? <Check size={14} strokeWidth={2.6} /> : <Copy size={14} strokeWidth={2.6} />}
+                  </ConsoleIconButton>
+                </div>
+              </div>
+            </div>
+            <div className="border-[3px] border-[var(--border)] bg-[var(--bg-card)] p-5">
+              <p className="font-mono text-[10px] font-black uppercase tracking-[0.16em] text-[var(--text-muted)]">
+                生命周期
+              </p>
+              <div className="mt-3 space-y-2 font-mono text-xs font-bold text-[var(--text-secondary)]">
+                <p>Credential Type: {issuedCredential.credentialType}</p>
+                <p>TTL: {issuedCredential.expiresInSeconds ? `${issuedCredential.expiresInSeconds}s` : "长期 / 由平台显式吊销"}</p>
+              </div>
+            </div>
+          </div>
+        </ConsolePanel>
+      )}
+
       {showCreate && !newlyCreatedKey && (
         <ConsolePanel className="p-6">
-          <ConsolePanelHeader eyebrow="Create Key" title="为终端或 IDE 生成独立凭据" />
+            <ConsolePanelHeader eyebrow="Create Key" title="为 MCP / HTTP / CLI / Skill 生成共享凭据" />
           <form onSubmit={handleCreate} className="mt-6 max-w-xl space-y-5">
             <ConsoleField label="Key Name">
               <ConsoleInput
@@ -226,10 +319,10 @@ export default function McpPage() {
           <div className="grid grid-cols-1 gap-px bg-[var(--border)]">
             {loading ? (
               <div className="bg-[var(--bg-card)] px-6 py-16 text-center font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-secondary)]">
-                正在读取 Key 列表...
+                正在读取 Capability Key 列表...
               </div>
             ) : keys.length === 0 ? (
-              <ConsoleEmptyState icon={Bot} title="暂无 MCP Key" description="generate a key before connecting clients" />
+              <ConsoleEmptyState icon={Bot} title="暂无 Capability Key" description="generate a credential before connecting clients" />
             ) : (
               keys.map((item) => (
                 <div
@@ -263,15 +356,55 @@ export default function McpPage() {
           </div>
         </ConsolePanel>
 
-        <ConsolePanel className="p-6">
-          <ConsolePanelHeader eyebrow="Connection Guide" title="接入纪律" />
-          <div className="mt-6 space-y-4 font-mono text-xs font-bold text-[var(--text-secondary)]">
-            <p>仅使用租户内生成的 MCP Key，不复用登录 Bearer Token。</p>
-            <p>每个客户端单独生成一把 Key，便于审计与吊销。</p>
-            <p>优先使用 SSE 模式接入支持 MCP 的桌面 IDE。</p>
-            <p>若怀疑泄露，直接吊销，不做“继续观望”。</p>
-          </div>
-        </ConsolePanel>
+        <div className="space-y-8">
+          <ConsolePanel className="p-6">
+            <ConsolePanelHeader eyebrow="Credential Issuance" title="显式签发调用凭证" />
+            <div className="mt-6 space-y-4">
+              {credentialOptions.map((option) => (
+                <div
+                  key={option.credentialType}
+                  className="border-[3px] border-[var(--border)] bg-[var(--bg-card)] p-5"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="font-mono text-[10px] font-black uppercase tracking-[0.16em] text-[var(--text-muted)]">
+                        {option.channel}
+                      </p>
+                      <h3 className="mt-2 font-sans text-xl font-black text-[var(--text-primary)]">
+                        {option.credentialType}
+                      </h3>
+                      <p className="mt-2 font-mono text-xs font-bold text-[var(--text-secondary)]">
+                        推荐给 {option.recommendedFor.join(" / ")}
+                      </p>
+                      <p className="mt-2 font-mono text-xs font-bold text-[var(--text-secondary)]">
+                        TTL: {option.ttlSeconds ? `${option.ttlSeconds}s` : "长期 / 需手动吊销"}
+                      </p>
+                    </div>
+                    <ConsoleButton
+                      type="button"
+                      onClick={() => void handleIssueCredential(option)}
+                      disabled={issuingType === option.credentialType}
+                    >
+                      <KeyRound size={14} strokeWidth={2.6} />
+                      {issuingType === option.credentialType ? "签发中..." : "立即签发"}
+                    </ConsoleButton>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </ConsolePanel>
+
+          <ConsolePanel className="p-6">
+            <ConsolePanelHeader eyebrow="Connection Guide" title="接入纪律" />
+            <div className="mt-6 space-y-4 font-mono text-xs font-bold text-[var(--text-secondary)]">
+              <p>仅使用租户内生成的 Capability Key，不复用登录 Bearer Token。</p>
+              <p>浏览器或 CLI 优先走 access token + refresh token，再按需换 capability token。</p>
+              <p>支持 MCP 的桌面 IDE 优先使用 session key 或 SSE 模式接入。</p>
+              <p>生产环境接 Prometheus 时，优先抓取 `/api/observability/capabilities/prometheus`。</p>
+              <p>若怀疑泄露，直接吊销，不做“继续观望”。</p>
+            </div>
+          </ConsolePanel>
+        </div>
       </section>
     </div>
   );

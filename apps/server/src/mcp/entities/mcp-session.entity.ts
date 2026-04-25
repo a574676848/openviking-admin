@@ -12,9 +12,9 @@ export class McpSession {
   @PrimaryColumn({ name: 'session_id', length: 36 })
   sessionId: string;
 
-  @Column({ name: 'api_key_hash', length: 64 })
-  @Index('idx_mcp_sessions_api_key_hash')
-  apiKeyHash: string;
+  @Column({ name: 'credential_hash', length: 64 })
+  @Index('idx_mcp_sessions_credential_hash')
+  credentialHash: string;
 
   @Column({ name: 'session_token_hash', length: 64 })
   sessionTokenHash: string;

@@ -1,144 +1,150 @@
-# 🤖 MCP 协议集成手册 (MCP Guide)
+# MCP 指南
 
-`OpenViking Admin` 原生支持 **Model Context Protocol (MCP)**，允许 AI 客户端（如 Claude, Cursor）安全地访问企业的私域知识库。
+OpenViking Admin 支持 Model Context Protocol (MCP)，让 Claude、Cursor、IDE 和其他 MCP 客户端以标准 `tools/list`、`tools/call` 方式访问企业私域知识能力。
 
----
+MCP 是协议入口，不是独立业务层。MCP 暴露的工具来自统一 capability catalog，工具调用最终仍进入能力平台。
 
-## 1. 核心工具集 (Tools)
+![基于 MCP 与 Rerank 的高精准检索流](<./images/基于 MCP 与 Rerank 的高精准检索流.png>)
 
-系统通过 `McpService` 暴露了以下工具：
+当客户端通过 MCP 发起知识检索时，服务端会先完成会话鉴权和 capability 映射，再进入统一检索链路、权限过滤和结果返回。
 
-| 工具名 | 说明 | 输入参数 | 返回 |
-|--------|------|----------|------|
-| `search_knowledge` | 执行带权限隔离的语义检索 | `{ query, topK?, scope? }` | 检索结果数组 |
-| `grep_knowledge` | 执行正则表达式文本匹配 | `{ pattern, uri? }` | 匹配结果 |
-| `list_resources` | 浏览租户授权范围内的目录结构 | `{ uri? }` | 目录列表 |
-| `tree_resources` | 生成知识资产的树状视图 | `{ uri? }` | 树状结构 |
+## 支持的工具
 
----
+| Tool | Capability | 说明 |
+|------|------|------|
+| `knowledge.search` | `knowledge.search` | 在租户知识域内执行语义搜索 |
+| `knowledge.grep` | `knowledge.grep` | 在租户知识域内执行文本匹配 |
+| `resources.list` | `resources.list` | 列出租户授权范围内的资源 |
+| `resources.tree` | `resources.tree` | 获取租户资源树 |
 
-## 2. 安全保障：URI 强制锁定
+## 获取凭证
 
-所有的 MCP 调用均通过 `viking://resources/tenants/{tenantId}/` 协议头进行资源寻址。
-即使 AI 代理发起请求，其查询范围也被代码逻辑死死锁在所属租户的物理空间内，从根本上杜绝了跨租户信息越权。
+MCP 客户端可以使用两类凭证：
 
----
+| 凭证 | 适用场景 | 获取方式 |
+|------|------|------|
+| API key | Claude Desktop、Cursor、长期桌面配置 | `ova auth client-credentials --name <client> --save` 或 HTTP 换证 |
+| Session key | 已登录用户发起的短期会话 | `ova auth session-exchange` 或 `POST /api/auth/session/exchange` |
 
-## 3. 接入配置
-
-### 3.1 生成 MCP API Key
-
-在 OpenViking Admin 前端 (`/console/mcp`) 或通过 API 生成 Key：
+示例：
 
 ```bash
-POST /api/mcp/keys
-{
-  "name": "Claude Desktop"
-}
+ova auth login --server http://localhost:6001 --username admin --password admin123 --tenant-code acme
+ova auth client-credentials --name claude-desktop --output json
+ova auth session-exchange --output json
 ```
 
-返回：
-```json
-{
-  "id": "uuid",
-  "name": "Claude Desktop",
-  "apiKey": "ov-sk-xxxxxxxxxxxxxxxx",
-  "createdAt": "2024-01-15T08:30:00.000Z"
-}
-```
-
-### 3.2 配置 AI 客户端
-
-#### Claude Desktop
-
-编辑 `claude_desktop_config.json`：
+## Claude Desktop 配置
 
 ```json
 {
   "mcpServers": {
     "openviking": {
       "command": "npx",
-      "args": ["@anthropic-ai/mcp-remote", "--url", "http://localhost:6001/api/mcp/sse?key=ov-sk-xxxxxxxxxxxxxxxx"]
+      "args": [
+        "@anthropic-ai/mcp-remote",
+        "--url",
+        "http://localhost:6001/api/mcp/sse?key=<ov-sk-...>"
+      ]
     }
   }
 }
 ```
 
-#### Cursor
-
-在 Cursor 设置中添加 MCP Server：
+使用短期 session key：
 
 ```json
 {
   "mcpServers": {
     "openviking": {
-      "url": "http://localhost:6001/api/mcp/sse?key=ov-sk-xxxxxxxxxxxxxxxx"
+      "command": "npx",
+      "args": [
+        "@anthropic-ai/mcp-remote",
+        "--url",
+        "http://localhost:6001/api/mcp/sse?sessionKey=<session-key>"
+      ]
     }
   }
 }
 ```
 
----
+## Cursor 配置
 
-## 4. 调试步骤
+```json
+{
+  "mcpServers": {
+    "openviking": {
+      "url": "http://localhost:6001/api/mcp/sse?key=<ov-sk-...>"
+    }
+  }
+}
+```
 
-### 4.1 测试 SSE 连接
+## 协议流转
+
+```text
+MCP 客户端
+  -> GET /api/mcp/sse?key=...
+  -> 接收消息端点地址
+  -> 向 POST /api/mcp/message 发送 JSON-RPC
+  -> MCP controller 映射 tools/list 或 tools/call
+  -> CapabilityExecutionService 执行 capability
+  -> 响应格式化为 MCP content[]
+```
+
+## 调试 SSE
 
 ```bash
-curl -N "http://localhost:6001/api/mcp/sse?key=ov-sk-xxxxxxxxxxxxxxxx"
+curl -N "http://localhost:6001/api/mcp/sse?key=<ov-sk-...>"
 ```
 
-预期输出：
-```
-event: endpoint
-data: http://localhost:6001/api/mcp/message?sessionId=xxx&key=ov-sk-xxx
-```
+预期会返回 SSE 消息端点信息，客户端随后向该消息端点发送 JSON-RPC 请求。
 
-### 4.2 测试 JSON-RPC 调用
+## 调试 tools/list
 
 ```bash
-curl -X POST "http://localhost:6001/api/mcp/message?sessionId=xxx&key=ov-sk-xxx" \
+curl -X POST "http://localhost:6001/api/mcp/message?sessionId=<id>&sessionToken=<token>&key=<ov-sk-...>" \
   -H "Content-Type: application/json" \
   -d '{
     "jsonrpc": "2.0",
     "id": 1,
+    "method": "tools/list"
+  }'
+```
+
+## 调试 tools/call
+
+```bash
+curl -X POST "http://localhost:6001/api/mcp/message?sessionId=<id>&sessionToken=<token>&key=<ov-sk-...>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 2,
     "method": "tools/call",
     "params": {
-      "name": "search_knowledge",
+      "name": "knowledge.search",
       "arguments": {
         "query": "如何配置多租户隔离",
-        "topK": 5
+        "limit": 5
       }
     }
   }'
 ```
 
-### 4.3 常见问题
+## 与其他入口的关系
 
-| 问题 | 原因 | 解决 |
+| 入口 | 何时使用 |
+|------|------|
+| HTTP | 客户端不支持 MCP，或需要网关、服务端、脚本直接集成 |
+| CLI | 本地开发、CI、运维终端、Agent 宿主机已有 `ova` |
+| MCP | 客户端原生支持 MCP，需要标准 tools 发现和调用 |
+| Skill | Agent 平台需要可读指令，并在 HTTP/CLI 间选择 |
+
+## 常见问题
+
+| 问题 | 原因 | 处理 |
 |------|------|------|
-| SSE 连接立即断开 | API Key 无效 | 检查 Key 是否存在且未被删除 |
-| 工具调用返回空 | 租户知识库为空 | 确认租户下有可用的知识库和文档 |
-| 401 Unauthorized | Key 参数缺失或格式错误 | 确认 `?key=` 查询参数正确 |
-| 500 Internal Error | OV 引擎不可达 | 检查 `OV_BASE_URL` 和 `OV_API_KEY` |
-
-### 4.4 查看 MCP Key 使用情况
-
-```bash
-GET /api/mcp/keys
-```
-
-返回所有 Key 及其 `lastUsedAt` 字段，可识别未使用或异常的 Key。
-
----
-
-## 5. 安全注意事项
-
-- MCP API Key 与用户和租户绑定，不可跨租户使用
-- Key 格式为 `ov-sk-<random>`，不可预测
-- 建议定期轮换 Key，废弃不再使用的 Key
-- 不要在客户端代码中硬编码 Key，应通过环境变量或配置文件注入
-
----
-
-> 下一步建议：阅读 [开发者指南](./DEVELOPMENT.md) 开始共同构建。
+| SSE 连接立即断开 | API key 或 session key 无效 | 重新换证，确认凭证未被吊销 |
+| `tools/list` 为空 | 服务端 capability catalog 未加载 | 检查服务启动日志和 `/api/capabilities` |
+| `tools/call` 返回 403 | 当前用户角色低于 capability `minimumRole` | 更换账号或调整租户角色 |
+| 工具调用返回空 | 租户知识库为空或 URI scope 不匹配 | 检查知识导入状态和资源 URI |

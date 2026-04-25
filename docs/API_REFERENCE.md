@@ -1,33 +1,73 @@
-# API 参考手册 (API Reference)
+# API 参考
 
-所有 API 端点均以 `/api` 为全局前缀（由 `main.ts` 中 `app.setGlobalPrefix('api')` 设置）。
+所有 HTTP 接口统一挂载在 `/api` 前缀下。示例默认服务地址为 `http://localhost:6001/api`。
 
-## 认证方式
+## 通用约定
 
-| 方式 | 适用端点 | 说明 |
-|------|----------|------|
-| 无认证 | 公开端点 | 登录、SSO 回调、租户认证检查 |
-| `Authorization: Bearer <token>` | 大部分端点 | JWT Token，2 小时过期 |
-| `?key=<mcp_api_key>` | MCP SSE/Message | MCP 专用 API Key 认证 |
+### 认证方式
 
-## 角色体系
+| 方式 | 适用接口 | 说明 |
+|------|------|------|
+| 无认证 | 登录、公开探测接口 | 不包含用户身份 |
+| `Authorization: Bearer <jwt>` | 控制台、管理 API、换证接口 | 用户登录态 |
+| `Authorization: Bearer <capability_access_token>` | Capability HTTP 接口 | 已登录用户换取的能力 token |
+| `Authorization: Bearer <session_key>` | 短会话能力调用 | 适合临时 Agent 会话 |
+| `Authorization: Bearer <ov-sk-...>` | Capability HTTP 接口、MCP | 兼容 API key 方式 |
+| `x-capability-key: <ov-sk-...>` | Capability HTTP 接口 | 推荐的 API key header |
+
+### 请求追踪
+
+所有能力、换证和 MCP 调用都支持 `x-request-id`。服务端会在响应中返回 `traceId`，用于关联服务端日志、审计日志和 OpenViking 下游请求。
+
+### 成功响应
+
+```json
+{
+  "data": {},
+  "meta": {
+    "requestId": "client-or-server-generated"
+  },
+  "traceId": "uuid",
+  "error": null
+}
+```
+
+### 错误响应
+
+```json
+{
+  "data": null,
+  "meta": {
+    "requestId": "client-or-server-generated",
+    "timestamp": "2026-04-25T13:00:00.000Z",
+    "path": "/api/knowledge/search"
+  },
+  "traceId": "uuid",
+  "error": {
+    "code": "CAPABILITY_INVALID_INPUT",
+    "message": "参数错误",
+    "statusCode": 400
+  }
+}
+```
+
+### 角色体系
 
 | 角色 | 权限范围 |
-|------|----------|
+|------|------|
 | `super_admin` | 平台全局管理，可切换视角模拟租户管理员 |
 | `tenant_admin` | 租户内管理员，可管理租户用户和配置 |
-| `tenant_operator` | 租户操作员，可执行知识库和导入操作 |
-| `tenant_viewer` | 租户只读用户，仅可查看和检索 |
+| `tenant_operator` | 租户操作员，可执行知识库、导入和资源操作 |
+| `tenant_viewer` | 租户只读用户，可查看和检索授权资源 |
 
----
-
-## Auth 认证模块
+## 认证接口
 
 ### POST /api/auth/login
 
 本地账号登录。
 
-**请求体**:
+请求体：
+
 ```json
 {
   "username": "admin",
@@ -36,567 +76,446 @@
 }
 ```
 
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `username` | string | 是 | 用户名 |
-| `password` | string | 是 | 密码 |
-| `tenantCode` | string | 否 | 租户标识，非超管必须提供 |
+响应：
 
-**响应**:
 ```json
 {
-  "accessToken": "eyJhbGciOiJIUzI1NiIs...",
-  "user": {
-    "id": "uuid",
-    "username": "admin",
-    "role": "super_admin",
-    "tenantId": null,
-    "scope": "platform"
-  }
+  "data": {
+    "accessToken": "jwt",
+    "refreshToken": "jwt",
+    "expiresInSeconds": 7200,
+    "refreshExpiresInSeconds": 604800,
+    "user": {
+      "id": "uuid",
+      "username": "admin",
+      "role": "tenant_admin",
+      "tenantId": "uuid"
+    }
+  },
+  "traceId": "uuid",
+  "error": null
 }
 ```
-
-**错误码**:
-- `401` — 用户名或密码错误
-- `403` — 非超管未提供 tenantCode
-
----
 
 ### GET /api/auth/sso/redirect/:tenantId/:type
 
-发起 SSO 认证重定向。
+发起企业 SSO 认证重定向。
 
-| 参数 | 类型 | 说明 |
+| 参数 | 位置 | 说明 |
 |------|------|------|
-| `tenantId` | string (path) | 租户 ID |
-| `type` | string (path) | SSO 类型: `feishu` / `dingtalk` / `oidc` / `ldap` |
-
-**响应**: 302 重定向到对应 SSO Provider 的认证页面。
-
----
+| `tenantId` | path | 租户 ID |
+| `type` | path | `feishu`、`dingtalk`、`oidc` 或 `ldap` |
 
 ### GET /api/auth/sso/callback/:tenantId/:type
 
-SSO 认证回调处理。
-
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| `tenantId` | string (path) | 租户 ID |
-| `type` | string (path) | SSO 类型 |
-| `code` | string (query) | SSO Provider 返回的授权码 |
-
-**响应**: 302 重定向到 `/login?sso_ticket=<ticket>` 或 `/login?error=<msg>`。
-
----
+SSO Provider 回调入口。认证成功后重定向到前端并携带一次性 ticket。
 
 ### POST /api/auth/sso/exchange
 
-用一次性 SSO Ticket 交换 JWT Token。
+使用一次性 SSO ticket 换取 `accessToken` 和 `refreshToken`。
 
-**请求体**:
 ```json
 {
-  "ticket": "sso_ticket_string"
+  "ticket": "sso-ticket"
 }
 ```
 
-**响应**: 与 `/auth/login` 相同格式。Ticket 60 秒过期且一次性使用。
+### POST /api/auth/refresh
 
----
+使用 refresh token 刷新登录态。
+
+```json
+{
+  "refreshToken": "jwt"
+}
+```
+
+### GET /api/auth/whoami
+
+返回当前用户、租户和角色上下文。
+
+### GET /api/auth/credential-options
+
+返回当前用户可用的换证方式和推荐 TTL。需要 JWT。
+
+### POST /api/auth/token/exchange
+
+将 JWT 登录态交换为 capability access token。
+
+响应：
+
+```json
+{
+  "data": {
+    "credentialType": "capability_access_token",
+    "accessToken": "token",
+    "expiresInSeconds": 7200
+  },
+  "meta": {
+    "channel": "http",
+    "flow": "token.exchange"
+  },
+  "traceId": "uuid",
+  "error": null
+}
+```
+
+### POST /api/auth/session/exchange
+
+将 JWT 登录态交换为短期 session key，常用于 MCP 或短会话 Agent。
+
+### POST /api/auth/client-credentials
+
+签发可吊销 API key，适合 CLI、MCP 和自动化任务。
+
+请求体：
+
+```json
+{
+  "name": "ci-bot"
+}
+```
+
+响应：
+
+```json
+{
+  "data": {
+    "credentialType": "api_key",
+    "apiKey": "ov-sk-...",
+    "name": "ci-bot"
+  },
+  "traceId": "uuid",
+  "error": null
+}
+```
 
 ### POST /api/auth/switch-role
 
-超管视角切换，模拟为指定租户管理员。
-
-**认证**: JWT + `super_admin` 角色
-
-**请求体**:
-```json
-{
-  "tenantId": "target_tenant_id"
-}
-```
-
-**响应**: 返回新的 JWT Token，`scope` 变为 `tenant`，`isAdminSwitch: true`。
-
----
+超管切换租户视角。需要 `super_admin`。
 
 ### GET /api/auth/me
 
-获取当前登录用户信息。
+返回当前 JWT 用户信息。保留给控制台兼容使用。
 
-**认证**: JWT
+## 能力平台接口
 
-**响应**:
+### GET /api/capabilities
+
+返回 capability catalog。
+
+响应：
+
 ```json
 {
-  "id": "uuid",
-  "username": "admin",
-  "role": "super_admin",
-  "tenantId": null
+  "data": [
+    {
+      "id": "knowledge.search",
+      "version": "v1",
+      "description": "在租户知识域内执行语义搜索",
+      "minimumRole": "tenant_viewer",
+      "http": {
+        "method": "POST",
+        "path": "/api/knowledge/search"
+      },
+      "cli": {
+        "command": "ova knowledge search"
+      }
+    }
+  ],
+  "traceId": "uuid",
+  "error": null
 }
 ```
 
----
+### POST /api/knowledge/search
 
-## Tenants 租户模块
+在租户知识域内执行语义搜索。
 
-> 所有租户端点需要 `super_admin` 角色。
+请求体：
 
-### GET /api/tenants
+```json
+{
+  "query": "多租户隔离",
+  "limit": 5,
+  "scoreThreshold": 0.5
+}
+```
 
-获取所有租户列表。
+响应 `data`：
 
-**响应**: 租户对象数组。
+```json
+{
+  "items": [
+    {
+      "uri": "viking://resources/tenants/acme/doc-1",
+      "title": "多租户白皮书",
+      "abstract": "隔离策略说明",
+      "score": 0.91
+    }
+  ]
+}
+```
 
-### GET /api/tenants/:id
+### POST /api/knowledge/grep
 
-获取指定租户详情。
+在租户知识域内执行文本匹配。
 
-### POST /api/tenants
+请求体：
 
-创建租户。
+```json
+{
+  "pattern": "tenant",
+  "uri": "viking://resources/tenants/acme/",
+  "caseInsensitive": true
+}
+```
 
-**请求体**:
+### GET /api/resources
+
+列出租户授权范围内的资源。
+
+查询参数：
+
+| 参数 | 必填 | 说明 |
+|------|------|------|
+| `uri` | 否 | 资源 URI 前缀 |
+
+### GET /api/resources/tree
+
+返回租户资源树。
+
+查询参数：
+
+| 参数 | 必填 | 说明 |
+|------|------|------|
+| `uri` | 否 | 根资源 URI |
+| `depth` | 否 | 树深度 |
+
+响应 `data`：
+
+```json
+{
+  "items": [],
+  "renderedTree": "[DIR] docs\n  [FILE] README.md"
+}
+```
+
+## 可观测性接口
+
+### GET /api/observability/capabilities
+
+返回 capability 平台当前进程内的观测快照。需要 JWT。
+
+包含：
+
+- capability 调用 counters。
+- token exchange counters。
+- capability 延迟 P95 / P99。
+- rate limit 规则和活跃 bucket。
+- 告警快照。
+
+### GET /api/observability/capabilities/prometheus
+
+返回 Prometheus exposition 格式指标，供外部 Prometheus 抓取。
+
+## MCP
+
+### GET /api/mcp/sse?key=<apiKey>
+
+使用 API key 建立 MCP SSE 会话。
+
+### GET /api/mcp/sse?sessionKey=<session-key>
+
+使用短期 session key 建立 MCP SSE 会话。
+
+### POST /api/mcp/message
+
+MCP JSON-RPC 消息接口。
+
+查询参数：
+
+| 参数 | 说明 |
+|------|------|
+| `sessionId` | SSE 建立后返回的会话 ID |
+| `sessionToken` | SSE 建立后返回的会话 token |
+| `key` | API key，可选 |
+| `sessionKey` | 短期 session key，可选 |
+
+支持方法：
+
+| 方法 | 说明 |
+|------|------|
+| `initialize` | 初始化 MCP 会话 |
+| `tools/list` | 返回 capability catalog 投影出的工具 |
+| `tools/call` | 调用指定 capability |
+
+## 租户接口
+
+租户管理接口需要 `super_admin`，公开探测接口除外。
+
+| Method | Path | 说明 |
+|------|------|------|
+| `GET` | `/api/tenants` | 获取租户列表 |
+| `GET` | `/api/tenants/:id` | 获取租户详情 |
+| `POST` | `/api/tenants` | 创建租户 |
+| `PATCH` | `/api/tenants/:id` | 更新租户 |
+| `DELETE` | `/api/tenants/:id` | 删除租户 |
+| `GET` | `/api/tenants/check-auth/:code` | 公开接口，检查租户可用 SSO 方式 |
+
+创建租户请求体：
+
 ```json
 {
   "tenantId": "acme",
   "displayName": "ACME Corp",
   "isolationLevel": "medium",
-  "quota": { "maxDocs": 1000, "maxVectors": 100000 }
+  "quota": {
+    "maxDocs": 1000,
+    "maxVectors": 100000
+  }
 }
 ```
 
-### PATCH /api/tenants/:id
+## 用户接口
 
-更新租户信息。
+需要 `super_admin` 或 `tenant_admin`。
 
-### DELETE /api/tenants/:id
+| Method | Path | 说明 |
+|------|------|------|
+| `GET` | `/api/users` | 获取用户列表 |
+| `POST` | `/api/users` | 创建用户 |
+| `PATCH` | `/api/users/:id` | 更新用户 |
+| `DELETE` | `/api/users/:id` | 删除用户 |
 
-删除租户。
+`tenant_admin` 不能创建或提升 `super_admin`。
 
-### GET /api/tenants/check-auth/:code
+## 知识库接口
 
-**公开端点**。检查指定租户可用的 SSO 认证方式。
+需要 JWT 和租户上下文。
 
-**响应**:
-```json
-{
-  "oidc": true,
-  "feishu": false
-}
-```
+| Method | Path | 说明 |
+|------|------|------|
+| `GET` | `/api/knowledge-bases` | 获取当前租户知识库 |
+| `GET` | `/api/knowledge-bases/:id` | 获取知识库详情 |
+| `POST` | `/api/knowledge-bases` | 创建知识库 |
+| `PATCH` | `/api/knowledge-bases/:id` | 更新知识库 |
+| `DELETE` | `/api/knowledge-bases/:id` | 删除知识库 |
 
----
+## 知识树接口
 
-## Users 用户模块
+需要 JWT 和租户上下文。
 
-> 需要 `super_admin` 或 `tenant_admin` 角色。
+| Method | Path | 说明 |
+|------|------|------|
+| `GET` | `/api/knowledge-tree?kbId=<uuid>` | 获取知识树节点 |
+| `GET` | `/api/knowledge-tree/graph?kbId=<uuid>` | 获取知识图谱 |
+| `POST` | `/api/knowledge-tree` | 创建知识节点 |
+| `PATCH` | `/api/knowledge-tree/:id` | 更新知识节点 |
+| `DELETE` | `/api/knowledge-tree/:id` | 删除知识节点 |
+| `PATCH` | `/api/knowledge-tree/:id/move` | 移动节点 |
 
-### GET /api/users
+## 导入任务接口
 
-获取当前租户范围内的用户列表。
+需要 JWT 和租户上下文。
 
-### POST /api/users
+| Method | Path | 说明 |
+|------|------|------|
+| `GET` | `/api/import-tasks` | 获取导入任务列表 |
+| `GET` | `/api/import-tasks/:id` | 获取任务详情 |
+| `POST` | `/api/import-tasks` | 创建导入任务 |
+| `GET` | `/api/import-tasks/:id/sync` | 同步任务执行结果 |
 
-创建用户。内置提权检测：`tenant_admin` 不能创建 `super_admin`。
-
-**请求体**:
-```json
-{
-  "username": "newuser",
-  "password": "password123",
-  "role": "tenant_operator",
-  "tenantId": "acme"
-}
-```
-
-### PATCH /api/users/:id
-
-更新用户信息。
-
-### DELETE /api/users/:id
-
-删除用户。
-
----
-
-## Knowledge Bases 知识库模块
-
-> 需要 JWT + TenantGuard。
-
-### GET /api/knowledge-bases
-
-获取当前租户的知识库列表。
-
-### GET /api/knowledge-bases/:id
-
-获取指定知识库详情。
-
-### POST /api/knowledge-bases
-
-创建知识库。自动注入当前租户 ID。
-
-**请求体**:
-```json
-{
-  "name": "产品文档库",
-  "description": "包含所有产品相关文档"
-}
-```
-
-### PATCH /api/knowledge-bases/:id
-
-更新知识库信息。
-
-### DELETE /api/knowledge-bases/:id
-
-删除知识库。
-
----
-
-## Knowledge Tree 知识树模块
-
-> 需要 JWT + TenantGuard。
-
-### GET /api/knowledge-tree?kbId=<uuid>
-
-获取指定知识库下的所有节点。
-
-### GET /api/knowledge-tree/graph?kbId=<uuid>
-
-获取知识图谱可视化数据。
-
-**响应**:
-```json
-{
-  "nodes": [{ "id": "uuid", "name": "节点名", "group": 1 }],
-  "links": [{ "source": "parent_id", "target": "child_id" }]
-}
-```
-
-### POST /api/knowledge-tree
-
-创建知识节点。
-
-**请求体**:
-```json
-{
-  "name": "章节名称",
-  "kbId": "knowledge_base_uuid",
-  "parentId": "parent_node_uuid_or_null",
-  "acl": { "isPublic": true, "roles": ["tenant_admin"] }
-}
-```
-
-### PATCH /api/knowledge-tree/:id
-
-更新节点信息。
-
-### DELETE /api/knowledge-tree/:id
-
-删除节点（递归删除子节点）。
-
-### PATCH /api/knowledge-tree/:id/move
-
-移动节点到新的父节点下。
-
-**请求体**:
-```json
-{
-  "parentId": "new_parent_uuid_or_null",
-  "sortOrder": 1
-}
-```
-
----
-
-## Import Tasks 导入任务模块
-
-> 需要 JWT + TenantGuard。
-
-### GET /api/import-tasks
-
-获取当前租户的导入任务列表。
-
-### GET /api/import-tasks/:id
-
-获取指定任务详情。
-
-### POST /api/import-tasks
-
-创建导入任务。
-
-**请求体**:
-```json
-{
-  "integrationId": "integration_uuid",
-  "kbId": "knowledge_base_uuid",
-  "sourceType": "git",
-  "sourceUrl": "https://github.com/org/repo",
-  "targetUri": "viking://resources/tenants/acme/kb/uuid"
-}
-```
+导入来源：
 
 | sourceType | 说明 |
-|------------|------|
+|------|------|
 | `feishu` | 飞书文档 |
 | `dingtalk` | 钉钉知识库 |
-| `git` | GitHub/GitLab 仓库 |
+| `git` | GitHub 或 GitLab 仓库 |
 
-### GET /api/import-tasks/:id/sync
+## 搜索接口
 
-同步任务执行结果（从 OpenViking 引擎拉取最新状态）。
+保留给控制台和历史搜索页面使用。Capability 搜索入口见 `/api/knowledge/search`。
 
----
+| Method | Path | 说明 |
+|------|------|------|
+| `POST` | `/api/search/find` | 语义检索 |
+| `POST` | `/api/search/grep` | 文本匹配 |
+| `GET` | `/api/search/analysis` | 检索分析 |
+| `GET` | `/api/search/stats-deep` | 深度检索统计 |
+| `GET` | `/api/search/logs` | 最近检索日志 |
+| `POST` | `/api/search/logs/:id/feedback` | 提交检索反馈 |
 
-## Search 检索模块
+## 系统接口
 
-> 需要 JWT + TenantGuard。
+需要 JWT 和租户上下文，健康检查除外。
 
-### POST /api/search/find
+| Method | Path | 说明 |
+|------|------|------|
+| `GET` | `/api/system/health` | 系统健康检查 |
+| `GET` | `/api/system/queue` | OpenViking 处理队列 |
+| `GET` | `/api/system/stats` | 系统统计 |
+| `GET` | `/api/system/dashboard` | 控制台仪表盘 |
+| `POST` | `/api/system/reindex` | 触发重新索引 |
 
-语义检索（二阶段：向量召回 + Rerank）。
+## 配置接口
 
-**请求体**:
-```json
-{
-  "query": "如何配置多租户隔离",
-  "topK": 10,
-  "scoreThreshold": 0.5
-}
-```
+| Method | Path | 说明 |
+|------|------|------|
+| `GET` | `/api/settings` | 获取系统配置，需要 JWT |
+| `PATCH` | `/api/settings` | 批量更新系统配置，需要 `super_admin` |
 
-**响应**:
-```json
-{
-  "results": [
-    {
-      "uri": "viking://resources/...",
-      "content": "匹配的文本片段...",
-      "score": 0.89,
-      "metadata": {}
-    }
-  ],
-  "reranked": true,
-  "latencyMs": 120
-}
-```
+## 审计接口
 
-### POST /api/search/grep
+需要 JWT 和租户上下文。
 
-正则表达式文本匹配。
+| Method | Path | 说明 |
+|------|------|------|
+| `GET` | `/api/audit` | 分页查询审计日志 |
+| `GET` | `/api/audit/stats` | 审计统计 |
 
-**请求体**:
-```json
-{
-  "pattern": "tenant.*isolation",
-  "uri": "viking://resources/tenants/acme/..."
-}
-```
+常用查询参数：
 
-### GET /api/search/analysis
+| 参数 | 说明 |
+|------|------|
+| `page` | 页码 |
+| `pageSize` | 每页条数 |
+| `action` | 操作类型 |
+| `username` | 用户名 |
+| `dateFrom` | 起始日期，ISO 8601 |
+| `dateTo` | 结束日期，ISO 8601 |
 
-获取检索分析数据（无答案洞察）。
+## 集成配置接口
 
-### GET /api/search/stats-deep
+需要 JWT 和租户上下文。敏感字段返回前会自动脱敏。
 
-获取深度检索统计。
+| Method | Path | 说明 |
+|------|------|------|
+| `GET` | `/api/integrations` | 获取集成配置 |
+| `POST` | `/api/integrations` | 创建集成配置 |
+| `PATCH` | `/api/integrations/:id` | 更新集成配置 |
+| `DELETE` | `/api/integrations/:id` | 删除集成配置 |
 
-### GET /api/search/logs?limit=10
-
-获取最近检索日志。
-
-### POST /api/search/logs/:id/feedback
-
-对检索结果提交反馈。
-
-**请求体**:
-```json
-{
-  "feedback": "helpful",
-  "note": "结果很精准"
-}
-```
-
-| feedback 值 | 说明 |
-|-------------|------|
-| `helpful` | 有帮助 |
-| `unhelpful` | 无帮助 |
-
----
-
-## System 系统模块
-
-> 需要 JWT + TenantGuard。
-
-### GET /api/system/health
-
-系统健康检查。
-
-**响应**:
-```json
-{
-  "ok": true,
-  "openviking": { "status": "connected" },
-  "dbPool": { "total": 10, "idle": 8, "active": 2 }
-}
-```
-
-### GET /api/system/queue
-
-获取 OpenViking 处理队列状态。
-
-### GET /api/system/stats
-
-获取系统统计数据。
-
-### GET /api/system/dashboard
-
-获取仪表盘聚合数据（知识库数、任务数、检索数、命中率等）。
-
-### POST /api/system/reindex
-
-触发重新索引。
-
-**请求体**:
-```json
-{
-  "uri": "viking://resources/tenants/acme/kb/uuid"
-}
-```
-
----
-
-## Settings 配置模块
-
-### GET /api/settings
-
-获取所有系统配置。需要 JWT 认证。
-
-### PATCH /api/settings
-
-批量更新系统配置。需要 `super_admin` 角色。
-
-**请求体**:
-```json
-{
-  "ov_base_url": "http://ov-server:1933",
-  "rerank_endpoint": "http://rerank-server:8080/rerank"
-}
-```
-
----
-
-## Audit 审计模块
-
-> 需要 JWT + TenantGuard。
-
-### GET /api/audit?page=1&pageSize=20&action=login&username=admin&dateFrom=2024-01-01&dateTo=2024-12-31
-
-分页查询审计日志。
-
-| 查询参数 | 类型 | 说明 |
-|----------|------|------|
-| `page` | string | 页码 |
-| `pageSize` | string | 每页条数 |
-| `action` | string | 操作类型过滤 |
-| `username` | string | 用户名过滤 |
-| `dateFrom` | string | 起始日期 (ISO 8601) |
-| `dateTo` | string | 结束日期 (ISO 8601) |
-
-### GET /api/audit/stats
-
-获取审计操作类型统计。
-
----
-
-## Integrations 集成模块
-
-> 需要 JWT + TenantGuard。返回数据中敏感字段自动脱敏（显示 `********`）。
-
-### GET /api/integrations
-
-获取当前租户的集成配置列表。
-
-### POST /api/integrations
-
-创建集成配置。
-
-**请求体**:
-```json
-{
-  "name": "飞书文档",
-  "type": "feishu",
-  "credentials": {
-    "appId": "cli_xxx",
-    "appSecret": "secret_xxx"
-  },
-  "config": { "syncInterval": 3600 }
-}
-```
-
-### PATCH /api/integrations/:id
-
-更新集成配置。
-
-### DELETE /api/integrations/:id
-
-删除集成配置。
-
----
-
-## MCP 协议模块
-
-### SSE /api/mcp/sse?key=<mcp_api_key>
-
-建立 MCP SSE 长连接。通过 `key` 查询参数认证。
-
-### POST /api/mcp/message?sessionId=<id>&key=<mcp_api_key>
-
-发送 JSON-RPC 2.0 请求。
-
-**MCP 工具集**:
-
-| 工具名 | 说明 |
-|--------|------|
-| `search_knowledge` | 带权限隔离的语义检索 |
-| `grep_knowledge` | 正则表达式文本匹配 |
-| `list_resources` | 浏览租户授权范围内的目录 |
-| `tree_resources` | 生成知识资产树状视图 |
-
-### POST /api/mcp/keys
-
-创建 MCP API Key。需要 JWT 认证。
-
-### GET /api/mcp/keys
-
-获取当前用户的 MCP Key 列表。需要 JWT 认证。
-
-### DELETE /api/mcp/keys/:id
-
-删除 MCP Key。需要 JWT 认证。
-
----
-
-## 全局错误响应格式
-
-所有错误响应遵循统一格式：
-
-```json
-{
-  "statusCode": 401,
-  "timestamp": "2024-01-15T08:30:00.000Z",
-  "path": "/api/auth/login",
-  "message": "Invalid credentials"
-}
-```
+## 全局错误语义
 
 | 状态码 | 说明 |
-|--------|------|
+|------|------|
 | `400` | 请求参数错误 |
-| `401` | 未认证或 Token 过期 |
-| `403` | 权限不足（角色/租户不匹配） |
-| `404` | 资源不存在 |
-| `409` | 资源冲突（如用户名重复） |
-| `500` | 服务器内部错误 |
+| `401` | 未认证、凭证无效或 token 过期 |
+| `403` | 权限不足、租户上下文缺失或越权 URI |
+| `404` | 资源或 capability 不存在 |
+| `409` | 资源冲突 |
+| `429` | 触发 rate limit 或 quota |
+| `500` | 服务内部错误或 OpenViking 下游异常 |
+
+## 能力错误码
+
+| 错误码 | 说明 |
+|------|------|
+| `CAPABILITY_UNAUTHORIZED` | 缺少有效凭证 |
+| `CAPABILITY_FORBIDDEN` | 权限不足或租户边界不匹配 |
+| `CAPABILITY_NOT_FOUND` | capability 不存在 |
+| `CAPABILITY_INVALID_INPUT` | 输入不符合 schema |
+| `CAPABILITY_RATE_LIMITED` | 触发限流 |
+| `CAPABILITY_EXECUTION_FAILED` | 下游服务或执行异常 |

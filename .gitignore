@@ -1,11 +1,12 @@
 .gitnexus
-.agents
+.agents/
 .env
 .env.local
 node_modules/
 dist/
 .next/
-.claude/*
+.claude/
+.vscode/
 *.tsbuildinfo
 next-env.d.ts
 eslint-report.json

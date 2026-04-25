@@ -1,4 +1,4 @@
-# 数据库 Schema 参考 (Database Schema Reference)
+# 数据库 Schema 参考
 
 本文档提供完整的数据库表结构、索引、关系和迁移信息。
 
@@ -199,9 +199,9 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 ---
 
-### user_mcp_keys
+### capability_keys
 
-MCP API Key 表。
+Capability Key 表。
 
 | 列名 | 类型 | 约束 | 默认值 | 说明 |
 |------|------|------|--------|------|
@@ -225,7 +225,7 @@ tenants (1) ────< (N) integrations
 tenants (1) ────< (N) search_logs
 tenants (1) ────< (N) audit_logs
 tenants (1) ────< (N) import_tasks
-tenants (1) ────< (N) user_mcp_keys
+tenants (1) ────< (N) capability_keys
 
 knowledge_bases (1) ────< (N) knowledge_nodes
 knowledge_bases (1) ────< (N) import_tasks
@@ -235,7 +235,7 @@ knowledge_nodes 自引用 (parent_id → id)
 integrations (1) ────< (N) import_tasks
 
 users (1) ────< (N) audit_logs
-users (1) ────< (N) user_mcp_keys
+users (1) ────< (N) capability_keys
 ```
 
 ---
@@ -258,4 +258,4 @@ users (1) ────< (N) user_mcp_keys
 2. **search_logs**: Entity 定义了 `feedback`, `feedback_note`, `meta` 列，InitSchema 中不存在
 3. **import_tasks**: Entity 定义了 `tenant_id`, `integration_id` 列，InitSchema 中不存在
 4. **knowledge_nodes**: Entity 中 `acl` 为 `jsonb`，AddMissingTables 中定义为 `VARCHAR(255)`
-5. **integrations** 和 **user_mcp_keys**: 无对应迁移文件，依赖 TypeORM `synchronize: true` 自动建表
+5. **integrations** 和 **capability_keys**: 旧版本曾依赖 TypeORM `synchronize: true` 自动建表，当前已补 capability key 迁移

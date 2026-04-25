@@ -1,137 +1,143 @@
-# 🏗️ 深度架构解析 (Architecture Deep Dive)
+# 架构文档
 
-本文旨在为开发者和架构师详细解读 `OpenViking Admin` 的底层设计哲学与核心实现机制。
+本文说明 OpenViking Admin 的系统分层、核心链路和能力平台的设计边界。
 
----
+![OpenViking 企业 AI 知识中台架构全景图](<./images/OpenViking 企业 AI 知识中台架构全景图.png>)
 
-## 1. 分层架构 (Onion Architecture)
+这张图展示了系统从企业 SSO、Web 控制台、能力入口到 OpenViking 引擎和多租户存储的整体结构。下面的文字会进一步展开各层职责和依赖方向。
 
-项目严格遵循"洋葱架构"设计原则，确保核心业务逻辑（Domain）不依赖于外部基础设施（Infrastructure）。
+## 架构原则
 
-```
-┌─────────────────────────────────────────────────┐
-│              Presentation Layer                  │
-│  Controllers (auth/, users/, tenant/, ...)       │
-│  DTOs, Guards, Interceptors, Filters             │
-├─────────────────────────────────────────────────┤
-│              Application Layer                   │
-│  Services (auth.service.ts, search.service.ts)   │
-│  业务编排、事务管理、审计记录                      │
-├─────────────────────────────────────────────────┤
-│              Domain Layer                        │
-│  Entities (users/entities/, tenant/entities/)    │
-│  Repository Interfaces (domain/repositories/)    │
-├─────────────────────────────────────────────────┤
-│              Infrastructure Layer                │
-│  Repository Implementations                      │
-│  (infrastructure/repositories/)                  │
-│  OVClient, EncryptionService, DynamicDataSource  │
-└─────────────────────────────────────────────────┘
+项目遵循洋葱架构，依赖方向只能从外层指向内层：
+
+```text
+Presentation / Adapters
+  -> Application
+    -> Domain
+
+Infrastructure
+  -> Application / Domain interfaces
 ```
 
-- **Domain 层**: 定义业务实体（Entities）与仓储接口（Repository Interfaces），位于 `*/domain/repositories/*.interface.ts`
-- **Infrastructure 层**: 实现具体的数据库访问、外部 API 调用（OV Client）及认证逻辑，位于 `*/infrastructure/repositories/*.ts`
-- **Application 层**: 通过 NestJS Services 协调业务流转，位于 `*.service.ts`
-- **Presentation 层**: Controller 接收 HTTP 请求，DTO 验证，Guard 授权
+Domain 层不依赖 NestJS、TypeORM、HTTP、CLI、MCP、OpenViking SDK 或任何外部协议。Presentation 和 Infrastructure 都是可替换实现。
 
----
+## 分层视图
 
-## 2. 核心黑科技：请求级动态寻址 (Request-Scoped Context)
+```text
+┌───────────────────────────────────────────────────────────────┐
+│ Presentation / Adapters                                       │
+│ HTTP Controllers, OVA CLI, MCP Controller, Skill templates     │
+├───────────────────────────────────────────────────────────────┤
+│ Application                                                   │
+│ Auth, Tenant, Search orchestration, Capability services        │
+├───────────────────────────────────────────────────────────────┤
+│ Domain                                                        │
+│ Entities, Repository interfaces, Capability contracts          │
+├───────────────────────────────────────────────────────────────┤
+│ Infrastructure                                                │
+│ TypeORM repositories, OVClient, Credential store, Metrics      │
+└───────────────────────────────────────────────────────────────┘
+```
 
-这是系统的稳定性核心。我们通过 NestJS 的 `Scope.REQUEST` 实现了**仓储层的动态实例化**。
+## 主要模块
 
-### 逻辑闭环
+| 模块 | 分层角色 | 说明 |
+|------|------|------|
+| `auth` | Presentation / Application | 登录、SSO、JWT、refresh token 和换证入口 |
+| `tenant` | Domain / Infrastructure | 租户隔离、配置、数据路由和集成配置 |
+| `users` | Domain / Application | 用户与角色管理 |
+| `knowledge-base` | Domain / Application | 知识库管理 |
+| `knowledge-tree` | Domain / Application | 知识树、ACL 和资源 URI |
+| `import-task` | Application / Infrastructure | 多源导入任务与后台 worker |
+| `search` | Application / Infrastructure | 语义检索、文本匹配和统计 |
+| `capabilities` | Application / Adapter | capability catalog、执行、授权、换证、观测 |
+| `mcp` | Presentation Adapter | MCP SSE 与 JSON-RPC 协议适配 |
+| `common` | Infrastructure | OpenViking client、加密、全局 guard/filter/interceptor |
 
-1. **拦截器注入**: `TenantGuard` (`common/tenant.guard.ts`) 识别租户身份，并将连接句柄挂载至 `Request`
-2. **动态路由**: `Repository` 实例化时，通过构造函数注入 `REQUEST` 对象
-3. **精准读写**: 通过 `get repo()` getter 方法，根据请求上下文动态选择主库、Schema 或独立租户库
+## 能力平台
 
-### 关键代码路径
+能力平台将知识能力定义为稳定契约，再投影到多个入口。
 
-| 组件 | 文件路径 | 说明 |
-|------|----------|------|
-| TenantGuard | `common/tenant.guard.ts` | 租户身份识别 + 数据库路由 |
-| DynamicDataSourceService | `common/dynamic-datasource.service.ts` | LARGE 租户动态连接池 |
-| TenantCleanupInterceptor | `common/tenant-cleanup.interceptor.ts` | QueryRunner 生命周期管理 |
-| Repository 实现 | `*/infrastructure/repositories/*.ts` | `Scope.REQUEST` 仓储实现 |
+```text
+HTTP / CLI / MCP / Skill
+  -> 能力契约
+  -> CapabilityAuthorizationService
+  -> CapabilityExecutionService
+  -> KnowledgeCapabilityGateway
+  -> OpenViking 下游服务
+```
 
----
+### 入口职责
 
-## 3. 资源自愈：连接回收机制 (Cleanup Interceptor)
+| 入口 | 职责 |
+|------|------|
+| HTTP | 暴露 RESTful capability 接口 |
+| CLI | 提供 `ova` 命令、profile、自动 refresh、结构化输出和诊断 |
+| MCP | 将 capability catalog 投影为 `tools/list` 和 `tools/call` |
+| Skill | 在 Agent 指令中选择 HTTP 或 CLI，不定义新协议 |
 
-为了防止多租户场景下的连接泄漏，系统通过 `TenantCleanupInterceptor` 利用 RxJS 的 `finalize` 钩子。无论业务执行成功还是抛出异常，均会强制执行 `QueryRunner.release()`，确保数据库连接池的健康。
+## 认证与换证链路
 
-**关键代码路径**: `common/tenant-cleanup.interceptor.ts`
+```text
+Local login / SSO
+  -> JWT access token + refresh token
+  -> /api/auth/token/exchange
+  -> capability access token
 
----
+Local login / SSO
+  -> JWT access token + refresh token
+  -> /api/auth/session/exchange
+  -> session key
 
-## 4. 检索双轨制 (Dual-Stage Search)
+JWT access token
+  -> /api/auth/client-credentials
+  -> scoped API key
+```
 
-- **Stage 1 (Vector)**: 利用 OpenViking 引擎执行语义召回 (`common/ov-client.service.ts`)
-- **Stage 2 (Rerank)**: 引入二阶重排序模型，对召回片段进行深度语义验证
+所有能力调用最终解析为统一 `Principal`，然后进入 `CapabilityAuthorizationService`。
 
-**关键代码路径**: `search/search.service.ts`
+## 多租户数据边界
 
-### ACL 前置过滤
+租户隔离由身份、角色、URI scope 和数据路由共同保证：
 
-检索前根据用户角色和知识节点 ACL 配置，过滤出用户可访问的 URI 列表，确保租户隔离。
+1. `TenantGuard` 识别租户身份并注入请求上下文。
+2. Repository 通过请求上下文选择主库、Schema 或独立租户库。
+3. Capability gateway 对租户外 URI 返回显式拒绝。
+4. 下游 OpenViking 请求只使用服务端推导出的租户 scope。
 
----
+## 请求级动态寻址
 
-## 5. SSO Provider 适配器模式
+系统通过 request-scoped repository 和动态 datasource 支持不同隔离级别。
 
-SSO 系统采用 Provider 适配器模式，由 `SSOPortalService` 作为统一分发器，根据 `IntegrationType` 路由到具体 Provider。
+| 组件 | 说明 |
+|------|------|
+| `TenantGuard` | 识别租户身份，准备数据路由上下文 |
+| `DynamicDataSourceService` | 管理 Large 租户独立连接池 |
+| `TenantCleanupInterceptor` | 请求结束后释放 QueryRunner |
+| Repository implementations | 基于请求上下文选择实际数据源 |
 
-**关键代码路径**:
+## 可观测性
 
-| 组件 | 文件路径 |
-|------|----------|
-| SSOPortalService | `auth/sso/sso-portal.service.ts` |
-| SsoTicketService | `auth/sso/sso-ticket.service.ts` |
-| 飞书 Provider | `auth/sso/providers/feishu-sso.provider.ts` |
-| 钉钉 Provider | `auth/sso/providers/dingtalk-sso.provider.ts` |
-| OIDC Provider | `auth/sso/providers/oidc-sso.provider.ts` |
-| LDAP Provider | `auth/sso/providers/ldap.provider.ts` |
+Capability 调用会产生以下字段：
 
----
+| 字段 | 说明 |
+|------|------|
+| `traceId` | 服务端追踪 ID |
+| `spanId` | 调用片段 ID |
+| `requestId` | 客户端或服务端请求 ID |
+| `tenantId` | 租户 ID |
+| `userId` | 用户 ID |
+| `channel` | `http`、`cli`、`mcp` 或 `skill` |
+| `credentialType` | 当前凭证类型 |
+| `capability` | capability id |
 
-## 6. 导入任务策略模式
+`GET /api/observability/capabilities` 返回进程内快照，`GET /api/observability/capabilities/prometheus` 预留 Prometheus 指标导出入口。多实例部署时，rate limit store 应替换为 Redis 或分布式 KV。
 
-`ImportTaskModule` 使用策略模式处理不同来源的集成配置：
+## 扩展新入口
 
-**关键代码路径**:
+新增入口时必须满足：
 
-| 组件 | 文件路径 |
-|------|----------|
-| ImportTaskService | `import-task/import-task.service.ts` |
-| TaskWorkerService | `import-task/task-worker.service.ts` |
-| 飞书 Integrator | `import-task/integrators/feishu.integrator.ts` |
-| 钉钉 Integrator | `import-task/integrators/dingtalk.integrator.ts` |
-| Git Integrator | `import-task/integrators/git.integrator.ts` |
-
----
-
-## 7. MCP 协议实现
-
-MCP (Model Context Protocol) 通过 SSE 端点建立长连接，POST 端点接收 JSON-RPC 请求。
-
-**关键代码路径**: `mcp/mcp.service.ts`, `mcp/mcp.controller.ts`
-
-### 暴露工具
-
-| 工具名 | 说明 |
-|--------|------|
-| `search_knowledge` | 带权限隔离的语义检索 |
-| `grep_knowledge` | 正则表达式文本匹配 |
-| `list_resources` | 浏览租户授权范围内的目录 |
-| `tree_resources` | 生成知识资产树状视图 |
-
----
-
-## 8. 全局异常处理
-
-`AllExceptionsFilter` (`common/all-exceptions.filter.ts`) 捕获所有异常，统一返回 `{ statusCode, timestamp, path, message }` 格式。
-
----
-
-> 下一步建议：阅读 [多租户隔离战略](./TENANT_ISOLATION.md) 了解物理隔离细节。
+- 只依赖能力契约和 Application service。
+- 不在 adapter 中复制授权规则、租户 scope 规则和下游访问逻辑。
+- 保留统一响应、错误语义、traceId 和审计记录。
+- 在 [能力平台](./CAPABILITIES.md) 和 [示例目录](../examples) 中补充接入说明。

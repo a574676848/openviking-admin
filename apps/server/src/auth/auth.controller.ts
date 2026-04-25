@@ -78,6 +78,11 @@ export class AuthController {
     return this.ssoTicketService.consume(ticket);
   }
 
+  @Post('refresh')
+  refresh(@Body('refreshToken') refreshToken: string) {
+    return this.authService.refreshAccessToken(refreshToken);
+  }
+
   @UseGuards(JwtAuthGuard)
   @Roles(SystemRoles.SUPER_ADMIN)
   @Post('switch-role')

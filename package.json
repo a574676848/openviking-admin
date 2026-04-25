@@ -1,5 +1,8 @@
 {
   "name": "openviking-admin",
   "private": true,
-  "workspaces": ["apps/*", "packages/*"]
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "ova": "npm --workspace @openviking-admin/ova-cli run dev --"
+  }
 }

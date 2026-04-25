@@ -2,6 +2,9 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 
 type SsoExchangePayload = {
   accessToken: string;
+  refreshToken?: string;
+  expiresInSeconds?: number;
+  refreshExpiresInSeconds?: number;
   user: {
     id: string;
     username: string;

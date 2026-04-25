@@ -1,0 +1,122 @@
+# 能力平台
+
+能力平台是 OpenViking Admin 对外开放知识能力的统一应用层。它先定义能力契约，再把同一组能力投影到 HTTP、CLI、MCP 和 Skill 四种入口。
+
+![基于 MCP 与 Rerank 的高精准检索流](<./images/基于 MCP 与 Rerank 的高精准检索流.png>)
+
+图中的 MCP 只是四种入口之一。HTTP、CLI、MCP 和 Skill 都应进入同一套能力契约、授权和执行链路。
+
+## 设计目标
+
+- 对外能力平铺，客户端按自身运行环境选择入口。
+- 业务规则只定义一次，避免 HTTP、CLI、MCP、Skill 各自维护一套能力模型。
+- 所有入口统一认证、授权、审计、限流、日志追踪和错误语义。
+- 新能力必须先进入 capability catalog，再由 adapter 投影出去。
+
+## 当前能力
+
+| 能力 | 说明 | HTTP | CLI | MCP 工具 | 最低角色 |
+|------|------|------|------|------|------|
+| `knowledge.search` | 在租户知识域内执行语义搜索 | `POST /api/knowledge/search` | `ova knowledge search` | `knowledge.search` | `tenant_viewer` |
+| `knowledge.grep` | 在租户知识域内执行文本匹配 | `POST /api/knowledge/grep` | `ova knowledge grep` | `knowledge.grep` | `tenant_viewer` |
+| `resources.list` | 列出租户授权范围内的资源 | `GET /api/resources` | `ova resources list` | `resources.list` | `tenant_operator` |
+| `resources.tree` | 获取租户资源树 | `GET /api/resources/tree` | `ova resources tree` | `resources.tree` | `tenant_operator` |
+
+## 能力契约
+
+每个能力契约都是四种入口的单一事实源，当前由 `CapabilityCatalogService` 提供。
+
+```json
+{
+  "id": "knowledge.search",
+  "version": "v1",
+  "displayName": "Knowledge Search",
+  "description": "在租户知识域内执行语义搜索",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "query": { "type": "string" },
+      "limit": { "type": "number" },
+      "scoreThreshold": { "type": "number" }
+    },
+    "required": ["query"]
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "items": { "type": "array" }
+    }
+  },
+  "permissionRequirement": "tenant",
+  "minimumRole": "tenant_viewer",
+  "auditLevel": "standard",
+  "http": {
+    "method": "POST",
+    "path": "/api/knowledge/search"
+  },
+  "cli": {
+    "command": "ova knowledge search"
+  }
+}
+```
+
+## 四种入口的职责
+
+| 入口 | 适用客户端 | 职责边界 |
+|------|------|------|
+| HTTP | 后端系统、网关、自动化脚本、无本地 CLI 的 Agent | 直接暴露 RESTful capability 接口 |
+| CLI | 开发者机器、CI、运维终端、Agent 宿主机 | 提供本地 profile、自动刷新、结构化输出和诊断命令 |
+| MCP | Claude、Cursor、IDE 等原生 MCP 客户端 | 把 capability catalog 投影为 `tools/list`，把调用映射为 `tools/call` |
+| Skill | Codex、Claude Skills、企业 Agent 平台 | 编排 HTTP 或 CLI，不定义新协议，不模拟 MCP |
+
+## 认证与凭证
+
+Capability 调用最终都会解析为统一 `Principal`。
+
+| 凭证 | 常见入口 | 说明 |
+|------|------|------|
+| JWT access token | Web、HTTP、CLI 登录态 | 用户身份凭证，可通过 refresh token 续期 |
+| Capability access token | HTTP、Skill、服务调用 | 已登录用户换取的能力调用 token |
+| Session key | MCP、短会话 Agent | 短期会话凭证，适合桌面或临时会话 |
+| API key | CLI、MCP、自动化任务 | 可吊销机器凭证，适合长期配置 |
+
+推荐流程见 [认证与凭证](./AUTH_AND_CREDENTIALS.md)。
+
+## 权限边界
+
+- `knowledge.*` 最低角色为 `tenant_viewer`，只允许在租户内检索。
+- `resources.*` 最低角色为 `tenant_operator`，避免低权限用户枚举资源结构。
+- Adapter 不允许覆盖能力契约中的 `minimumRole`。
+- 租户外 URI 必须显式拒绝，不做静默收敛后继续执行。
+- 下游 OpenViking 访问范围必须由服务端租户 scope 推导，不能直接信任客户端传入 URI。
+
+## 响应与追踪
+
+HTTP、CLI、MCP 和 Skill 都应保留或透传以下追踪信息：
+
+| 字段 | 说明 |
+|------|------|
+| `traceId` | 服务端为一次 capability 调用生成的追踪 ID |
+| `requestId` | 客户端传入或服务端生成的请求 ID |
+| `channel` | `http`、`cli`、`mcp` 或 `skill` |
+| `clientType` | 调用方类型 |
+| `credentialType` | 解析出的凭证类型 |
+| `capability` | 当前 capability id |
+
+## 新增能力的流程
+
+1. 在 Domain 中定义输入、输出和 capability id。
+2. 在 Application 层补充 contract、授权规则和执行编排。
+3. 在 Infrastructure 层实现对 OpenViking 或其他下游服务的访问。
+4. 在 HTTP adapter 中暴露 RESTful 接口。
+5. 在 CLI 中增加同名命令，并支持 `text`、`json`、`jsonl` 输出。
+6. 确认 MCP `tools/list` 能从 catalog 自动发现该能力。
+7. 更新 Skill 模板和 `examples/`。
+8. 为授权、输入校验、成功调用、失败调用和追踪字段补测试。
+
+## 生产扩展位
+
+- `GET /api/observability/capabilities/prometheus` 已预留 Prometheus 指标抓取入口。
+- `CapabilityRateLimitStore` 已抽象，可替换为 Redis 或分布式 KV 以支持多实例。
+- 指标聚合与 exporter 分离，后续可接 OpenTelemetry Collector。
+- CredentialStore 已在 CLI 内抽象，后续可接系统 keychain。
