@@ -2,7 +2,7 @@ import { Injectable, UnauthorizedException, Inject } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { SystemRoles } from '../users/entities/user.entity';
-import type { User } from '../users/entities/user.entity';
+import type { UserModel } from '../users/domain/user.model';
 import { LoginDto } from './dto/login.dto';
 import { AuditService } from '../audit/audit.service';
 import { USER_REPOSITORY } from '../users/domain/repositories/user.repository.interface';
@@ -93,11 +93,11 @@ export class AuthService {
     };
   }
 
-  async validateUser(userId: string): Promise<User | null> {
+  async validateUser(userId: string): Promise<UserModel | null> {
     return this.userRepo.findById(userId);
   }
 
-  generateToken(user: User) {
+  generateToken(user: UserModel) {
     const payload: AuthTokenPayload = {
       sub: user.id,
       username: user.username,

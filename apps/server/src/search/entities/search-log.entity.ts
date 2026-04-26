@@ -4,6 +4,7 @@ import {
   Column,
   CreateDateColumn,
 } from 'typeorm';
+import type { SearchLogModel } from '../domain/search-log.model';
 
 @Entity('search_logs')
 export class SearchLog {
@@ -36,7 +37,7 @@ export class SearchLog {
   feedbackNote: string;
 
   @Column({ type: 'jsonb', nullable: true })
-  meta: Record<string, any>;
+  meta: SearchLogModel['meta'];
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

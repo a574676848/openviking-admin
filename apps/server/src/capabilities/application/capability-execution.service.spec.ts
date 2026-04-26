@@ -6,6 +6,7 @@ import { KnowledgeCapabilityGateway } from '../infrastructure/knowledge-capabili
 import { CapabilityRateLimitService } from '../infrastructure/capability-rate-limit.service';
 import type { CapabilityContext } from '../domain/capability.types';
 import { CapabilityRateLimitException } from '../infrastructure/capability-rate-limit.exception';
+import { CapabilitySchemaValidatorService } from './capability-schema-validator.service';
 
 describe('CapabilityExecutionService', () => {
   const catalog = new CapabilityCatalogService();
@@ -26,6 +27,7 @@ describe('CapabilityExecutionService', () => {
   const rateLimit = {
     assertAllowed: jest.fn(),
   } as unknown as CapabilityRateLimitService;
+  const schemaValidator = new CapabilitySchemaValidatorService();
 
   const service = new CapabilityExecutionService(
     catalog,
@@ -33,6 +35,7 @@ describe('CapabilityExecutionService', () => {
     observability,
     rateLimit,
     gateway,
+    schemaValidator,
   );
 
   const context: CapabilityContext = {
@@ -120,5 +123,39 @@ describe('CapabilityExecutionService', () => {
 
     expect((observability.recordRejected as jest.Mock).mock.calls.length).toBe(1);
     expect((observability.recordFailure as jest.Mock).mock.calls.length).toBe(0);
+  });
+
+  it('should reject invalid capability input with stable error code', async () => {
+    await expect(
+      service.execute(
+        'knowledge.search',
+        { query: '限流', limit: 'oops' as unknown as number },
+        context,
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'CAPABILITY_INVALID_INPUT',
+      }),
+    });
+
+    expect((rateLimit.assertAllowed as jest.Mock).mock.calls.length).toBe(0);
+    expect((observability.recordFailure as jest.Mock).mock.calls.length).toBe(0);
+  });
+
+  it('should reject invalid capability output with stable error code', async () => {
+    rateLimit.assertAllowed = jest.fn();
+    gateway.search = jest.fn().mockResolvedValue({
+      items: 'not-an-array',
+    });
+
+    await expect(
+      service.execute('knowledge.search', { query: '多租户隔离' }, context),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'CAPABILITY_DOWNSTREAM_ERROR',
+      }),
+    });
+
+    expect((observability.recordFailure as jest.Mock).mock.calls.length).toBe(1);
   });
 });

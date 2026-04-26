@@ -24,6 +24,7 @@ import {
   ConsoleSelect,
   ConsoleStatsGrid,
   ConsoleTableShell,
+  resolveConsoleTableState,
   ConsoleBadge,
 } from "@/components/console/primitives";
 
@@ -69,6 +70,7 @@ const ACTION_MAP: Record<
 export default function AuditPage() {
   const [result, setResult] = useState<PageResult | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [page, setPage] = useState(1);
   const [filterAction, setFilterAction] = useState("");
   const [filterUser, setFilterUser] = useState("");
@@ -76,6 +78,7 @@ export default function AuditPage() {
   const load = useCallback(
     async (targetPage = 1) => {
       setLoading(true);
+      setLoadError("");
       try {
         const params = new URLSearchParams({
           page: String(targetPage),
@@ -90,6 +93,8 @@ export default function AuditPage() {
         const response = await apiClient.get<PageResult>(`/audit?${params.toString()}`);
         setResult(response);
         setPage(targetPage);
+      } catch (error: unknown) {
+        setLoadError(error instanceof Error ? error.message : "审计流水加载失败");
       } finally {
         setLoading(false);
       }
@@ -116,34 +121,40 @@ export default function AuditPage() {
     };
   }, [result]);
 
+  const tableState = resolveConsoleTableState({
+    loading,
+    hasError: Boolean(loadError),
+    hasData: Boolean(result?.items?.length),
+  });
+
   return (
     <div className="flex min-h-full flex-col gap-8">
       <ConsolePageHeader
         title="审计日志流"
-        subtitle="Tenant Audit Stream / Operation Trace Ledger"
+        subtitle="查看租户操作留痕、执行结果与筛选分页"
         icon={Shield}
       />
 
       <ConsoleStatsGrid className="lg:grid-cols-4">
-        <ConsoleMetricCard label="Rows Loaded" value={String(result?.items.length ?? 0).padStart(2, "0")} />
-        <ConsoleMetricCard label="Total Records" value={(result?.total ?? 0).toLocaleString()} tone="brand" />
-        <ConsoleMetricCard label="Successful" value={stats.successCount.toLocaleString()} tone="success" />
-        <ConsoleMetricCard label="Failed" value={stats.failCount.toLocaleString()} tone="danger" />
+        <ConsoleMetricCard label="当前页记录" value={String(result?.items.length ?? 0).padStart(2, "0")} />
+        <ConsoleMetricCard label="总记录数" value={(result?.total ?? 0).toLocaleString()} tone="brand" />
+        <ConsoleMetricCard label="成功执行" value={stats.successCount.toLocaleString()} tone="success" />
+        <ConsoleMetricCard label="失败执行" value={stats.failCount.toLocaleString()} tone="danger" />
       </ConsoleStatsGrid>
 
       <section className="grid grid-cols-1 gap-8 xl:grid-cols-[0.95fr_1.05fr]">
         <ConsoleControlPanel
-          eyebrow="Filter Console"
+          eyebrow="筛选台"
           title="按操作类型与执行人筛选"
           footer={
             <ConsoleStatsGrid className="grid-cols-2">
-              <ConsoleMetricCard label="Users In Page" value={stats.users.toLocaleString()} />
-              <ConsoleMetricCard label="Current Page" value={`${page}/${result?.pages ?? 1}`} tone="warning" />
+              <ConsoleMetricCard label="当前页用户数" value={stats.users.toLocaleString()} />
+              <ConsoleMetricCard label="当前页码" value={`${page}/${result?.pages ?? 1}`} tone="warning" />
             </ConsoleStatsGrid>
           }
         >
           <div className="grid grid-cols-1 gap-5">
-            <ConsoleField label="Action">
+            <ConsoleField label="操作类型">
               <ConsoleSelect value={filterAction} onChange={(event) => setFilterAction(event.target.value)}>
                 <option value="">全部事件</option>
                 {Object.entries(ACTION_MAP).map(([key, item]) => (
@@ -154,7 +165,7 @@ export default function AuditPage() {
               </ConsoleSelect>
             </ConsoleField>
 
-            <ConsoleField label="Username">
+            <ConsoleField label="执行人">
               <ConsoleInput
                 value={filterUser}
                 onChange={(event) => setFilterUser(event.target.value)}
@@ -175,11 +186,17 @@ export default function AuditPage() {
               当前租户操作流水
             </div>
             <div className="flex items-center justify-end gap-2 px-5 py-4">
-              <ConsoleIconButton type="button" disabled={page <= 1 || loading} onClick={() => void load(page - 1)}>
+              <ConsoleIconButton
+                type="button"
+                aria-label="上一页审计日志"
+                disabled={page <= 1 || loading}
+                onClick={() => void load(page - 1)}
+              >
                 <ChevronLeft size={14} strokeWidth={2.6} />
               </ConsoleIconButton>
               <ConsoleIconButton
                 type="button"
+                aria-label="下一页审计日志"
                 disabled={page >= (result?.pages ?? 1) || loading}
                 onClick={() => void load(page + 1)}
               >
@@ -188,10 +205,23 @@ export default function AuditPage() {
             </div>
             </div>
           }
-          isLoading={loading}
-          hasData={Boolean(result?.items?.length)}
-          loadingState={<ConsoleEmptyState icon={RefreshCw} title="正在同步审计流水..." description="loading audit stream" />}
-          emptyState={<ConsoleEmptyState icon={Shield} title="暂无审计记录" description="no audit records" />}
+          state={tableState}
+          stateContent={{
+            loading: <ConsoleEmptyState icon={RefreshCw} title="正在同步审计流水..." description="系统正在加载当前租户的操作留痕。" />,
+            error: (
+              <ConsoleEmptyState
+                icon={Shield}
+                title="审计流水加载失败"
+                description={loadError}
+                action={
+                  <ConsoleButton type="button" onClick={() => void load(page)}>
+                    重新加载
+                  </ConsoleButton>
+                }
+              />
+            ),
+            empty: <ConsoleEmptyState icon={Shield} title="暂无审计记录" description="当前筛选条件下没有匹配的操作留痕。" />,
+          }}
         >
           {result?.items?.map((log) => {
                 const mapped = ACTION_MAP[log.action] ?? {
@@ -225,7 +255,7 @@ export default function AuditPage() {
                     </div>
                     <div className="bg-[var(--bg-card)] px-5 py-5">
                       <p className="font-mono text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-muted)]">
-                        Target
+                        目标对象
                       </p>
                       <p className="mt-2 break-all font-mono text-xs font-bold text-[var(--text-primary)]">
                         {log.target || "-"}
@@ -241,7 +271,7 @@ export default function AuditPage() {
                     </div>
                     <div className="bg-[var(--bg-card)] px-5 py-5">
                       <ConsoleBadge tone={log.success ? "success" : "danger"}>
-                        {log.success ? "success" : "failed"}
+                        {log.success ? "成功" : "失败"}
                       </ConsoleBadge>
                     </div>
                   </div>

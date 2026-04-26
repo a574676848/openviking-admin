@@ -66,14 +66,14 @@ describe('ova cli', () => {
 
         expect(global.fetch).toHaveBeenNthCalledWith(
             1,
-            'http://localhost:6001/api/auth/refresh',
+            'http://localhost:6001/api/v1/auth/refresh',
             expect.objectContaining({
                 method: 'POST',
             }),
         );
         expect(global.fetch).toHaveBeenNthCalledWith(
             2,
-            'http://localhost:6001/api/auth/whoami',
+            'http://localhost:6001/api/v1/auth/whoami',
             expect.objectContaining({
                 headers: expect.any(Headers),
             }),
@@ -159,7 +159,7 @@ describe('ova cli', () => {
                     {
                         id: 'knowledge.search',
                         description: 'search',
-                        http: { method: 'POST', path: '/api/knowledge/search' },
+                        http: { method: 'POST', path: '/api/v1/knowledge/search' },
                     },
                 ],
             }),
@@ -191,14 +191,14 @@ describe('ova cli', () => {
                 data: {
                     login: {
                         browser: {
-                            exchangeEndpoint: '/api/auth/login',
+                            exchangeEndpoint: '/api/v1/auth/login',
                         },
                     },
                     capabilities: [
                         {
                             channel: 'cli',
                             credentialType: 'api_key',
-                            issueEndpoint: '/api/auth/client-credentials',
+                            issueEndpoint: '/api/v1/auth/client-credentials',
                             ttlSeconds: null,
                         },
                     ],

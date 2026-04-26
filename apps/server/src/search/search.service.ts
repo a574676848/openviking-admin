@@ -3,12 +3,18 @@ import { SEARCH_LOG_REPOSITORY } from './domain/repositories/search-log.reposito
 import type { ISearchLogRepository } from './domain/repositories/search-log.repository.interface';
 import { IKnowledgeNodeRepository } from '../knowledge-tree/domain/repositories/knowledge-node.repository.interface';
 import { SettingsService } from '../settings/settings.service';
+import {
+  OVRequestMeta,
+  OVConnection,
+} from '../common/ov-client.service';
+import { OVKnowledgeGatewayService } from '../common/ov-knowledge-gateway.service';
 
 export interface FindParams {
   query: string;
   uri?: string;
   topK?: number;
   scoreThreshold?: number;
+  useRerank?: boolean;
 }
 
 export interface OVSearchResource {
@@ -45,82 +51,69 @@ export class SearchService {
     @Inject(IKnowledgeNodeRepository)
     private readonly nodeRepo: IKnowledgeNodeRepository,
     private readonly settings: SettingsService,
+    private readonly ovKnowledgeGateway: OVKnowledgeGatewayService,
   ) {}
 
-  private async getHeaders(tenantId: string) {
-    const { apiKey, account } = await this.settings.resolveOVConfig(tenantId);
-    return {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey || '',
-      'X-OpenViking-Account': account || 'default',
-      'X-OpenViking-User': 'platform-user',
-    };
-  }
-
+  // 管理侧检索调试入口，负责控制台搜索、日志与反馈闭环。
+  // capability 四入口的统一对外契约仍由 capability registry + execution service 负责。
   async find(
     params: FindParams,
     tenantId: string,
     user: { id: string; role: string },
+    meta?: OVRequestMeta,
   ) {
     const config = await this.settings.resolveOVConfig(tenantId);
     const start = Date.now();
 
     const allowedUris = await this.nodeRepo.findAllowedUris(tenantId, user);
 
-    const stage1TopK = config.rerankEndpoint ? 20 : params.topK || 5;
+    const shouldUseRerank = params.useRerank !== false && !!config.rerankEndpoint;
+    const stage1TopK = shouldUseRerank ? 20 : params.topK || 5;
 
-    const body: Record<string, unknown> = {
-      query: params.query,
-      top_k: stage1TopK,
-      score_threshold: params.scoreThreshold || 0.3,
-      filter_uris: allowedUris.length > 0 ? allowedUris : ['NONE_ACCESSIBLE'],
-    };
-    if (params.uri) body.uri = params.uri;
-
-    const res = await fetch(`${config.baseUrl}/api/v1/search/find`, {
-      method: 'POST',
-      headers: await this.getHeaders(tenantId),
-      body: JSON.stringify(body),
+    const connection = this.toConnection({
+      baseUrl: config.baseUrl || '',
+      apiKey: config.apiKey || '',
+      account: config.account || 'default',
     });
-
-    const data = (await res.json()) as OVSearchResponse;
+    const data = (await this.ovKnowledgeGateway.findKnowledge(
+      connection,
+      {
+        query: params.query,
+        topK: stage1TopK,
+        scoreThreshold: params.scoreThreshold || 0.3,
+        filterUris: allowedUris,
+        uri: params.uri,
+      },
+      meta,
+    )) as OVSearchResponse;
     let resources = data?.result?.resources ?? [];
 
-    if (config.rerankEndpoint && resources.length > 0) {
+    if (shouldUseRerank && resources.length > 0) {
       try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 1500);
-
-        const rerankRes = await fetch(config.rerankEndpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          signal: controller.signal,
-          body: JSON.stringify({
+        const rerankData = (await this.ovKnowledgeGateway.rerank(
+          {
+            endpoint: config.rerankEndpoint!,
             query: params.query,
-            documents: resources.map((r) => r.content || r.title || ''),
-            model: config.rerankModel,
-          }),
-        });
-        clearTimeout(timeoutId);
+            documents: resources.map((resource) => resource.content || resource.title || ''),
+            model: config.rerankModel || undefined,
+          },
+          meta,
+        )) as RerankResponse;
+        const results = rerankData.results || [];
 
-        if (rerankRes.ok) {
-          const rerankData = (await rerankRes.json()) as RerankResponse;
-          const results = rerankData.results || [];
+        resources = resources
+          .map((r, i) => {
+            const rerankMatch = results.find((item) => item.index === i);
+            return {
+              ...r,
+              stage1Score: r.score,
+              score: rerankMatch ? rerankMatch.relevance_score : r.score,
+              reranked: true,
+            };
+          })
+          .sort((a, b) => b.score - a.score);
 
-          resources = resources
-            .map((r, i) => {
-              const rerankMatch = results.find((item) => item.index === i);
-              return {
-                ...r,
-                stage1Score: r.score,
-                score: rerankMatch ? rerankMatch.relevance_score : r.score,
-                reranked: true,
-              };
-            })
-            .sort((a, b) => b.score - a.score);
-
-          resources = resources.slice(0, params.topK || 5);
-        }
+        resources = resources.slice(0, params.topK || 5);
       } catch (err) {
         const message = err instanceof Error ? err.message : '未知错误';
         this.logger.warn(
@@ -131,27 +124,40 @@ export class SearchService {
 
     const latency = Date.now() - start;
 
-    await this.logRepo.save({
+    const log = await this.logRepo.save({
       tenantId,
       query: params.query,
       scope: params.uri,
       resultCount: resources.length,
       scoreMax: resources[0]?.score ?? 0,
       latencyMs: latency,
-      meta: { rerank_applied: !!config.rerankEndpoint },
+      meta: { rerank_applied: shouldUseRerank },
     });
 
-    return { resources, latencyMs: latency };
+    return {
+      resources,
+      latencyMs: latency,
+      logId: log.id,
+      rerankApplied: shouldUseRerank,
+    };
   }
 
-  async grep(pattern: string, uri: string, tenantId: string) {
+  async grep(
+    pattern: string,
+    uri: string,
+    tenantId: string,
+    meta?: OVRequestMeta,
+  ) {
     const config = await this.settings.resolveOVConfig(tenantId);
-    const res = await fetch(`${config.baseUrl}/api/v1/search/grep`, {
-      method: 'POST',
-      headers: await this.getHeaders(tenantId),
-      body: JSON.stringify({ pattern, uri, case_insensitive: true }),
-    });
-    return res.json() as Promise<Record<string, unknown>>;
+    return this.ovKnowledgeGateway.grepKnowledge(
+      this.toConnection({
+        baseUrl: config.baseUrl || '',
+        apiKey: config.apiKey || '',
+        account: config.account || 'default',
+      }),
+      { pattern, uri, caseInsensitive: true },
+      meta,
+    );
   }
 
   async getAnalysis(tenantId: string | null) {
@@ -203,5 +209,9 @@ export class SearchService {
       log.feedbackNote = note || '';
       return this.logRepo.save(log);
     }
+  }
+
+  private toConnection(connection: OVConnection): OVConnection {
+    return connection;
   }
 }

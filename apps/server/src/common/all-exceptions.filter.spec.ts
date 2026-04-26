@@ -13,7 +13,10 @@ describe('AllExceptionsFilter', () => {
         },
         url: '/api/knowledge/search',
       }),
-      getResponse: () => ({}),
+      getResponse: () => ({
+        getHeader: jest.fn(),
+        setHeader: jest.fn(),
+      }),
     }),
   } as unknown as ArgumentsHost;
 

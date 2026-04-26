@@ -39,6 +39,6 @@ ova doctor
 |------|------|
 | 人类本地调试 | `ova auth login` |
 | CI 或自动化脚本 | `ova auth client-credentials --name <name> --save` |
-| 后端服务集成 | HTTP 登录或 SSO 后调用 `/api/auth/token/exchange` |
+| 后端服务集成 | HTTP 登录或 SSO 后调用 `/api/v1/auth/token/exchange` |
 | Claude Desktop / Cursor | API key 或 session key |
 | Agent Skill | 优先 `ova`，不可用时回退 HTTP |

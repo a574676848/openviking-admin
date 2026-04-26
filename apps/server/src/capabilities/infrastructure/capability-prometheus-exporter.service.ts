@@ -18,9 +18,9 @@ export class CapabilityPrometheusExporterService {
     private readonly capabilityRateLimitService: CapabilityRateLimitService,
   ) {}
 
-  render() {
+  async render() {
     const metrics = this.capabilityMetricsService.snapshot();
-    const rateLimit = this.capabilityRateLimitService.snapshot();
+    const rateLimit = await this.capabilityRateLimitService.snapshot();
     const lines: string[] = [
       '# HELP capability_invocations_total Total capability invocations by outcome.',
       '# TYPE capability_invocations_total counter',

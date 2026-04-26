@@ -1,0 +1,75 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${DB_NAME:?set DB_NAME}
+      POSTGRES_USER: ${DB_USER:?set DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS:?set DB_PASS}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    environment:
+      DB_HOST: postgres
+      DB_PORT: ${DB_PORT:-5432}
+      DB_USER: ${DB_USER:?set DB_USER}
+      DB_PASS: ${DB_PASS:?set DB_PASS}
+      DB_NAME: ${DB_NAME:?set DB_NAME}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set ENCRYPTION_KEY}
+      OV_BASE_URL: ${OV_BASE_URL:?set OV_BASE_URL}
+      OV_API_KEY: ${OV_API_KEY:?set OV_API_KEY}
+      OV_ACCOUNT: ${OV_ACCOUNT:-default}
+      FRONTEND_URL: ${FRONTEND_URL:?set FRONTEND_URL}
+      PORT: ${PORT:-6001}
+      NODE_ENV: production
+      DB_SYNCHRONIZE: "false"
+      CAPABILITY_RATE_LIMIT_STORE_DRIVER: ${CAPABILITY_RATE_LIMIT_STORE_DRIVER:-memory}
+      CAPABILITY_RATE_LIMIT_REDIS_URL: ${CAPABILITY_RATE_LIMIT_REDIS_URL:-}
+      CAPABILITY_RATE_LIMIT_REDIS_HOST: ${CAPABILITY_RATE_LIMIT_REDIS_HOST:-redis}
+      CAPABILITY_RATE_LIMIT_REDIS_PORT: ${CAPABILITY_RATE_LIMIT_REDIS_PORT:-6379}
+      CAPABILITY_RATE_LIMIT_REDIS_DB: ${CAPABILITY_RATE_LIMIT_REDIS_DB:-0}
+      CAPABILITY_RATE_LIMIT_REDIS_PASSWORD: ${CAPABILITY_RATE_LIMIT_REDIS_PASSWORD:-}
+      CAPABILITY_RATE_LIMIT_REDIS_TLS: ${CAPABILITY_RATE_LIMIT_REDIS_TLS:-false}
+      CAPABILITY_RATE_LIMIT_REDIS_KEY_PREFIX: ${CAPABILITY_RATE_LIMIT_REDIS_KEY_PREFIX:-openviking:capability-rate-limit}
+      CAPABILITY_RATE_LIMIT_REDIS_CONNECT_TIMEOUT_MS: ${CAPABILITY_RATE_LIMIT_REDIS_CONNECT_TIMEOUT_MS:-1500}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "6001:6001"
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    environment:
+      BACKEND_URL: ${BACKEND_URL:-http://server:6001}
+      NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-OpenViking Admin}
+    depends_on:
+      - server
+    ports:
+      - "6002:6002"
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    profiles: ["redis"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+
+volumes:
+  pgdata:
+  redisdata:

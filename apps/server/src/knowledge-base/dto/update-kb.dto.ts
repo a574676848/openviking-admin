@@ -1,5 +1,5 @@
 import { IsString, IsOptional, MaxLength, IsIn } from 'class-validator';
-import type { KbStatus } from '../entities/knowledge-base.entity';
+import type { KnowledgeBaseStatus } from '../domain/knowledge-base.model';
 
 export class UpdateKnowledgeBaseDto {
   @IsOptional()
@@ -13,7 +13,7 @@ export class UpdateKnowledgeBaseDto {
 
   @IsOptional()
   @IsIn(['active', 'building', 'archived'])
-  status?: KbStatus;
+  status?: KnowledgeBaseStatus;
 
   @IsOptional()
   @IsString()

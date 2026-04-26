@@ -4,6 +4,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, type FindManyOptions } from 'typeorm';
 import { SearchLog } from '../../entities/search-log.entity';
 import { ISearchLogRepository } from '../../domain/repositories/search-log.repository.interface';
+import type { SearchLogModel } from '../../domain/search-log.model';
+import type { RepositoryFindQuery } from '../../../common/repository-query.types';
 
 interface TenantRequest {
   tenantQueryRunner?: {
@@ -32,20 +34,54 @@ export class SearchLogRepository implements ISearchLogRepository {
     return this.defaultRepo;
   }
 
-  async save(log: Partial<SearchLog>): Promise<SearchLog> {
-    return this.repo.save(log);
+  private toModel(entity: SearchLog): SearchLogModel {
+    return {
+      id: entity.id,
+      tenantId: entity.tenantId,
+      query: entity.query,
+      scope: entity.scope,
+      resultCount: entity.resultCount,
+      scoreMax: entity.scoreMax,
+      latencyMs: entity.latencyMs,
+      feedback: entity.feedback,
+      feedbackNote: entity.feedbackNote,
+      meta: entity.meta,
+      createdAt: entity.createdAt,
+    };
   }
 
-  create(log: Partial<SearchLog>): SearchLog {
-    return this.repo.create(log);
+  private toEntityInput(log: Partial<SearchLogModel>): Partial<SearchLog> {
+    return {
+      id: log.id,
+      tenantId: log.tenantId,
+      query: log.query,
+      scope: log.scope,
+      resultCount: log.resultCount,
+      scoreMax: log.scoreMax,
+      latencyMs: log.latencyMs,
+      feedback: log.feedback,
+      feedbackNote: log.feedbackNote,
+      meta: log.meta as Record<string, any> | undefined,
+      createdAt: log.createdAt,
+    };
   }
 
-  async count(options?: FindManyOptions<SearchLog>): Promise<number> {
-    return this.repo.count(options);
+  async save(log: Partial<SearchLogModel>): Promise<SearchLogModel> {
+    const saved = await this.repo.save(this.repo.create(this.toEntityInput(log)));
+    return this.toModel(saved);
   }
 
-  async find(options?: FindManyOptions<SearchLog>): Promise<SearchLog[]> {
-    return this.repo.find(options);
+  create(log: Partial<SearchLogModel>): SearchLogModel {
+    return this.toModel(this.repo.create(this.toEntityInput(log)));
+  }
+
+  async count(options?: RepositoryFindQuery<SearchLogModel>): Promise<number> {
+    return this.repo.count((options ?? {}) as FindManyOptions<SearchLog>);
+  }
+
+  async find(options?: RepositoryFindQuery<SearchLogModel>): Promise<SearchLogModel[]> {
+    const items = await this.repo.find((options ?? {}) as FindManyOptions<SearchLog>);
+    return items.map((item) => this.toModel(item));
   }
 
   async getAverageLatency(tenantId?: string | null): Promise<number> {

@@ -1,272 +1,120 @@
 # 部署指南
 
-本指南覆盖从本地开发到生产部署的完整流程。
+本指南只保留当前仓库已经落地并验证过的生产部署资产，不再展示过期示例。
 
-## 前置依赖
+## 部署资产
 
-| 依赖 | 最低版本 | 说明 |
-|------|----------|------|
-| Node.js | v20+ | 运行时环境 |
-| pnpm | v8+ | 包管理器（monorepo 必需） |
-| PostgreSQL | v14+ | 数据库，需启用 `uuid-ossp` 扩展 |
-| OpenViking | 最新版 | 向量检索引擎（独立部署） |
+- 根目录 `Dockerfile.server`：后端生产镜像
+- 根目录 `Dockerfile.web`：前端生产镜像
+- 根目录 `docker-compose.yml`：单机生产编排基线
+- `.github/workflows/ci.yml`：install、typecheck、lint、test、docs/env check
+- `scripts/check-env-example.mjs`：校验后端 `.env.example` 是否覆盖关键变量
 
----
+## 生产前置条件
 
-## 1. 本地开发部署
+| 组件 | 要求 |
+|------|------|
+| Node.js / pnpm | 本地构建或非容器部署时需要 |
+| PostgreSQL 14+ | 必须启用 `uuid-ossp` |
+| OpenViking | 必须可访问 `/health` |
+| 反向代理 | 推荐 Nginx / Ingress，负责 TLS 与外网入口 |
 
-### 1.1 克隆与安装
+## 关键环境变量
 
-```bash
-git clone https://github.com/a574676848/openviking-admin.git
-cd openviking-admin
-pnpm install
+后端最少必须配置：
+
+```env
+DB_HOST=postgres
+DB_PORT=5432
+DB_USER=postgres
+DB_PASS=replace_with_real_password
+DB_NAME=openviking_admin
+
+JWT_SECRET=replace_with_random_string_at_least_32_chars
+ENCRYPTION_KEY=replace_with_random_string_at_least_32_chars
+
+OV_BASE_URL=https://ov.example.internal
+OV_API_KEY=replace_with_real_ov_api_key
+OV_ACCOUNT=default
+
+FRONTEND_URL=https://admin.example.com
+PORT=6001
+NODE_ENV=production
+DB_SYNCHRONIZE=false
+
+CAPABILITY_RATE_LIMIT_STORE_DRIVER=redis
+CAPABILITY_RATE_LIMIT_REDIS_URL=redis://redis:6379/0
 ```
 
-### 1.2 数据库准备
+生产启动时，后端会直接阻断以下危险配置：
+
+- `DB_SYNCHRONIZE=true`
+- `JWT_SECRET` 缺失、长度不足或仍是占位值
+- `ENCRYPTION_KEY` 缺失、长度不足或仍是占位值
+- `FRONTEND_URL` 仍是 `localhost / 127.0.0.1 / example.com`
+- `OV_BASE_URL / OV_API_KEY` 仍是占位值
+
+## 数据库准备
 
 ```sql
--- 创建数据库
 CREATE DATABASE openviking_admin;
-
--- 连接到数据库后启用扩展
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
--- 确保用户拥有 CREATE SCHEMA 权限（MEDIUM 隔离等级需要）
 GRANT CREATE ON DATABASE openviking_admin TO postgres;
 ```
 
-### 1.3 后端配置
+迁移执行：
 
 ```bash
 cd apps/server
-cp .env.example .env
+pnpm migration:run
 ```
 
-编辑 `.env` 文件，填写实际值：
+生产环境禁止依赖 `TypeORM synchronize` 自动建表。
+
+## Docker Compose 启动
+
+根目录准备 `.env`，至少包含：
 
 ```env
-DB_HOST=localhost
-DB_PORT=5432
-DB_USER=postgres
-DB_PASS=your_secure_password
 DB_NAME=openviking_admin
-
-JWT_SECRET=your_random_jwt_secret_at_least_32_chars
-
-OV_BASE_URL=http://localhost:1933
-OV_API_KEY=your_openviking_api_key
-OV_ACCOUNT=default
-OV_USER=admin
-
-FRONTEND_URL=http://localhost:6002
-PORT=6001
-NODE_ENV=development
+DB_USER=postgres
+DB_PASS=replace_with_real_password
+JWT_SECRET=replace_with_random_string_at_least_32_chars
+ENCRYPTION_KEY=replace_with_random_string_at_least_32_chars
+OV_BASE_URL=https://ov.example.internal
+OV_API_KEY=replace_with_real_ov_api_key
+FRONTEND_URL=https://admin.example.com
+CAPABILITY_RATE_LIMIT_STORE_DRIVER=redis
+CAPABILITY_RATE_LIMIT_REDIS_URL=redis://redis:6379/0
 ```
 
-### 1.4 初始管理员账号
+启动：
 
 ```bash
-cd apps/server
-node seed-admin.js
+docker compose --profile redis up -d --build
 ```
 
-> **注意**: `seed-admin.js` 中硬编码了数据库连接参数，生产使用前需修改为实际值。
+说明：
 
-默认账号: `admin` / `admin123`
+- `postgres` 默认始终启动
+- `redis` 放在 `redis` profile 下，生产多实例部署时应启用
+- `server` 会等待 `postgres` 健康后再启动
 
-### 1.5 前端配置
+## 反向代理要求
 
-```bash
-cd apps/web
-```
-
-编辑 `.env.local`：
-
-```env
-BACKEND_URL=http://localhost:6001
-NEXT_PUBLIC_APP_NAME=OpenViking Admin
-```
-
-### 1.6 启动开发服务
-
-```bash
-# 在项目根目录
-pnpm dev
-```
-
-或分别启动：
-
-```bash
-# 后端 (端口 6001)
-cd apps/server && pnpm start:dev
-
-# 前端 (端口 6002)
-cd apps/web && pnpm dev
-```
-
-前端通过 `next.config.ts` 中的 rewrite 规则自动代理 `/api/*` 请求到后端。
-
----
-
-## 2. 生产部署
-
-### 2.1 后端构建
-
-```bash
-cd apps/server
-pnpm build
-pnpm start:prod
-```
-
-### 2.2 前端构建
-
-```bash
-cd apps/web
-pnpm build
-pnpm start
-```
-
-### 2.3 Docker 部署（推荐）
-
-> 项目暂未提供 Dockerfile，以下为建议方案。
-
-**后端 Dockerfile** (`apps/server/Dockerfile`):
-
-```dockerfile
-FROM node:20-alpine
-WORKDIR /app
-RUN corepack enable && corepack prepare pnpm@latest --activate
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY apps/server/package.json ./apps/server/
-RUN pnpm install --frozen-lockfile --filter=server
-COPY apps/server/ ./apps/server/
-RUN pnpm build --filter=server
-EXPOSE 6001
-CMD ["pnpm", "start:prod", "--filter=server"]
-```
-
-**前端 Dockerfile** (`apps/web/Dockerfile`):
-
-```dockerfile
-FROM node:20-alpine AS builder
-WORKDIR /app
-RUN corepack enable && corepack prepare pnpm@latest --activate
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY apps/web/package.json ./apps/web/
-RUN pnpm install --frozen-lockfile --filter=web
-COPY apps/web/ ./apps/web/
-RUN pnpm build --filter=web
-
-FROM node:20-alpine
-WORKDIR /app
-COPY --from=builder /app/apps/web/.next/standalone ./apps/web/
-EXPOSE 6002
-CMD ["node", "apps/web/server.js"]
-```
-
-**docker-compose.yml** (项目根目录):
-
-```yaml
-version: '3.8'
-services:
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: openviking_admin
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${DB_PASS}
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-
-  server:
-    build: ./apps/server
-    environment:
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_USER: postgres
-      DB_PASS: ${DB_PASS}
-      DB_NAME: openviking_admin
-      JWT_SECRET: ${JWT_SECRET}
-      OV_BASE_URL: ${OV_BASE_URL}
-      OV_API_KEY: ${OV_API_KEY}
-      FRONTEND_URL: http://localhost:6002
-      PORT: 6001
-      NODE_ENV: production
-    depends_on:
-      - postgres
-    ports:
-      - "6001:6001"
-
-  web:
-    build: ./apps/web
-    environment:
-      BACKEND_URL: http://server:6001
-      NEXT_PUBLIC_APP_NAME: OpenViking Admin
-    depends_on:
-      - server
-    ports:
-      - "6002:6002"
-
-volumes:
-  pgdata:
-```
-
-### 2.4 环境变量安全
-
-- **JWT_SECRET**: 生产环境必须使用至少 32 字符的随机字符串，严禁使用默认值
-- **ENCRYPTION_KEY**: 用于 AES-256-CBC 加密集成凭证，必须使用 32 字节密钥
-- **OV_API_KEY**: OpenViking 引擎的 API 密钥，切勿泄露
-- 所有 `.env` 文件必须加入 `.gitignore`，仅提交 `.env.example`
-
----
-
-## 3. 数据库迁移
-
-项目使用 TypeORM 迁移系统，包含 3 个初始迁移：
-
-```bash
-cd apps/server
-
-# 查看迁移状态
-pnpm typeorm migration:show
-
-# 执行所有待执行迁移
-pnpm typeorm migration:run -d src/data-source.ts
-
-# 回滚最近一次迁移
-pnpm typeorm migration:revert -d src/data-source.ts
-```
-
-| 迁移 | 说明 |
-|------|------|
-| `InitSchema` | 创建核心表 (users, knowledge_bases, import_tasks, search_logs, audit_logs) + 初始管理员 |
-| `AddMissingTables` | 创建 tenants, knowledge_nodes, system_configs 表 |
-| `FixSchemaInconsistencies` | 添加 SSO 字段、隔离等级字段、修复列类型 |
-
-> **注意**: `capability_keys` 等运行表应通过正式迁移创建；生产环境不要依赖 TypeORM `synchronize: true`。
-
----
-
-## 4. 反向代理配置
-
-### Nginx 示例
+### Nginx 最低要求
 
 ```nginx
 server {
     listen 80;
-    server_name openviking.example.com;
+    server_name admin.example.com;
 
-    # 前端
     location / {
         proxy_pass http://127.0.0.1:6002;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
     }
 
-    # 后端 API
     location /api/ {
         proxy_pass http://127.0.0.1:6001;
         proxy_set_header Host $host;
@@ -274,8 +122,7 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     }
 
-    # MCP SSE 需要长连接支持
-    location /api/mcp/sse {
+    location /api/v1/mcp/sse {
         proxy_pass http://127.0.0.1:6001;
         proxy_http_version 1.1;
         proxy_set_header Connection '';
@@ -286,19 +133,48 @@ server {
 }
 ```
 
----
+## 部署 Checklist
 
-## 5. 健康检查
+- [ ] `JWT_SECRET` 已替换为 32+ 位随机字符串
+- [ ] `ENCRYPTION_KEY` 已替换为 32+ 位随机字符串
+- [ ] `FRONTEND_URL` 已改为真实生产域名，CORS 不再使用 localhost
+- [ ] `DB_SYNCHRONIZE=false`，且已执行 `pnpm migration:run`
+- [ ] PostgreSQL 已开启持久化备份策略
+- [ ] 应用日志已接入宿主机日志采集或容器日志平台
+- [ ] OpenViking `OV_BASE_URL` / `OV_API_KEY` 已替换为真实生产配置
+- [ ] 若为多实例部署，`CAPABILITY_RATE_LIMIT_STORE_DRIVER=redis` 已启用，并验证 Redis 持久化
+- [ ] 反向代理已启用 TLS，并对 `/api/v1/mcp/sse` 放开长连接配置
+- [ ] 管理员账号已重置默认密码
+
+## 干净环境实装验证
+
+完成部署后，至少执行一次以下验证：
+
+1. 打开前端首页，确认静态资源与登录页可访问。
+2. 使用管理员账号登录，确认浏览器对 `/api/v1/*` 的请求返回正常。
+3. 执行 `pnpm --filter server run migration:show` 或查看迁移表，确认没有未执行迁移。
+4. 先做匿名探针检查：
 
 ```bash
-curl http://localhost:6001/api/system/health
+curl http://localhost:6001/api/v1/healthz
+curl http://localhost:6001/api/v1/readyz
 ```
 
-预期响应：
-```json
-{
-  "ok": true,
-  "openviking": { "status": "connected" },
-  "dbPool": { "total": 10, "idle": 8, "active": 2 }
-}
+5. 再从应用侧验证受保护的诊断健康接口。
+   `GET /api/v1/system/health` 仍是管理员诊断接口，应使用管理员 token 调用：
+
+```bash
+curl -H "Authorization: Bearer <admin-jwt>" \
+  http://localhost:6001/api/v1/system/health
 ```
+
+6. 若启用 Redis 限流存储，重启 `server` 容器后再次触发 capability 请求，确认限流 bucket 不会因单实例重启丢失。
+
+## 常见问题
+
+- 启动即报 `生产环境 JWT_SECRET 不安全`
+  说明仍在使用占位值或长度不足。
+- 启动即报 `生产环境 FRONTEND_URL 不能使用 localhost`
+  说明 CORS 仍指向开发地址。
+- 启动即报 `生产环境 OpenViking 连接配置仍是占位值`
+  说明 `OV_BASE_URL / OV_API_KEY` 未替换。

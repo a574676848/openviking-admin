@@ -1,6 +1,6 @@
 # API 参考
 
-所有 HTTP 接口统一挂载在 `/api` 前缀下。示例默认服务地址为 `http://localhost:6001/api`。
+所有 HTTP 接口统一挂载在 `/api/v1` 前缀下。示例默认服务地址为 `http://localhost:6001/api/v1`。
 
 ## 通用约定
 
@@ -40,7 +40,7 @@
   "meta": {
     "requestId": "client-or-server-generated",
     "timestamp": "2026-04-25T13:00:00.000Z",
-    "path": "/api/knowledge/search"
+    "path": "/api/v1/knowledge/search"
   },
   "traceId": "uuid",
   "error": {
@@ -62,7 +62,7 @@
 
 ## 认证接口
 
-### POST /api/auth/login
+### POST /api/v1/auth/login
 
 本地账号登录。
 
@@ -97,7 +97,7 @@
 }
 ```
 
-### GET /api/auth/sso/redirect/:tenantId/:type
+### GET /api/v1/auth/sso/redirect/:tenantId/:type
 
 发起企业 SSO 认证重定向。
 
@@ -106,11 +106,11 @@
 | `tenantId` | path | 租户 ID |
 | `type` | path | `feishu`、`dingtalk`、`oidc` 或 `ldap` |
 
-### GET /api/auth/sso/callback/:tenantId/:type
+### GET /api/v1/auth/sso/callback/:tenantId/:type
 
 SSO Provider 回调入口。认证成功后重定向到前端并携带一次性 ticket。
 
-### POST /api/auth/sso/exchange
+### POST /api/v1/auth/sso/exchange
 
 使用一次性 SSO ticket 换取 `accessToken` 和 `refreshToken`。
 
@@ -120,7 +120,7 @@ SSO Provider 回调入口。认证成功后重定向到前端并携带一次性 
 }
 ```
 
-### POST /api/auth/refresh
+### POST /api/v1/auth/refresh
 
 使用 refresh token 刷新登录态。
 
@@ -130,15 +130,15 @@ SSO Provider 回调入口。认证成功后重定向到前端并携带一次性 
 }
 ```
 
-### GET /api/auth/whoami
+### GET /api/v1/auth/whoami
 
 返回当前用户、租户和角色上下文。
 
-### GET /api/auth/credential-options
+### GET /api/v1/auth/credential-options
 
 返回当前用户可用的换证方式和推荐 TTL。需要 JWT。
 
-### POST /api/auth/token/exchange
+### POST /api/v1/auth/token/exchange
 
 将 JWT 登录态交换为 capability access token。
 
@@ -160,11 +160,11 @@ SSO Provider 回调入口。认证成功后重定向到前端并携带一次性 
 }
 ```
 
-### POST /api/auth/session/exchange
+### POST /api/v1/auth/session/exchange
 
 将 JWT 登录态交换为短期 session key，常用于 MCP 或短会话 Agent。
 
-### POST /api/auth/client-credentials
+### POST /api/v1/auth/client-credentials
 
 签发可吊销 API key，适合 CLI、MCP 和自动化任务。
 
@@ -190,17 +190,17 @@ SSO Provider 回调入口。认证成功后重定向到前端并携带一次性 
 }
 ```
 
-### POST /api/auth/switch-role
+### POST /api/v1/auth/switch-role
 
 超管切换租户视角。需要 `super_admin`。
 
-### GET /api/auth/me
+### GET /api/v1/auth/me
 
 返回当前 JWT 用户信息。保留给控制台兼容使用。
 
 ## 能力平台接口
 
-### GET /api/capabilities
+### GET /api/v1/capabilities
 
 返回 capability catalog。
 
@@ -216,7 +216,7 @@ SSO Provider 回调入口。认证成功后重定向到前端并携带一次性 
       "minimumRole": "tenant_viewer",
       "http": {
         "method": "POST",
-        "path": "/api/knowledge/search"
+        "path": "/api/v1/knowledge/search"
       },
       "cli": {
         "command": "ova knowledge search"
@@ -228,7 +228,7 @@ SSO Provider 回调入口。认证成功后重定向到前端并携带一次性 
 }
 ```
 
-### POST /api/knowledge/search
+### POST /api/v1/knowledge/search
 
 在租户知识域内执行语义搜索。
 
@@ -257,7 +257,7 @@ SSO Provider 回调入口。认证成功后重定向到前端并携带一次性 
 }
 ```
 
-### POST /api/knowledge/grep
+### POST /api/v1/knowledge/grep
 
 在租户知识域内执行文本匹配。
 
@@ -271,7 +271,7 @@ SSO Provider 回调入口。认证成功后重定向到前端并携带一次性 
 }
 ```
 
-### GET /api/resources
+### GET /api/v1/resources
 
 列出租户授权范围内的资源。
 
@@ -281,7 +281,7 @@ SSO Provider 回调入口。认证成功后重定向到前端并携带一次性 
 |------|------|------|
 | `uri` | 否 | 资源 URI 前缀 |
 
-### GET /api/resources/tree
+### GET /api/v1/resources/tree
 
 返回租户资源树。
 
@@ -303,7 +303,7 @@ SSO Provider 回调入口。认证成功后重定向到前端并携带一次性 
 
 ## 可观测性接口
 
-### GET /api/observability/capabilities
+### GET /api/v1/observability/capabilities
 
 返回 capability 平台当前进程内的观测快照。需要 JWT。
 
@@ -315,21 +315,61 @@ SSO Provider 回调入口。认证成功后重定向到前端并携带一次性 
 - rate limit 规则和活跃 bucket。
 - 告警快照。
 
-### GET /api/observability/capabilities/prometheus
+### GET /api/v1/observability/capabilities/correlation
+
+返回 metrics、alerts、rate limit snapshot 与近期 capability audit 轨迹的关联视图。需要 JWT。
+
+查询参数：
+
+| 参数 | 必填 | 说明 |
+|------|------|------|
+| `limit` | 否 | 返回最近审计轨迹条数，默认 `20` |
+
+### GET /api/v1/observability/capabilities/prometheus
 
 返回 Prometheus exposition 格式指标，供外部 Prometheus 抓取。
 
+## 公共探针
+
+### GET /api/v1/healthz
+
+匿名存活探针，只返回服务进程是否存活，不暴露内部依赖细节。
+
+### GET /api/v1/readyz
+
+匿名就绪探针，检查数据库和 OpenViking 是否可用，适合容器编排或负载均衡探测。
+
 ## MCP
 
-### GET /api/mcp/sse?key=<apiKey>
+### GET /api/v1/mcp/sse
 
 使用 API key 建立 MCP SSE 会话。
 
-### GET /api/mcp/sse?sessionKey=<session-key>
+查询参数：
 
-使用短期 session key 建立 MCP SSE 会话。
+| 参数 | 说明 |
+|------|------|
+| `key` | API key，可选 |
+| `sessionKey` | 短期 session key，可选 |
 
-### POST /api/mcp/message
+使用示例：
+
+- `GET /api/v1/mcp/sse?key=<apiKey>`
+- `GET /api/v1/mcp/sse?sessionKey=<session-key>`
+
+### POST /api/v1/mcp/keys
+
+为当前登录用户创建 capability API key。需要 JWT。
+
+### GET /api/v1/mcp/keys
+
+查询当前用户签发过的 capability API key。需要 JWT。
+
+### DELETE /api/v1/mcp/keys/:id
+
+删除当前用户签发的指定 capability API key。需要 JWT。
+
+### POST /api/v1/mcp/message
 
 MCP JSON-RPC 消息接口。
 
@@ -356,12 +396,12 @@ MCP JSON-RPC 消息接口。
 
 | Method | Path | 说明 |
 |------|------|------|
-| `GET` | `/api/tenants` | 获取租户列表 |
-| `GET` | `/api/tenants/:id` | 获取租户详情 |
-| `POST` | `/api/tenants` | 创建租户 |
-| `PATCH` | `/api/tenants/:id` | 更新租户 |
-| `DELETE` | `/api/tenants/:id` | 删除租户 |
-| `GET` | `/api/tenants/check-auth/:code` | 公开接口，检查租户可用 SSO 方式 |
+| `GET` | `/api/v1/tenants` | 获取租户列表 |
+| `GET` | `/api/v1/tenants/:id` | 获取租户详情 |
+| `POST` | `/api/v1/tenants` | 创建租户 |
+| `PATCH` | `/api/v1/tenants/:id` | 更新租户 |
+| `DELETE` | `/api/v1/tenants/:id` | 删除租户 |
+| `GET` | `/api/v1/tenants/check-auth/:code` | 公开接口，检查租户可用 SSO 方式 |
 
 创建租户请求体：
 
@@ -383,10 +423,10 @@ MCP JSON-RPC 消息接口。
 
 | Method | Path | 说明 |
 |------|------|------|
-| `GET` | `/api/users` | 获取用户列表 |
-| `POST` | `/api/users` | 创建用户 |
-| `PATCH` | `/api/users/:id` | 更新用户 |
-| `DELETE` | `/api/users/:id` | 删除用户 |
+| `GET` | `/api/v1/users` | 获取用户列表 |
+| `POST` | `/api/v1/users` | 创建用户 |
+| `PATCH` | `/api/v1/users/:id` | 更新用户 |
+| `DELETE` | `/api/v1/users/:id` | 删除用户 |
 
 `tenant_admin` 不能创建或提升 `super_admin`。
 
@@ -396,11 +436,11 @@ MCP JSON-RPC 消息接口。
 
 | Method | Path | 说明 |
 |------|------|------|
-| `GET` | `/api/knowledge-bases` | 获取当前租户知识库 |
-| `GET` | `/api/knowledge-bases/:id` | 获取知识库详情 |
-| `POST` | `/api/knowledge-bases` | 创建知识库 |
-| `PATCH` | `/api/knowledge-bases/:id` | 更新知识库 |
-| `DELETE` | `/api/knowledge-bases/:id` | 删除知识库 |
+| `GET` | `/api/v1/knowledge-bases` | 获取当前租户知识库 |
+| `GET` | `/api/v1/knowledge-bases/:id` | 获取知识库详情 |
+| `POST` | `/api/v1/knowledge-bases` | 创建知识库 |
+| `PATCH` | `/api/v1/knowledge-bases/:id` | 更新知识库 |
+| `DELETE` | `/api/v1/knowledge-bases/:id` | 删除知识库 |
 
 ## 知识树接口
 
@@ -408,12 +448,19 @@ MCP JSON-RPC 消息接口。
 
 | Method | Path | 说明 |
 |------|------|------|
-| `GET` | `/api/knowledge-tree?kbId=<uuid>` | 获取知识树节点 |
-| `GET` | `/api/knowledge-tree/graph?kbId=<uuid>` | 获取知识图谱 |
-| `POST` | `/api/knowledge-tree` | 创建知识节点 |
-| `PATCH` | `/api/knowledge-tree/:id` | 更新知识节点 |
-| `DELETE` | `/api/knowledge-tree/:id` | 删除知识节点 |
-| `PATCH` | `/api/knowledge-tree/:id/move` | 移动节点 |
+| `GET` | `/api/v1/knowledge-tree` | 获取知识树节点 |
+| `GET` | `/api/v1/knowledge-tree/graph` | 获取知识图谱 |
+| `POST` | `/api/v1/knowledge-tree` | 创建知识节点 |
+| `PATCH` | `/api/v1/knowledge-tree/:id` | 更新知识节点 |
+| `DELETE` | `/api/v1/knowledge-tree/:id` | 删除知识节点 |
+| `PATCH` | `/api/v1/knowledge-tree/:id/move` | 移动节点 |
+
+知识树查询参数：
+
+| 接口 | 参数 | 说明 |
+|------|------|------|
+| `/api/v1/knowledge-tree` | `kbId` | 目标知识库 ID |
+| `/api/v1/knowledge-tree/graph` | `kbId` | 目标知识库 ID |
 
 ## 导入任务接口
 
@@ -421,10 +468,12 @@ MCP JSON-RPC 消息接口。
 
 | Method | Path | 说明 |
 |------|------|------|
-| `GET` | `/api/import-tasks` | 获取导入任务列表 |
-| `GET` | `/api/import-tasks/:id` | 获取任务详情 |
-| `POST` | `/api/import-tasks` | 创建导入任务 |
-| `GET` | `/api/import-tasks/:id/sync` | 同步任务执行结果 |
+| `GET` | `/api/v1/import-tasks` | 获取导入任务列表 |
+| `GET` | `/api/v1/import-tasks/:id` | 获取任务详情 |
+| `POST` | `/api/v1/import-tasks` | 创建导入任务 |
+| `GET` | `/api/v1/import-tasks/:id/sync` | 同步任务执行结果 |
+| `POST` | `/api/v1/import-tasks/:id/retry` | 重试失败或已取消的导入任务 |
+| `POST` | `/api/v1/import-tasks/:id/cancel` | 取消正在执行的导入任务 |
 
 导入来源：
 
@@ -436,35 +485,37 @@ MCP JSON-RPC 消息接口。
 
 ## 搜索接口
 
-保留给控制台和历史搜索页面使用。Capability 搜索入口见 `/api/knowledge/search`。
+保留给控制台和历史搜索页面使用。Capability 搜索入口见 `/api/v1/knowledge/search`。
 
 | Method | Path | 说明 |
 |------|------|------|
-| `POST` | `/api/search/find` | 语义检索 |
-| `POST` | `/api/search/grep` | 文本匹配 |
-| `GET` | `/api/search/analysis` | 检索分析 |
-| `GET` | `/api/search/stats-deep` | 深度检索统计 |
-| `GET` | `/api/search/logs` | 最近检索日志 |
-| `POST` | `/api/search/logs/:id/feedback` | 提交检索反馈 |
+| `POST` | `/api/v1/search/find` | 语义检索 |
+| `POST` | `/api/v1/search/grep` | 文本匹配 |
+| `GET` | `/api/v1/search/analysis` | 检索分析 |
+| `GET` | `/api/v1/search/stats-deep` | 深度检索统计 |
+| `GET` | `/api/v1/search/logs` | 最近检索日志 |
+| `POST` | `/api/v1/search/logs/:id/feedback` | 提交检索反馈 |
 
 ## 系统接口
 
-需要 JWT 和租户上下文，健康检查除外。
+公开探针与管理员诊断接口分离。
 
 | Method | Path | 说明 |
 |------|------|------|
-| `GET` | `/api/system/health` | 系统健康检查 |
-| `GET` | `/api/system/queue` | OpenViking 处理队列 |
-| `GET` | `/api/system/stats` | 系统统计 |
-| `GET` | `/api/system/dashboard` | 控制台仪表盘 |
-| `POST` | `/api/system/reindex` | 触发重新索引 |
+| `GET` | `/api/v1/healthz` | 匿名存活探针 |
+| `GET` | `/api/v1/readyz` | 匿名就绪探针 |
+| `GET` | `/api/v1/system/health` | 受保护的系统诊断健康检查 |
+| `GET` | `/api/v1/system/queue` | OpenViking 处理队列 |
+| `GET` | `/api/v1/system/stats` | 系统统计 |
+| `GET` | `/api/v1/system/dashboard` | 控制台仪表盘 |
+| `POST` | `/api/v1/system/reindex` | 触发重新索引 |
 
 ## 配置接口
 
 | Method | Path | 说明 |
 |------|------|------|
-| `GET` | `/api/settings` | 获取系统配置，需要 JWT |
-| `PATCH` | `/api/settings` | 批量更新系统配置，需要 `super_admin` |
+| `GET` | `/api/v1/settings` | 获取系统配置，需要 JWT |
+| `PATCH` | `/api/v1/settings` | 批量更新系统配置，需要 `super_admin` |
 
 ## 审计接口
 
@@ -472,8 +523,9 @@ MCP JSON-RPC 消息接口。
 
 | Method | Path | 说明 |
 |------|------|------|
-| `GET` | `/api/audit` | 分页查询审计日志 |
-| `GET` | `/api/audit/stats` | 审计统计 |
+| `GET` | `/api/v1/audit` | 分页查询审计日志 |
+| `GET` | `/api/v1/audit/stats` | 审计统计 |
+| `POST` | `/api/v1/audit/client-log` | Web 前端异常日志入口，供浏览器侧上报错误摘要 |
 
 常用查询参数：
 
@@ -492,10 +544,10 @@ MCP JSON-RPC 消息接口。
 
 | Method | Path | 说明 |
 |------|------|------|
-| `GET` | `/api/integrations` | 获取集成配置 |
-| `POST` | `/api/integrations` | 创建集成配置 |
-| `PATCH` | `/api/integrations/:id` | 更新集成配置 |
-| `DELETE` | `/api/integrations/:id` | 删除集成配置 |
+| `GET` | `/api/v1/integrations` | 获取集成配置 |
+| `POST` | `/api/v1/integrations` | 创建集成配置 |
+| `PATCH` | `/api/v1/integrations/:id` | 更新集成配置 |
+| `DELETE` | `/api/v1/integrations/:id` | 删除集成配置 |
 
 ## 全局错误语义
 

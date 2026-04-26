@@ -1,9 +1,14 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useId } from 'react';
 import { useApp, ThemeType } from './app-provider';
 import { Zap, MousePointer2, ChevronDown, Check, type LucideIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import {
+  getShellButtonClass,
+  getShellPanelClass,
+  getShellTileClass,
+} from './ui/shell-primitives';
 
 type ThemePlacement = 'top' | 'bottom';
 
@@ -17,7 +22,10 @@ export function ThemeSwitcher({
   const { theme, setTheme } = useApp();
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const firstOptionRef = useRef<HTMLButtonElement>(null);
   const isSwiss = theme === 'swiss';
+  const menuId = useId();
 
   const themes: {
     id: ThemeType;
@@ -49,6 +57,16 @@ export function ThemeSwitcher({
   const dropdownPlacementClass = placement === 'top' ? 'bottom-full mb-2' : 'top-full mt-2';
   const dropdownInitialY = placement === 'top' ? 10 : -10;
   const dropdownAnimateY = placement === 'top' ? -8 : 8;
+  const triggerClassName = getShellButtonClass(
+    isSwiss ? 'swiss' : 'neo',
+    'default',
+    'group relative px-4 py-2',
+  );
+  const dropdownClassName = getShellPanelClass(
+    isSwiss ? 'swiss' : 'neo',
+    'popover',
+    `absolute left-0 ${dropdownPlacementClass} z-[100] w-64 overflow-hidden`,
+  );
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -60,21 +78,36 @@ export function ThemeSwitcher({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    if (!isOpen) return;
+
+    firstOptionRef.current?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsOpen(false);
+        triggerRef.current?.focus();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen]);
+
   return (
     <div ref={containerRef} className={`relative ${className}`}>
       {/* Trigger Button */}
       <button
+        ref={triggerRef}
         type="button"
         aria-haspopup="menu"
         aria-expanded={isOpen}
+        aria-controls={menuId}
+        aria-label="切换界面主题"
         onClick={() => setIsOpen(!isOpen)}
-        className={`group relative flex items-center gap-3 bg-[var(--bg-card)] px-4 py-2 transition-all ${
-          isSwiss
-            ? "border border-[var(--border)] hover:bg-[var(--bg-elevated)]"
-            : "border-2 border-[var(--border)] shadow-[4px_4px_0px_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_#000]"
-        }`}
+        className={triggerClassName}
       >
-        <div className={`p-1.5 border border-[var(--border)] ${currentTheme.color} ${isSwiss ? "" : "shadow-[2px_2px_0px_#000]"}`}>
+        <div className={getShellTileClass(isSwiss ? 'swiss' : 'neo', `p-1.5 ${currentTheme.color}`)}>
           <currentTheme.icon size={14} strokeWidth={3} />
         </div>
         <div className="flex flex-col items-start leading-none">
@@ -94,13 +127,13 @@ export function ThemeSwitcher({
       <AnimatePresence>
         {isOpen && (
           <motion.div
+            id={menuId}
             initial={{ opacity: 0, y: dropdownInitialY, scale: 0.95 }}
             animate={{ opacity: 1, y: dropdownAnimateY, scale: 1 }}
             exit={{ opacity: 0, y: dropdownInitialY, scale: 0.95 }}
-            className={`absolute left-0 ${dropdownPlacementClass} z-[100] w-64 overflow-hidden bg-[var(--bg-card)] ${
-              isSwiss ? "border border-[var(--border)]" : "border-2 border-[var(--border)] shadow-[8px_8px_0px_#000]"
-            }`}
+            className={dropdownClassName}
             role="menu"
+            aria-label="主题选项"
           >
             <div className={`p-2 text-[10px] font-black tracking-[0.2em] ${
               isSwiss ? "border-b border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--text-primary)]" : "border-b-2 border-[var(--border)] bg-black text-white"
@@ -115,15 +148,17 @@ export function ThemeSwitcher({
                 return (
                   <button
                     key={t.id}
+                    ref={t.id === themes[0]?.id ? firstOptionRef : undefined}
                     type="button"
                     role="menuitemradio"
                     aria-checked={isActive}
                     onClick={() => {
                       setTheme(t.id);
                       setIsOpen(false);
+                      triggerRef.current?.focus();
                     }}
                     className={`
-                      w-full flex items-center gap-3 p-2 mb-1 last:mb-0 transition-all border-2
+                      w-full flex items-center gap-3 p-2 mb-1 last:mb-0 transition-all border-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-card)]
                       ${isActive 
                         ? isSwiss
                           ? "bg-[var(--brand-muted)] text-[var(--text-primary)] border-[var(--border)]"
@@ -132,9 +167,10 @@ export function ThemeSwitcher({
                       }
                     `}
                   >
-                    <div className={`p-1.5 border border-[var(--border)] ${t.color} ${
-                      isSwiss ? "" : isActive ? 'shadow-[2px_2px_0px_rgba(255,255,255,0.3)]' : 'shadow-[2px_2px_0px_#000]'
-                    }`}>
+                    <div className={getShellTileClass(
+                      isSwiss ? 'swiss' : 'neo',
+                      `p-1.5 ${t.color} ${!isSwiss && isActive ? 'shadow-[2px_2px_0px_rgba(255,255,255,0.3)]' : ''}`,
+                    )}>
                       <Icon size={14} strokeWidth={3} />
                     </div>
                     <div className="flex-1 text-left">

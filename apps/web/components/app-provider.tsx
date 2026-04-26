@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { apiClient } from '../lib/apiClient';
-import { destroySession, readSessionToken, writeSessionToken } from '../lib/session';
+import { destroySession, readSessionToken, readSessionUser, writeSessionToken, writeSessionUser } from '../lib/session';
 
 interface User {
   id: string;
@@ -34,7 +34,7 @@ function log(level: 'info' | 'warn' | 'error', message: string, detail?: unknown
   }
   // 生产环境：收敛到统一日志端点
   try {
-    navigator.sendBeacon?.('/api/audit/client-log', JSON.stringify({ level, message, detail, ts: Date.now() }));
+    navigator.sendBeacon?.('/api/v1/audit/client-log', JSON.stringify({ level, message, detail, ts: Date.now() }));
   } catch {
     // 静默失败，不阻塞用户操作
   }
@@ -44,8 +44,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const normalizeTheme = (value: string | null): ThemeType => {
     return value === 'swiss' ? 'swiss' : 'neo';
   };
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(() => {
+    if (typeof window === 'undefined') {
+      return null;
+    }
+    return readSessionUser();
+  });
+  const [isLoading, setIsLoading] = useState(() => {
+    if (typeof window === 'undefined') {
+      return true;
+    }
+    return readSessionToken() !== null && readSessionUser() === null;
+  });
   const [theme, setThemeState] = useState<ThemeType>(() => {
     if (typeof window === 'undefined') {
       return 'neo';
@@ -67,6 +77,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback((token: string, userData: User) => {
     writeSessionToken(token);
+    writeSessionUser(userData);
     setUser(userData);
   }, []);
 
@@ -78,6 +89,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const refreshUser = useCallback(async () => {
     try {
       const data = await apiClient.get<User>('/auth/me');
+      writeSessionUser(data);
       setUser(data);
     } catch (err) {
       log('error', 'Failed to fetch user', err instanceof Error ? err.message : err);
@@ -95,6 +107,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (token) {
+      const cachedUser = readSessionUser();
+      if (cachedUser) {
+        setUser(cachedUser);
+        queueMicrotask(() => {
+          void refreshUser();
+        });
+        setIsLoading(false);
+        return;
+      }
       queueMicrotask(() => {
         void refreshUser().finally(() => setIsLoading(false));
       });

@@ -5,6 +5,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import type { UserModel } from '../domain/user.model';
 
 export const SystemRoles = {
   SUPER_ADMIN: 'super_admin',
@@ -27,7 +28,7 @@ export class User {
   passwordHash: string;
 
   @Column({ type: 'varchar', length: 30, default: 'tenant_viewer' })
-  role: UserRole;
+  role: UserModel['role'];
 
   @Column({ name: 'tenant_id', nullable: true })
   tenantId: string;
@@ -37,11 +38,11 @@ export class User {
 
   /** 第三方身份唯一标识 (SSO) */
   @Column({ name: 'sso_id', nullable: true, length: 128 })
-  ssoId: string;
+  ssoId: UserModel['ssoId'];
 
   /** 身份提供商：feishu | dingtalk | oidc | ldap */
   @Column({ name: 'provider', nullable: true, length: 32 })
-  provider: string;
+  provider: UserModel['provider'];
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

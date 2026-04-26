@@ -10,12 +10,15 @@ import {
   ConsoleControlPanel,
   ConsoleEmptyState,
   ConsoleField,
+  ConsoleIconTile,
   ConsoleInput,
   ConsoleMetricCard,
   ConsolePageHeader,
   ConsoleSelect,
+  ConsoleSurfaceCard,
   ConsoleStatsGrid,
   ConsoleTableShell,
+  resolveConsoleTableState,
 } from "@/components/console/primitives";
 
 interface User {
@@ -37,6 +40,7 @@ export default function UsersPage() {
   const confirm = useConfirm();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -48,9 +52,12 @@ export default function UsersPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError("");
     try {
       const response = await apiClient.get<User[]>("/users");
       setUsers(Array.isArray(response) ? response : []);
+    } catch (error: unknown) {
+      setLoadError(error instanceof Error ? error.message : "成员列表加载失败");
     } finally {
       setLoading(false);
     }
@@ -69,6 +76,12 @@ export default function UsersPage() {
       admins: users.filter((user) => user.role === "tenant_admin").length,
     };
   }, [users]);
+
+  const tableState = resolveConsoleTableState({
+    loading,
+    hasError: Boolean(loadError),
+    hasData: users.length > 0,
+  });
 
   async function handleCreate(event: React.FormEvent) {
     event.preventDefault();
@@ -110,7 +123,7 @@ export default function UsersPage() {
     <div className="flex min-h-full flex-col gap-8">
       <ConsolePageHeader
         title="成员权限管理"
-        subtitle="Tenant Members / Roles And Access Control"
+        subtitle="统一管理租户成员、角色与访问状态"
         actions={
           <ConsoleButton
             type="button"
@@ -126,16 +139,16 @@ export default function UsersPage() {
       />
 
       <ConsoleStatsGrid className="lg:grid-cols-4">
-        <ConsoleMetricCard label="Members" value={users.length.toLocaleString()} />
-        <ConsoleMetricCard label="Active" value={stats.active.toLocaleString()} tone="success" />
-        <ConsoleMetricCard label="Disabled" value={stats.disabled.toLocaleString()} tone="danger" />
-        <ConsoleMetricCard label="Admins" value={stats.admins.toLocaleString()} tone="brand" />
+        <ConsoleMetricCard label="成员总数" value={users.length.toLocaleString()} />
+        <ConsoleMetricCard label="启用中" value={stats.active.toLocaleString()} tone="success" />
+        <ConsoleMetricCard label="已禁用" value={stats.disabled.toLocaleString()} tone="danger" />
+        <ConsoleMetricCard label="管理员" value={stats.admins.toLocaleString()} tone="brand" />
       </ConsoleStatsGrid>
 
       {showCreate && (
-        <ConsoleControlPanel eyebrow="New Member" title="创建租户内账号">
+        <ConsoleControlPanel eyebrow="新增成员" title="创建租户内账号">
           <form onSubmit={handleCreate} className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-3">
-            <ConsoleField label="Username">
+            <ConsoleField label="用户名">
               <ConsoleInput
                 required
                 value={form.username}
@@ -143,7 +156,7 @@ export default function UsersPage() {
                 placeholder="ops_user"
               />
             </ConsoleField>
-            <ConsoleField label="Password">
+            <ConsoleField label="密码">
               <ConsoleInput
                 type="password"
                 required
@@ -153,7 +166,7 @@ export default function UsersPage() {
                 placeholder="至少 6 位"
               />
             </ConsoleField>
-            <ConsoleField label="Role">
+            <ConsoleField label="角色">
               <ConsoleSelect
                 value={form.role}
                 onChange={(event) => setForm((current) => ({ ...current, role: event.target.value }))}
@@ -164,9 +177,9 @@ export default function UsersPage() {
               </ConsoleSelect>
             </ConsoleField>
             {error && (
-              <div className="xl:col-span-3 border-[3px] border-[var(--border)] bg-[var(--danger)] px-4 py-3 font-mono text-[10px] font-black uppercase tracking-[0.16em] text-white shadow-[3px_3px_0px_#000]">
+              <ConsoleSurfaceCard tone="danger" className="xl:col-span-3 px-4 py-3 font-mono text-[10px] font-black uppercase tracking-[0.16em] shadow-[3px_3px_0px_#000]">
                 {error}
-              </div>
+              </ConsoleSurfaceCard>
             )}
             <div className="xl:col-span-3">
               <ConsoleButton type="submit" disabled={submitting}>
@@ -180,28 +193,41 @@ export default function UsersPage() {
 
       <ConsoleTableShell
         columns={
-          <div className="grid grid-cols-[minmax(0,1fr)_160px_120px_180px_220px]">
+            <div className="grid grid-cols-[minmax(0,1fr)_160px_120px_180px_220px]">
           <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">
-            Member
+            成员
           </div>
           <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">
-            Role
+            角色
           </div>
           <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">
-            Status
+            状态
           </div>
           <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">
-            Created
+            创建时间
           </div>
           <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">
-            Actions
+            操作
           </div>
           </div>
         }
-        isLoading={loading}
-        hasData={users.length > 0}
-        loadingState={<ConsoleEmptyState icon={Shield} title="正在读取成员列表..." description="loading tenant users" />}
-        emptyState={<ConsoleEmptyState icon={Shield} title="暂无成员" description="create tenant members to delegate access" />}
+        state={tableState}
+        stateContent={{
+          loading: <ConsoleEmptyState icon={Shield} title="正在读取成员列表..." description="系统正在同步当前租户成员信息。" />,
+          error: (
+            <ConsoleEmptyState
+              icon={Shield}
+              title="成员列表加载失败"
+              description={loadError}
+              action={
+                <ConsoleButton type="button" onClick={() => void load()}>
+                  重新加载
+                </ConsoleButton>
+              }
+            />
+          ),
+          empty: <ConsoleEmptyState icon={Shield} title="暂无成员" description="请先创建租户成员，再分配访问权限。" />,
+        }}
       >
             {users.map((user) => {
               const role = ROLE_MAP[user.role] ?? {
@@ -217,9 +243,9 @@ export default function UsersPage() {
                 >
                   <div className="bg-[var(--bg-card)] px-5 py-5">
                     <div className="flex items-start gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center border-[3px] border-[var(--border)] bg-[var(--bg-elevated)]">
+                      <ConsoleIconTile>
                         <KeyRound size={16} strokeWidth={2.6} />
-                      </div>
+                      </ConsoleIconTile>
                       <div className="min-w-0">
                         <p className="font-sans text-xl font-black text-[var(--text-primary)]">{user.username}</p>
                         <p className="mt-2 font-mono text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-muted)]">
@@ -235,7 +261,7 @@ export default function UsersPage() {
                   </div>
                   <div className="bg-[var(--bg-card)] px-5 py-5">
                     <ConsoleBadge tone={user.active ? "success" : "default"}>
-                      {user.active ? "active" : "disabled"}
+                      {user.active ? "已启用" : "已禁用"}
                     </ConsoleBadge>
                   </div>
                   <div className="bg-[var(--bg-card)] px-5 py-5 font-mono text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">

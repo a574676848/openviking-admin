@@ -10,6 +10,16 @@ import { DataTable, ColumnDef } from "@/components/ui/DataTable";
 import { FormModal } from "@/components/ui/FormModal";
 import { ScrambleText } from "@/components/ui/ScrambleText";
 import { writeSessionToken } from "@/lib/session";
+import {
+  DangerAction,
+  PlatformButton,
+  PlatformInput,
+  PlatformPageHeader,
+  PlatformPanel,
+  PlatformSegmentedControl,
+  PlatformSectionTitle,
+  PlatformStateBadge,
+} from "@/components/ui/platform-primitives";
 
 interface Tenant {
   id: string; tenantId: string; displayName: string; status: string;
@@ -38,6 +48,7 @@ export default function TenantsPage() {
   const router = useRouter();
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [saving, setSaving] = useState(false);
@@ -47,9 +58,12 @@ export default function TenantsPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError("");
     try {
       const d = await apiClient.get(API_ENDPOINTS.TENANTS);
       setTenants(Array.isArray(d) ? d : []);
+    } catch (error: unknown) {
+      setLoadError(error instanceof Error ? error.message : "租户目录加载失败");
     } finally {
       setLoading(false);
     }
@@ -118,7 +132,7 @@ export default function TenantsPage() {
   const columns: ColumnDef<Tenant>[] = [
     {
       key: 'namespace',
-      header: 'Namespace',
+      header: '租户空间',
       cell: (t) => (
         <>
           <div className="font-sans font-black text-lg">{t.displayName}</div>
@@ -130,53 +144,82 @@ export default function TenantsPage() {
       key: 'isolation',
       header: '隔离模式',
       cell: (t) => (
-        <span className={`inline-flex items-center gap-1.5 border border-[var(--border)] px-2 py-1 font-mono text-[9px] font-black tracking-widest ${
-          t.isolationLevel === IsolationLevel.SMALL ? 'bg-[var(--bg-card)]' : t.isolationLevel === IsolationLevel.MEDIUM ? 'bg-[var(--brand-muted)] text-[var(--brand)]' : 'bg-[var(--text-primary)] text-[var(--bg-card)]'
-        }`}>
+        <PlatformStateBadge
+          tone={
+            t.isolationLevel === IsolationLevel.SMALL
+              ? "default"
+              : t.isolationLevel === IsolationLevel.MEDIUM
+                ? "brand"
+                : "inverse"
+          }
+        >
           {t.isolationLevel === IsolationLevel.LARGE ? <HardDrive size={10}/> : <Layers size={10}/>}
           {t.isolationLevel.toUpperCase()}
-        </span>
+        </PlatformStateBadge>
       )
     },
     {
       key: 'status',
       header: '物理存储状态',
       cell: () => (
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-[var(--success)] animate-pulse" />
-          <span className="font-mono text-[10px] font-black uppercase">Ready</span>
-        </div>
+        <PlatformStateBadge tone="success">
+          <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--success)]" />
+          就绪
+        </PlatformStateBadge>
       )
     },
     {
       key: 'actions',
-      header: '操作',
-      cell: (t) => (
+        header: '操作',
+        cell: (t) => (
         <div className="flex justify-end gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button onClick={() => switchToTenant(t)} className="p-2 border border-[var(--border)] bg-[var(--bg-card)] transition-colors hover:bg-[var(--bg-elevated)]"><ArrowRight size={16}/></button>
-          <button onClick={() => remove(t)} className="p-2 border border-[var(--danger)] bg-transparent text-[var(--danger)] transition-colors hover:bg-[var(--danger)] hover:text-white"><Trash2 size={16}/></button>
+          <PlatformButton
+            type="button"
+            aria-label={`切换到租户 ${t.displayName}`}
+            title={`切换到租户 ${t.displayName}`}
+            onClick={() => switchToTenant(t)}
+            className="h-9 w-9 p-0"
+          >
+            <ArrowRight size={16}/>
+          </PlatformButton>
+          <DangerAction
+            type="button"
+            aria-label={`删除租户 ${t.displayName}`}
+            title={`删除租户 ${t.displayName}`}
+            onClick={() => remove(t)}
+            className="h-9 w-9 p-0"
+          >
+            <Trash2 size={16}/>
+          </DangerAction>
         </div>
       )
     }
   ];
 
   return (
-    <div className="w-full flex flex-col pb-10 min-h-full theme-swiss">
-      {/* ─── Header ─── */}
-      <div className="flex flex-col md:flex-row gap-6 justify-between items-start md:items-end border-b-[var(--border-width)] border-[var(--border)] pb-6 mb-10">
-        <div>
-           <h1 className="text-5xl md:text-7xl font-black font-sans tracking-tighter uppercase mb-2 text-black">
-             <ScrambleText text="多级资源划分_" scrambleDuration={1200} />
-           </h1>
-           <p className="font-bold font-mono tracking-widest text-[var(--text-secondary)] uppercase text-xs">
-             {"// MANAGE HYBRID ISOLATION: SMALL / MEDIUM / LARGE"}
-           </p>
-        </div>
-        <button onClick={() => setShowForm(!showForm)} className={`ov-button px-6 py-3 flex items-center gap-2 ${showForm ? 'bg-[var(--danger)] text-white' : ''}`} style={{borderRadius: 0}}>
-           <Plus size={16} strokeWidth={3} className={showForm ? 'rotate-45' : ''} />
-           <span>{showForm ? '取消分配' : '指派新租户'}</span>
-        </button>
-      </div>
+    <div className="w-full flex flex-col pb-10 min-h-full">
+      <PlatformPageHeader
+        className="mb-10"
+        title={
+          <h1 className="mb-2 text-4xl font-black tracking-tighter text-[var(--text-primary)] md:text-6xl">
+            <ScrambleText text="多级资源划分_" scrambleDuration={1200} />
+          </h1>
+        }
+        subtitle={"// 管理 Small / Medium / Large 多级隔离租户"}
+        actions={
+          <PlatformButton
+            type="button"
+            aria-label={showForm ? "取消新租户分配" : "打开新租户分配表单"}
+            title={showForm ? "取消新租户分配" : "打开新租户分配表单"}
+            onClick={() => setShowForm(!showForm)}
+            className={`ov-button px-6 py-3 ${showForm ? 'bg-[var(--danger)] text-white border-[var(--danger)] hover:bg-[var(--danger)]' : ''}`}
+            style={{borderRadius: 0}}
+          >
+            <Plus size={16} strokeWidth={3} className={showForm ? 'rotate-45' : ''} />
+            <span>{showForm ? '取消分配' : '指派新租户'}</span>
+          </PlatformButton>
+        }
+      />
 
       <FormModal
         isOpen={showForm}
@@ -188,40 +231,56 @@ export default function TenantsPage() {
       >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
           <div className="space-y-6">
-            <h3 className="font-mono font-black text-lg uppercase border-b-2 border-[var(--border)] pb-2">基础身份 & 隔离等级</h3>
+            <PlatformSectionTitle
+              title="基础身份 & 隔离等级"
+              className="mb-0 border-b-2 border-[var(--border)] pb-2"
+            />
             <div className="grid grid-cols-1 gap-4">
-              <input required value={form.tenantId} onChange={e => setForm({...form, tenantId: e.target.value})} placeholder="命名空间 (Namespace ID) *" className="ov-input px-4 py-3 font-mono font-bold" />
-              <input required value={form.displayName} onChange={e => setForm({...form, displayName: e.target.value})} placeholder="显示名称 (Display Name) *" className="ov-input px-4 py-3 font-bold" />
-              <div className="flex gap-2">
-                {[IsolationLevel.SMALL, IsolationLevel.MEDIUM, IsolationLevel.LARGE].map(lvl => (
-                  <button key={lvl} type="button" onClick={() => setForm({...form, isolationLevel: lvl})} className={`flex-1 border border-[var(--border)] py-2 font-mono text-[10px] font-black transition-all ${form.isolationLevel === lvl ? 'bg-[var(--text-primary)] text-[var(--bg-card)]' : 'bg-[var(--bg-card)]'}`}>
-                    {lvl.toUpperCase()}
-                  </button>
-                ))}
-              </div>
+              <PlatformInput required value={form.tenantId} onChange={e => setForm({...form, tenantId: e.target.value})} placeholder="命名空间 (Namespace ID) *" className="px-4 py-3 font-bold" />
+              <PlatformInput required value={form.displayName} onChange={e => setForm({...form, displayName: e.target.value})} placeholder="显示名称 *" className="px-4 py-3 font-bold" />
+              <PlatformSegmentedControl
+                value={form.isolationLevel}
+                onChange={(lvl) => setForm({ ...form, isolationLevel: lvl })}
+                items={[
+                  { value: IsolationLevel.SMALL, label: IsolationLevel.SMALL.toUpperCase() },
+                  { value: IsolationLevel.MEDIUM, label: IsolationLevel.MEDIUM.toUpperCase() },
+                  { value: IsolationLevel.LARGE, label: IsolationLevel.LARGE.toUpperCase() },
+                ]}
+                buttonClassName="py-2"
+              />
             </div>
           </div>
 
           <div className="space-y-6">
-            <h3 className="font-mono font-black text-lg uppercase border-b-2 border-[var(--border)] pb-2">资源配额上限</h3>
+            <PlatformSectionTitle
+              title="资源配额上限"
+              className="mb-0 border-b-2 border-[var(--border)] pb-2"
+            />
             <div className="grid grid-cols-2 gap-4">
-              <input type="number" value={form.quota_maxDocs} onChange={e => setForm({...form, quota_maxDocs: e.target.value})} placeholder="最大知识库数" className="ov-input px-4 py-3 font-mono text-sm font-bold" />
-              <input type="number" value={form.quota_maxVectors} onChange={e => setForm({...form, quota_maxVectors: e.target.value})} placeholder="最大向量数" className="ov-input px-4 py-3 font-mono text-sm font-bold" />
+              <PlatformInput type="number" value={form.quota_maxDocs} onChange={e => setForm({...form, quota_maxDocs: e.target.value})} placeholder="最大知识库数" className="px-4 py-3 text-sm font-bold" />
+              <PlatformInput type="number" value={form.quota_maxVectors} onChange={e => setForm({...form, quota_maxVectors: e.target.value})} placeholder="最大向量数" className="px-4 py-3 text-sm font-bold" />
             </div>
           </div>
         </div>
 
         {form.isolationLevel === IsolationLevel.LARGE && (
-          <div className="bg-[var(--bg-elevated)] border border-[var(--border)] p-6 mb-10 animate-in zoom-in-95">
-            <h4 className="font-mono text-xs font-black uppercase mb-6 flex items-center gap-2"><HardDrive size={14}/> 独立数据库连接配置</h4>
+          <PlatformPanel className="mb-10 animate-in zoom-in-95 bg-[var(--bg-elevated)] p-6">
+            <PlatformSectionTitle
+              title={
+                <span className="flex items-center gap-2 text-base">
+                  <HardDrive size={14}/> 独立数据库连接配置
+                </span>
+              }
+              className="mb-6"
+            />
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <input value={form.db_host} onChange={e => setForm({...form, db_host: e.target.value})} placeholder="Host IP" className="ov-input px-3 py-2 text-xs font-mono" />
-              <input value={form.db_port} onChange={e => setForm({...form, db_port: e.target.value})} placeholder="Port" className="ov-input px-3 py-2 text-xs font-mono" />
-              <input value={form.db_name} onChange={e => setForm({...form, db_name: e.target.value})} placeholder="Database Name" className="ov-input px-3 py-2 text-xs font-mono" />
-              <input value={form.db_user} onChange={e => setForm({...form, db_user: e.target.value})} placeholder="User" className="ov-input px-3 py-2 text-xs font-mono" />
-              <input type="password" value={form.db_pass} onChange={e => setForm({...form, db_pass: e.target.value})} placeholder="Password" className="ov-input px-3 py-2 text-xs font-mono" />
+              <PlatformInput value={form.db_host} onChange={e => setForm({...form, db_host: e.target.value})} placeholder="主机地址" className="px-3 py-2 text-xs" />
+              <PlatformInput value={form.db_port} onChange={e => setForm({...form, db_port: e.target.value})} placeholder="端口" className="px-3 py-2 text-xs" />
+              <PlatformInput value={form.db_name} onChange={e => setForm({...form, db_name: e.target.value})} placeholder="数据库名" className="px-3 py-2 text-xs" />
+              <PlatformInput value={form.db_user} onChange={e => setForm({...form, db_user: e.target.value})} placeholder="用户名" className="px-3 py-2 text-xs" />
+              <PlatformInput type="password" value={form.db_pass} onChange={e => setForm({...form, db_pass: e.target.value})} placeholder="密码" className="px-3 py-2 text-xs" />
             </div>
-          </div>
+          </PlatformPanel>
         )}
       </FormModal>
 
@@ -230,7 +289,10 @@ export default function TenantsPage() {
         data={tenants} 
         columns={columns} 
         loading={loading} 
-        emptyMessage="NO TENANTS FOUND" 
+        loadingMessage="正在同步租户空间目录..."
+        errorMessage={loadError ? `租户目录加载失败：${loadError}` : undefined}
+        emptyMessage="当前还没有租户空间" 
+        tableLabel="平台租户列表"
         rowClassName={(t) => deletingIds.includes(t.id) ? "animate-collapse" : ""}
       />
     </div>

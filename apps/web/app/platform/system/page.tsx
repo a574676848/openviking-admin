@@ -2,6 +2,16 @@
 import { useEffect, useState } from "react";
 import { apiClient } from "@/lib/apiClient";
 import { Server, Activity, Clock, Database, ShieldCheck } from "lucide-react";
+import {
+  PlatformButton,
+  PlatformEmptyState,
+  PlatformKeyValueRow,
+  PlatformPanel,
+  PlatformPageHeader,
+  PlatformSectionTitle,
+  PlatformSignalCard,
+  PlatformStatusPanel,
+} from "@/components/ui/platform-primitives";
 
 interface QueueData {
   Embedding?: number;
@@ -49,12 +59,14 @@ export default function SystemPage() {
   const [health, setHealth] = useState<HealthData | null>(null);
   const [stats, setStats] = useState<StatsData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
 
 
 
   async function load() {
     setLoading(true);
+    setLoadError("");
     try {
       const [hData, sData] = await Promise.all([
         apiClient.get<HealthData>('/system/health'),
@@ -64,6 +76,7 @@ export default function SystemPage() {
       setStats(sData);
       setLastRefresh(new Date());
     } catch (e) {
+      setLoadError(e instanceof Error ? e.message : "系统状态加载失败");
       if (process.env.NODE_ENV === "development") console.error(e);
     } finally {
       setLoading(false);
@@ -82,150 +95,150 @@ export default function SystemPage() {
   const totalQueue = (queue?.Embedding ?? 0) + (queue?.Semantic ?? 0) + (queue?.['Semantic-Nodes'] ?? 0);
 
   return (
-    <div className="w-full flex flex-col pb-10 min-h-full theme-swiss">
-      {/* ─── Header ─── */}
-      <div className="flex flex-col md:flex-row gap-6 justify-between items-start md:items-end border-b-[var(--border-width)] border-[var(--border)] pb-6 mb-8">
-        <div>
-           <h1 className="text-5xl md:text-7xl font-black font-sans tracking-tighter uppercase mb-2 text-[var(--text-primary)] flex items-center">
-             <Server size={40} strokeWidth={2} className="mr-4 text-[var(--text-primary)]" />
-             底层状态监控_
-           </h1>
-           <p className="font-bold font-mono tracking-widest text-[var(--text-secondary)] uppercase text-[10px] flex items-center">
-             {"// ENGINE STATUS & KNOWLEDGE GRAPH TELEMETRY"}
-             {lastRefresh && <span className="ml-4 pl-4 border-l border-[var(--text-muted)] opacity-70">上次刷新: {lastRefresh.toLocaleTimeString('en-GB', { hour12: false })}</span>}
-           </p>
-        </div>
-        <div className="flex gap-4 items-center">
-           <button
-             onClick={load} disabled={loading}
-             className="ov-button px-6 py-3 text-xs flex items-center gap-2 bg-[var(--bg-elevated)] border-[var(--border-width)] border-[var(--border)] text-[var(--text-primary)] disabled:opacity-50"
-             style={{ borderRadius: 0 }}
-           >
-             <Activity size={16} strokeWidth={2} className={loading ? "animate-spin" : ""} />
-             <span className="font-mono font-black tracking-widest uppercase">强制刷新节点状态</span>
-           </button>
-        </div>
-      </div>
+    <div className="w-full flex flex-col pb-10 min-h-full">
+      <PlatformPageHeader
+        title={
+          <h1 className="mb-2 flex items-center text-4xl font-black tracking-tighter text-[var(--text-primary)] md:text-6xl">
+            <Server size={34} strokeWidth={2} className="mr-4 text-[var(--text-primary)]" />
+            底层状态监控_
+          </h1>
+        }
+        subtitle={
+          <>
+            {"// 引擎状态与知识图谱遥测"}
+            {lastRefresh ? (
+              <span className="ml-4 border-l border-[var(--text-muted)] pl-4 opacity-70">
+                上次刷新: {lastRefresh.toLocaleTimeString("zh-CN", { hour12: false })}
+              </span>
+            ) : null}
+          </>
+        }
+        subtitleClassName="flex items-center text-[10px]"
+        actions={
+          <PlatformButton
+            type="button"
+            onClick={load}
+            disabled={loading}
+            className="ov-button px-6 py-3 text-xs"
+            style={{ borderRadius: 0 }}
+          >
+            <Activity size={16} strokeWidth={2} className={loading ? "animate-spin" : ""} />
+            <span className="font-mono font-black tracking-widest uppercase">强制刷新节点状态</span>
+          </PlatformButton>
+        }
+      />
+
+      {loadError && (
+        <PlatformStatusPanel
+          title="系统状态加载失败"
+          description={loadError}
+          action={
+            <PlatformButton type="button" tone="danger" onClick={load} className="px-4 py-2 text-[10px]">
+              重试加载
+            </PlatformButton>
+          }
+          className="mb-8 border-[var(--danger)]"
+        />
+      )}
 
       {/* ─── KPI Grid ─── */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-[var(--border-width)] bg-[var(--border)] border-[var(--border-width)] border-[var(--border)] shadow-[var(--shadow-base)] mb-8">
-         <div className={`bg-[var(--bg-card)] p-6 md:p-8 flex flex-col justify-between group hover:bg-[var(--bg-elevated)] transition-colors min-h-[200px] relative overflow-hidden`}>
-            <div className="text-[10px] font-black tracking-widest font-mono uppercase text-[var(--text-secondary)] mb-4 flex items-center relative z-10">
-               <span className={`w-2 h-2 inline-block mr-2 ${loading ? 'bg-[var(--warning)] animate-pulse' : health?.ok ? 'bg-[var(--success)]' : 'bg-[var(--danger)]'}`} />
-               OPENVIKING_CORE_ENGINE
-            </div>
-            <div className="relative z-10 flex flex-col gap-1">
-              <h2 className={`text-4xl md:text-5xl font-black font-mono tracking-tighter uppercase ${loading ? 'text-[var(--warning)]' : health?.ok ? 'text-[var(--success)]' : 'text-[var(--danger)]'}`}>
-                {loading ? <ScrambleText value="PINGING" /> : health?.ok ? "ONLINE" : "OFFLINE"}
-              </h2>
-              <span className="font-mono text-[10px] tracking-widest text-[var(--text-muted)] font-bold">192.168.10.99:1933</span>
-            </div>
-            <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:opacity-10 transition-opacity">
-               <ShieldCheck size={120} strokeWidth={1} className={health?.ok ? 'text-[var(--success)]' : 'text-[var(--danger)]'} />
-            </div>
-         </div>
+         <PlatformSignalCard
+           label="OpenViking 核心引擎"
+           marker={<span className={`mr-2 inline-block h-2 w-2 ${loading ? 'bg-[var(--warning)] animate-pulse' : health?.ok ? 'bg-[var(--success)]' : 'bg-[var(--danger)]'}`} />}
+           value={loading ? <ScrambleText value="探测中" /> : health?.ok ? "在线" : "离线"}
+           hint={ovInfo?.host ?? "未返回主机地址"}
+           accent={loading ? "var(--warning)" : health?.ok ? "var(--success)" : "var(--danger)"}
+           overlay={<ShieldCheck size={120} strokeWidth={1} className={health?.ok ? 'text-[var(--success)]' : 'text-[var(--danger)]'} />}
+         />
 
-         <div className="bg-[var(--bg-card)] p-6 md:p-8 flex flex-col justify-between group hover:bg-[var(--bg-elevated)] transition-colors min-h-[200px] relative overflow-hidden">
-            <div className="text-[10px] font-black tracking-widest font-mono uppercase text-[var(--text-secondary)] mb-4 flex items-center relative z-10">
-               <span className="w-2 h-2 inline-block mr-2 bg-[var(--warning)]" />
-               ASYNC_TASK_QUEUE
-            </div>
-            <div className="relative z-10 flex flex-col gap-1">
-              <h2 className={`text-5xl md:text-6xl font-black font-mono tracking-tighter tabular-nums ${totalQueue > 0 ? 'text-[var(--warning)]' : 'text-[var(--success)]'}`}>
-                <ScrambleText value={loading ? '---' : totalQueue} />
-              </h2>
-              <span className="font-mono text-[10px] tracking-widest text-[var(--text-muted)] font-bold uppercase">Embedding / Semantic</span>
-            </div>
-            {totalQueue > 0 && <div className="absolute top-0 left-0 w-1 h-full bg-[var(--warning)] animate-pulse" />}
-         </div>
+         <PlatformSignalCard
+           label="异步任务队列"
+           marker={<span className="mr-2 inline-block h-2 w-2 bg-[var(--warning)]" />}
+           value={<ScrambleText value={loading ? '---' : totalQueue} />}
+           hint="Embedding / Semantic 队列"
+           accent={totalQueue > 0 ? "var(--warning)" : "var(--success)"}
+           valueClassName="text-4xl md:text-5xl tabular-nums"
+           className={totalQueue > 0 ? "before:absolute before:left-0 before:top-0 before:h-full before:w-1 before:animate-pulse before:bg-[var(--warning)]" : undefined}
+         />
 
-         <div className="bg-[var(--bg-card)] p-6 md:p-8 flex flex-col justify-between group hover:bg-[var(--bg-elevated)] transition-colors min-h-[200px] relative overflow-hidden">
-            <div className="text-[10px] font-black tracking-widest font-mono uppercase text-[var(--text-secondary)] mb-4 flex items-center relative z-10">
-               <span className="w-2 h-2 inline-block mr-2 bg-[var(--info)]" />
-               CORE_VERSION
-            </div>
-            <div className="relative z-10 flex flex-col gap-1">
-              <h2 className="text-4xl md:text-5xl font-black font-mono tracking-tighter uppercase text-[var(--info)] truncate" title={ovInfo?.version ?? 'UNKNOWN'}>
-                {loading ? '...' : (ovInfo?.version ?? 'UNKNOWN')}
-              </h2>
-              <span className="font-mono text-[10px] tracking-widest text-[var(--text-muted)] font-bold uppercase truncate">
-                {ovInfo?.commit ? `COMMIT: ${String(ovInfo.commit).slice(0, 7)}` : 'NULL_COMMIT_REF'}
-              </span>
-            </div>
-         </div>
+         <PlatformSignalCard
+           label="核心版本"
+           marker={<span className="mr-2 inline-block h-2 w-2 bg-[var(--info)]" />}
+           value={loading ? '...' : (ovInfo?.version ?? '未知')}
+           hint={ovInfo?.commit ? `Commit: ${String(ovInfo.commit).slice(0, 7)}` : '未返回 Commit'}
+           accent="var(--info)"
+           valueClassName="truncate"
+         />
 
-         <div className="bg-[var(--bg-card)] p-6 md:p-8 flex flex-col justify-between group hover:bg-[var(--bg-elevated)] transition-colors min-h-[200px] relative overflow-hidden">
-            <div className="text-[10px] font-black tracking-widest font-mono uppercase text-[var(--text-secondary)] mb-4 flex items-center relative z-10">
-               <span className="w-2 h-2 inline-block mr-2 bg-[var(--brand)]" />
-               VECTOR_DIMENSION
-            </div>
-            <div className="relative z-10 flex flex-col gap-1">
-              <h2 className="text-4xl md:text-5xl font-black font-mono tracking-tighter tabular-nums text-[var(--brand)]">
-                <ScrambleText value={loading ? '---' : (dbStats?.dimension ?? ovInfo?.dimension ?? '---')} />
-              </h2>
-              <span className="font-mono text-[10px] tracking-widest text-[var(--text-muted)] font-bold uppercase truncate" title={String(dbStats?.model ?? ovInfo?.embeddingModel ?? 'EMBEDDING_MODEL')}>
-                {dbStats?.model ?? ovInfo?.embeddingModel ?? 'EMBEDDING_MODEL'}
-              </span>
-            </div>
-         </div>
+         <PlatformSignalCard
+           label="向量维度"
+           marker={<span className="mr-2 inline-block h-2 w-2 bg-[var(--brand)]" />}
+           value={<ScrambleText value={loading ? '---' : (dbStats?.dimension ?? ovInfo?.dimension ?? '---')} />}
+           hint={dbStats?.model ?? ovInfo?.embeddingModel ?? '未返回模型名'}
+           accent="var(--brand)"
+         />
       </div>
 
       {/* ─── Details Grid ─── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-[var(--border-width)] bg-[var(--border)] border-[var(--border-width)] border-[var(--border)] shadow-[var(--shadow-base)]">
          
-         <div className="bg-[var(--bg-card)] p-6 md:p-8 flex flex-col relative overflow-hidden">
+         <PlatformPanel className="relative flex flex-col overflow-hidden p-6 md:p-8">
            <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: "radial-gradient(circle at 2px 2px, currentColor 1px, transparent 0)", backgroundSize: "24px 24px" }} />
-           <h3 className="font-sans font-black text-xl uppercase tracking-tighter mb-6 flex items-center relative z-10 text-[var(--text-primary)]">
-              <Clock size={20} strokeWidth={2} className="mr-2 text-[var(--warning)]" />
-              实时队列负荷 (QUEUE_LOAD)
-           </h3>
+           <PlatformSectionTitle
+             title="实时队列负荷"
+             icon={<Clock size={20} strokeWidth={2} className="text-[var(--warning)]" />}
+             className="relative z-10"
+           />
            <div className="space-y-4 relative z-10">
               {[
-                { label: 'EMBEDDING_QUEUE', key: 'Embedding', desc: 'Text to Vector Serialization' },
-                { label: 'SEMANTIC_QUEUE', key: 'Semantic', desc: 'Semantic Graph Indexing' },
-                { label: 'NODE_RELATION_QUEUE', key: 'Semantic-Nodes', desc: 'Topological Relationship Linkage' },
+                { label: 'Embedding 队列', key: 'Embedding', desc: '文本向量化排队' },
+                { label: 'Semantic 队列', key: 'Semantic', desc: '语义图索引排队' },
+                { label: '节点关系队列', key: 'Semantic-Nodes', desc: '图节点关系链接排队' },
               ].map(q => {
                 const cnt = (queue as Record<string, number>)?.[q.key] ?? 0;
                 return (
-                  <div key={q.key} className="flex justify-between items-center bg-[var(--bg-elevated)] border-[var(--border-width)] border-[var(--border)] p-4 group hover:border-[var(--brand)] transition-colors">
-                     <div>
-                       <div className="font-mono text-xs font-black uppercase tracking-widest text-[var(--text-primary)] mb-1">{q.label}</div>
-                       <div className="font-mono text-[9px] uppercase tracking-wider text-[var(--text-muted)]">{"// "}{q.desc}</div>
-                     </div>
-                     <div className={`font-mono text-2xl font-black tracking-tighter tabular-nums ${cnt > 0 ? 'text-[var(--warning)]' : 'text-[var(--success)]'}`}>
-                       {loading ? '--' : cnt.toLocaleString()}
-                     </div>
-                  </div>
+                  <PlatformPanel
+                    key={q.key}
+                    className="group flex items-center justify-between bg-[var(--bg-elevated)] p-4 transition-colors hover:border-[var(--brand)]"
+                  >
+                    <div>
+                      <div className="mb-1 font-mono text-xs font-black uppercase tracking-widest text-[var(--text-primary)]">{q.label}</div>
+                      <div className="font-mono text-[9px] uppercase tracking-wider text-[var(--text-muted)]">{"// "}{q.desc}</div>
+                    </div>
+                    <div className={`font-mono text-2xl font-black tracking-tighter tabular-nums ${cnt > 0 ? 'text-[var(--warning)]' : 'text-[var(--success)]'}`}>
+                      {loading ? '--' : cnt.toLocaleString()}
+                    </div>
+                  </PlatformPanel>
                 );
               })}
            </div>
-         </div>
+         </PlatformPanel>
 
-         <div className="bg-[var(--bg-card)] p-6 md:p-8 flex flex-col relative overflow-hidden">
-           <h3 className="font-sans font-black text-xl uppercase tracking-tighter mb-6 flex items-center relative z-10 text-[var(--text-primary)]">
-              <Database size={20} strokeWidth={2} className="mr-2 text-[var(--info)]" />
-              底层图存储统计 (DB_TELEMETRY)
-           </h3>
+         <PlatformPanel className="relative flex flex-col overflow-hidden p-6 md:p-8">
+           <PlatformSectionTitle
+             title="底层图存储统计"
+             icon={<Database size={20} strokeWidth={2} className="text-[var(--info)]" />}
+             className="relative z-10"
+           />
            {dbStats ? (
              <div className="space-y-2 relative z-10 flex-1 overflow-y-auto max-h-[300px] pr-2 hidden-scrollbar">
                 {Object.entries(dbStats).map(([k, v]) => (
-                  <div key={k} className="flex justify-between items-center py-2 border-b-[var(--border-width)] border-[var(--border)] border-dashed last:border-0 hover:bg-[var(--brand-muted)] transition-colors px-2 -mx-2">
-                     <span className="font-mono text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">{k}</span>
-                     <span className="font-mono text-[11px] font-bold text-[var(--brand)] truncate max-w-[50%] text-right" title={String(v)}>
-                       {typeof v === 'number' ? v.toLocaleString() : String(v)}
-                     </span>
-                  </div>
+                  <PlatformKeyValueRow
+                    key={k}
+                    label={k}
+                    value={typeof v === 'number' ? v.toLocaleString() : String(v)}
+                  />
                 ))}
              </div>
            ) : (
-             <div className="flex-1 flex flex-col items-center justify-center py-12 text-center relative z-10">
-               <Database size={48} className="text-[var(--text-muted)] mb-4" strokeWidth={1} />
-               <p className="font-mono text-[10px] font-black tracking-widest uppercase text-[var(--text-muted)]">
-                 {loading ? 'FETCHING_TELEMETRY_DATA...' : 'NULL_TELEMETRY_DETECTED'}
-               </p>
-             </div>
+             <PlatformEmptyState
+               title={loading ? "正在采集图存储指标" : "暂无图存储遥测"}
+               description={loading ? "正在采集底层图存储统计。" : "当前未返回可展示的图存储指标。"}
+               className="relative z-10 flex-1 border-0 shadow-none"
+             />
            )}
-         </div>
+         </PlatformPanel>
 
       </div>
     </div>

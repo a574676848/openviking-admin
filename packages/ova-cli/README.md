@@ -6,8 +6,16 @@
 
 ## 安装
 
+在 npm 公网发布后，可直接安装：
+
 ```bash
 npm install -g @openviking-admin/ova-cli
+```
+
+如果是首次发布 scoped package，需要使用：
+
+```bash
+npm publish --access public
 ```
 
 仓内开发：
@@ -104,5 +112,24 @@ npm --workspace @openviking-admin/ova-cli run test
 npm --workspace @openviking-admin/ova-cli run build
 npm --workspace @openviking-admin/ova-cli pack
 ```
+
+## 发布
+
+发布前建议先确认当前账号拥有 `@openviking-admin` scope 的发布权限：
+
+```bash
+npm login
+npm whoami
+npm access ls-packages
+```
+
+在当前目录发布：
+
+```bash
+npm version patch
+npm publish
+```
+
+由于 `package.json` 已声明 `publishConfig.access=public`，首次发布到 npm 公网时也会按公开包处理。
 
 完整用户文档见 `docs/CLI_GUIDE.md`。

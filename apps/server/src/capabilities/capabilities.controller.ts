@@ -9,7 +9,6 @@ import {
   Res,
   UnauthorizedException,
 } from '@nestjs/common';
-import { randomUUID } from 'crypto';
 import type { Request, Response } from 'express';
 import { CapabilityDiscoveryService } from './application/capability-discovery.service';
 import { CapabilityExecutionService } from './application/capability-execution.service';
@@ -20,6 +19,7 @@ import {
   ClientType,
   Principal,
 } from './domain/capability.types';
+import { ensureRequestTrace } from '../common/request-trace';
 
 @Controller()
 export class CapabilitiesController {
@@ -31,19 +31,20 @@ export class CapabilitiesController {
   ) {}
 
   @Get('capabilities')
-  listCapabilities(@Res({ passthrough: true }) res: Response) {
-    const traceId = randomUUID();
+  listCapabilities(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const trace = ensureRequestTrace(req, res);
     const capabilities = this.capabilityDiscoveryService.listCapabilities();
-    res.setHeader('x-trace-id', traceId);
-    res.setHeader('x-request-id', traceId);
     return {
       data: capabilities,
       meta: {
         channel: 'http',
         count: capabilities.length,
-        requestId: traceId,
+        requestId: trace.requestId,
       },
-      traceId,
+      traceId: trace.traceId,
       error: null,
     };
   }
@@ -133,6 +134,7 @@ export class CapabilitiesController {
     capabilityKey?: string,
     authorization?: string,
   ) {
+    ensureRequestTrace(req, res);
     const principal = await this.resolvePrincipal(
       capabilityKey,
       authorization,
@@ -142,8 +144,7 @@ export class CapabilitiesController {
       capability: capabilityId,
       principal,
       channel: 'http',
-      requestId:
-        req.header('x-request-id') ?? req.header('x-trace-id') ?? undefined,
+      requestId: req.header('x-request-id') ?? undefined,
     });
     const result = await this.capabilityExecutionService.execute(
       capabilityId,

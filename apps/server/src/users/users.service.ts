@@ -1,8 +1,8 @@
 import { Injectable, NotFoundException, Inject } from '@nestjs/common';
-import { User } from './entities/user.entity';
 import { USER_REPOSITORY } from './domain/repositories/user.repository.interface';
 import type { IUserRepository } from './domain/repositories/user.repository.interface';
 import { CreateUserDto, UpdateUserDto } from './dto/user.dto';
+import type { UserModel } from './domain/user.model';
 
 @Injectable()
 export class UsersService {
@@ -24,7 +24,7 @@ export class UsersService {
   async create(
     dto: CreateUserDto & { tenantId?: string; passwordHash?: string },
   ) {
-    const user = this.userRepo.create(dto as Partial<User>);
+    const user = this.userRepo.create(dto as Partial<UserModel>);
     return this.userRepo.save(user);
   }
 

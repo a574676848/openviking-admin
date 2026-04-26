@@ -5,7 +5,8 @@ import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useApp } from "@/components/app-provider";
 import { ThemeSwitcher } from "@/components/theme-switcher";
-import { SquareTerminal, Database, Network, FileText, Search, Activity, MessageSquare, Users2, Link2, ClipboardList, MonitorCheck, LogOut, Bot } from "lucide-react";
+import { getShellButtonClass, getShellPanelClass, getShellTileClass, type ShellTheme } from "@/components/ui/shell-primitives";
+import { SquareTerminal, Database, Network, FileText, Search, Activity, MessageSquare, Users2, Link2, ClipboardList, MonitorCheck, LogOut, Bot, Menu, X } from "lucide-react";
 
 const navItems = [
   { id: "01", href: "/console/dashboard", label: "租户工作台", icon: SquareTerminal, full: "租户工作台" },
@@ -25,8 +26,11 @@ const navItems = [
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, logout, isLoading } = useApp();
+  const { user, logout, isLoading, theme } = useApp();
   const [mounted, setMounted] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const shellTheme: ShellTheme = theme === "swiss" ? "swiss" : "neo";
+  const isSwiss = shellTheme === "swiss";
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -40,6 +44,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       router.replace("/login");
     }
   }, [isLoading, mounted, router, user]);
+
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [pathname]);
 
   const activeItem = useMemo(
     () => navItems.find((item) => pathname.startsWith(item.href)) ?? navItems[0],
@@ -59,10 +67,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         }}
       />
 
-      <aside className="relative hidden w-[292px] shrink-0 border-r-[3px] border-[var(--border)] bg-[var(--bg-card)] shadow-[8px_0px_0px_#000] lg:flex lg:flex-col">
+      <aside className={getShellPanelClass(shellTheme, "sidebar", "relative hidden w-[292px] shrink-0 lg:flex lg:flex-col")}>
         <div className="border-b-[3px] border-[var(--border)] bg-[var(--brand)] px-5 py-6 text-white">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center border-[3px] border-[var(--border)] bg-[var(--bg-card)] text-black shadow-[3px_3px_0px_#000]">
+            <div className={getShellTileClass(shellTheme, "flex h-11 w-11 items-center justify-center text-black")}>
               <SquareTerminal size={20} strokeWidth={2.5} />
             </div>
             <div className="min-w-0">
@@ -83,8 +91,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   href={item.href}
                   className={`group flex items-center gap-3 border-[3px] px-3 py-3 font-mono text-[10px] font-black uppercase tracking-[0.18em] transition-all ${
                     isActive
-                      ? "translate-x-1 border-[var(--border)] bg-black text-white shadow-[4px_4px_0px_var(--brand)]"
-                      : "border-transparent bg-[var(--bg-card)] text-[var(--text-primary)] hover:translate-x-2 hover:border-[var(--border)] hover:shadow-[4px_4px_0px_#000]"
+                      ? isSwiss
+                        ? "border-[var(--border)] bg-[var(--brand-muted)] text-[var(--text-primary)]"
+                        : "translate-x-1 border-[var(--border)] bg-black text-white shadow-[4px_4px_0px_var(--brand)]"
+                      : isSwiss
+                        ? "border-transparent bg-[var(--bg-card)] text-[var(--text-primary)] hover:border-[var(--border)] hover:bg-[var(--bg-elevated)]"
+                        : "border-transparent bg-[var(--bg-card)] text-[var(--text-primary)] hover:translate-x-2 hover:border-[var(--border)] hover:shadow-[4px_4px_0px_#000]"
                   }`}
                 >
                   <span className="w-7 text-[9px]">{item.id}</span>
@@ -103,7 +115,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <button
               type="button"
               onClick={logout}
-              className="flex h-11 w-full items-center justify-center gap-2 border-[3px] border-[var(--border)] bg-[var(--danger)] font-mono text-[10px] font-black uppercase tracking-[0.2em] text-white shadow-[2px_2px_0px_#000] transition-all hover:translate-y-0.5 hover:shadow-none"
+              className={getShellButtonClass(shellTheme, "danger", "flex h-11 w-full")}
             >
               <LogOut size={14} strokeWidth={2.4} />
               退出系统
@@ -117,7 +129,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="font-mono text-[10px] font-black uppercase tracking-[0.28em] text-[var(--brand)]">
-                Neo Control Dock
+                控制台导航
               </p>
               <div className="mt-2 flex flex-wrap items-end gap-3">
                 <h2 className="font-sans text-4xl font-black tracking-tight">{activeItem.label}</h2>
@@ -127,11 +139,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               </div>
             </div>
             <div className="flex items-center gap-3 lg:hidden">
+              <button
+                type="button"
+                aria-label={mobileNavOpen ? "关闭导航菜单" : "打开导航菜单"}
+                title={mobileNavOpen ? "关闭导航菜单" : "打开导航菜单"}
+                aria-expanded={mobileNavOpen}
+                onClick={() => setMobileNavOpen((value) => !value)}
+                className={getShellButtonClass(shellTheme, "default", "flex h-11 w-11")}
+              >
+                {mobileNavOpen ? <X size={18} strokeWidth={2.4} /> : <Menu size={18} strokeWidth={2.4} />}
+              </button>
               <ThemeSwitcher />
               <button
                 type="button"
                 onClick={logout}
-                className="flex h-11 items-center justify-center gap-2 border-[3px] border-[var(--border)] bg-[var(--danger)] px-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-white"
+                aria-label="退出系统"
+                title="退出系统"
+                className={getShellButtonClass(shellTheme, "danger", "flex h-11 px-4")}
               >
                 <LogOut size={14} strokeWidth={2.4} />
                 退出
@@ -139,6 +163,36 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </div>
           </div>
         </header>
+
+        {mobileNavOpen ? (
+          <div className="border-b-[3px] border-[var(--border)] bg-[var(--bg-card)] px-4 py-4 lg:hidden">
+            <nav className="grid gap-2" aria-label="移动端控制台导航">
+              {navItems.map((item) => {
+                const isActive = pathname.startsWith(item.href);
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.id}
+                    href={item.href}
+                    className={`flex items-center gap-3 border-[3px] px-3 py-3 font-mono text-[11px] font-black ${
+                      isActive
+                        ? isSwiss
+                          ? "border-[var(--border)] bg-[var(--brand-muted)] text-[var(--text-primary)]"
+                          : "border-[var(--border)] bg-black text-white"
+                        : isSwiss
+                          ? "border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-primary)]"
+                          : "border-[var(--border)] bg-[var(--bg-base)] text-[var(--text-primary)]"
+                    }`}
+                  >
+                    <Icon size={16} strokeWidth={2.4} />
+                    <span className="flex-1">{item.label}</span>
+                    <span className="text-[10px] text-[var(--text-muted)]">{item.id}</span>
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
+        ) : null}
 
         <main className="min-w-0 flex-1 overflow-y-auto px-6 py-8">{children}</main>
       </div>

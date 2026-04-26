@@ -7,6 +7,7 @@ import { TaskWorkerService } from './task-worker.service';
 import { SettingsModule } from '../settings/settings.module';
 import { TenantModule } from '../tenant/tenant.module';
 import { CommonModule } from '../common/common.module';
+import { AuditModule } from '../audit/audit.module';
 import { FeishuIntegrator } from './strategies/feishu.integrator';
 import { DingTalkIntegrator } from './strategies/dingtalk.integrator';
 import { GitIntegrator } from './strategies/git.integrator';
@@ -19,6 +20,7 @@ import { TypeOrmImportTaskRepository } from './infrastructure/repositories/impor
     SettingsModule,
     TenantModule,
     CommonModule,
+    AuditModule,
   ],
   controllers: [ImportTaskController],
   providers: [

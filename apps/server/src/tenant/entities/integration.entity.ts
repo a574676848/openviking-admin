@@ -6,6 +6,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { IntegrationType } from '../../common/constants/system.enum';
+import type { IntegrationModel } from '../domain/integration.model';
 
 @Entity('integrations')
 export class Integration {
@@ -28,7 +29,7 @@ export class Integration {
   credentials: Record<string, string>;
 
   @Column({ type: 'jsonb', nullable: true })
-  config: Record<string, any>;
+  config: IntegrationModel['config'];
 
   @Column({ default: true })
   active: boolean;

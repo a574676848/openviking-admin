@@ -5,11 +5,18 @@ import { LogIn, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { VikingWatcher } from "@/components/watcher";
 import { ThemeSwitcher } from "@/components/theme-switcher";
+import { useApp } from "@/components/app-provider";
 import { API_ENDPOINTS, SystemRoles } from "@/lib/constants";
-import { writeSessionToken } from "@/lib/session";
+import {
+  PlatformButton,
+  PlatformField,
+  PlatformInput,
+  PlatformPanel,
+} from "@/components/ui/platform-primitives";
 
 export default function PlatformLoginPage() {
   const router = useRouter();
+  const { login } = useApp();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -40,7 +47,7 @@ export default function PlatformLoginPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "登录凭证校验未通过");
 
-      writeSessionToken(data.accessToken);
+      login(data.accessToken, data.user);
       toast.success("身份验证成功，欢迎进入维京知识系统", { id: toastId });
       router.replace(data.user?.role === SystemRoles.SUPER_ADMIN ? "/platform/dashboard" : "/console/dashboard");
     } catch (err: unknown) {
@@ -63,7 +70,10 @@ export default function PlatformLoginPage() {
       </div>
 
       <div className="w-full max-w-sm z-10">
-        <div key={shakeKey} className="bg-[var(--bg-card)] p-10 relative transition-all duration-500 border-[var(--border-width)] border-[var(--border)] shadow-[var(--shadow-base)] rounded-none border-dashed animate-auth-shake">
+        <PlatformPanel
+          key={shakeKey}
+          className="relative rounded-none border-dashed p-10 transition-all duration-500 animate-auth-shake"
+        >
           
           <div className="flex justify-center mb-8 h-20">
             <VikingWatcher isClosed={isTypingPassword} isThinking={loading} size="md" />
@@ -79,48 +89,45 @@ export default function PlatformLoginPage() {
           </div>
 
           <form onSubmit={handleSubmit} noValidate className="space-y-6">
-            <div className="space-y-2">
-              <label className="block text-[10px] font-black text-black tracking-widest uppercase">
-                管理员用户名 / ACCOUNT
-              </label>
-              <input
+            <PlatformField label="管理员用户名 / ACCOUNT" className="space-y-2">
+              <PlatformInput
+                type="text"
                 required
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="w-full px-4 py-4 border-[var(--border-width)] border-[var(--border)] font-mono text-sm font-black bg-[var(--bg-elevated)] outline-none shadow-[var(--shadow-base)] focus:shadow-none transition-all"
+                className="w-full bg-[var(--bg-elevated)] px-4 py-4 text-sm font-black shadow-[var(--shadow-base)] focus:shadow-none"
                 placeholder="请输入用户名"
               />
-            </div>
+            </PlatformField>
 
-            <div className="space-y-2">
-              <label className="block text-[10px] font-black text-black tracking-widest uppercase">身份校验密钥 / SECRET</label>
+            <PlatformField label="身份校验密钥 / SECRET" className="space-y-2">
               <div className="relative">
-                <input
+                <PlatformInput
                   type="password"
                   required
                   value={password}
                   onFocus={() => setIsTypingPassword(true)}
                   onBlur={() => setIsTypingPassword(false)}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-4 border-[var(--border-width)] border-[var(--border)] font-mono text-sm font-black bg-[var(--bg-elevated)] outline-none shadow-[var(--shadow-base)] focus:shadow-none transition-all"
+                  className="w-full bg-[var(--bg-elevated)] px-4 py-4 text-sm font-black shadow-[var(--shadow-base)] focus:shadow-none"
                   placeholder="••••••••"
                 />
                 <Lock className="absolute right-4 top-4 text-black opacity-30" size={18} />
               </div>
-            </div>
+            </PlatformField>
 
             <div className="pt-4 space-y-4">
-              <button
+              <PlatformButton
                 type="submit"
                 disabled={loading}
-                className="w-full py-5 bg-black text-white border-[var(--border-width)] border-[var(--border)] shadow-[var(--shadow-base)] font-black uppercase tracking-[0.3em] hover:translate-y-1 hover:shadow-none transition-all disabled:opacity-30 flex items-center justify-center gap-3"
+                className="w-full bg-black py-5 text-white hover:translate-y-1 hover:bg-black hover:shadow-none disabled:opacity-30"
               >
                 <LogIn size={20} strokeWidth={3} />
                 验证并进入系统
-              </button>
+              </PlatformButton>
             </div>
           </form>
-        </div>
+        </PlatformPanel>
         
         <p className="mt-10 text-center font-mono text-[9px] font-black uppercase text-[var(--text-muted)] tracking-[0.2em] leading-relaxed">
            OpenViking 知识管理平台 v2.3.0<br/>

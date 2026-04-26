@@ -1,6 +1,7 @@
 "use client";
 
 import type { ElementType, ReactNode } from "react";
+import { ConsolePanel } from "./layout";
 import { badgeToneMap, cx, type Tone } from "./shared";
 
 export function ConsoleBadge({
@@ -29,11 +30,13 @@ export function ConsoleEmptyState({
   icon: Icon,
   title,
   description,
+  action,
   className,
 }: {
   icon: ElementType;
   title: string;
   description: string;
+  action?: ReactNode;
   className?: string;
 }) {
   return (
@@ -43,6 +46,35 @@ export function ConsoleEmptyState({
       <p className="mt-2 font-mono text-[10px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)]">
         {description}
       </p>
+      {action ? <div className="mt-6 flex justify-center">{action}</div> : null}
     </div>
+  );
+}
+
+export function ConsoleStatusPanel({
+  icon,
+  title,
+  description,
+  action,
+  panelClassName,
+  className,
+}: {
+  icon: ElementType;
+  title: string;
+  description: string;
+  action?: ReactNode;
+  panelClassName?: string;
+  className?: string;
+}) {
+  return (
+    <ConsolePanel className={cx("overflow-hidden", panelClassName)}>
+      <ConsoleEmptyState
+        icon={icon}
+        title={title}
+        description={description}
+        action={action}
+        className={className}
+      />
+    </ConsolePanel>
   );
 }

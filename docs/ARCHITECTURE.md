@@ -81,16 +81,16 @@ HTTP / CLI / MCP / Skill
 ```text
 Local login / SSO
   -> JWT access token + refresh token
-  -> /api/auth/token/exchange
+  -> /api/v1/auth/token/exchange
   -> capability access token
 
 Local login / SSO
   -> JWT access token + refresh token
-  -> /api/auth/session/exchange
+  -> /api/v1/auth/session/exchange
   -> session key
 
 JWT access token
-  -> /api/auth/client-credentials
+  -> /api/v1/auth/client-credentials
   -> scoped API key
 ```
 
@@ -131,7 +131,7 @@ Capability 调用会产生以下字段：
 | `credentialType` | 当前凭证类型 |
 | `capability` | capability id |
 
-`GET /api/observability/capabilities` 返回进程内快照，`GET /api/observability/capabilities/prometheus` 预留 Prometheus 指标导出入口。多实例部署时，rate limit store 应替换为 Redis 或分布式 KV。
+`GET /api/v1/observability/capabilities` 返回进程内快照，`GET /api/v1/observability/capabilities/prometheus` 预留 Prometheus 指标导出入口。多实例部署时，rate limit store 应替换为 Redis 或分布式 KV。
 
 ## 扩展新入口
 

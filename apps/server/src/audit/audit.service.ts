@@ -1,17 +1,9 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { Between, Like } from 'typeorm';
 import { IAuditLogRepository } from './domain/repositories/audit-log.repository.interface';
+import type { CreateAuditLogInput } from './domain/audit-log.model';
 
-interface AuditEntry {
-  tenantId?: string;
-  userId?: string;
-  username?: string;
-  action: string;
-  target?: string;
-  meta?: Record<string, unknown>;
-  ip?: string;
-  success?: boolean;
-}
+type AuditEntry = CreateAuditLogInput;
 
 interface AuditQuery {
   page?: number;

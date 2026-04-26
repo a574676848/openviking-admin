@@ -24,6 +24,7 @@
 | `FRONTEND_URL` | string | `http://localhost:6002` | 是 | 前端地址，用于 CORS 白名单 |
 | `PORT` | number | `6001` | 否 | 后端监听端口 |
 | `NODE_ENV` | string | `development` | 否 | 运行环境: `development` / `production` |
+| `DB_SYNCHRONIZE` | boolean | `false` | 否 | 是否允许 TypeORM 自动同步表结构。默认关闭；生产环境若设置为 `true` 会在启动期直接拒绝启动 |
 
 ### 前端 (`apps/web/.env.local`)
 
@@ -195,7 +196,7 @@
 
 | 参数 | 值 | 说明 |
 |------|-----|------|
-| SSE 端点 | `/api/mcp/sse?key=<api_key>` | 长连接建立 |
-| Message 端点 | `/api/mcp/message?sessionId=<id>&key=<api_key>` | JSON-RPC 请求 |
+| SSE 端点 | `/api/v1/mcp/sse?key=<api_key>` | 长连接建立 |
+| Message 端点 | `/api/v1/mcp/message?sessionId=<id>&key=<api_key>` | JSON-RPC 请求 |
 | API Key 格式 | `ov-sk-<random>` | 自动生成 |
 | Key 绑定 | userId + tenantId | 强制注入租户 Scope |

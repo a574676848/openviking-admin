@@ -6,8 +6,8 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
-import { randomUUID } from 'crypto';
 import { HttpAdapterHost } from '@nestjs/core';
+import { ensureRequestTrace } from './request-trace';
 
 interface ErrorLike {
   message?: string;
@@ -34,12 +34,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const request = ctx.getRequest();
     const response = ctx.getResponse();
     const requestUrl = httpAdapter.getRequestUrl(request) as string;
-    const requestId = String(
-      request.headers?.['x-request-id'] ??
-        request.headers?.['x-trace-id'] ??
-        randomUUID(),
-    );
-    const traceId = randomUUID();
+    const { requestId, traceId } = ensureRequestTrace(request, response);
     const message = this.resolveMessage(exception, err);
     const code = this.mapErrorCode(httpStatus, err);
     const responseBody = {

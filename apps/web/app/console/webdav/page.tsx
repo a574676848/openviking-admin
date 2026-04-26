@@ -6,10 +6,15 @@ import { toast } from "sonner";
 import { useApp } from "@/components/app-provider";
 import { apiClient } from "@/lib/apiClient";
 import {
+  ConsoleButton,
+  ConsoleIconButton,
   ConsoleMetricCard,
   ConsolePageHeader,
   ConsolePanel,
   ConsolePanelHeader,
+  ConsoleSelectionCard,
+  ConsoleStatusPanel,
+  ConsoleSurfaceCard,
 } from "@/components/console/primitives";
 
 interface HealthResponse {
@@ -92,11 +97,13 @@ function CodeBlock({
   lines,
   onCopy,
   copied,
+  copyLabel,
 }: {
   title: string;
   lines: string[];
   onCopy: () => void;
   copied: boolean;
+  copyLabel: string;
 }) {
   return (
     <div className="ov-card overflow-hidden">
@@ -104,13 +111,9 @@ function CodeBlock({
         <span className="font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">
           {title}
         </span>
-        <button
-          type="button"
-          onClick={onCopy}
-          className="flex h-9 w-9 items-center justify-center border-[3px] border-[var(--border)] bg-[var(--bg-card)] shadow-[3px_3px_0px_#000] transition-all hover:translate-y-0.5 hover:shadow-none"
-        >
+        <ConsoleIconButton type="button" onClick={onCopy} aria-label={copyLabel} className="h-9 w-9">
           {copied ? <Check size={14} strokeWidth={2.6} /> : <Copy size={14} strokeWidth={2.6} />}
-        </button>
+        </ConsoleIconButton>
       </div>
       <div className="grid grid-cols-[48px_minmax(0,1fr)] bg-black text-[var(--success)]">
         <div className="border-r-[3px] border-[var(--border)] bg-black/80 px-3 py-4 font-mono text-[10px] font-black text-white/50">
@@ -129,6 +132,7 @@ function CodeBlock({
 export default function WebdavConfigPage() {
   const [engineBaseUrl, setEngineBaseUrl] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [activePreset, setActivePreset] = useState<ClientPreset["id"]>("obsidian");
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const { user } = useApp();
@@ -136,10 +140,14 @@ export default function WebdavConfigPage() {
   const tenantId = user?.tenantId || "default";
 
   useEffect(() => {
+    setLoadError("");
     apiClient
       .get<HealthResponse>("/system/health")
       .then((response) => {
         setEngineBaseUrl(resolveWebdavBaseUrl(response.resolvedBaseUrl, response.openviking?.host));
+      })
+      .catch((error: unknown) => {
+        setLoadError(error instanceof Error ? error.message : "WebDAV 接入信息加载失败");
       })
       .finally(() => {
         setLoading(false);
@@ -169,50 +177,59 @@ export default function WebdavConfigPage() {
 
   return (
     <div className="flex min-h-full flex-col gap-8">
-      <ConsolePageHeader title="WebDAV 接入面板" subtitle="Code-First Mounting / Tenant Sync Endpoint" />
+      <ConsolePageHeader title="WebDAV 接入面板" subtitle="为租户客户端生成挂载参数与诊断指引" />
 
       <section className="grid grid-cols-1 gap-[var(--border-width)] border-[var(--border-width)] border-[var(--border)] bg-[var(--border)] lg:grid-cols-3">
-        <ConsoleMetricCard label="Endpoint" value={loading ? "..." : "READY"} tone="brand" />
-        <ConsoleMetricCard label="Tenant ID" value={tenantId} />
-        <ConsoleMetricCard label="Auth Mode" value="BASIC" tone="warning" />
+        <ConsoleMetricCard label="端点状态" value={loading ? "..." : loadError ? "失败" : "就绪"} tone="brand" />
+        <ConsoleMetricCard label="租户 ID" value={tenantId} />
+        <ConsoleMetricCard label="认证方式" value="BASIC" tone="warning" />
       </section>
 
-      <section className="grid grid-cols-1 gap-8 xl:grid-cols-[0.88fr_1.12fr]">
+      {loadError ? (
+        <ConsoleStatusPanel
+          icon={Link2}
+          title="WebDAV 接入信息加载失败"
+          description={loadError}
+          action={
+            <ConsoleButton type="button" onClick={() => window.location.reload()}>
+              重新加载
+            </ConsoleButton>
+          }
+        />
+      ) : null}
+
+      <section className={`grid grid-cols-1 gap-8 xl:grid-cols-[0.88fr_1.12fr] ${loadError ? "opacity-60" : ""}`}>
         <div className="flex flex-col gap-8">
           <ConsolePanel className="p-6">
-            <ConsolePanelHeader eyebrow="Client Presets" title="选择接入客户端" />
+            <ConsolePanelHeader eyebrow="客户端预设" title="选择接入客户端" />
             <div className="mt-6 grid grid-cols-1 gap-3">
               {clientPresets.map((item) => (
-                <button
+                <ConsoleSelectionCard
                   key={item.id}
                   type="button"
                   onClick={() => setActivePreset(item.id)}
-                  className={`border-[3px] px-4 py-4 text-left transition-all ${
-                    activePreset === item.id
-                      ? "border-[var(--border)] bg-black text-white shadow-[4px_4px_0px_var(--brand)]"
-                      : "border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-primary)] shadow-[3px_3px_0px_#000]"
-                  }`}
+                  active={activePreset === item.id}
                 >
                   <div className="font-mono text-[10px] font-black uppercase tracking-[0.18em]">{item.label}</div>
                   <div className="mt-2 font-mono text-[10px] font-bold uppercase tracking-[0.12em] opacity-80">
                     {item.hint}
                   </div>
-                </button>
+                </ConsoleSelectionCard>
               ))}
             </div>
           </ConsolePanel>
 
           <ConsolePanel className="p-6">
-            <ConsolePanelHeader eyebrow="Mount Summary" title="连接要素" />
+            <ConsolePanelHeader eyebrow="挂载摘要" title="连接要素" />
             <div className="mt-6 grid grid-cols-1 gap-4">
-              <div className="border-[3px] border-[var(--border)] bg-[var(--bg-elevated)] p-4">
+              <ConsoleSurfaceCard tone="elevated" className="p-4">
                 <div className="flex items-center gap-3 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">
                   <Link2 size={14} strokeWidth={2.6} />
                   URL
                 </div>
                 <p className="mt-3 break-all font-mono text-xs font-bold text-[var(--brand)]">{webdavUrl}</p>
-              </div>
-              <div className="border-[3px] border-[var(--border)] bg-[var(--bg-elevated)] p-4">
+              </ConsoleSurfaceCard>
+              <ConsoleSurfaceCard tone="elevated" className="p-4">
                 <div className="flex items-center gap-3 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">
                   <KeyRound size={14} strokeWidth={2.6} />
                   Username / Password
@@ -220,8 +237,8 @@ export default function WebdavConfigPage() {
                 <p className="mt-3 font-mono text-xs font-bold text-[var(--text-secondary)]">
                   用户名使用租户 ID，密码使用当前账号 API Key
                 </p>
-              </div>
-              <div className="border-[3px] border-[var(--border)] bg-[var(--warning)] p-4 text-black">
+              </ConsoleSurfaceCard>
+              <ConsoleSurfaceCard tone="warning" className="p-4">
                 <div className="flex items-center gap-3 font-mono text-[10px] font-black uppercase tracking-[0.18em]">
                   <Monitor size={14} strokeWidth={2.6} />
                   注意
@@ -229,7 +246,7 @@ export default function WebdavConfigPage() {
                 <p className="mt-3 font-mono text-xs font-bold uppercase tracking-[0.12em]">
                   不在浏览器或共享终端保存 API Key。客户端侧只填租户凭据，不混用 Bearer Token。
                 </p>
-              </div>
+              </ConsoleSurfaceCard>
             </div>
           </ConsolePanel>
         </div>
@@ -240,12 +257,14 @@ export default function WebdavConfigPage() {
             lines={summaryLines}
             onCopy={() => copyText(summaryLines.join("\n"), "summary")}
             copied={copiedKey === "summary"}
+            copyLabel="复制 WebDAV 摘要配置"
           />
           <CodeBlock
             title={preset.blockLabel}
             lines={snippetLines}
             onCopy={() => copyText(snippetLines.join("\n"), preset.id)}
             copied={copiedKey === preset.id}
+            copyLabel={`复制 ${preset.label} 客户端配置`}
           />
           <div className="ov-card overflow-hidden">
             <div className="border-b-[3px] border-[var(--border)] bg-[var(--bg-elevated)] px-4 py-3 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">

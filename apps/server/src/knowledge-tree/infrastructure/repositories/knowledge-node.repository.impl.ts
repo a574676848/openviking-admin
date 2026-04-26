@@ -4,7 +4,12 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, type FindManyOptions, type FindOneOptions } from 'typeorm';
 import { KnowledgeNode } from '../../entities/knowledge-node.entity';
 import { IKnowledgeNodeRepository } from '../../domain/repositories/knowledge-node.repository.interface';
+import type { KnowledgeNodeModel } from '../../domain/knowledge-node.model';
 import type { RepositoryRequest } from '../../../common/repository-request.interface';
+import type {
+  RepositoryFindOneQuery,
+  RepositoryFindQuery,
+} from '../../../common/repository-query.types';
 
 @Injectable({ scope: Scope.REQUEST })
 export class KnowledgeNodeRepositoryImpl implements IKnowledgeNodeRepository {
@@ -26,32 +31,74 @@ export class KnowledgeNodeRepositoryImpl implements IKnowledgeNodeRepository {
     return this.defaultRepo;
   }
 
+  private toModel(entity: KnowledgeNode): KnowledgeNodeModel {
+    return {
+      id: entity.id,
+      tenantId: entity.tenantId,
+      kbId: entity.kbId,
+      parentId: entity.parentId,
+      name: entity.name,
+      path: entity.path,
+      sortOrder: entity.sortOrder,
+      acl: entity.acl,
+      vikingUri: entity.vikingUri,
+      createdAt: entity.createdAt,
+      updatedAt: entity.updatedAt,
+    };
+  }
+
+  private toEntityInput(node: Partial<KnowledgeNodeModel>): Partial<KnowledgeNode> {
+    return {
+      id: node.id,
+      tenantId: node.tenantId ?? undefined,
+      kbId: node.kbId,
+      parentId: node.parentId,
+      name: node.name,
+      path: node.path ?? undefined,
+      sortOrder: node.sortOrder,
+      acl: node.acl ?? undefined,
+      vikingUri: node.vikingUri ?? undefined,
+      createdAt: node.createdAt,
+      updatedAt: node.updatedAt,
+    };
+  }
+
   async find(
-    options: FindManyOptions<KnowledgeNode>,
-  ): Promise<KnowledgeNode[]> {
-    return this.repo.find(options);
+    options: RepositoryFindQuery<KnowledgeNodeModel>,
+  ): Promise<KnowledgeNodeModel[]> {
+    const items = await this.repo.find(options as FindManyOptions<KnowledgeNode>);
+    return items.map((item) => this.toModel(item));
   }
 
   async findOne(
-    options: FindOneOptions<KnowledgeNode>,
-  ): Promise<KnowledgeNode | null> {
-    return this.repo.findOne(options);
+    options: RepositoryFindOneQuery<KnowledgeNodeModel>,
+  ): Promise<KnowledgeNodeModel | null> {
+    const item = await this.repo.findOne(options as FindOneOptions<KnowledgeNode>);
+    return item ? this.toModel(item) : null;
   }
 
-  async save(node: Partial<KnowledgeNode>): Promise<KnowledgeNode> {
+  async save(node: Partial<KnowledgeNodeModel>): Promise<KnowledgeNodeModel> {
     if (node.id) {
       const existing = await this.repo.findOne({
         where: { id: node.id },
       });
       if (existing) {
-        return this.repo.save({ ...existing, ...node });
+        const saved = await this.repo.save({
+          ...existing,
+          ...this.toEntityInput(node),
+        });
+        return this.toModel(saved);
       }
     }
-    return this.repo.save(this.repo.create(node));
+    const saved = await this.repo.save(
+      this.repo.create(this.toEntityInput(node)),
+    );
+    return this.toModel(saved);
   }
 
-  async remove(node: KnowledgeNode): Promise<KnowledgeNode> {
-    return this.repo.remove(node);
+  async remove(node: KnowledgeNodeModel): Promise<KnowledgeNodeModel> {
+    const removed = await this.repo.remove(this.repo.create(this.toEntityInput(node)));
+    return this.toModel(removed);
   }
 
   async findAllowedUris(

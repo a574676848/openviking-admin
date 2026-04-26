@@ -1,13 +1,17 @@
 import { ForbiddenException } from '@nestjs/common';
 import { KnowledgeCapabilityGateway } from './knowledge-capability.gateway';
+import type { Principal, TraceContext } from '../domain/capability.types';
 
 describe('KnowledgeCapabilityGateway', () => {
-  const ovClient = {
-    request: jest.fn(),
+  const ovKnowledgeGateway = {
+    findKnowledge: jest.fn(),
+    grepKnowledge: jest.fn(),
+    listResources: jest.fn(),
+    treeResources: jest.fn(),
   };
-  const gateway = new KnowledgeCapabilityGateway(ovClient as never);
+  const gateway = new KnowledgeCapabilityGateway(ovKnowledgeGateway as never);
 
-  const principal = {
+  const principal: Principal = {
     userId: 'user-1',
     tenantId: 'tenant-a',
     role: 'tenant_operator',
@@ -34,7 +38,7 @@ describe('KnowledgeCapabilityGateway', () => {
   });
 
   it('should call OV with tenant scoped uri', async () => {
-    ovClient.request.mockResolvedValue({
+    ovKnowledgeGateway.listResources.mockResolvedValue({
       result: [{ uri: 'viking://resources/tenants/tenant-a/doc-1', isDir: false }],
     });
 
@@ -50,15 +54,11 @@ describe('KnowledgeCapabilityGateway', () => {
       clientType: 'service',
       credentialType: 'jwt_access_token',
       capability: 'resources.list',
-    });
+    } as TraceContext);
 
-    expect(ovClient.request).toHaveBeenCalledWith(
+    expect(ovKnowledgeGateway.listResources).toHaveBeenCalledWith(
       expect.anything(),
-      expect.stringContaining(
-        encodeURIComponent('viking://resources/tenants/tenant-a/'),
-      ),
-      'GET',
-      undefined,
+      'viking://resources/tenants/tenant-a/',
       expect.objectContaining({
         traceId: 'trace-1',
         requestId: 'request-1',

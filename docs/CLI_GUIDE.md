@@ -50,7 +50,7 @@ CLI 会把登录态保存到：
 ~/.openviking/ova/auth.json
 ```
 
-状态文件采用多 profile 结构。当 `accessToken` 过期或接近过期时，CLI 会自动调用 `/api/auth/refresh`。如果 `refreshToken` 也失效，需要重新登录。
+状态文件采用多 profile 结构。当 `accessToken` 过期或接近过期时，CLI 会自动调用 `/api/v1/auth/refresh`。如果 `refreshToken` 也失效，需要重新登录。
 
 ## Profile 管理
 
@@ -82,7 +82,7 @@ ova capabilities list
 ova capabilities inspect --id knowledge.search
 ```
 
-`capabilities list` 会读取 `/api/capabilities`，因此 CLI 命令树和服务端 capability catalog 保持一致。
+`capabilities list` 会读取 `/api/v1/capabilities`，因此 CLI 命令树和服务端 capability catalog 保持一致。
 
 ## 能力调用
 
@@ -177,8 +177,8 @@ ova doctor --output jsonl
 
 - 当前 profile 是否存在本地凭证。
 - JWT 和 refresh token 是否存在、是否过期。
-- `/api/capabilities` 是否可达。
-- 已登录场景下 `/api/auth/whoami` 是否可用。
+- `/api/v1/capabilities` 是否可达。
+- 已登录场景下 `/api/v1/auth/whoami` 是否可用。
 
 ## 命令参考
 
@@ -203,3 +203,6 @@ ova config set --server <url>
 ova config use --profile <name>
 ova doctor
 ```
+
+说明：
+- CLI 命令本身保持英文；错误解释、修复建议和 `ova doctor` 诊断结果默认使用中文输出，便于中文团队直接排障。

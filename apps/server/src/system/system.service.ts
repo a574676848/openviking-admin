@@ -40,10 +40,10 @@ export class SystemService {
       healthResult,
       queueResult,
     ] = await Promise.allSettled([
-      this.kbRepo.count(where),
+      this.kbRepo.count({ where }),
       this.taskRepo.count(where),
-      this.logRepo.count(where),
-      this.logRepo.count({ ...where, resultCount: 0 }),
+      this.logRepo.count({ where }),
+      this.logRepo.count({ where: { ...where, resultCount: 0 } }),
       this.taskRepo.find(where, { createdAt: 'DESC' }, 8),
       this.ovClient.getHealth(conn.baseUrl),
       this.ovClient.request(conn, '/api/v1/observer/queue'),

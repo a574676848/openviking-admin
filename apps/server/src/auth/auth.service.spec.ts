@@ -30,7 +30,7 @@ describe('AuthService', () => {
       findById: jest.fn(),
     };
     jwtService = {
-      sign: jest.fn((payload: unknown) => JSON.stringify(payload)),
+      sign: jest.fn((payload: object) => JSON.stringify(payload)) as never,
       verify: jest.fn(),
     };
 

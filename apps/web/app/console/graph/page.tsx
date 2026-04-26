@@ -12,6 +12,7 @@ import {
   ConsolePageHeader,
   ConsolePanel,
   ConsoleInspectorStack,
+  ConsoleSurfaceCard,
   ConsoleTelemetryPanel,
   ConsoleStatsGrid,
 } from "@/components/console/primitives";
@@ -171,7 +172,7 @@ export default function GraphPage() {
     <div className="flex min-h-full flex-col gap-8">
       <ConsolePageHeader
         title="知识图谱拓扑"
-        subtitle="Graph Runtime / Knowledge Relation Map"
+        subtitle="图谱运行态 / 知识关系分布"
         actions={
           <>
             <select
@@ -197,11 +198,11 @@ export default function GraphPage() {
       />
 
       <ConsoleStatsGrid className="lg:grid-cols-4">
-        <ConsoleMetricCard label="Nodes" value={(data?.nodes.length ?? 0).toLocaleString()} />
-        <ConsoleMetricCard label="Links" value={(data?.links.length ?? 0).toLocaleString()} tone="brand" />
-        <ConsoleMetricCard label="Density" value={density} tone="warning" />
+        <ConsoleMetricCard label="节点数" value={(data?.nodes.length ?? 0).toLocaleString()} />
+        <ConsoleMetricCard label="连线数" value={(data?.links.length ?? 0).toLocaleString()} tone="brand" />
+        <ConsoleMetricCard label="图密度" value={density} tone="warning" />
         <ConsoleMetricCard
-          label="Focused"
+          label="焦点范围"
           value={activeNode ? String(neighbors.size).padStart(2, "0") : "00"}
           tone="danger"
         />
@@ -282,20 +283,23 @@ export default function GraphPage() {
             <ConsoleEmptyState
               icon={Network}
               title={loading ? "正在装载图谱..." : "暂无可渲染图谱"}
-              description="select a knowledge base or ingest data first"
+              description="请先选择知识库，或先导入知识数据后再查看图谱。"
               className="flex h-full min-h-[640px] items-center justify-center"
             />
           )}
 
-          <div className="absolute bottom-4 left-4 flex items-center gap-3 border-[3px] border-[var(--border)] bg-[var(--bg-inverse)] px-3 py-2 font-mono text-[10px] font-black uppercase tracking-[0.16em] text-[var(--bg-card)] shadow-[4px_4px_0px_var(--brand)]">
+          <ConsoleSurfaceCard
+            tone="inverse"
+            className="absolute bottom-4 left-4 flex items-center gap-3 px-3 py-2 font-mono text-[10px] font-black uppercase tracking-[0.16em] shadow-[4px_4px_0px_var(--brand)]"
+          >
             {loading ? <RefreshCw size={12} strokeWidth={2.6} className="animate-spin" /> : <Radar size={12} strokeWidth={2.6} />}
-            {loading ? "rendering graph" : "graph online"}
-          </div>
+            {loading ? "图谱渲染中" : "图谱在线"}
+          </ConsoleSurfaceCard>
         </ConsolePanel>
 
         <div className="flex flex-col gap-8">
           <ConsoleInspectorStack
-            eyebrow="Node Inspector"
+            eyebrow="节点检查器"
             title="节点详情与跳转"
             fields={inspectorFields}
             action={
@@ -311,13 +315,13 @@ export default function GraphPage() {
             }
             emptyState={
               !activeNode
-                ? { icon: Box, title: "尚未选中节点", description: "hover or click a node to inspect it" }
+                ? { icon: Box, title: "尚未选中节点", description: "请悬停或点击节点后查看详细信息。" }
                 : undefined
             }
           />
 
           <ConsoleTelemetryPanel
-            eyebrow="Graph Rules"
+            eyebrow="图谱规则"
             rules={[
               { text: "黄底节点 = 当前焦点" },
               { text: "黑线 = 焦点邻接关系" },

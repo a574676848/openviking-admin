@@ -44,11 +44,11 @@ OpenViking Admin 的 capability 调用链路提供统一追踪、审计、指标
 
 ## HTTP 观测接口
 
-### GET /api/observability/capabilities
+### GET /api/v1/observability/capabilities
 
 返回当前进程内观测快照。需要 JWT。
 
-### GET /api/observability/capabilities/prometheus
+### GET /api/v1/observability/capabilities/prometheus
 
 返回 Prometheus exposition 格式指标，可作为外部 Prometheus 的抓取目标。
 
@@ -75,7 +75,7 @@ OpenViking Admin 的 capability 调用链路提供统一追踪、审计、指标
 |------|------|
 | `traceId` | API 响应、CLI 输出、MCP 响应、Agent 日志 |
 | `requestId` | 客户端日志或请求 header |
-| capability id | `/api/capabilities` 或 CLI 命令 |
+| capability id | `/api/v1/capabilities` 或 CLI 命令 |
 | 调用入口 | HTTP、CLI、MCP、Skill |
 | 凭证类型 | API 响应 meta、服务端日志 |
 
@@ -83,8 +83,8 @@ OpenViking Admin 的 capability 调用链路提供统一追踪、审计、指标
 
 ```bash
 curl -H "Authorization: Bearer <jwt>" \
-  "http://localhost:6001/api/observability/capabilities"
+  "http://localhost:6001/api/v1/observability/capabilities"
 
 curl -H "Authorization: Bearer <jwt>" \
-  "http://localhost:6001/api/observability/capabilities/prometheus"
+  "http://localhost:6001/api/v1/observability/capabilities/prometheus"
 ```

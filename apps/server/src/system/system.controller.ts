@@ -10,6 +10,7 @@ import {
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { TenantGuard } from '../common/tenant.guard';
 import { SettingsService } from '../settings/settings.service';
+import { AuditService } from '../audit/audit.service';
 import {
   OVClientService,
   type OVConnection,
@@ -26,6 +27,7 @@ export class SystemController {
     private readonly ovClient: OVClientService,
     private readonly systemService: SystemService,
     private readonly dynamicDS: DynamicDataSourceService,
+    private readonly auditService: AuditService,
   ) {}
 
   /** 从配置解析 OV 连接，baseUrl 缺失时直接抛错 */
@@ -95,6 +97,15 @@ export class SystemController {
         'POST',
         { uri: body.uri },
       );
+      await this.auditService.log({
+        tenantId: req.tenantScope ?? undefined,
+        userId: req.user.id,
+        username: req.user.username,
+        action: 'reindex_resource',
+        target: body.uri,
+        meta: { requestId: req.headers['x-request-id'] },
+        ip: req.ip,
+      });
       return { ok: true, data };
     } catch (e) {
       const message = e instanceof Error ? e.message : '未知错误';

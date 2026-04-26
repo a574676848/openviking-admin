@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, X } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 
@@ -28,6 +28,7 @@ function toneClass(tone: ConfirmTone) {
 
 export function ConfirmProvider({ children }: { children: React.ReactNode }) {
   const [pending, setPending] = useState<PendingConfirm | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   const confirm = useCallback((options: ConfirmOptions) => {
     return new Promise<boolean>((resolve) => {
@@ -41,6 +42,21 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
     pending?.resolve(result);
     setPending(null);
   }
+
+  useEffect(() => {
+    if (!pending) return;
+
+    closeButtonRef.current?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        close(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [pending]);
 
   return (
     <ConfirmContext.Provider value={value}>
@@ -80,9 +96,10 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
                   )}
                 </div>
                 <button
+                  ref={closeButtonRef}
                   type="button"
                   onClick={() => close(false)}
-                  className="border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-card)] p-2 shadow-[var(--shadow-base)] transition-all hover:translate-y-0.5 hover:shadow-none"
+                  className="border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-card)] p-2 shadow-[var(--shadow-base)] transition-all hover:translate-y-0.5 hover:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-card)]"
                   aria-label="关闭确认弹窗"
                 >
                   <X size={16} strokeWidth={2} />
@@ -92,14 +109,14 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
                 <button
                   type="button"
                   onClick={() => close(false)}
-                  className="border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-card)] px-5 py-3 font-mono text-[10px] font-black tracking-[0.2em] text-[var(--text-primary)] shadow-[var(--shadow-base)] transition-all hover:translate-y-0.5 hover:shadow-none"
+                  className="border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-card)] px-5 py-3 font-mono text-[10px] font-black tracking-[0.2em] text-[var(--text-primary)] shadow-[var(--shadow-base)] transition-all hover:translate-y-0.5 hover:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-card)]"
                 >
                   {pending.cancelText ?? "取消"}
                 </button>
                 <button
                   type="button"
                   onClick={() => close(true)}
-                  className={`border-[var(--border-width)] border-[var(--border)] px-6 py-3 font-mono text-[10px] font-black tracking-[0.2em] shadow-[var(--shadow-base)] transition-all hover:translate-y-0.5 hover:shadow-none ${toneClass(pending.tone ?? "default")}`}
+                  className={`border-[var(--border-width)] border-[var(--border)] px-6 py-3 font-mono text-[10px] font-black tracking-[0.2em] shadow-[var(--shadow-base)] transition-all hover:translate-y-0.5 hover:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-card)] ${toneClass(pending.tone ?? "default")}`}
                 >
                   {pending.confirmText ?? "确认"}
                 </button>

@@ -65,7 +65,7 @@ export class TenantService {
       await this.schemaInitializer.initialize({
         tenantId: saved.tenantId,
         isolationLevel: saved.isolationLevel,
-        dbConfig: saved.dbConfig,
+        dbConfig: saved.dbConfig ?? undefined,
       });
     } catch {
       await this.repo.update(saved.id, { status: 'ERROR_INITIALIZING' });

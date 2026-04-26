@@ -23,6 +23,7 @@ import {
   ConsoleButton,
   ConsoleEmptyState,
   ConsoleField,
+  ConsoleSurfaceCard,
   ConsoleInput,
   ConsoleMetricCard,
   ConsolePageHeader,
@@ -33,6 +34,7 @@ import {
   ConsoleListRow,
   ConsoleStatsGrid,
   ConsoleTableShell,
+  resolveConsoleTableState,
 } from "@/components/console/primitives";
 
 interface Integration {
@@ -151,6 +153,7 @@ export default function IntegrationsPage() {
   const confirm = useConfirm();
   const [items, setItems] = useState<Integration[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState<IntegrationForm>({
@@ -161,9 +164,12 @@ export default function IntegrationsPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError("");
     try {
       const response = await apiClient.get<Integration[]>("/integrations");
       setItems(Array.isArray(response) ? response : []);
+    } catch (error: unknown) {
+      setLoadError(error instanceof Error ? error.message : "集成列表加载失败");
     } finally {
       setLoading(false);
     }
@@ -185,6 +191,12 @@ export default function IntegrationsPage() {
       identity: items.filter((item) => ["oidc", "ldap"].includes(item.type)).length,
     };
   }, [items]);
+
+  const tableState = resolveConsoleTableState({
+    loading,
+    hasError: Boolean(loadError),
+    hasData: items.length > 0,
+  });
 
   async function handleCreate(event: React.FormEvent) {
     event.preventDefault();
@@ -232,7 +244,7 @@ export default function IntegrationsPage() {
     <div className="flex min-h-full flex-col gap-8">
       <ConsolePageHeader
         title="集成中心"
-        subtitle="Integration Registry / Credentials Vault"
+        subtitle="统一管理数据源、身份接入与凭据状态"
         actions={
           <ConsoleButton type="button" onClick={() => setShowForm((value) => !value)}>
             <Plus size={14} strokeWidth={2.6} className={showForm ? "rotate-45" : ""} />
@@ -242,19 +254,19 @@ export default function IntegrationsPage() {
       />
 
       <ConsoleStatsGrid className="lg:grid-cols-4">
-        <ConsoleMetricCard label="Total" value={items.length.toLocaleString()} />
-        <ConsoleMetricCard label="Active" value={stats.active.toLocaleString()} tone="success" />
-        <ConsoleMetricCard label="Data Sources" value={stats.source.toLocaleString()} tone="brand" />
-        <ConsoleMetricCard label="Identity" value={stats.identity.toLocaleString()} tone="warning" />
+        <ConsoleMetricCard label="集成总数" value={items.length.toLocaleString()} />
+        <ConsoleMetricCard label="启用中" value={stats.active.toLocaleString()} tone="success" />
+        <ConsoleMetricCard label="数据源" value={stats.source.toLocaleString()} tone="brand" />
+        <ConsoleMetricCard label="身份接入" value={stats.identity.toLocaleString()} tone="warning" />
       </ConsoleStatsGrid>
 
       {showForm && (
         <ConsolePanel className="p-6">
-          <ConsolePanelHeader eyebrow="New Integration" title="录入凭据与接入协议" />
+          <ConsolePanelHeader eyebrow="新增集成" title="录入凭据与接入协议" />
 
           <form onSubmit={handleCreate} className="mt-6 grid grid-cols-1 gap-8 xl:grid-cols-[0.9fr_1.1fr]">
             <div className="space-y-6">
-              <ConsoleField label="Integration Name">
+              <ConsoleField label="集成名称">
                 <ConsoleInput
                   required
                   value={form.name}
@@ -263,7 +275,7 @@ export default function IntegrationsPage() {
                 />
               </ConsoleField>
 
-              <ConsoleField label="Type">
+              <ConsoleField label="集成类型">
                 <ConsoleSelect
                   value={form.type}
                   onChange={(event) =>
@@ -282,7 +294,7 @@ export default function IntegrationsPage() {
                 </ConsoleSelect>
               </ConsoleField>
 
-              <div className="border-[3px] border-[var(--border)] bg-[var(--bg-elevated)] p-5">
+              <ConsoleSurfaceCard tone="elevated" className="p-5">
                 <div className="flex items-center gap-3">
                   <activeMeta.icon size={16} strokeWidth={2.6} />
                   <span className="font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">
@@ -290,7 +302,7 @@ export default function IntegrationsPage() {
                   </span>
                 </div>
                 <p className="mt-3 font-mono text-xs font-bold text-[var(--text-secondary)]">{activeMeta.description}</p>
-              </div>
+              </ConsoleSurfaceCard>
             </div>
 
             <div className="space-y-5">
@@ -321,27 +333,38 @@ export default function IntegrationsPage() {
         </ConsolePanel>
       )}
 
-      <ConsoleTableShell
+        <ConsoleTableShell
         columns={
           <>
-            <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">Integration</div>
-            <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">Type</div>
-            <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">Status</div>
-            <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">Created</div>
-            <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">Actions</div>
+            <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">集成</div>
+            <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">类型</div>
+            <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">状态</div>
+            <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">创建时间</div>
+            <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">操作</div>
           </>
         }
         headerClassName={`grid ${TABLE_COLUMNS}`}
-        isLoading={loading}
-        hasData={items.length > 0}
-        loadingState={
-          <div className="bg-[var(--bg-card)] px-6 py-16 text-center font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-secondary)]">
-            正在读取集成注册表...
-          </div>
-        }
-        emptyState={
-          <ConsoleEmptyState icon={Link2} title="暂无集成" description="create a source or identity connector first" />
-        }
+        state={tableState}
+        stateContent={{
+          loading: (
+            <div className="bg-[var(--bg-card)] px-6 py-16 text-center font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-secondary)]">
+              正在读取集成注册表...
+            </div>
+          ),
+          error: (
+            <ConsoleEmptyState
+              icon={Link2}
+              title="集成列表加载失败"
+              description={loadError}
+              action={
+                <ConsoleButton type="button" onClick={() => void load()}>
+                  重新加载
+                </ConsoleButton>
+              }
+            />
+          ),
+          empty: <ConsoleEmptyState icon={Link2} title="暂无集成" description="请先创建数据源或身份接入配置。" />,
+        }}
       >
         {items.map((item) => {
           const meta = TYPE_META[item.type as IntegrationType] ?? {
@@ -360,15 +383,16 @@ export default function IntegrationsPage() {
               description={meta.description}
               detailId={item.id}
               date={new Date(item.createdAt).toLocaleString("zh-CN", { hour12: false })}
-              badges={[
-                { label: meta.label, className: meta.className },
-                { label: item.active ? "active" : "disabled", tone: item.active ? "success" : "default" },
-              ]}
+                badges={[
+                  { label: meta.label, className: meta.className },
+                  { label: item.active ? "已启用" : "已停用", tone: item.active ? "success" : "default" },
+                ]}
               columns={TABLE_COLUMNS}
               actions={
                 <div className="flex gap-3">
                   <ConsoleIconButton
                     type="button"
+                    aria-label={item.active ? `停用集成 ${item.name}` : `启用集成 ${item.name}`}
                     onClick={() => void handleToggle(item)}
                     title={item.active ? "停用" : "启用"}
                   >

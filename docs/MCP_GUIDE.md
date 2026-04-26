@@ -24,7 +24,7 @@ MCP 客户端可以使用两类凭证：
 | 凭证 | 适用场景 | 获取方式 |
 |------|------|------|
 | API key | Claude Desktop、Cursor、长期桌面配置 | `ova auth client-credentials --name <client> --save` 或 HTTP 换证 |
-| Session key | 已登录用户发起的短期会话 | `ova auth session-exchange` 或 `POST /api/auth/session/exchange` |
+| Session key | 已登录用户发起的短期会话 | `ova auth session-exchange` 或 `POST /api/v1/auth/session/exchange` |
 
 示例：
 
@@ -44,7 +44,7 @@ ova auth session-exchange --output json
       "args": [
         "@anthropic-ai/mcp-remote",
         "--url",
-        "http://localhost:6001/api/mcp/sse?key=<ov-sk-...>"
+        "http://localhost:6001/api/v1/mcp/sse?key=<ov-sk-...>"
       ]
     }
   }
@@ -61,7 +61,7 @@ ova auth session-exchange --output json
       "args": [
         "@anthropic-ai/mcp-remote",
         "--url",
-        "http://localhost:6001/api/mcp/sse?sessionKey=<session-key>"
+        "http://localhost:6001/api/v1/mcp/sse?sessionKey=<session-key>"
       ]
     }
   }
@@ -74,7 +74,7 @@ ova auth session-exchange --output json
 {
   "mcpServers": {
     "openviking": {
-      "url": "http://localhost:6001/api/mcp/sse?key=<ov-sk-...>"
+      "url": "http://localhost:6001/api/v1/mcp/sse?key=<ov-sk-...>"
     }
   }
 }
@@ -84,9 +84,9 @@ ova auth session-exchange --output json
 
 ```text
 MCP 客户端
-  -> GET /api/mcp/sse?key=...
+  -> GET /api/v1/mcp/sse?key=...
   -> 接收消息端点地址
-  -> 向 POST /api/mcp/message 发送 JSON-RPC
+  -> 向 POST /api/v1/mcp/message 发送 JSON-RPC
   -> MCP controller 映射 tools/list 或 tools/call
   -> CapabilityExecutionService 执行 capability
   -> 响应格式化为 MCP content[]
@@ -95,7 +95,7 @@ MCP 客户端
 ## 调试 SSE
 
 ```bash
-curl -N "http://localhost:6001/api/mcp/sse?key=<ov-sk-...>"
+curl -N "http://localhost:6001/api/v1/mcp/sse?key=<ov-sk-...>"
 ```
 
 预期会返回 SSE 消息端点信息，客户端随后向该消息端点发送 JSON-RPC 请求。
@@ -103,7 +103,7 @@ curl -N "http://localhost:6001/api/mcp/sse?key=<ov-sk-...>"
 ## 调试 tools/list
 
 ```bash
-curl -X POST "http://localhost:6001/api/mcp/message?sessionId=<id>&sessionToken=<token>&key=<ov-sk-...>" \
+curl -X POST "http://localhost:6001/api/v1/mcp/message?sessionId=<id>&sessionToken=<token>&key=<ov-sk-...>" \
   -H "Content-Type: application/json" \
   -d '{
     "jsonrpc": "2.0",
@@ -115,7 +115,7 @@ curl -X POST "http://localhost:6001/api/mcp/message?sessionId=<id>&sessionToken=
 ## 调试 tools/call
 
 ```bash
-curl -X POST "http://localhost:6001/api/mcp/message?sessionId=<id>&sessionToken=<token>&key=<ov-sk-...>" \
+curl -X POST "http://localhost:6001/api/v1/mcp/message?sessionId=<id>&sessionToken=<token>&key=<ov-sk-...>" \
   -H "Content-Type: application/json" \
   -d '{
     "jsonrpc": "2.0",
@@ -145,6 +145,6 @@ curl -X POST "http://localhost:6001/api/mcp/message?sessionId=<id>&sessionToken=
 | 问题 | 原因 | 处理 |
 |------|------|------|
 | SSE 连接立即断开 | API key 或 session key 无效 | 重新换证，确认凭证未被吊销 |
-| `tools/list` 为空 | 服务端 capability catalog 未加载 | 检查服务启动日志和 `/api/capabilities` |
+| `tools/list` 为空 | 服务端 capability catalog 未加载 | 检查服务启动日志和 `/api/v1/capabilities` |
 | `tools/call` 返回 403 | 当前用户角色低于 capability `minimumRole` | 更换账号或调整租户角色 |
 | 工具调用返回空 | 租户知识库为空或 URI scope 不匹配 | 检查知识导入状态和资源 URI |

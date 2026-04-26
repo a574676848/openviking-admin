@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Database, FileUp, Globe, Layers, Share2, Terminal } from "lucide-react";
 import { VikingWatcher } from "@/components/watcher";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/apiClient";
+import { ConsoleButton, ConsoleSelectionCard, ConsoleSurfaceCard } from "@/components/console/primitives";
 
 type SourceType = "git" | "webdav" | "local" | "url" | "enterprise";
 type Integration = { id: string; name: string; type: string };
@@ -94,6 +95,7 @@ const sourceOptions = [
 
 export default function IngestionPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [activeSource, setActiveSource] = useState<SourceType>("git");
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [kbs, setKbs] = useState<KnowledgeBase[]>([]);
@@ -122,6 +124,7 @@ export default function IngestionPage() {
 
   const selectedSource = sourceOptions.find((option) => option.id === activeSource) ?? sourceOptions[0];
   const filteredIntegrations = selectedSource.filterIntegrations(integrations, form.subType);
+  const suggestedTopic = searchParams.get("q") ?? "";
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -142,7 +145,7 @@ export default function IngestionPage() {
       toast.success(`成功开启批量注入：已创建 ${urls.length} 个异步任务`);
       router.push("/console/documents");
     } catch (err) {
-      toast.error(`注入失败: ${err instanceof Error ? err.message : "Unknown error"}`);
+      toast.error(`注入失败：${err instanceof Error ? err.message : "未知错误"}`);
     } finally {
       setLoading(false);
     }
@@ -154,7 +157,7 @@ export default function IngestionPage() {
         <div>
           <h1 className="font-sans text-5xl font-black tracking-tight text-[var(--text-primary)]">注入航站楼</h1>
           <p className="mt-3 font-mono text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-secondary)]">
-            Multi Source Batch Ingestion Terminal
+            多来源批量注入控制台
           </p>
         </div>
         <VikingWatcher isThinking={loading} size="md" />
@@ -163,15 +166,14 @@ export default function IngestionPage() {
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[0.9fr_1.1fr]">
         <section className="grid grid-cols-1 gap-4">
           {sourceOptions.map((source) => (
-            <button
+            <ConsoleSelectionCard
               key={source.id}
               type="button"
+              aria-label={`选择导入来源 ${source.label}`}
+              title={source.desc}
               onClick={() => setActiveSource(source.id)}
-              className={`border-[3px] border-[var(--border)] p-5 text-left transition-all ${
-                activeSource === source.id
-                  ? "translate-x-1 translate-y-1 bg-black text-white shadow-[4px_4px_0px_var(--brand)]"
-                  : "bg-[var(--bg-card)] text-black shadow-[4px_4px_0px_#000] hover:translate-x-1 hover:translate-y-1 hover:shadow-none"
-              }`}
+              active={activeSource === source.id}
+              className={`p-5 ${activeSource !== source.id ? "text-black hover:translate-x-1 hover:translate-y-1 hover:shadow-none" : "translate-x-1 translate-y-1"}`}
             >
               <div className="mb-2 flex items-center gap-4">
                 <source.icon size={22} strokeWidth={2.4} style={{ color: activeSource === source.id ? "#FFF" : source.color }} />
@@ -180,23 +182,28 @@ export default function IngestionPage() {
               <p className={`font-mono text-[9px] font-bold uppercase tracking-[0.14em] ${activeSource === source.id ? "text-white/75" : "text-[var(--text-secondary)]"}`}>
                 {source.desc}
               </p>
-            </button>
+            </ConsoleSelectionCard>
           ))}
         </section>
 
         <section className="overflow-hidden border-[3px] border-[var(--border)] bg-[var(--bg-card)] shadow-[12px_12px_0px_#000]">
           <div className="flex items-center justify-between border-b-[3px] border-[var(--border)] bg-black px-5 py-4 text-white">
             <span className="flex items-center gap-2 font-mono text-xs font-black uppercase tracking-[0.22em]">
-              <Terminal size={14} /> {">>"} Batch Pipeline Deploy: {activeSource.toUpperCase()}
+              <Terminal size={14} /> {">>"} 批量流水线部署: {activeSource.toUpperCase()}
             </span>
             {urls.length > 0 && (
               <span className="bg-[var(--brand)] px-2 py-0.5 font-mono text-[9px] font-black uppercase tracking-[0.14em] text-white">
-                {urls.length} Items
+                {urls.length} 项
               </span>
             )}
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-8 p-8">
+            {suggestedTopic ? (
+              <ConsoleSurfaceCard tone="warning" className="px-4 py-3 font-mono text-[10px] font-black uppercase tracking-[0.14em]">
+                建议优先补录主题：{suggestedTopic}
+              </ConsoleSurfaceCard>
+            ) : null}
             <div className="space-y-3">
               <label className="block font-mono text-[11px] font-black uppercase tracking-[0.18em]">
                 [01] 目标知识集群
@@ -242,18 +249,19 @@ export default function IngestionPage() {
                 </label>
                 <div className="grid grid-cols-2 gap-4">
                   {["feishu", "dingtalk"].map((platform) => (
-                    <button
+                    <ConsoleSelectionCard
                       key={platform}
                       type="button"
+                      aria-label={`选择企业平台 ${platform === "feishu" ? "飞书" : "钉钉"}`}
+                      title={platform === "feishu" ? "飞书 / Lark 文档接入" : "钉钉 / DingTalk 文档接入"}
                       onClick={() => setForm({ ...form, subType: platform })}
-                      className={`border-[3px] border-[var(--border)] px-4 py-4 text-center font-mono text-xs font-black uppercase tracking-[0.18em] transition-all ${
-                        form.subType === platform
-                          ? "bg-black text-white shadow-[4px_4px_0px_var(--brand)]"
-                          : "bg-[var(--bg-card)] text-black shadow-[4px_4px_0px_#000] hover:translate-y-0.5 hover:shadow-none"
+                      active={form.subType === platform}
+                      className={`px-4 py-4 text-center font-mono text-xs font-black uppercase tracking-[0.18em] ${
+                        form.subType !== platform ? "text-black hover:translate-y-0.5 hover:shadow-none" : ""
                       }`}
                     >
                       {platform === "feishu" ? "飞书 / Lark" : "钉钉 / DingTalk"}
-                    </button>
+                    </ConsoleSelectionCard>
                   ))}
                 </div>
               </div>
@@ -305,14 +313,15 @@ export default function IngestionPage() {
                   准备部署 {urls.length} 个注入节点
                 </span>
               )}
-              <button
+              <ConsoleButton
                 type="submit"
+                tone="dark"
                 disabled={loading || (selectedSource.supportsBatchUrls && urls.length === 0)}
-                className="flex items-center gap-3 border-[3px] border-[var(--border)] bg-black px-12 py-5 font-mono text-[10px] font-black uppercase tracking-[0.2em] text-white shadow-[6px_6px_0px_var(--brand)] transition-all hover:translate-y-1 hover:shadow-none disabled:opacity-30"
+                className="gap-3 px-12 py-5 text-[10px] tracking-[0.2em] shadow-[6px_6px_0px_var(--brand)]"
               >
                 <Layers size={18} strokeWidth={3} />
-                {loading ? "SCHEDULING_BATCH..." : ">> 启动批量注入流水线"}
-              </button>
+                {loading ? "正在调度批量任务..." : ">> 启动批量注入流水线"}
+              </ConsoleButton>
             </div>
           </form>
         </section>

@@ -1,8 +1,8 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import {
-  OVClientService,
   OVConnection,
 } from '../../common/ov-client.service';
+import { OVKnowledgeGatewayService } from '../../common/ov-knowledge-gateway.service';
 import { Principal, TraceContext } from '../domain/capability.types';
 
 interface SearchResource {
@@ -26,7 +26,9 @@ interface ResourceNode {
 
 @Injectable()
 export class KnowledgeCapabilityGateway {
-  constructor(private readonly ovClient: OVClientService) {}
+  constructor(
+    private readonly ovKnowledgeGateway: OVKnowledgeGatewayService,
+  ) {}
 
   async search(
     principal: Principal,
@@ -35,15 +37,13 @@ export class KnowledgeCapabilityGateway {
   ) {
     const connection = this.toConnection(principal);
     const scope = this.getTenantScope(principal);
-    const response = await this.ovClient.request(
+    const response = await this.ovKnowledgeGateway.findKnowledge(
       connection,
-      '/api/v1/search/find',
-      'POST',
       {
         query: String(input.query ?? ''),
-        scope,
-        limit: Number(input.limit ?? 5),
-        score_threshold: Number(input.scoreThreshold ?? 0.5),
+        topK: Number(input.limit ?? 5),
+        scoreThreshold: Number(input.scoreThreshold ?? 0.5),
+        filterUris: [scope],
       },
       this.toMeta(trace),
     );
@@ -69,18 +69,15 @@ export class KnowledgeCapabilityGateway {
     const connection = this.toConnection(principal);
     const scope = this.getTenantScope(principal);
     const targetUri = this.resolveScopedUri(scope, input.uri);
-    const response = await this.ovClient.request(
+    const response = await this.ovKnowledgeGateway.grepKnowledge(
       connection,
-      '/api/v1/search/grep',
-      'POST',
       {
         pattern: String(input.pattern ?? ''),
         uri: targetUri,
-        case_insensitive:
+        caseInsensitive:
           input.caseInsensitive === undefined
             ? true
             : Boolean(input.caseInsensitive),
-        level_limit: 5,
       },
       this.toMeta(trace),
     );
@@ -104,12 +101,9 @@ export class KnowledgeCapabilityGateway {
     const connection = this.toConnection(principal);
     const scope = this.getTenantScope(principal);
     const targetUri = this.resolveScopedUri(scope, input.uri);
-    const encoded = encodeURIComponent(targetUri);
-    const response = await this.ovClient.request(
+    const response = await this.ovKnowledgeGateway.listResources(
       connection,
-      `/api/v1/fs/ls?uri=${encoded}`,
-      'GET',
-      undefined,
+      targetUri,
       this.toMeta(trace),
     );
 
@@ -133,12 +127,9 @@ export class KnowledgeCapabilityGateway {
     const scope = this.getTenantScope(principal);
     const targetUri = this.resolveScopedUri(scope, input.uri);
     const depth = Number(input.depth ?? 2);
-    const encoded = encodeURIComponent(targetUri);
-    const response = await this.ovClient.request(
+    const response = await this.ovKnowledgeGateway.treeResources(
       connection,
-      `/api/v1/fs/tree?uri=${encoded}&depth=${depth}`,
-      'GET',
-      undefined,
+      { uri: targetUri, depth },
       this.toMeta(trace),
     );
 

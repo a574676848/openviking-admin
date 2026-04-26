@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, Inject } from '@nestjs/common';
-import { KnowledgeNode } from './entities/knowledge-node.entity';
 import { CreateNodeDto, UpdateNodeDto } from './dto/node.dto';
 import { IKnowledgeNodeRepository } from './domain/repositories/knowledge-node.repository.interface';
+import type { KnowledgeNodeModel } from './domain/knowledge-node.model';
 
 @Injectable()
 export class KnowledgeTreeService {
@@ -13,7 +13,7 @@ export class KnowledgeTreeService {
   async findByKb(
     kbId: string,
     tenantId: string | null,
-  ): Promise<KnowledgeNode[]> {
+  ): Promise<KnowledgeNodeModel[]> {
     const where: Record<string, string> = { kbId };
     if (tenantId) where.tenantId = tenantId;
     return this.nodeRepo.find({
@@ -45,11 +45,11 @@ export class KnowledgeTreeService {
 
   async create(
     dto: CreateNodeDto & { tenantId: string },
-  ): Promise<KnowledgeNode> {
+  ): Promise<KnowledgeNodeModel> {
     return this.nodeRepo.save(dto);
   }
 
-  async findOne(id: string, tenantId: string | null): Promise<KnowledgeNode> {
+  async findOne(id: string, tenantId: string | null): Promise<KnowledgeNodeModel> {
     const where: Record<string, string> = { id };
     if (tenantId) where.tenantId = tenantId;
     const node = await this.nodeRepo.findOne({ where });
@@ -61,7 +61,7 @@ export class KnowledgeTreeService {
     id: string,
     dto: UpdateNodeDto,
     tenantId: string | null,
-  ): Promise<KnowledgeNode> {
+  ): Promise<KnowledgeNodeModel> {
     const node = await this.findOne(id, tenantId);
     Object.assign(node, dto);
     return this.nodeRepo.save(node);

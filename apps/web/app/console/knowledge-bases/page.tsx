@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowRight, Database, FolderTree, Plus, Search } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 import {
+  ConsoleBadge,
   ConsoleButton,
   ConsoleEmptyState,
   ConsoleField,
@@ -14,8 +15,10 @@ import {
   ConsolePanel,
   ConsolePanelHeader,
   ConsoleListRow,
+  ConsoleSurfaceCard,
   ConsoleStatsGrid,
   ConsoleTableShell,
+  resolveConsoleTableState,
 } from "@/components/console/primitives";
 
 interface KnowledgeBase {
@@ -100,12 +103,16 @@ export default function KnowledgeBasesPage() {
   }, [items]);
 
   const usagePercent = quota.total > 0 ? Math.min(Math.round((quota.used / quota.total) * 100), 100) : 0;
+  const tableState = resolveConsoleTableState({
+    loading,
+    hasData: filtered.length > 0,
+  });
 
   return (
     <div className="flex min-h-full flex-col gap-8">
       <ConsolePageHeader
         title="知识库管理"
-        subtitle="Tenant Storage Fabric / Knowledge Base Registry"
+        subtitle="统一管理租户知识库、容量使用与知识树入口"
         actions={
           <Link href="/console/knowledge-bases/new">
             <ConsoleButton type="button">
@@ -117,24 +124,22 @@ export default function KnowledgeBasesPage() {
       />
 
       <ConsoleStatsGrid className="lg:grid-cols-4">
-        <ConsoleMetricCard label="Active Bases" value={(items.length || 0).toLocaleString()} tone="brand" />
-        <ConsoleMetricCard label="Documents" value={totals.docs.toLocaleString()} />
-        <ConsoleMetricCard label="Vectors" value={totals.vectors.toLocaleString()} tone="warning" />
-        <ConsoleMetricCard label="Quota Usage" value={`${usagePercent}%`} tone="danger" />
+        <ConsoleMetricCard label="知识库数量" value={(items.length || 0).toLocaleString()} tone="brand" />
+        <ConsoleMetricCard label="文档数" value={totals.docs.toLocaleString()} />
+        <ConsoleMetricCard label="向量数" value={totals.vectors.toLocaleString()} tone="warning" />
+        <ConsoleMetricCard label="配额占用" value={`${usagePercent}%`} tone="danger" />
       </ConsoleStatsGrid>
 
       <section className="grid grid-cols-1 gap-8 xl:grid-cols-[0.92fr_1.08fr]">
         <ConsolePanel className="p-6">
-          <ConsolePanelHeader eyebrow="Namespace Capacity" title="配额与命名空间概况" />
+          <ConsolePanelHeader eyebrow="容量概况" title="配额与命名空间概况" />
 
-          <div className="mt-6 border-[3px] border-[var(--border)] bg-[var(--bg-elevated)] p-5">
+          <ConsoleSurfaceCard tone="elevated" className="mt-6 p-5">
             <div className="flex items-center justify-between gap-4">
               <span className="font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-secondary)]">
                 已使用 {quota.used} / {quota.total}
               </span>
-              <span className="font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">
-                {usagePercent}%
-              </span>
+              <ConsoleBadge tone={usagePercent >= 90 ? "danger" : "brand"}>{usagePercent}%</ConsoleBadge>
             </div>
             <div className="mt-4 h-4 border-[3px] border-[var(--border)] bg-[var(--bg-card)] p-[2px]">
               <div
@@ -142,10 +147,10 @@ export default function KnowledgeBasesPage() {
                 style={{ width: `${usagePercent}%` }}
               />
             </div>
-          </div>
+          </ConsoleSurfaceCard>
 
           <div className="mt-6">
-            <ConsoleField label="Search Registry">
+            <ConsoleField label="搜索知识库">
             <div className="relative mt-2">
               <Search
                 size={16}
@@ -166,23 +171,22 @@ export default function KnowledgeBasesPage() {
         <ConsoleTableShell
           columns={
             <>
-              <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">Knowledge Base</div>
-              <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">Docs</div>
-              <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">Vectors</div>
-              <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">Actions</div>
+              <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">知识库</div>
+              <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">文档数</div>
+              <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">向量数</div>
+              <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">操作</div>
             </>
           }
           headerClassName={`grid ${TABLE_COLUMNS}`}
-          isLoading={loading}
-          hasData={filtered.length > 0}
-          loadingState={
-            <div className="bg-[var(--bg-card)] px-6 py-16 text-center font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-secondary)]">
-              正在读取知识库注册表...
-            </div>
-          }
-          emptyState={
-            <ConsoleEmptyState icon={Database} title="暂无匹配知识库" description="registry is empty or filtered out" />
-          }
+          state={tableState}
+          stateContent={{
+            loading: (
+              <div className="bg-[var(--bg-card)] px-6 py-16 text-center font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-secondary)]">
+                正在读取知识库注册表...
+              </div>
+            ),
+            empty: <ConsoleEmptyState icon={Database} title="暂无匹配知识库" description="当前没有符合筛选条件的知识库记录。" />,
+          }}
         >
           {filtered.map((item) => {
             const status = STATUS_MAP[item.status] ?? {
@@ -194,6 +198,7 @@ export default function KnowledgeBasesPage() {
               <ConsoleListRow
                 key={item.id}
                 name={item.name}
+                nameTestId={`knowledge-base-name-${item.id}`}
                 detailId={item.id}
                 date={`创建于 ${new Date(item.createdAt).toLocaleString("zh-CN", { hour12: false })}`}
                 badges={[

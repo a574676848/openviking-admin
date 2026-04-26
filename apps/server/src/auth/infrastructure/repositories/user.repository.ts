@@ -5,6 +5,8 @@ import { Repository, type FindManyOptions } from 'typeorm';
 import { User } from '../../../users/entities/user.entity';
 import { IUserRepository } from '../../domain/repositories/user.repository.interface';
 import type { RepositoryRequest } from '../../../common/repository-request.interface';
+import type { RepositoryFindQuery } from '../../../common/repository-query.types';
+import type { UserModel } from '../../../users/domain/user.model';
 
 @Injectable({ scope: Scope.REQUEST })
 export class UserRepository implements IUserRepository {
@@ -24,24 +26,58 @@ export class UserRepository implements IUserRepository {
     return this.defaultRepo;
   }
 
-  async findOneByUsername(username: string): Promise<User | null> {
-    return this.repo.findOne({ where: { username } });
+  private toModel(entity: User): UserModel {
+    return {
+      id: entity.id,
+      username: entity.username,
+      passwordHash: entity.passwordHash,
+      role: entity.role,
+      tenantId: entity.tenantId,
+      active: entity.active,
+      ssoId: entity.ssoId,
+      provider: entity.provider,
+      createdAt: entity.createdAt,
+      updatedAt: entity.updatedAt,
+    };
   }
 
-  async findOneById(id: string): Promise<User | null> {
-    return this.repo.findOne({ where: { id } });
+  private toEntityInput(user: Partial<UserModel>): Partial<User> {
+    return {
+      id: user.id,
+      username: user.username,
+      passwordHash: user.passwordHash,
+      role: user.role,
+      tenantId: user.tenantId ?? undefined,
+      active: user.active,
+      ssoId: user.ssoId ?? undefined,
+      provider: user.provider ?? undefined,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    };
   }
 
-  async save(user: Partial<User>): Promise<User> {
-    return this.repo.save(user);
+  async findOneByUsername(username: string): Promise<UserModel | null> {
+    const item = await this.repo.findOne({ where: { username } });
+    return item ? this.toModel(item) : null;
   }
 
-  create(user: Partial<User>): User {
-    return this.repo.create(user);
+  async findOneById(id: string): Promise<UserModel | null> {
+    const item = await this.repo.findOne({ where: { id } });
+    return item ? this.toModel(item) : null;
   }
 
-  async find(options?: FindManyOptions<User>): Promise<User[]> {
-    return this.repo.find(options ?? {});
+  async save(user: Partial<UserModel>): Promise<UserModel> {
+    const saved = await this.repo.save(this.toEntityInput(user));
+    return this.toModel(saved);
+  }
+
+  create(user: Partial<UserModel>): UserModel {
+    return this.toModel(this.repo.create(this.toEntityInput(user)));
+  }
+
+  async find(options?: RepositoryFindQuery<UserModel>): Promise<UserModel[]> {
+    const items = await this.repo.find((options ?? {}) as FindManyOptions<User>);
+    return items.map((item) => this.toModel(item));
   }
 
   async delete(id: string): Promise<void> {

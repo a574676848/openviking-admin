@@ -1,9 +1,13 @@
-import { SystemConfig } from '../../entities/system-config.entity';
+import type {
+  RepositoryFindOneQuery,
+  RepositoryFindQuery,
+} from '../../../common/repository-query.types';
+import type { SystemConfigModel } from '../system-config.model';
 
 export interface ISystemConfigRepository {
-  find(options?: any): Promise<SystemConfig[]>;
-  findOne(options: any): Promise<SystemConfig | null>;
-  save(config: Partial<SystemConfig>): Promise<SystemConfig>;
+  find(options?: RepositoryFindQuery<SystemConfigModel>): Promise<SystemConfigModel[]>;
+  findOne(options: RepositoryFindOneQuery<SystemConfigModel>): Promise<SystemConfigModel | null>;
+  save(config: Partial<SystemConfigModel>): Promise<SystemConfigModel>;
 }
 
 export const ISystemConfigRepository = Symbol('ISystemConfigRepository');

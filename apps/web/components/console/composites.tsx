@@ -59,32 +59,58 @@ export function ConsoleControlPanel({
 /*  ConsoleTableShell                                                  */
 /* ------------------------------------------------------------------ */
 
+export type ConsoleTableState = "loading" | "error" | "empty" | "ready";
+
+export function resolveConsoleTableState({
+  loading,
+  hasError = false,
+  hasData = false,
+}: {
+  loading: boolean;
+  hasError?: boolean;
+  hasData?: boolean;
+}): ConsoleTableState {
+  if (loading) return "loading";
+  if (hasError) return "error";
+  if (!hasData) return "empty";
+  return "ready";
+}
+
 export function ConsoleTableShell({
   columns,
   children,
-  isLoading,
-  hasData,
-  loadingState,
-  emptyState,
+  state = "ready",
+  stateContent,
   className,
   headerClassName,
   rowsClassName,
 }: {
   columns: ReactNode;
   children?: ReactNode;
-  isLoading?: boolean;
-  hasData?: boolean;
-  loadingState?: ReactNode;
-  emptyState?: ReactNode;
+  state?: ConsoleTableState;
+  stateContent?: {
+    loading?: ReactNode;
+    error?: ReactNode;
+    empty?: ReactNode;
+  };
   className?: string;
   headerClassName?: string;
   rowsClassName?: string;
 }) {
+  const body =
+    state === "loading"
+      ? stateContent?.loading
+      : state === "error"
+        ? stateContent?.error
+        : state === "empty"
+          ? stateContent?.empty
+          : children;
+
   return (
     <ConsolePanel className={cx("overflow-hidden", className)}>
       <div className={cx("border-b-[3px] border-[var(--border)] bg-[var(--bg-elevated)]", headerClassName)}>{columns}</div>
       <div className={cx("grid grid-cols-1 gap-px bg-[var(--border)]", rowsClassName)}>
-        {isLoading ? loadingState : hasData ? children : emptyState}
+        {body}
       </div>
     </ConsolePanel>
   );
@@ -109,6 +135,7 @@ export function ConsoleListRow({
   icon: Icon,
   iconClassName,
   name,
+  nameTestId,
   description,
   detailId,
   date,
@@ -121,6 +148,7 @@ export function ConsoleListRow({
   icon?: ElementType;
   iconClassName?: string;
   name: string;
+  nameTestId?: string;
   description?: string;
   detailId?: string;
   date?: string;
@@ -150,7 +178,11 @@ export function ConsoleListRow({
             </div>
           ) : null}
           <div className="min-w-0">
-            <p className="truncate font-sans text-xl font-black text-[var(--text-primary)]" title={name}>
+            <p
+              className="truncate font-sans text-xl font-black text-[var(--text-primary)]"
+              title={name}
+              data-testid={nameTestId}
+            >
               {name}
             </p>
             {description ? (

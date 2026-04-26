@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsNumber } from 'class-validator';
+import { IsString, IsOptional, IsNumber, IsBoolean } from 'class-validator';
 
 export class FindDto {
   @IsString()
@@ -15,6 +15,10 @@ export class FindDto {
   @IsNumber()
   @IsOptional()
   scoreThreshold?: number;
+
+  @IsBoolean()
+  @IsOptional()
+  useRerank?: boolean;
 }
 
 export class GrepDto {

@@ -23,7 +23,7 @@
 
 1. 保留 `CapabilityMetricsService` 作为平台内部聚合入口，应用层不直接依赖 Prometheus。
 2. 新增 `CapabilityPrometheusExporterService`，负责把内部指标快照渲染为 Prometheus exposition。
-3. 通过 `GET /api/observability/capabilities/prometheus` 暴露标准抓取入口。
+3. 通过 `GET /api/v1/observability/capabilities/prometheus` 暴露标准抓取入口。
 4. 抽象 `CapabilityRateLimitStore` 作为限流状态存储接口。
 5. 默认使用 `InMemoryCapabilityRateLimitStore`，保证当前单实例实现可用。
 6. 未来切换 Redis 或分布式 KV 时，只替换 store provider，不修改 Application 与 Domain。

@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { TenantGuard } from '../common/tenant.guard';
+import { AuditService } from '../audit/audit.service';
 import { IntegrationService } from './integration.service';
 import {
   CreateIntegrationDto,
@@ -42,7 +43,10 @@ function toUpdateInput(dto: UpdateIntegrationDto): UpdateIntegrationInput {
 @Controller('integrations')
 @UseGuards(JwtAuthGuard, TenantGuard)
 export class IntegrationController {
-  constructor(private readonly svc: IntegrationService) {}
+  constructor(
+    private readonly svc: IntegrationService,
+    private readonly auditService: AuditService,
+  ) {}
 
   @Get()
   async findAll(@Req() req: AuthenticatedRequest) {
@@ -59,6 +63,15 @@ export class IntegrationController {
       toCreateInput(dto),
       req.tenantScope ?? '',
     );
+    await this.auditService.log({
+      tenantId: req.tenantScope ?? undefined,
+      userId: req.user.id,
+      username: req.user.username,
+      action: 'create_integration',
+      target: item.id,
+      meta: { type: item.type, name: item.name, requestId: req.headers['x-request-id'] },
+      ip: req.ip,
+    });
     return this.svc.mask(item);
   }
 
@@ -69,11 +82,30 @@ export class IntegrationController {
     @Req() req: AuthenticatedRequest,
   ) {
     const item = await this.svc.update(id, toUpdateInput(dto), req.tenantScope);
+    await this.auditService.log({
+      tenantId: req.tenantScope ?? undefined,
+      userId: req.user.id,
+      username: req.user.username,
+      action: 'update_integration',
+      target: id,
+      meta: { changes: dto, requestId: req.headers['x-request-id'] },
+      ip: req.ip,
+    });
     return this.svc.mask(item);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
-    return this.svc.remove(id, req.tenantScope);
+  async remove(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    const removed = await this.svc.remove(id, req.tenantScope);
+    await this.auditService.log({
+      tenantId: req.tenantScope ?? undefined,
+      userId: req.user.id,
+      username: req.user.username,
+      action: 'delete_integration',
+      target: id,
+      meta: { requestId: req.headers['x-request-id'] },
+      ip: req.ip,
+    });
+    return removed;
   }
 }

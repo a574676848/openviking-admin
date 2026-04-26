@@ -5,6 +5,14 @@
 node_modules/
 dist/
 .next/
+coverage/
+tmp/
+logs/
+*.log
+.turbo/
+playwright-report/
+test-results/
+vitest-report/
 .claude/
 .vscode/
 *.tsbuildinfo

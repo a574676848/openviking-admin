@@ -4,6 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { Tenant } from '../../entities/tenant.entity';
 import { ITenantRepository } from '../../domain/repositories/tenant.repository.interface';
+import type { TenantModel } from '../../domain/tenant.model';
 
 interface TenantRequest {
   tenantQueryRunner?: {
@@ -32,28 +33,66 @@ export class TenantRepository implements ITenantRepository {
     return this.defaultRepo;
   }
 
-  async findAll(): Promise<Tenant[]> {
-    return this.repo.find({ order: { createdAt: 'DESC' } });
+  private toModel(entity: Tenant): TenantModel {
+    return {
+      id: entity.id,
+      tenantId: entity.tenantId,
+      displayName: entity.displayName,
+      status: entity.status,
+      isolationLevel: entity.isolationLevel,
+      dbConfig: entity.dbConfig,
+      vikingAccount: entity.vikingAccount,
+      quota: entity.quota,
+      ovConfig: entity.ovConfig,
+      description: entity.description,
+      createdAt: entity.createdAt,
+      updatedAt: entity.updatedAt,
+    };
   }
 
-  async findById(id: string): Promise<Tenant | null> {
-    return this.repo.findOne({ where: { id } });
+  private toEntityInput(tenant: Partial<TenantModel>): Partial<Tenant> {
+    return {
+      id: tenant.id,
+      tenantId: tenant.tenantId,
+      displayName: tenant.displayName,
+      status: tenant.status,
+      isolationLevel: tenant.isolationLevel,
+      dbConfig: tenant.dbConfig ?? undefined,
+      vikingAccount: tenant.vikingAccount ?? undefined,
+      quota: tenant.quota ?? undefined,
+      ovConfig: tenant.ovConfig ?? undefined,
+      description: tenant.description ?? undefined,
+      createdAt: tenant.createdAt,
+      updatedAt: tenant.updatedAt,
+    };
   }
 
-  async findByTenantId(tenantId: string): Promise<Tenant | null> {
-    return this.repo.findOne({ where: { tenantId } });
+  async findAll(): Promise<TenantModel[]> {
+    const items = await this.repo.find({ order: { createdAt: 'DESC' } });
+    return items.map((item) => this.toModel(item));
   }
 
-  create(data: Partial<Tenant>): Tenant {
-    return this.repo.create(data);
+  async findById(id: string): Promise<TenantModel | null> {
+    const item = await this.repo.findOne({ where: { id } });
+    return item ? this.toModel(item) : null;
   }
 
-  async save(tenant: Tenant): Promise<Tenant> {
-    return this.repo.save(tenant);
+  async findByTenantId(tenantId: string): Promise<TenantModel | null> {
+    const item = await this.repo.findOne({ where: { tenantId } });
+    return item ? this.toModel(item) : null;
   }
 
-  async update(id: string, data: Partial<Tenant>): Promise<void> {
-    await this.repo.update(id, data);
+  create(data: Partial<TenantModel>): TenantModel {
+    return this.toModel(this.repo.create(this.toEntityInput(data)));
+  }
+
+  async save(tenant: TenantModel): Promise<TenantModel> {
+    const saved = await this.repo.save(this.toEntityInput(tenant));
+    return this.toModel(saved);
+  }
+
+  async update(id: string, data: Partial<TenantModel>): Promise<void> {
+    await this.repo.update(id, this.toEntityInput(data) as never);
   }
 
   async delete(id: string): Promise<void> {

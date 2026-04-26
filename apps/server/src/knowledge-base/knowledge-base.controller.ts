@@ -12,6 +12,7 @@ import {
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { TenantGuard } from '../common/tenant.guard';
 import { KnowledgeBaseService } from './knowledge-base.service';
+import { AuditService } from '../audit/audit.service';
 import { CreateKnowledgeBaseDto } from './dto/create-kb.dto';
 import { UpdateKnowledgeBaseDto } from './dto/update-kb.dto';
 import type { AuthenticatedRequest } from '../common/authenticated-request.interface';
@@ -19,7 +20,10 @@ import type { AuthenticatedRequest } from '../common/authenticated-request.inter
 @Controller('knowledge-bases')
 @UseGuards(JwtAuthGuard, TenantGuard)
 export class KnowledgeBaseController {
-  constructor(private readonly kbService: KnowledgeBaseService) {}
+  constructor(
+    private readonly kbService: KnowledgeBaseService,
+    private readonly auditService: AuditService,
+  ) {}
 
   @Get()
   findAll(@Req() req: AuthenticatedRequest) {
@@ -32,25 +36,55 @@ export class KnowledgeBaseController {
   }
 
   @Post()
-  create(
+  async create(
     @Body() dto: CreateKnowledgeBaseDto,
     @Req() req: AuthenticatedRequest,
   ) {
     const data = { ...dto, tenantId: req.tenantScope ?? '' };
-    return this.kbService.create(data);
+    const created = await this.kbService.create(data);
+    await this.auditService.log({
+      tenantId: req.tenantScope ?? undefined,
+      userId: req.user.id,
+      username: req.user.username,
+      action: 'create_knowledge_base',
+      target: created.id,
+      meta: { name: created.name, requestId: req.headers['x-request-id'] },
+      ip: req.ip,
+    });
+    return created;
   }
 
   @Patch(':id')
-  update(
+  async update(
     @Param('id') id: string,
     @Body() dto: UpdateKnowledgeBaseDto,
     @Req() req: AuthenticatedRequest,
   ) {
-    return this.kbService.update(id, dto, req.tenantScope);
+    const updated = await this.kbService.update(id, dto, req.tenantScope);
+    await this.auditService.log({
+      tenantId: req.tenantScope ?? undefined,
+      userId: req.user.id,
+      username: req.user.username,
+      action: 'update_knowledge_base',
+      target: id,
+      meta: { changes: dto, requestId: req.headers['x-request-id'] },
+      ip: req.ip,
+    });
+    return updated;
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
-    return this.kbService.remove(id, req.tenantScope);
+  async remove(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    const removed = await this.kbService.remove(id, req.tenantScope);
+    await this.auditService.log({
+      tenantId: req.tenantScope ?? undefined,
+      userId: req.user.id,
+      username: req.user.username,
+      action: 'delete_knowledge_base',
+      target: id,
+      meta: { requestId: req.headers['x-request-id'] },
+      ip: req.ip,
+    });
+    return removed;
   }
 }

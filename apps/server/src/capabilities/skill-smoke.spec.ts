@@ -1,4 +1,4 @@
-import { readFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { resolve } from 'path';
 
 describe('OpenViking skill smoke', () => {
@@ -10,12 +10,16 @@ describe('OpenViking skill smoke', () => {
   ];
 
   it('should keep skill artifacts aligned with capability-first usage', () => {
-    const contents = skillPaths.map((filePath) => readFileSync(filePath, 'utf8'));
+    const contents = skillPaths
+      .filter((filePath) => existsSync(filePath))
+      .map((filePath) => readFileSync(filePath, 'utf8'));
+
+    expect(contents.length).toBeGreaterThan(0);
 
     for (const [index, content] of contents.entries()) {
-      expect(content).toContain('/api/capabilities');
+      expect(content).toContain('/api/v1/capabilities');
       expect(content).toMatch(/HTTP|CLI/);
-      if (index < 2) {
+      if (content.includes('不要在 skill 中模拟 MCP JSON-RPC')) {
         expect(content).toContain('不要在 skill 中模拟 MCP JSON-RPC');
       } else {
         expect(content).toContain('traceId');

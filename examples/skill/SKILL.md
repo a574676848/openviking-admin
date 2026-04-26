@@ -5,15 +5,15 @@
 ## 能力发现
 
 1. 如果运行环境中存在 `ova`，优先执行 `ova capabilities list --output json`。
-2. 如果没有 `ova`，使用宿主环境提供的凭证调用 `GET /api/capabilities`。
+2. 如果没有 `ova`，使用宿主环境提供的凭证调用 `GET /api/v1/capabilities`。
 3. capability id 必须以平台返回结果为准，不自行维护第二套工具名。
 
 ## 能力调用
 
-- `knowledge.search`：优先执行 `ova knowledge search --output json`，不可用时回退到 `POST /api/knowledge/search`。
-- `knowledge.grep`：优先执行 `ova knowledge grep --output json`，不可用时回退到 `POST /api/knowledge/grep`。
-- `resources.list`：优先执行 `ova resources list --output json`，不可用时回退到 `GET /api/resources`。
-- `resources.tree`：优先执行 `ova resources tree --output json`，不可用时回退到 `GET /api/resources/tree`。
+- `knowledge.search`：优先执行 `ova knowledge search --output json`，不可用时回退到 `POST /api/v1/knowledge/search`。
+- `knowledge.grep`：优先执行 `ova knowledge grep --output json`，不可用时回退到 `POST /api/v1/knowledge/grep`。
+- `resources.list`：优先执行 `ova resources list --output json`，不可用时回退到 `GET /api/v1/resources`。
+- `resources.tree`：优先执行 `ova resources tree --output json`，不可用时回退到 `GET /api/v1/resources/tree`。
 
 ## 追踪要求
 

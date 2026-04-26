@@ -1,10 +1,12 @@
 import { Injectable, Inject, Scope } from '@nestjs/common';
 import { REQUEST } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, type FindManyOptions } from 'typeorm';
 import { KnowledgeBase } from '../../entities/knowledge-base.entity';
 import { IKnowledgeBaseRepository } from '../../domain/repositories/knowledge-base.repository.interface';
+import type { KnowledgeBaseModel } from '../../domain/knowledge-base.model';
 import type { RepositoryRequest } from '../../../common/repository-request.interface';
+import type { RepositoryFindQuery } from '../../../common/repository-query.types';
 
 @Injectable({ scope: Scope.REQUEST })
 export class TypeOrmKnowledgeBaseRepository implements IKnowledgeBaseRepository {
@@ -26,34 +28,68 @@ export class TypeOrmKnowledgeBaseRepository implements IKnowledgeBaseRepository 
     return this.defaultRepo;
   }
 
-  async findAll(tenantId: string | null): Promise<KnowledgeBase[]> {
+  private toModel(entity: KnowledgeBase): KnowledgeBaseModel {
+    return {
+      id: entity.id,
+      name: entity.name,
+      description: entity.description,
+      tenantId: entity.tenantId,
+      status: entity.status,
+      vikingUri: entity.vikingUri,
+      docCount: entity.docCount,
+      vectorCount: entity.vectorCount,
+      createdAt: entity.createdAt,
+      updatedAt: entity.updatedAt,
+    };
+  }
+
+  private toEntityInput(data: Partial<KnowledgeBaseModel>): Partial<KnowledgeBase> {
+    return {
+      id: data.id,
+      name: data.name,
+      description: data.description,
+      tenantId: data.tenantId,
+      status: data.status,
+      vikingUri: data.vikingUri,
+      docCount: data.docCount,
+      vectorCount: data.vectorCount,
+      createdAt: data.createdAt,
+      updatedAt: data.updatedAt,
+    };
+  }
+
+  async findAll(tenantId: string | null): Promise<KnowledgeBaseModel[]> {
     const where = tenantId ? { tenantId } : {};
-    return this.repo.find({ where, order: { createdAt: 'DESC' } });
+    const items = await this.repo.find({ where, order: { createdAt: 'DESC' } });
+    return items.map((item) => this.toModel(item));
   }
 
   async findById(
     id: string,
     tenantId?: string | null,
-  ): Promise<KnowledgeBase | null> {
+  ): Promise<KnowledgeBaseModel | null> {
     const where: Record<string, string> = { id };
     if (tenantId) where.tenantId = tenantId;
-    return this.repo.findOne({ where });
+    const entity = await this.repo.findOne({ where });
+    return entity ? this.toModel(entity) : null;
   }
 
-  async count(tenantId?: string | null): Promise<number> {
-    const where = tenantId ? { tenantId } : {};
-    return this.repo.count({ where });
+  async count(options?: RepositoryFindQuery<KnowledgeBaseModel>): Promise<number> {
+    return this.repo.count({
+      where: options?.where ?? {},
+    } as FindManyOptions<KnowledgeBase>);
   }
 
-  create(data: Partial<KnowledgeBase>): KnowledgeBase {
-    return this.repo.create(data);
+  create(data: Partial<KnowledgeBaseModel>): KnowledgeBaseModel {
+    return this.toModel(this.repo.create(this.toEntityInput(data)));
   }
 
-  async save(kb: KnowledgeBase): Promise<KnowledgeBase> {
-    return this.repo.save(kb);
+  async save(kb: KnowledgeBaseModel): Promise<KnowledgeBaseModel> {
+    const saved = await this.repo.save(this.repo.create(this.toEntityInput(kb)));
+    return this.toModel(saved);
   }
 
-  async delete(kb: KnowledgeBase): Promise<void> {
-    await this.repo.remove(kb);
+  async delete(kb: KnowledgeBaseModel): Promise<void> {
+    await this.repo.remove(this.repo.create(this.toEntityInput(kb)));
   }
 }

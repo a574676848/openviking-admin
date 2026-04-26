@@ -7,17 +7,18 @@ import { TerminalOverlay } from "@/components/ui/TerminalOverlay";
 
 function logError(error: Error & { digest?: string }) {
   if (process.env.NODE_ENV === "development") {
-    console.error("OpenViking Core Error:", error);
+    console.error("OpenViking 前端异常:", error);
     return;
   }
   try {
     navigator.sendBeacon?.(
-      "/api/audit/client-log",
+      "/api/v1/audit/client-log",
       JSON.stringify({
         level: "error",
         message: error.message,
         digest: error.digest,
-        stack: error.stack?.slice(0, 500),
+        path: window.location.pathname,
+        userAgent: navigator.userAgent,
         ts: Date.now(),
       }),
     );
@@ -41,7 +42,10 @@ export default function Error({
     <div className="min-h-screen bg-[var(--bg-base)] flex flex-col items-center justify-center font-mono text-[var(--text-primary)]">
       <div className="p-8 border-[var(--border-width)] border-[var(--danger)] bg-[var(--bg-card)] shadow-[8px_8px_0px_var(--danger)] flex flex-col items-center gap-6 max-w-lg text-center">
         <AlertOctagon size={48} className="text-[var(--danger)]" />
-        <ScrambleText text="SYSTEM_ERROR" className="text-2xl font-black tracking-widest text-[var(--danger)]" />
+        <ScrambleText text="系统异常" className="text-2xl font-black tracking-widest text-[var(--danger)]" />
+        <p className="font-mono text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-secondary)]">
+          当前界面模块未能正常完成加载，请先查看错误摘要，再执行重试。
+        </p>
         <div className="bg-black/5 p-4 w-full overflow-auto max-h-48 text-left border-[1px] border-[var(--danger)]">
             <code className="text-[10px] text-[var(--danger)] font-mono">{error.message}</code>
         </div>

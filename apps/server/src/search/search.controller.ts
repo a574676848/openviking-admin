@@ -12,16 +12,26 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { TenantGuard } from '../common/tenant.guard';
 import { SearchService } from './search.service';
 import { FindDto, GrepDto, FeedbackDto } from './dto/search.dto';
+import { AuditService } from '../audit/audit.service';
 import type { AuthenticatedRequest } from '../common/authenticated-request.interface';
+import type { OVRequestMeta } from '../common/ov-client.service';
 
 @Controller('search')
 @UseGuards(JwtAuthGuard, TenantGuard)
 export class SearchController {
-  constructor(private readonly searchService: SearchService) {}
+  constructor(
+    private readonly searchService: SearchService,
+    private readonly auditService: AuditService,
+  ) {}
 
   @Post('find')
   find(@Body() params: FindDto, @Req() req: AuthenticatedRequest) {
-    return this.searchService.find(params, req.tenantScope ?? '', req.user);
+    return this.searchService.find(
+      params,
+      req.tenantScope ?? '',
+      req.user,
+      this.toTraceMeta(req),
+    );
   }
 
   @Post('grep')
@@ -30,6 +40,7 @@ export class SearchController {
       body.pattern,
       body.uri,
       req.tenantScope ?? '',
+      this.toTraceMeta(req),
     );
   }
 
@@ -55,7 +66,46 @@ export class SearchController {
   }
 
   @Post('logs/:id/feedback')
-  setFeedback(@Param('id') id: string, @Body() body: FeedbackDto) {
-    return this.searchService.setFeedback(id, body.feedback, body.note);
+  async setFeedback(
+    @Param('id') id: string,
+    @Body() body: FeedbackDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    const updated = await this.searchService.setFeedback(
+      id,
+      body.feedback,
+      body.note,
+    );
+    await this.auditService.log({
+      tenantId: req.tenantScope ?? undefined,
+      userId: req.user.id,
+      username: req.user.username,
+      action: 'search_feedback',
+      target: id,
+      meta: {
+        feedback: body.feedback,
+        note: body.note ?? '',
+        requestId: req.headers['x-request-id'],
+      },
+      ip: req.ip,
+    });
+    return updated;
+  }
+
+  private toTraceMeta(req: AuthenticatedRequest): OVRequestMeta | undefined {
+    const traceId = req.headers['x-trace-id'];
+    const requestId = req.headers['x-request-id'];
+
+    if (
+      typeof traceId !== 'string' &&
+      typeof requestId !== 'string'
+    ) {
+      return undefined;
+    }
+
+    return {
+      traceId: typeof traceId === 'string' ? traceId : undefined,
+      requestId: typeof requestId === 'string' ? requestId : undefined,
+    };
   }
 }

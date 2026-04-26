@@ -1,11 +1,11 @@
 import { Injectable, NotFoundException, Inject } from '@nestjs/common';
-import { Integration } from './entities/integration.entity';
 import { EncryptionService } from '../common/encryption.service';
 import { IIntegrationRepository } from './domain/repositories/integration.repository.interface';
 import type {
   CreateIntegrationInput,
   UpdateIntegrationInput,
 } from './domain/integration-input.model';
+import type { IntegrationModel } from './domain/integration.model';
 
 @Injectable()
 export class IntegrationService {
@@ -56,7 +56,7 @@ export class IntegrationService {
     'clientSecret',
   ];
 
-  mask(item: Integration) {
+  mask(item: IntegrationModel) {
     const masked = { ...item };
     if (masked.credentials) {
       this.SENSITIVE_KEYS.forEach((k) => {
@@ -80,7 +80,7 @@ export class IntegrationService {
     return result;
   }
 
-  private decryptItem(item: Integration) {
+  private decryptItem(item: IntegrationModel) {
     if (!item.credentials) return item;
     this.SENSITIVE_KEYS.forEach((k) => {
       if (item.credentials[k]) {

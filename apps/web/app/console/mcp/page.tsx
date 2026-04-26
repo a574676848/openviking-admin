@@ -1,60 +1,43 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertCircle, Bot, Check, Copy, KeyRound, Plus, Trash2 } from "lucide-react";
+import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { useConfirm } from "@/components/ui/ConfirmProvider";
 import { apiClient } from "@/lib/apiClient";
 import {
   ConsoleButton,
-  ConsoleEmptyState,
-  ConsoleField,
-  ConsoleIconButton,
-  ConsoleInput,
   ConsoleMetricCard,
   ConsolePageHeader,
-  ConsolePanel,
-  ConsolePanelHeader,
 } from "@/components/console/primitives";
+import {
+  CapabilityKeyTable,
+  CreateKeyPanel,
+  CredentialIssuerPanel,
+  IssuedCredentialPanel,
+  NewlyCreatedKeyPanel,
+} from "./mcp-sections";
+import type {
+  CapabilityKey,
+  ConnectionDiagnostic,
+  CreateCapabilityKeyResult,
+  CredentialOption,
+  CredentialOptionsResponse,
+  IssuedCredential,
+} from "./mcp.types";
 
-interface CapabilityKey {
-  id: string;
-  name: string;
-  apiKey: string;
-  lastUsedAt: string | null;
-  createdAt: string;
-}
-
-interface CreateCapabilityKeyResult {
-  apiKey: string;
-}
-
-interface IssuedCredential {
-  credentialType: string;
-  accessToken?: string;
-  sessionKey?: string;
-  apiKey?: string;
-  expiresInSeconds?: number | null;
-}
-
-interface CredentialOption {
-  channel: string;
-  credentialType: string;
-  issueEndpoint: string;
-  ttlSeconds: number | null;
-  recommendedFor: string[];
-}
-
-interface CredentialOptionsResponse {
-  data: {
-    capabilities: CredentialOption[];
-  };
-}
+const DEFAULT_DIAGNOSTIC: ConnectionDiagnostic = {
+  status: "idle",
+  title: "尚未执行连接测试",
+  description: "请先生成 Key 或签发 session_key，再执行一次真实 SSE 连通性检查。",
+  checkedAt: null,
+};
 
 export default function McpPage() {
   const confirm = useConfirm();
   const [keys, setKeys] = useState<CapabilityKey[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [name, setName] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -63,14 +46,20 @@ export default function McpPage() {
   const [credentialOptions, setCredentialOptions] = useState<CredentialOption[]>([]);
   const [issuingType, setIssuingType] = useState<string | null>(null);
   const [issuedCredential, setIssuedCredential] = useState<IssuedCredential | null>(null);
+  const [diagnostic, setDiagnostic] = useState<ConnectionDiagnostic>(DEFAULT_DIAGNOSTIC);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError("");
     try {
       const response = await apiClient.get<CapabilityKey[]>("/mcp/keys");
       setKeys(Array.isArray(response) ? response : []);
       const options = await apiClient.get<CredentialOptionsResponse>("/auth/credential-options");
       setCredentialOptions(Array.isArray(options.data?.capabilities) ? options.data.capabilities : []);
+    } catch (error: unknown) {
+      setKeys([]);
+      setCredentialOptions([]);
+      setLoadError(error instanceof Error ? error.message : "Capability Key 列表加载失败");
     } finally {
       setLoading(false);
     }
@@ -152,14 +141,113 @@ export default function McpPage() {
     window.setTimeout(() => setCopiedKey(null), 1600);
   }
 
-  const sseUrl = typeof window !== "undefined" ? `${window.location.origin}/api/mcp/sse` : "";
+  const sseUrl = typeof window !== "undefined" ? `${window.location.origin}/api/v1/mcp/sse` : "";
   const liveUrl = newlyCreatedKey ? `${sseUrl}?key=${newlyCreatedKey}` : "";
+  const activeConnection = issuedCredential?.sessionKey
+    ? {
+        credentialType: "session_key",
+        label: "当前 session_key",
+        url: `${sseUrl}?sessionKey=${issuedCredential.sessionKey}`,
+      }
+    : newlyCreatedKey
+      ? {
+          credentialType: "api_key",
+          label: "当前 API Key",
+          url: liveUrl,
+        }
+      : null;
+
+  async function handleConnectionTest() {
+    if (!activeConnection) {
+      setDiagnostic({
+        status: "error",
+        title: "缺少可测试凭证",
+        description: "请先生成 Capability Key 或签发 session_key，再执行连接测试。",
+        checkedAt: new Date().toISOString(),
+      });
+      return;
+    }
+
+    setDiagnostic({
+      status: "testing",
+      title: "正在测试 SSE 连通性",
+      description: "控制台正在向 MCP SSE 入口发起真实连接。",
+      checkedAt: null,
+    });
+
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 2500);
+
+    try {
+      const response = await fetch(activeConnection.url, {
+        method: "GET",
+        headers: { Accept: "text/event-stream" },
+        signal: controller.signal,
+      });
+      const checkedAt = new Date().toISOString();
+
+      if (!response.ok) {
+        setDiagnostic({
+          status: "error",
+          title: "连接测试失败",
+          description: `SSE 入口返回 ${response.status}，请检查当前凭证是否已失效或被吊销。`,
+          checkedAt,
+        });
+        return;
+      }
+
+      setDiagnostic({
+        status: "success",
+        title: "连接测试通过",
+        description: `${activeConnection.label} 已可连通，可继续在客户端执行 MCP 初始化。`,
+        checkedAt,
+      });
+    } catch (error: unknown) {
+      const description =
+        error instanceof Error && error.name === "AbortError"
+          ? "连接已发出，但在超时时间内未完成握手。请检查网络、反向代理或 SSE 转发配置。"
+          : error instanceof Error
+            ? error.message
+            : "无法连接 MCP SSE 入口";
+      setDiagnostic({
+        status: "error",
+        title: "连接测试失败",
+        description,
+        checkedAt: new Date().toISOString(),
+      });
+    } finally {
+      window.clearTimeout(timeout);
+    }
+  }
+
+  function handleCopyClientConfig() {
+    if (!activeConnection) {
+      toast.error("请先生成 Key 或签发 session_key");
+      return;
+    }
+
+    copyText(
+      JSON.stringify(
+        {
+          mcpServers: {
+            openviking: {
+              transport: "sse",
+              url: activeConnection.url,
+            },
+          },
+        },
+        null,
+        2,
+      ),
+      "config",
+    );
+  }
 
   return (
     <div className="flex min-h-full flex-col gap-8">
       <ConsolePageHeader
-        title="Capability Keys"
-        subtitle="Shared Credentials For MCP / HTTP / CLI / Skill"
+        title="Capability Key 管理"
+        subtitle="统一管理 MCP、HTTP、CLI 与 Skill 的共享调用凭证"
         actions={
           <ConsoleButton
             type="button"
@@ -175,236 +263,59 @@ export default function McpPage() {
       />
 
       <section className="grid grid-cols-1 gap-[var(--border-width)] border-[var(--border-width)] border-[var(--border)] bg-[var(--border)] lg:grid-cols-4">
-        <ConsoleMetricCard label="Keys" value={keys.length.toLocaleString()} />
-        <ConsoleMetricCard label="Used" value={stats.used.toLocaleString()} tone="success" />
-        <ConsoleMetricCard label="Unused" value={stats.unused.toLocaleString()} tone="warning" />
-        <ConsoleMetricCard label="Endpoint" value={sseUrl ? "LIVE" : "N/A"} tone="brand" />
+        <ConsoleMetricCard label="Key 数量" value={keys.length.toLocaleString()} />
+        <ConsoleMetricCard label="已使用" value={stats.used.toLocaleString()} tone="success" />
+        <ConsoleMetricCard label="未使用" value={stats.unused.toLocaleString()} tone="warning" />
+        <ConsoleMetricCard label="SSE 入口" value={sseUrl ? "已就绪" : "不可用"} tone="brand" />
       </section>
 
       {newlyCreatedKey && (
-        <ConsolePanel className="p-6">
-          <ConsolePanelHeader eyebrow="New Key" title="仅显示一次，请立即保存" />
-          <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-            <div className="space-y-4">
-              <div className="border-[3px] border-[var(--border)] bg-[var(--bg-elevated)] p-5">
-                <p className="font-mono text-[10px] font-black uppercase tracking-[0.16em] text-[var(--text-muted)]">
-                  API Key
-                </p>
-                <div className="mt-3 flex items-start gap-3">
-                  <code className="min-w-0 flex-1 break-all font-mono text-xs font-black text-[var(--text-primary)]">
-                    {newlyCreatedKey}
-                  </code>
-                  <ConsoleIconButton type="button" onClick={() => copyText(newlyCreatedKey, "raw")}>
-                    {copiedKey === "raw" ? <Check size={14} strokeWidth={2.6} /> : <Copy size={14} strokeWidth={2.6} />}
-                  </ConsoleIconButton>
-                </div>
-              </div>
-              <div className="border-[3px] border-[var(--border)] bg-[var(--warning)] p-5 text-black">
-                <div className="flex items-center gap-3 font-mono text-[10px] font-black uppercase tracking-[0.16em]">
-                  <AlertCircle size={14} strokeWidth={2.6} />
-                  安全提示
-                </div>
-                <p className="mt-3 font-mono text-xs font-bold uppercase tracking-[0.12em]">
-                  不在公共 AI 环境保存此 Key。若有泄露怀疑，直接在下方列表吊销。
-                </p>
-              </div>
-            </div>
-            <div className="space-y-4">
-              <div className="border-[3px] border-[var(--border)] bg-black p-5 text-white">
-                <p className="font-mono text-[10px] font-black uppercase tracking-[0.16em] text-[var(--brand)]">
-                  Cursor SSE URL
-                </p>
-                <div className="mt-3 flex items-start gap-3">
-                  <code className="min-w-0 flex-1 break-all font-mono text-xs font-bold">{liveUrl}</code>
-                  <ConsoleIconButton type="button" onClick={() => copyText(liveUrl, "url")} className="bg-white text-black shadow-[3px_3px_0px_var(--brand)]">
-                    {copiedKey === "url" ? <Check size={14} strokeWidth={2.6} /> : <Copy size={14} strokeWidth={2.6} />}
-                  </ConsoleIconButton>
-                </div>
-              </div>
-              <div className="border-[3px] border-[var(--border)] bg-[var(--bg-card)] p-5">
-                <p className="font-mono text-[10px] font-black uppercase tracking-[0.16em] text-[var(--text-muted)]">
-                  MCP 接入方式
-                </p>
-                <div className="mt-3 space-y-2 font-mono text-xs font-bold text-[var(--text-secondary)]">
-                  <p>1. 打开客户端 MCP 配置。</p>
-                  <p>2. 选择 `SSE` 模式。</p>
-                  <p>3. 填入上方完整 URL。</p>
-                  <p>4. 保存后重新连接。</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </ConsolePanel>
+        <NewlyCreatedKeyPanel
+          newlyCreatedKey={newlyCreatedKey}
+          copiedKey={copiedKey}
+          liveUrl={liveUrl}
+          diagnostic={diagnostic}
+          onCopyText={copyText}
+          onConnectionTest={handleConnectionTest}
+          onCopyClientConfig={handleCopyClientConfig}
+        />
       )}
 
       {issuedCredential && (
-        <ConsolePanel className="p-6">
-          <ConsolePanelHeader eyebrow="Issued Credential" title="控制台即时签发结果" />
-          <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[1fr_0.9fr]">
-            <div className="space-y-4">
-              <div className="border-[3px] border-[var(--border)] bg-[var(--bg-elevated)] p-5">
-                <p className="font-mono text-[10px] font-black uppercase tracking-[0.16em] text-[var(--text-muted)]">
-                  {issuedCredential.credentialType}
-                </p>
-                <div className="mt-3 flex items-start gap-3">
-                  <code className="min-w-0 flex-1 break-all font-mono text-xs font-black text-[var(--text-primary)]">
-                    {issuedCredential.accessToken ?? issuedCredential.sessionKey ?? issuedCredential.apiKey ?? ""}
-                  </code>
-                  <ConsoleIconButton
-                    type="button"
-                    onClick={() =>
-                      copyText(
-                        issuedCredential.accessToken ??
-                          issuedCredential.sessionKey ??
-                          issuedCredential.apiKey ??
-                          "",
-                        "issued",
-                      )
-                    }
-                  >
-                    {copiedKey === "issued" ? <Check size={14} strokeWidth={2.6} /> : <Copy size={14} strokeWidth={2.6} />}
-                  </ConsoleIconButton>
-                </div>
-              </div>
-            </div>
-            <div className="border-[3px] border-[var(--border)] bg-[var(--bg-card)] p-5">
-              <p className="font-mono text-[10px] font-black uppercase tracking-[0.16em] text-[var(--text-muted)]">
-                生命周期
-              </p>
-              <div className="mt-3 space-y-2 font-mono text-xs font-bold text-[var(--text-secondary)]">
-                <p>Credential Type: {issuedCredential.credentialType}</p>
-                <p>TTL: {issuedCredential.expiresInSeconds ? `${issuedCredential.expiresInSeconds}s` : "长期 / 由平台显式吊销"}</p>
-              </div>
-            </div>
-          </div>
-        </ConsolePanel>
+        <IssuedCredentialPanel
+          issuedCredential={issuedCredential}
+          copiedKey={copiedKey}
+          onCopyText={copyText}
+        />
       )}
 
       {showCreate && !newlyCreatedKey && (
-        <ConsolePanel className="p-6">
-            <ConsolePanelHeader eyebrow="Create Key" title="为 MCP / HTTP / CLI / Skill 生成共享凭据" />
-          <form onSubmit={handleCreate} className="mt-6 max-w-xl space-y-5">
-            <ConsoleField label="Key Name">
-              <ConsoleInput
-                required
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                placeholder="例如：Cursor-Office / Claude-Local"
-              />
-            </ConsoleField>
-            <ConsoleButton type="submit" disabled={submitting}>
-              <KeyRound size={14} strokeWidth={2.6} />
-              {submitting ? "生成中..." : "生成 Key"}
-            </ConsoleButton>
-          </form>
-        </ConsolePanel>
+        <CreateKeyPanel
+          name={name}
+          submitting={submitting}
+          onNameChange={setName}
+          onCreate={handleCreate}
+        />
       )}
 
       <section className="grid grid-cols-1 gap-8 xl:grid-cols-[1.1fr_0.9fr]">
-        <ConsolePanel className="overflow-hidden">
-          <div className="grid grid-cols-[minmax(0,1fr)_180px_180px_120px] border-b-[3px] border-[var(--border)] bg-[var(--bg-elevated)]">
-            <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">
-              Key Registry
-            </div>
-            <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">
-              Last Used
-            </div>
-            <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">
-              Created
-            </div>
-            <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">
-              Action
-            </div>
-          </div>
-          <div className="grid grid-cols-1 gap-px bg-[var(--border)]">
-            {loading ? (
-              <div className="bg-[var(--bg-card)] px-6 py-16 text-center font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-secondary)]">
-                正在读取 Capability Key 列表...
-              </div>
-            ) : keys.length === 0 ? (
-              <ConsoleEmptyState icon={Bot} title="暂无 Capability Key" description="generate a credential before connecting clients" />
-            ) : (
-              keys.map((item) => (
-                <div
-                  key={item.id}
-                  className="grid gap-px bg-[var(--border)] xl:grid-cols-[minmax(0,1fr)_180px_180px_120px]"
-                >
-                  <div className="bg-[var(--bg-card)] px-5 py-5">
-                    <p className="font-sans text-xl font-black text-[var(--text-primary)]">{item.name}</p>
-                    <p className="mt-2 font-mono text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-muted)]">
-                      {item.id}
-                    </p>
-                    <p className="mt-3 inline-flex border-[3px] border-[var(--border)] bg-black px-3 py-1 font-mono text-[10px] font-black uppercase tracking-[0.16em] text-white shadow-[3px_3px_0px_var(--brand)]">
-                      {`${item.apiKey.substring(0, 8)}***${item.apiKey.substring(item.apiKey.length - 4)}`}
-                    </p>
-                  </div>
-                  <div className="bg-[var(--bg-card)] px-5 py-5 font-mono text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">
-                    {item.lastUsedAt ? new Date(item.lastUsedAt).toLocaleString("zh-CN", { hour12: false }) : "never"}
-                  </div>
-                  <div className="bg-[var(--bg-card)] px-5 py-5 font-mono text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">
-                    {new Date(item.createdAt).toLocaleString("zh-CN", { hour12: false })}
-                  </div>
-                  <div className="bg-[var(--bg-card)] px-5 py-5">
-                    <ConsoleButton type="button" tone="danger" onClick={() => void handleDelete(item.id, item.name)} className="h-11 px-4 tracking-[0.16em]">
-                      <Trash2 size={14} strokeWidth={2.6} />
-                      吊销
-                    </ConsoleButton>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </ConsolePanel>
+        <CapabilityKeyTable
+          keys={keys}
+          loading={loading}
+          loadError={loadError}
+          onReload={load}
+          onDelete={handleDelete}
+        />
 
-        <div className="space-y-8">
-          <ConsolePanel className="p-6">
-            <ConsolePanelHeader eyebrow="Credential Issuance" title="显式签发调用凭证" />
-            <div className="mt-6 space-y-4">
-              {credentialOptions.map((option) => (
-                <div
-                  key={option.credentialType}
-                  className="border-[3px] border-[var(--border)] bg-[var(--bg-card)] p-5"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="font-mono text-[10px] font-black uppercase tracking-[0.16em] text-[var(--text-muted)]">
-                        {option.channel}
-                      </p>
-                      <h3 className="mt-2 font-sans text-xl font-black text-[var(--text-primary)]">
-                        {option.credentialType}
-                      </h3>
-                      <p className="mt-2 font-mono text-xs font-bold text-[var(--text-secondary)]">
-                        推荐给 {option.recommendedFor.join(" / ")}
-                      </p>
-                      <p className="mt-2 font-mono text-xs font-bold text-[var(--text-secondary)]">
-                        TTL: {option.ttlSeconds ? `${option.ttlSeconds}s` : "长期 / 需手动吊销"}
-                      </p>
-                    </div>
-                    <ConsoleButton
-                      type="button"
-                      onClick={() => void handleIssueCredential(option)}
-                      disabled={issuingType === option.credentialType}
-                    >
-                      <KeyRound size={14} strokeWidth={2.6} />
-                      {issuingType === option.credentialType ? "签发中..." : "立即签发"}
-                    </ConsoleButton>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </ConsolePanel>
-
-          <ConsolePanel className="p-6">
-            <ConsolePanelHeader eyebrow="Connection Guide" title="接入纪律" />
-            <div className="mt-6 space-y-4 font-mono text-xs font-bold text-[var(--text-secondary)]">
-              <p>仅使用租户内生成的 Capability Key，不复用登录 Bearer Token。</p>
-              <p>浏览器或 CLI 优先走 access token + refresh token，再按需换 capability token。</p>
-              <p>支持 MCP 的桌面 IDE 优先使用 session key 或 SSE 模式接入。</p>
-              <p>生产环境接 Prometheus 时，优先抓取 `/api/observability/capabilities/prometheus`。</p>
-              <p>若怀疑泄露，直接吊销，不做“继续观望”。</p>
-            </div>
-          </ConsolePanel>
-        </div>
+        <CredentialIssuerPanel
+          credentialOptions={credentialOptions}
+          issuingType={issuingType}
+          activeConnectionReady={Boolean(activeConnection)}
+          diagnostic={diagnostic}
+          onIssueCredential={handleIssueCredential}
+          onConnectionTest={handleConnectionTest}
+          onCopyClientConfig={handleCopyClientConfig}
+        />
       </section>
     </div>
   );

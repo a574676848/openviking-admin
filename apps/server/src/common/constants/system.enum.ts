@@ -18,6 +18,7 @@ export enum TaskStatus {
   RUNNING = 'running',
   DONE = 'done',
   FAILED = 'failed',
+  CANCELLED = 'cancelled',
 }
 
 /** 集成协议类型 */

@@ -7,6 +7,7 @@ import { InMemoryCapabilityRateLimitStore } from '../infrastructure/in-memory-ca
 describe('CapabilityObservabilityService', () => {
   const auditService = {
     log: jest.fn(),
+    findAll: jest.fn(),
   } as unknown as AuditService;
   const metricsService = new CapabilityMetricsService();
   const rateLimitService = new CapabilityRateLimitService(
@@ -21,6 +22,13 @@ describe('CapabilityObservabilityService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (auditService.findAll as jest.Mock).mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      pageSize: 20,
+      pages: 0,
+    });
   });
 
   it('should write success audit entries with trace metadata', async () => {
@@ -94,7 +102,7 @@ describe('CapabilityObservabilityService', () => {
       success: true,
     });
 
-    const snapshot = service.snapshot();
+    const snapshot = await service.snapshot();
 
     expect(snapshot.metrics.counters).toEqual(
       expect.arrayContaining([
@@ -113,6 +121,76 @@ describe('CapabilityObservabilityService', () => {
       expect.arrayContaining([
         expect.objectContaining({ code: 'CAPABILITY_FAILURE_RATE' }),
         expect.objectContaining({ code: 'TENANT_TRAFFIC_SPIKE' }),
+      ]),
+    );
+  });
+
+  it('should merge metrics snapshot with recent audit correlation trail', async () => {
+    (auditService.findAll as jest.Mock)
+      .mockResolvedValueOnce({
+        items: [
+          {
+            id: 'audit-cap-1',
+            tenantId: 'tenant-1',
+            userId: 'user-1',
+            username: 'alice',
+            action: 'capability.invoke',
+            target: 'knowledge.search',
+            success: true,
+            createdAt: new Date('2026-04-26T10:00:00.000Z'),
+            meta: {
+              traceId: 'trace-1',
+              requestId: 'request-1',
+              channel: 'http',
+              clientType: 'service',
+              credentialType: 'capability_access_token',
+              durationMs: 88,
+            },
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 10,
+        pages: 1,
+      })
+      .mockResolvedValueOnce({
+        items: [
+          {
+            id: 'audit-cred-1',
+            tenantId: 'tenant-1',
+            userId: 'user-1',
+            username: 'alice',
+            action: 'capability.credential.issue',
+            target: 'token.exchange',
+            success: true,
+            createdAt: new Date('2026-04-26T09:59:00.000Z'),
+            meta: {
+              traceId: 'trace-2',
+              requestId: 'request-2',
+              flow: 'token.exchange',
+            },
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 10,
+        pages: 1,
+      });
+
+    const result = await service.auditCorrelation('tenant-1', 10);
+
+    expect(result.recentAuditTrail).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'audit-cap-1',
+          traceId: 'trace-1',
+          requestId: 'request-1',
+          durationMs: 88,
+        }),
+        expect.objectContaining({
+          id: 'audit-cred-1',
+          flow: 'token.exchange',
+        }),
       ]),
     );
   });

@@ -2,7 +2,10 @@ import { randomBytes, randomUUID } from 'crypto';
 import { Injectable, Logger } from '@nestjs/common';
 import { AuditService } from '../../audit/audit.service';
 import { CapabilityMetricsService } from '../infrastructure/capability-metrics.service';
-import { CapabilityRateLimitService } from '../infrastructure/capability-rate-limit.service';
+import {
+  type CapabilityRateLimitSnapshot,
+  CapabilityRateLimitService,
+} from '../infrastructure/capability-rate-limit.service';
 import {
   CapabilityId,
   CapabilityInvocationMeta,
@@ -210,9 +213,9 @@ export class CapabilityObservabilityService {
     });
   }
 
-  snapshot() {
+  async snapshot() {
     const metrics = this.capabilityMetricsService.snapshot();
-    const rateLimit = this.capabilityRateLimitService.snapshot();
+    const rateLimit = await this.capabilityRateLimitService.snapshot();
 
     return {
       metrics,
@@ -221,9 +224,78 @@ export class CapabilityObservabilityService {
     };
   }
 
+  async auditCorrelation(tenantId: string | null, limit = 20) {
+    const pageSize = Math.min(Math.max(limit, 1), 100);
+    const [invocations, credentialIssues] = await Promise.all([
+      this.auditService.findAll(tenantId, {
+        page: 1,
+        pageSize,
+        action: 'capability.invoke',
+      }),
+      this.auditService.findAll(tenantId, {
+        page: 1,
+        pageSize,
+        action: 'capability.credential.issue',
+      }),
+    ]);
+    const snapshot = await this.snapshot();
+    const recent = [...invocations.items, ...credentialIssues.items]
+      .sort(
+        (left, right) =>
+          new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+      )
+      .slice(0, pageSize)
+      .map((item) => ({
+        id: item.id,
+        action: item.action,
+        target: item.target,
+        success: item.success,
+        tenantId: item.tenantId,
+        userId: item.userId,
+        username: item.username,
+        createdAt: item.createdAt,
+        traceId:
+          item.meta && typeof item.meta.traceId === 'string'
+            ? item.meta.traceId
+            : null,
+        requestId:
+          item.meta && typeof item.meta.requestId === 'string'
+            ? item.meta.requestId
+            : null,
+        channel:
+          item.meta && typeof item.meta.channel === 'string'
+            ? item.meta.channel
+            : null,
+        flow:
+          item.meta && typeof item.meta.flow === 'string' ? item.meta.flow : null,
+        clientType:
+          item.meta && typeof item.meta.clientType === 'string'
+            ? item.meta.clientType
+            : null,
+        credentialType:
+          item.meta && typeof item.meta.credentialType === 'string'
+            ? item.meta.credentialType
+            : null,
+        durationMs:
+          item.meta && typeof item.meta.durationMs === 'number'
+            ? item.meta.durationMs
+            : null,
+        error:
+          item.meta && typeof item.meta.error === 'string' ? item.meta.error : null,
+      }));
+
+    return {
+      generatedAt: snapshot.metrics.generatedAt,
+      alerts: snapshot.alerts,
+      metrics: snapshot.metrics,
+      rateLimit: snapshot.rateLimit,
+      recentAuditTrail: recent,
+    };
+  }
+
   private buildAlerts(
     metrics: ReturnType<CapabilityMetricsService['snapshot']>,
-    rateLimit: ReturnType<CapabilityRateLimitService['snapshot']>,
+    rateLimit: CapabilityRateLimitSnapshot,
   ) {
     const failureCounter = metrics.counters
       .filter((item) => item.key.includes('outcome=failure'))

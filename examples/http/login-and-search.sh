@@ -8,7 +8,7 @@ PASSWORD="${PASSWORD:-admin123}"
 QUERY="${QUERY:-多租户隔离}"
 
 LOGIN_RESPONSE="$(
-  curl -sS -X POST "${SERVER_URL}/api/auth/login" \
+  curl -sS -X POST "${SERVER_URL}/api/v1/auth/login" \
     -H "Content-Type: application/json" \
     -d "{
       \"username\": \"${USERNAME}\",
@@ -19,7 +19,7 @@ LOGIN_RESPONSE="$(
 
 ACCESS_TOKEN="$(node -e "const payload = JSON.parse(process.argv[1]); console.log((payload.data ?? payload).accessToken)" "${LOGIN_RESPONSE}")"
 
-curl -sS -X POST "${SERVER_URL}/api/knowledge/search" \
+curl -sS -X POST "${SERVER_URL}/api/v1/knowledge/search" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer ${ACCESS_TOKEN}" \
   -H "x-request-id: http-example-search" \

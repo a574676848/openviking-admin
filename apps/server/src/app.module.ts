@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { APP_GUARD, APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
@@ -18,6 +18,8 @@ import { McpModule } from './mcp/mcp.module';
 import { RolesGuard } from './common/roles.guard';
 import { TenantCleanupInterceptor } from './common/tenant-cleanup.interceptor';
 import { AllExceptionsFilter } from './common/all-exceptions.filter';
+import { SuccessResponseInterceptor } from './common/success-response.interceptor';
+import { RequestTraceMiddleware } from './common/request-trace.middleware';
 
 @Module({
   imports: [
@@ -33,7 +35,7 @@ import { AllExceptionsFilter } from './common/all-exceptions.filter';
         database: config.get('DB_NAME', 'openviking_admin'),
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
         migrations: [__dirname + '/migrations/*{.ts,.js}'],
-        synchronize: config.get('NODE_ENV') !== 'production',
+        synchronize: config.get('DB_SYNCHRONIZE', 'false') === 'true',
         logging: config.get('NODE_ENV') !== 'production',
       }),
     }),
@@ -53,8 +55,13 @@ import { AllExceptionsFilter } from './common/all-exceptions.filter';
   ],
   providers: [
     { provide: APP_GUARD, useClass: RolesGuard },
+    { provide: APP_INTERCEPTOR, useClass: SuccessResponseInterceptor },
     { provide: APP_INTERCEPTOR, useClass: TenantCleanupInterceptor },
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(RequestTraceMiddleware).forRoutes('*');
+  }
+}

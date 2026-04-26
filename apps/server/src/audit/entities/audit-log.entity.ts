@@ -5,6 +5,7 @@ import {
   CreateDateColumn,
   Index,
 } from 'typeorm';
+import type { AuditLogModel } from '../domain/audit-log.model';
 
 @Entity('audit_logs')
 @Index(['userId', 'createdAt'])
@@ -33,7 +34,7 @@ export class AuditLog {
 
   /** 额外元数据 */
   @Column({ type: 'jsonb', nullable: true })
-  meta: Record<string, any>;
+  meta: AuditLogModel['meta'];
 
   /** ip 地址 */
   @Column({ name: 'ip', nullable: true })

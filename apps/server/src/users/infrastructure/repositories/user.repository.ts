@@ -4,7 +4,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, type FindManyOptions } from 'typeorm';
 import { User } from '../../entities/user.entity';
 import { IUserRepository } from '../../domain/repositories/user.repository.interface';
+import type { UserModel } from '../../domain/user.model';
 import type { RepositoryRequest } from '../../../common/repository-request.interface';
+import type { RepositoryFindQuery } from '../../../common/repository-query.types';
 
 @Injectable({ scope: Scope.REQUEST })
 export class TypeOrmUserRepository implements IUserRepository {
@@ -24,34 +26,69 @@ export class TypeOrmUserRepository implements IUserRepository {
     return this.defaultRepo;
   }
 
-  async findAll(tenantId: string | null): Promise<User[]> {
-    const where = tenantId ? { tenantId } : {};
-    return this.repo.find({ where, order: { createdAt: 'DESC' } });
+  private toModel(entity: User): UserModel {
+    return {
+      id: entity.id,
+      username: entity.username,
+      passwordHash: entity.passwordHash,
+      role: entity.role,
+      tenantId: entity.tenantId,
+      active: entity.active,
+      ssoId: entity.ssoId,
+      provider: entity.provider,
+      createdAt: entity.createdAt,
+      updatedAt: entity.updatedAt,
+    };
   }
 
-  async findById(id: string, tenantId?: string | null): Promise<User | null> {
+  private toEntityInput(user: Partial<UserModel>): Partial<User> {
+    return {
+      id: user.id,
+      username: user.username,
+      passwordHash: user.passwordHash,
+      role: user.role,
+      tenantId: user.tenantId ?? undefined,
+      active: user.active,
+      ssoId: user.ssoId ?? undefined,
+      provider: user.provider ?? undefined,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    };
+  }
+
+  async findAll(tenantId: string | null): Promise<UserModel[]> {
+    const where = tenantId ? { tenantId } : {};
+    const items = await this.repo.find({ where, order: { createdAt: 'DESC' } });
+    return items.map((item) => this.toModel(item));
+  }
+
+  async findById(id: string, tenantId?: string | null): Promise<UserModel | null> {
     const where: Record<string, string> = { id };
     if (tenantId) where.tenantId = tenantId;
-    return this.repo.findOne({ where });
+    const item = await this.repo.findOne({ where });
+    return item ? this.toModel(item) : null;
   }
 
-  async findByUsername(username: string): Promise<User | null> {
-    return this.repo.findOne({ where: { username } });
+  async findByUsername(username: string): Promise<UserModel | null> {
+    const item = await this.repo.findOne({ where: { username } });
+    return item ? this.toModel(item) : null;
   }
 
-  create(data: Partial<User>): User {
-    return this.repo.create(data);
+  create(data: Partial<UserModel>): UserModel {
+    return this.toModel(this.repo.create(this.toEntityInput(data)));
   }
 
-  async save(user: Partial<User>): Promise<User> {
-    return this.repo.save(user);
+  async save(user: Partial<UserModel>): Promise<UserModel> {
+    const saved = await this.repo.save(this.toEntityInput(user));
+    return this.toModel(saved);
   }
 
   async delete(id: string): Promise<void> {
     await this.repo.delete(id);
   }
 
-  async find(options?: FindManyOptions<User>): Promise<User[]> {
-    return this.repo.find(options ?? {});
+  async find(options?: RepositoryFindQuery<UserModel>): Promise<UserModel[]> {
+    const items = await this.repo.find((options ?? {}) as FindManyOptions<User>);
+    return items.map((item) => this.toModel(item));
   }
 }

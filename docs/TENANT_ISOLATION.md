@@ -22,7 +22,7 @@
 
 - **适用场景**：金融级客户、跨地域部署、私有化合规需求。
 - **物理实现**：租户数据存储在完全独立的数据库实例中。系统通过 `DynamicDataSourceService` 维护一个跨实例的动态连接池。
-- **代码精髓**：`ds.synchronize(false)` 实现了代码模型到物理数据库的一键自动映射。
+- **代码精髓**：`DynamicDataSourceService` 为租户维护独立连接；表结构仍应通过正式 migration 管理，不能依赖 `synchronize` 自动改表。
 
 ## 4. 算力隔离
 

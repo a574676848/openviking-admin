@@ -158,9 +158,9 @@ describe('AuthController (e2e)', () => {
     await app.init();
   });
 
-  it('POST /api/auth/login - should return access token', () => {
+  it('POST /api/v1/auth/login - should return access token', () => {
     return request(app.getHttpServer())
-      .post('/api/auth/login')
+      .post('/api/v1/auth/login')
       .send({ username: 'admin', password: 'admin123', tenantCode: 'default' })
       .expect(201)
       .expect((res) => {
@@ -169,9 +169,9 @@ describe('AuthController (e2e)', () => {
       });
   });
 
-  it('POST /api/auth/login - should reject wrong password', () => {
+  it('POST /api/v1/auth/login - should reject wrong password', () => {
     return request(app.getHttpServer())
-      .post('/api/auth/login')
+      .post('/api/v1/auth/login')
       .send({ username: 'admin', password: 'wrong', tenantCode: 'default' })
       .expect(401);
   });

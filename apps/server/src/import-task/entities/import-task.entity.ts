@@ -6,7 +6,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
-export type TaskStatus = 'pending' | 'running' | 'done' | 'failed';
+export type TaskStatus = 'pending' | 'running' | 'done' | 'failed' | 'cancelled';
 export type SourceType = 'url' | 'git' | 'local';
 
 @Entity('import_tasks')
@@ -43,7 +43,7 @@ export class ImportTask {
   vectorCount: number;
 
   @Column({ name: 'error_msg', nullable: true, type: 'text' })
-  errorMsg: string;
+  errorMsg: string | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

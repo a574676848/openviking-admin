@@ -33,20 +33,29 @@ export type CapabilityErrorCode =
   | 'CAPABILITY_EXECUTION_FAILED'
   | 'CAPABILITY_TENANT_REQUIRED';
 
+export type CapabilitySchemaType =
+  | 'object'
+  | 'array'
+  | 'string'
+  | 'number'
+  | 'boolean';
+
+export interface CapabilitySchema {
+  type: CapabilitySchemaType;
+  description?: string;
+  nullable?: boolean;
+  properties?: Record<string, CapabilitySchema>;
+  required?: string[];
+  items?: CapabilitySchema;
+}
+
 export interface CapabilityContract {
   id: CapabilityId;
   version: CapabilityVersion;
   displayName: string;
   description: string;
-  inputSchema: {
-    type: 'object';
-    properties: Record<string, unknown>;
-    required?: string[];
-  };
-  outputSchema: {
-    type: 'object';
-    properties: Record<string, unknown>;
-  };
+  inputSchema: CapabilitySchema;
+  outputSchema: CapabilitySchema;
   permissionRequirement: 'tenant';
   minimumRole?: CapabilityRoleRequirement;
   auditLevel: 'standard';

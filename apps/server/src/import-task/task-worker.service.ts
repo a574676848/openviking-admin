@@ -1,5 +1,4 @@
 import { Injectable, Logger, OnModuleInit, Inject } from '@nestjs/common';
-import { ImportTask } from './entities/import-task.entity';
 import { QUEUE_CONFIG } from './constants';
 import { SettingsService } from '../settings/settings.service';
 import { IntegrationService } from '../tenant/integration.service';
@@ -9,6 +8,7 @@ import { DingTalkIntegrator } from './strategies/dingtalk.integrator';
 import { GitIntegrator } from './strategies/git.integrator';
 import { IMPORT_TASK_REPOSITORY } from './domain/repositories/import-task.repository.interface';
 import type { IImportTaskRepository } from './domain/repositories/import-task.repository.interface';
+import type { ImportTaskModel } from './domain/import-task.model';
 import type { PlatformInjectConfig } from '../common/external-api.types';
 
 @Injectable()
@@ -82,7 +82,7 @@ export class TaskWorkerService implements OnModuleInit {
     }
   }
 
-  private async processTask(task: ImportTask) {
+  private async processTask(task: ImportTaskModel) {
     this.currentConcurrency++;
     await this.taskRepo.update(task.id, {
       status: 'running',

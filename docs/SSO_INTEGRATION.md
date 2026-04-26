@@ -9,13 +9,13 @@ OpenViking Admin 支持四种企业 SSO 认证方式，采用 Provider 适配器
 ```
 用户点击 SSO 登录
     ↓
-GET /api/auth/sso/redirect/:tenantId/:type
+GET /api/v1/auth/sso/redirect/:tenantId/:type
     ↓
 SSOPortalService 路由到对应 Provider
     ↓
 第三方认证页面（OAuth2 / LDAP Bind）
     ↓
-GET /api/auth/sso/callback/:tenantId/:type?code=xxx
+GET /api/v1/auth/sso/callback/:tenantId/:type?code=xxx
     ↓
 SSOPortalService.authenticate() → 获取 SSOUser
     ↓
@@ -25,7 +25,7 @@ SsoTicketService.create() → 生成一次性 ticket（60 秒过期）
     ↓
 302 重定向到 /login?sso_ticket=xxx
     ↓
-POST /api/auth/sso/exchange → 返回 JWT Token
+POST /api/v1/auth/sso/exchange → 返回 JWT Token
 ```
 
 ---
@@ -36,7 +36,7 @@ POST /api/auth/sso/exchange → 返回 JWT Token
 
 1. 在飞书开放平台创建企业自建应用
 2. 开启「网页授权」能力
-3. 配置重定向 URL: `http://your-domain/api/auth/sso/callback/:tenantId/feishu`
+3. 配置重定向 URL: `http://your-domain/api/v1/auth/sso/callback/:tenantId/feishu`
 
 ### 集成配置
 
@@ -76,7 +76,7 @@ POST /api/auth/sso/exchange → 返回 JWT Token
 
 1. 在钉钉开放平台创建企业内部应用
 2. 开启「登录」能力
-3. 配置回调 URL: `http://your-domain/api/auth/sso/callback/:tenantId/dingtalk`
+3. 配置回调 URL: `http://your-domain/api/v1/auth/sso/callback/:tenantId/dingtalk`
 
 ### 集成配置
 
@@ -106,7 +106,7 @@ POST /api/auth/sso/exchange → 返回 JWT Token
 
 1. 在 Keycloak 中创建 Realm 和 Client
 2. Client 配置:
-   - Valid Redirect URIs: `http://your-domain/api/auth/sso/callback/:tenantId/oidc`
+   - Valid Redirect URIs: `http://your-domain/api/v1/auth/sso/callback/:tenantId/oidc`
    - Web Origins: `http://your-domain`
    - Client Protocol: `openid-connect`
 
@@ -185,7 +185,7 @@ SSO 回调成功后，系统生成一次性 ticket：
 | 存储方式 | 内存 Map | `Map<ticket, { payload, expiresAt }>` |
 | 过期时间 | 60 秒 | `Date.now() + 60_000` |
 | 一次性使用 | 是 | `consume()` 后立即删除 |
-| 交换端点 | `POST /api/auth/sso/exchange` | 前端用 ticket 换取 JWT |
+| 交换端点 | `POST /api/v1/auth/sso/exchange` | 前端用 ticket 换取 JWT |
 
 ---
 
@@ -193,11 +193,11 @@ SSO 回调成功后，系统生成一次性 ticket：
 
 登录页 (`/login`) 自动检测租户可用的 SSO 方式：
 
-1. 用户输入租户标识后，调用 `GET /api/tenants/check-auth/:code`
+1. 用户输入租户标识后，调用 `GET /api/v1/tenants/check-auth/:code`
 2. 根据返回结果渲染对应的 SSO 登录按钮
-3. 点击按钮跳转到 `GET /api/auth/sso/redirect/:tenantId/:type`
+3. 点击按钮跳转到 `GET /api/v1/auth/sso/redirect/:tenantId/:type`
 4. SSO 回调后页面接收 `sso_ticket` 参数
-5. 自动调用 `POST /api/auth/sso/exchange` 完成登录
+5. 自动调用 `POST /api/v1/auth/sso/exchange` 完成登录
 
 ---
 

@@ -33,7 +33,7 @@ TaskWorker 后台轮询 pending 任务
 ### 1.1 创建知识库
 
 ```bash
-POST /api/knowledge-bases
+POST /api/v1/knowledge-bases
 {
   "name": "产品文档库",
   "description": "包含所有产品相关文档"
@@ -47,7 +47,7 @@ POST /api/knowledge-bases
 根据知识来源类型，创建对应的集成配置：
 
 ```bash
-POST /api/integrations
+POST /api/v1/integrations
 {
   "name": "飞书企业文档",
   "type": "feishu",
@@ -76,7 +76,7 @@ POST /api/integrations
 ### 创建导入任务
 
 ```bash
-POST /api/import-tasks
+POST /api/v1/import-tasks
 {
   "integrationId": "integration_uuid",
   "kbId": "knowledge_base_uuid",
@@ -107,7 +107,7 @@ POST /api/import-tasks
 ### 创建导入任务
 
 ```bash
-POST /api/import-tasks
+POST /api/v1/import-tasks
 {
   "integrationId": "integration_uuid",
   "kbId": "knowledge_base_uuid",
@@ -133,7 +133,7 @@ POST /api/import-tasks
 ### 创建导入任务
 
 ```bash
-POST /api/import-tasks
+POST /api/v1/import-tasks
 {
   "integrationId": "integration_uuid",
   "kbId": "knowledge_base_uuid",
@@ -164,13 +164,13 @@ POST /api/import-tasks
 ### 查看任务列表
 
 ```bash
-GET /api/import-tasks
+GET /api/v1/import-tasks
 ```
 
 ### 查看任务详情
 
 ```bash
-GET /api/import-tasks/:id
+GET /api/v1/import-tasks/:id
 ```
 
 **响应示例**:
@@ -191,7 +191,7 @@ GET /api/import-tasks/:id
 ### 同步任务结果
 
 ```bash
-GET /api/import-tasks/:id/sync
+GET /api/v1/import-tasks/:id/sync
 ```
 
 手动从 OpenViking 引擎拉取最新状态，更新 `nodeCount` 和 `vectorCount`。

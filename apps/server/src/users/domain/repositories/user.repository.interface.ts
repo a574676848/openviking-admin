@@ -1,13 +1,14 @@
-import { User } from '../../entities/user.entity';
+import type { RepositoryFindQuery } from '../../../common/repository-query.types';
+import type { UserModel } from '../user.model';
 
 export const USER_REPOSITORY = Symbol('IUserRepository');
 
 export interface IUserRepository {
-  findAll(tenantId: string | null): Promise<User[]>;
-  findById(id: string, tenantId?: string | null): Promise<User | null>;
-  findByUsername(username: string): Promise<User | null>;
-  create(data: Partial<User>): User;
-  save(user: Partial<User>): Promise<User>;
+  findAll(tenantId: string | null): Promise<UserModel[]>;
+  findById(id: string, tenantId?: string | null): Promise<UserModel | null>;
+  findByUsername(username: string): Promise<UserModel | null>;
+  create(data: Partial<UserModel>): UserModel;
+  save(user: Partial<UserModel>): Promise<UserModel>;
   delete(id: string): Promise<void>;
-  find(options?: any): Promise<User[]>;
+  find(options?: RepositoryFindQuery<UserModel>): Promise<UserModel[]>;
 }

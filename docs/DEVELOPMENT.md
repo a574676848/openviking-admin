@@ -96,7 +96,7 @@ cp .env.example .env
 
 ```bash
 cd apps/server
-pnpm typeorm migration:run -d src/data-source.ts
+pnpm migration:run
 ```
 
 ### 3.5 初始管理员账号
@@ -127,7 +127,7 @@ cd apps/server && pnpm start:dev
 cd apps/web && pnpm dev
 ```
 
-前端通过 `next.config.ts` 中的 rewrite 规则自动代理 `/api/*` 请求到后端，无需单独配置跨域。
+前端通过 `next.config.ts` 中的 rewrite 规则代理 `/api/v1/*` 请求到后端。控制台与脚本都应以 `/api/v1/*` 作为稳定入口。
 
 ---
 
@@ -182,7 +182,7 @@ cd apps/web && pnpm dev
 ### 5.2 前端调试
 
 - Next.js 开发模式提供热重载: `pnpm dev`
-- 浏览器 Network 面板查看 `/api/*` 代理请求
+- 浏览器 Network 面板查看 `/api/v1/*` 代理请求
 - 检查 `sessionStorage` 中的 token 状态
 
 ### 5.3 数据库调试

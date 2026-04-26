@@ -5,6 +5,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import type { KnowledgeNodeModel } from '../domain/knowledge-node.model';
 
 @Entity('knowledge_nodes')
 export class KnowledgeNode {
@@ -34,11 +35,7 @@ export class KnowledgeNode {
    * e.g., { "roles": ["admin"], "users": ["u123"], "isPublic": false }
    */
   @Column({ type: 'jsonb', nullable: true })
-  acl: {
-    roles?: string[];
-    users?: string[];
-    isPublic?: boolean;
-  };
+  acl: KnowledgeNodeModel['acl'];
 
   @Column({ name: 'viking_uri', nullable: true })
   vikingUri: string;

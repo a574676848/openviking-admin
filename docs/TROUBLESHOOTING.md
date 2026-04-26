@@ -123,7 +123,7 @@ SELECT schema_name FROM information_schema.schemata WHERE schema_name LIKE 'tena
 
 **解决**:
 - 检查 `TenantCleanupInterceptor` 是否正常注册
-- 监控 `GET /api/system/health` 中的 `dbPool` 指标
+- 监控 `GET /api/v1/system/health` 中的 `dbPool` 指标
 - LARGE 租户连接池默认最大 10 连接，可在 `DynamicDataSourceService` 中调整
 
 ---
@@ -172,7 +172,7 @@ cat apps/server/.env | grep OV_
 **解决**:
 - 检查浏览器 Console 是否有 API 请求报错
 - 确认 `apps/web/.env.local` 中 `BACKEND_URL` 指向正确的后端地址
-- 开发模式下 `next.config.ts` 的 rewrite 代理自动转发 `/api/*` 到后端
+- 开发模式下 `next.config.ts` 的 rewrite 代理自动转发 `/api/v1/*` 到后端
 
 ### 15. 主题切换不生效
 
@@ -191,7 +191,7 @@ cat apps/server/.env | grep OV_
 **原因**: 网络不稳定或反向代理未配置 SSE 支持。
 
 **解决**:
-- 如果使用 Nginx，确保 `/api/mcp/sse` 配置了 `proxy_buffering off` 和 `chunked_transfer_encoding off` (见 `DEPLOYMENT.md`)
+- 如果使用 Nginx，确保 `/api/v1/mcp/sse` 配置了 `proxy_buffering off` 和 `chunked_transfer_encoding off` (见 `DEPLOYMENT.md`)
 - 检查 API key 或 session key 是否有效
 - 确认 Capability Key 未过期且未被删除
 
@@ -202,7 +202,7 @@ cat apps/server/.env | grep OV_
 **解决**:
 - 确认 Capability Key 绑定的租户下有可用的知识库
 - 检查知识树节点是否已关联 `viking_uri`
-- 通过 `GET /api/system/dashboard` 确认知识库文档数 > 0
+- 通过 `GET /api/v1/system/dashboard` 确认知识库文档数 > 0
 
 ---
 
@@ -223,7 +223,7 @@ cd apps/server && pnpm start:prod > server.log 2>&1
 通过 API 查询：
 ```bash
 curl -H "Authorization: Bearer <token>" \
-  "http://localhost:6001/api/audit?pageSize=10&dateFrom=2024-01-01"
+  "http://localhost:6001/api/v1/audit?pageSize=10&dateFrom=2024-01-01"
 ```
 
 ### 查看搜索日志
@@ -231,5 +231,5 @@ curl -H "Authorization: Bearer <token>" \
 通过 API 查询无结果搜索：
 ```bash
 curl -H "Authorization: Bearer <token>" \
-  "http://localhost:6001/api/search/analysis"
+  "http://localhost:6001/api/v1/search/analysis"
 ```

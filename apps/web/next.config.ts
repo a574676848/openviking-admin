@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const BACKEND_URL = process.env.BACKEND_URL;
+const isDevLike = process.env.NODE_ENV !== "production";
 
 if (!BACKEND_URL) {
   throw new Error(
@@ -10,11 +11,13 @@ if (!BACKEND_URL) {
 
 const cspHeader = [
   "default-src 'self'",
-  `connect-src 'self' ${BACKEND_URL}`,
-  "script-src 'self'",
-  "style-src 'self'",
+  isDevLike
+    ? `connect-src 'self' ${BACKEND_URL} ws: wss: http://127.0.0.1:* http://localhost:*`
+    : `connect-src 'self' ${BACKEND_URL}`,
+  isDevLike ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'" : "script-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
-  "font-src 'self'",
+  "font-src 'self' data:",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",

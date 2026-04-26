@@ -140,7 +140,7 @@ UPDATE system_configs SET value = 'false' WHERE key = 'rerank_enabled';
 
 ### 检索统计
 
-通过 `GET /api/search/stats-deep` 获取：
+通过 `GET /api/v1/search/stats-deep` 获取：
 - 总检索次数
 - 命中率 (有结果的比例)
 - 平均延迟
@@ -148,7 +148,7 @@ UPDATE system_configs SET value = 'false' WHERE key = 'rerank_enabled';
 
 ### 无答案洞察
 
-通过 `GET /api/search/analysis` 获取：
+通过 `GET /api/v1/search/analysis` 获取：
 - 零结果查询列表 (长尾请求)
 - 高频无答案查询 (需补充知识)
 - 用户反馈为 `unhelpful` 的查询
@@ -158,7 +158,7 @@ UPDATE system_configs SET value = 'false' WHERE key = 'rerank_enabled';
 对每次检索结果可以提交反馈：
 
 ```bash
-POST /api/search/logs/:id/feedback
+POST /api/v1/search/logs/:id/feedback
 {
   "feedback": "helpful",    // 或 "unhelpful"
   "note": "结果很精准"       // 可选备注
@@ -183,7 +183,7 @@ POST /api/search/logs/:id/feedback
 
 ```bash
 curl -H "Authorization: Bearer <token>" \
-  "http://localhost:6001/api/search/logs?limit=20"
+  "http://localhost:6001/api/v1/search/logs?limit=20"
 ```
 
 ### 3. 测试 Rerank 效果

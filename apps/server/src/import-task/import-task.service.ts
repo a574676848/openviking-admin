@@ -1,5 +1,11 @@
-import { Injectable, NotFoundException, Inject, Logger } from '@nestjs/common';
-import type { ImportTask } from './entities/import-task.entity';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  Inject,
+  Logger,
+} from '@nestjs/common';
+import type { ImportTaskModel } from './domain/import-task.model';
 import { CreateImportTaskDto } from './dto/create-import-task.dto';
 import { SettingsService } from '../settings/settings.service';
 import { OVClientService } from '../common/ov-client.service';
@@ -33,7 +39,7 @@ export class ImportTaskService {
       ...dto,
       tenantId,
       status: TaskStatus.PENDING,
-    } as Partial<ImportTask>);
+    } as Partial<ImportTaskModel>);
     const saved = await this.taskRepo.save(dispatch);
     return Array.isArray(saved) ? saved[0] : saved;
   }
@@ -73,5 +79,36 @@ export class ImportTaskService {
       const message = err instanceof Error ? err.message : '未知错误';
       this.logger.warn(`Sync result for task ${id} failed: ${message}`);
     }
+  }
+
+  async retry(id: string, tenantId: string | null) {
+    const task = await this.findOne(id, tenantId);
+    if (![TaskStatus.FAILED, TaskStatus.CANCELLED].includes(task.status as TaskStatus)) {
+      throw new ConflictException('只有失败或已取消的任务才能重试');
+    }
+
+    await this.taskRepo.update(id, {
+      status: TaskStatus.PENDING,
+      errorMsg: null,
+      updatedAt: new Date(),
+    });
+    return this.taskRepo.findById(id, tenantId);
+  }
+
+  async cancel(id: string, tenantId: string | null) {
+    const task = await this.findOne(id, tenantId);
+    if (task.status === TaskStatus.RUNNING) {
+      throw new ConflictException('任务已进入执行阶段，当前版本不支持中途停止');
+    }
+    if (task.status !== TaskStatus.PENDING) {
+      throw new ConflictException('只有排队中的任务才能取消');
+    }
+
+    await this.taskRepo.update(id, {
+      status: TaskStatus.CANCELLED,
+      errorMsg: '用户已取消排队任务',
+      updatedAt: new Date(),
+    });
+    return this.taskRepo.findById(id, tenantId);
   }
 }

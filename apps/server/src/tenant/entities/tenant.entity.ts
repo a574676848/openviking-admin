@@ -6,6 +6,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { TenantIsolationLevel } from '../../common/constants/system.enum';
+import type { TenantModel } from '../domain/tenant.model';
 
 @Entity('tenants')
 export class Tenant {
@@ -28,13 +29,7 @@ export class Tenant {
 
   /** 独立数据库配置 (仅针对 large 等级) */
   @Column({ name: 'db_config', type: 'jsonb', nullable: true })
-  dbConfig: {
-    host?: string;
-    port?: number;
-    username?: string;
-    password?: string;
-    database?: string;
-  };
+  dbConfig: TenantModel['dbConfig'];
 
   /** OpenViking account 映射 */
   @Column({ name: 'viking_account', nullable: true, length: 128 })
@@ -42,17 +37,11 @@ export class Tenant {
 
   /** 配额 JSON，如 { maxDocs: 1000, maxVectors: 100000 } */
   @Column({ type: 'jsonb', nullable: true })
-  quota: Record<string, any>;
+  quota: TenantModel['quota'];
 
   /** 租户特有 OpenViking 配置（覆盖全局默认值） */
   @Column({ name: 'ov_config', type: 'jsonb', nullable: true })
-  ovConfig: {
-    baseUrl?: string;
-    apiKey?: string;
-    account?: string;
-    rerankEndpoint?: string;
-    rerankModel?: string;
-  };
+  ovConfig: TenantModel['ovConfig'];
 
   /** 描述 */
   @Column({ nullable: true, type: 'text' })

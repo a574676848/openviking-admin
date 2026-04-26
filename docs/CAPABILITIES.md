@@ -17,10 +17,10 @@
 
 | 能力 | 说明 | HTTP | CLI | MCP 工具 | 最低角色 |
 |------|------|------|------|------|------|
-| `knowledge.search` | 在租户知识域内执行语义搜索 | `POST /api/knowledge/search` | `ova knowledge search` | `knowledge.search` | `tenant_viewer` |
-| `knowledge.grep` | 在租户知识域内执行文本匹配 | `POST /api/knowledge/grep` | `ova knowledge grep` | `knowledge.grep` | `tenant_viewer` |
-| `resources.list` | 列出租户授权范围内的资源 | `GET /api/resources` | `ova resources list` | `resources.list` | `tenant_operator` |
-| `resources.tree` | 获取租户资源树 | `GET /api/resources/tree` | `ova resources tree` | `resources.tree` | `tenant_operator` |
+| `knowledge.search` | 在租户知识域内执行语义搜索 | `POST /api/v1/knowledge/search` | `ova knowledge search` | `knowledge.search` | `tenant_viewer` |
+| `knowledge.grep` | 在租户知识域内执行文本匹配 | `POST /api/v1/knowledge/grep` | `ova knowledge grep` | `knowledge.grep` | `tenant_viewer` |
+| `resources.list` | 列出租户授权范围内的资源 | `GET /api/v1/resources` | `ova resources list` | `resources.list` | `tenant_operator` |
+| `resources.tree` | 获取租户资源树 | `GET /api/v1/resources/tree` | `ova resources tree` | `resources.tree` | `tenant_operator` |
 
 ## 能力契约
 
@@ -52,7 +52,7 @@
   "auditLevel": "standard",
   "http": {
     "method": "POST",
-    "path": "/api/knowledge/search"
+    "path": "/api/v1/knowledge/search"
   },
   "cli": {
     "command": "ova knowledge search"
@@ -116,7 +116,7 @@ HTTP、CLI、MCP 和 Skill 都应保留或透传以下追踪信息：
 
 ## 生产扩展位
 
-- `GET /api/observability/capabilities/prometheus` 已预留 Prometheus 指标抓取入口。
+- `GET /api/v1/observability/capabilities/prometheus` 已预留 Prometheus 指标抓取入口。
 - `CapabilityRateLimitStore` 已抽象，可替换为 Redis 或分布式 KV 以支持多实例。
 - 指标聚合与 exporter 分离，后续可接 OpenTelemetry Collector。
 - CredentialStore 已在 CLI 内抽象，后续可接系统 keychain。

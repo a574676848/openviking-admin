@@ -5,8 +5,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
 } from 'typeorm';
-
-export type KbStatus = 'active' | 'building' | 'archived';
+import type { KnowledgeBaseStatus } from '../domain/knowledge-base.model';
 
 @Entity('knowledge_bases')
 export class KnowledgeBase {
@@ -23,7 +22,7 @@ export class KnowledgeBase {
   tenantId: string;
 
   @Column({ type: 'varchar', length: 20, default: 'active' })
-  status: KbStatus;
+  status: KnowledgeBaseStatus;
 
   @Column({ name: 'viking_uri', nullable: true })
   vikingUri: string;

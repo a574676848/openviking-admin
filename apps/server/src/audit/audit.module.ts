@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuditLog } from './entities/audit-log.entity';
 import { AuditService } from './audit.service';
 import { AuditController } from './audit.controller';
+import { AuditClientLogController } from './audit-client-log.controller';
 
 import { IAuditLogRepository } from './domain/repositories/audit-log.repository.interface';
 import { AuditLogRepositoryImpl } from './infrastructure/repositories/audit-log.repository.impl';
@@ -17,7 +18,7 @@ import { AuditLogRepositoryImpl } from './infrastructure/repositories/audit-log.
       useClass: AuditLogRepositoryImpl,
     },
   ],
-  controllers: [AuditController],
+  controllers: [AuditController, AuditClientLogController],
   exports: [AuditService],
 })
 export class AuditModule {}

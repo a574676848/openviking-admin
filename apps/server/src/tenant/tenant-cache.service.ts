@@ -30,7 +30,7 @@ export class TenantCacheService {
 
     const config: IsolationConfig = {
       level: tenant.isolationLevel,
-      dbConfig: tenant.dbConfig,
+      dbConfig: tenant.dbConfig ?? undefined,
     };
     this.cache.set(tenantId, config);
     return config;

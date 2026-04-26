@@ -6,10 +6,12 @@ import { apiClient } from "@/lib/apiClient";
 import {
   ConsoleButton,
   ConsoleEmptyState,
+  ConsoleSurfaceCard,
   ConsoleMetricCard,
   ConsolePageHeader,
   ConsolePanel,
   ConsolePanelHeader,
+  ConsoleStatusPanel,
   ConsoleStatsGrid,
 } from "@/components/console/primitives";
 
@@ -38,10 +40,12 @@ export default function SystemPage() {
   const [health, setHealth] = useState<HealthData | null>(null);
   const [stats, setStats] = useState<StatsData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError("");
     try {
       const [healthData, statsData] = await Promise.all([
         apiClient.get<HealthData>("/system/health"),
@@ -50,6 +54,8 @@ export default function SystemPage() {
       setHealth(healthData);
       setStats(statsData);
       setLastRefresh(new Date());
+    } catch (error: unknown) {
+      setLoadError(error instanceof Error ? error.message : "系统遥测加载失败");
     } finally {
       setLoading(false);
     }
@@ -78,7 +84,7 @@ export default function SystemPage() {
     <div className="flex min-h-full flex-col gap-8">
       <ConsolePageHeader
         title="系统运行状态"
-        subtitle="Runtime Health / Queue And Storage Telemetry"
+        subtitle="查看核心健康度、队列积压与存储遥测"
         actions={
           <ConsoleButton type="button" onClick={() => void load()} disabled={loading}>
             <RefreshCw size={14} strokeWidth={2.6} className={loading ? "animate-spin" : ""} />
@@ -86,29 +92,41 @@ export default function SystemPage() {
           </ConsoleButton>
         }
       />
+      {loadError ? (
+        <ConsoleStatusPanel
+          icon={Activity}
+          title="系统遥测加载失败"
+          description={loadError}
+          action={
+            <ConsoleButton type="button" onClick={() => void load()}>
+              重新加载
+            </ConsoleButton>
+          }
+        />
+      ) : null}
 
       <ConsoleStatsGrid className="lg:grid-cols-4">
-        <ConsoleMetricCard label="Core Health" value={health?.ok ? "ONLINE" : "DEGRADED"} tone={health?.ok ? "success" : "danger"} />
-        <ConsoleMetricCard label="Queue Total" value={totalQueue.toLocaleString()} tone="warning" />
-        <ConsoleMetricCard label="Stored Nodes" value={String(dbStats?.total_nodes ?? 0)} tone="brand" />
-        <ConsoleMetricCard label="Last Refresh" value={lastRefresh ? lastRefresh.toLocaleTimeString("zh-CN") : "--:--:--"} />
+        <ConsoleMetricCard label="核心健康度" value={health?.ok ? "在线" : "降级"} tone={health?.ok ? "success" : "danger"} />
+        <ConsoleMetricCard label="队列总量" value={totalQueue.toLocaleString()} tone="warning" />
+        <ConsoleMetricCard label="已存节点" value={String(dbStats?.total_nodes ?? 0)} tone="brand" />
+        <ConsoleMetricCard label="最近刷新" value={lastRefresh ? lastRefresh.toLocaleTimeString("zh-CN") : "--:--:--"} />
       </ConsoleStatsGrid>
 
-      <section className="grid grid-cols-1 gap-8 xl:grid-cols-[1.02fr_0.98fr]">
+      <section className={`grid grid-cols-1 gap-8 xl:grid-cols-[1.02fr_0.98fr] ${loadError ? "opacity-60" : ""}`}>
         <div className="flex flex-col gap-8">
           <ConsolePanel className="p-6">
-            <ConsolePanelHeader eyebrow="Runtime Summary" title="核心引擎与队列概览" />
+            <ConsolePanelHeader eyebrow="运行概览" title="核心引擎与队列概览" />
             <div className="mt-6 grid grid-cols-1 gap-4">
-              <div className={`border-[3px] border-[var(--border)] p-5 ${health?.ok ? "bg-[var(--success)] text-white" : "bg-[var(--danger)] text-white"}`}>
+              <ConsoleSurfaceCard tone={health?.ok ? "success" : "danger"} className="p-5">
                 <div className="flex items-center gap-3 font-mono text-[10px] font-black uppercase tracking-[0.16em]">
                   <Radar size={14} strokeWidth={2.6} />
                   OpenViking
                 </div>
                 <p className="mt-3 font-sans text-3xl font-black">{health?.ok ? "在线" : "离线"}</p>
                 <p className="mt-2 font-mono text-xs font-bold uppercase tracking-[0.12em]">
-                  {health?.openviking?.host ?? "unassigned-cluster-node"}
+                  {health?.openviking?.host ?? "未分配下游节点"}
                 </p>
-              </div>
+              </ConsoleSurfaceCard>
               <ConsoleStatsGrid className="md:grid-cols-2">
                 <ConsoleMetricCard label="Embedding" value={String(queue?.Embedding ?? 0)} />
                 <ConsoleMetricCard label="Semantic" value={String(queue?.Semantic ?? 0)} />
@@ -118,7 +136,7 @@ export default function SystemPage() {
 
           <ConsolePanel className="overflow-hidden">
             <div className="border-b-[3px] border-[var(--border)] bg-[var(--bg-elevated)] px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">
-              Queue Breakdown
+              队列拆分
             </div>
             <div className="grid grid-cols-1 gap-px bg-[var(--border)]">
               {queueRows.map((row) => (
@@ -141,7 +159,7 @@ export default function SystemPage() {
         <div className="flex flex-col gap-8">
           <ConsolePanel className="overflow-hidden">
             <div className="border-b-[3px] border-[var(--border)] bg-[var(--bg-elevated)] px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">
-              Storage Telemetry
+              存储遥测
             </div>
             <div className="grid grid-cols-1 gap-px bg-[var(--border)]">
               {dbStats && Object.keys(dbStats).length > 0 ? (
@@ -156,17 +174,17 @@ export default function SystemPage() {
                   </div>
                 ))
               ) : (
-                <ConsoleEmptyState icon={Database} title="暂无存储遥测" description="no storage telemetry" />
+                <ConsoleEmptyState icon={Database} title="暂无存储遥测" description="当前没有可展示的存储遥测数据。" />
               )}
             </div>
           </ConsolePanel>
 
           <ConsolePanel className="p-6">
-            <ConsolePanelHeader eyebrow="Operations Notes" />
+            <ConsolePanelHeader eyebrow="运维提示" />
             <div className="mt-6 space-y-4 font-mono text-xs font-bold text-[var(--text-secondary)]">
               <p className="flex items-center gap-3">
                 <Activity size={14} strokeWidth={2.6} />
-                引擎健康优先看 `ONLINE / DEGRADED`。
+                引擎健康优先看“在线 / 降级”状态。
               </p>
               <p className="flex items-center gap-3">
                 <Clock3 size={14} strokeWidth={2.6} />

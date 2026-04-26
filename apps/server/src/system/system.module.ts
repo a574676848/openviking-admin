@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { SystemController } from './system.controller';
+import { PublicHealthController } from './public-health.controller';
 import { SystemService } from './system.service';
 import { SettingsModule } from '../settings/settings.module';
 import { ImportTaskModule } from '../import-task/import-task.module';
@@ -15,7 +16,7 @@ import { CommonModule } from '../common/common.module';
     SearchModule,
     CommonModule,
   ],
-  controllers: [SystemController],
+  controllers: [SystemController, PublicHealthController],
   providers: [SystemService],
 })
 export class SystemModule {}

@@ -2,7 +2,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { IntegrationService } from '../../tenant/integration.service';
 import { IntegrationType } from '../../common/constants/system.enum';
 import { UsersService } from '../../users/users.service';
-import type { User } from '../../users/entities/user.entity';
+import type { UserModel } from '../../users/domain/user.model';
 import { LdapProvider } from './providers/ldap.provider';
 import { FeishuSsoProvider } from './providers/feishu-sso.provider';
 import { OidcSsoProvider } from './providers/oidc-sso.provider';
@@ -29,7 +29,7 @@ export class SSOPortalService {
     tenantId: string,
     type: IntegrationType,
     payload: Record<string, unknown>,
-  ): Promise<User> {
+  ): Promise<UserModel> {
     const integrations = await this.integrationService.findAll(tenantId);
     const config = integrations.find((i) => i.type === type && i.active);
 
@@ -59,7 +59,7 @@ export class SSOPortalService {
     ssoUser: SSOUserResult,
     tenantId: string,
     provider: string,
-  ): Promise<User> {
+  ): Promise<UserModel> {
     const users = await this.usersService.findAll(tenantId);
     let user = users.find(
       (u) => u.ssoId === ssoUser.ssoId && u.provider === provider,
@@ -74,7 +74,7 @@ export class SSOPortalService {
         tenantId,
         password: '',
       } as Parameters<UsersService['create']>[0]);
-      user = (Array.isArray(created) ? created[0] : created) as User;
+      user = (Array.isArray(created) ? created[0] : created) as UserModel;
     }
     return user;
   }

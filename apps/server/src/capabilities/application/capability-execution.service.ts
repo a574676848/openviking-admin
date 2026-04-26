@@ -14,6 +14,8 @@ import {
   CapabilityId,
   CapabilityInvocationResult,
 } from '../domain/capability.types';
+import { getCapabilityRegistryEntry } from './capability-registry';
+import { CapabilitySchemaValidatorService } from './capability-schema-validator.service';
 
 @Injectable()
 export class CapabilityExecutionService {
@@ -23,6 +25,7 @@ export class CapabilityExecutionService {
     private readonly capabilityObservabilityService: CapabilityObservabilityService,
     private readonly capabilityRateLimitService: CapabilityRateLimitService,
     private readonly knowledgeCapabilityGateway: KnowledgeCapabilityGateway,
+    private readonly capabilitySchemaValidator: CapabilitySchemaValidatorService,
   ) {}
 
   async execute(
@@ -30,9 +33,8 @@ export class CapabilityExecutionService {
     input: Record<string, unknown>,
     context: CapabilityContext,
   ): Promise<CapabilityInvocationResult> {
-    const contract = this.capabilityCatalogService
-      .listCapabilities()
-      .find((item) => item.id === capabilityId);
+    const registryEntry = getCapabilityRegistryEntry(capabilityId);
+    const contract = registryEntry?.contract;
 
     if (!contract) {
       throw new NotFoundException(`未知 capability: ${capabilityId}`);
@@ -42,49 +44,23 @@ export class CapabilityExecutionService {
       contract,
       context.principal,
     );
+    this.capabilitySchemaValidator.validateInput(contract, input);
 
     const startedAt = Date.now();
 
     try {
-      this.capabilityRateLimitService.assertAllowed(
+      await this.capabilityRateLimitService.assertAllowed(
         context.principal,
         capabilityId,
       );
 
-      let data: Record<string, unknown>;
-
-      switch (capabilityId) {
-        case 'knowledge.search':
-          data = await this.knowledgeCapabilityGateway.search(
-            context.principal,
-            input,
-            context.trace,
-          );
-          break;
-        case 'knowledge.grep':
-          data = await this.knowledgeCapabilityGateway.grep(
-            context.principal,
-            input,
-            context.trace,
-          );
-          break;
-        case 'resources.list':
-          data = await this.knowledgeCapabilityGateway.listResources(
-            context.principal,
-            input,
-            context.trace,
-          );
-          break;
-        case 'resources.tree':
-          data = await this.knowledgeCapabilityGateway.treeResources(
-            context.principal,
-            input,
-            context.trace,
-          );
-          break;
-        default:
-          throw new NotFoundException(`未知 capability: ${capabilityId}`);
-      }
+      const gatewayHandler = registryEntry.gatewayHandler;
+      const data = await this.knowledgeCapabilityGateway[gatewayHandler](
+        context.principal,
+        input,
+        context.trace,
+      );
+      this.capabilitySchemaValidator.validateOutput(contract, data);
 
       const result: CapabilityInvocationResult = {
         data,

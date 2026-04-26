@@ -11,6 +11,9 @@ interface DataTableProps<T> {
   columns: ColumnDef<T>[];
   loading?: boolean;
   emptyMessage?: string;
+  loadingMessage?: string;
+  errorMessage?: string;
+  tableLabel?: string;
   className?: string;
   rowClassName?: (row: T) => string;
 }
@@ -19,13 +22,18 @@ export function DataTable<T>({
   data,
   columns,
   loading = false,
-  emptyMessage = "NO DATA",
+  emptyMessage = "暂无数据",
+  loadingMessage = "正在同步数据...",
+  errorMessage,
+  tableLabel = "数据表格",
   className = "",
   rowClassName
 }: DataTableProps<T>) {
   return (
-    <div className={`bg-[var(--bg-card)] border-[var(--border-width)] border-[var(--border)] shadow-[var(--shadow-base)] overflow-hidden ${className}`}>
-      <table className="w-full text-left border-collapse">
+    <div
+      className={`bg-[var(--bg-card)] border-[var(--border-width)] border-[var(--border)] shadow-[var(--shadow-base)] overflow-hidden ${className}`}
+    >
+      <table className="w-full text-left border-collapse" aria-label={tableLabel} aria-busy={loading}>
         <thead>
           <tr className="bg-[var(--bg-elevated)] border-b-[var(--border-width)] border-[var(--border)] font-mono text-[10px] font-black uppercase">
             {columns.map((col, idx) => (
@@ -38,13 +46,23 @@ export function DataTable<T>({
         <tbody>
           {loading ? (
             <tr>
-              <td colSpan={columns.length} className="p-16 text-center font-mono font-black animate-pulse">
-                SYNCING...
+              <td colSpan={columns.length} className="p-16 text-center font-mono font-black animate-pulse" role="status">
+                {loadingMessage}
+              </td>
+            </tr>
+          ) : errorMessage ? (
+            <tr>
+              <td
+                colSpan={columns.length}
+                className="p-16 text-center font-mono font-black text-[var(--danger)]"
+                role="alert"
+              >
+                {errorMessage}
               </td>
             </tr>
           ) : data.length === 0 ? (
             <tr>
-              <td colSpan={columns.length} className="p-16 text-center font-mono font-bold text-[var(--text-muted)]">
+              <td colSpan={columns.length} className="p-16 text-center font-mono font-bold text-[var(--text-muted)]" role="status">
                 {emptyMessage}
               </td>
             </tr>

@@ -1,12 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import {
   CapabilityRateLimitStore,
+  type RateLimitBucketConsumeResult,
+  type RateLimitBucketState,
 } from './capability-rate-limit.store';
-
-interface RateLimitBucketState {
-  count: number;
-  windowStartedAt: number;
-}
 
 @Injectable()
 export class InMemoryCapabilityRateLimitStore
@@ -14,15 +11,40 @@ export class InMemoryCapabilityRateLimitStore
 {
   private readonly buckets = new Map<string, RateLimitBucketState>();
 
-  get(key: string) {
-    return this.buckets.get(key);
+  async consume(
+    key: string,
+    _limit: number,
+    windowMs: number,
+    now: number,
+  ): Promise<RateLimitBucketConsumeResult> {
+    const current = this.buckets.get(key);
+
+    if (!current || now - current.windowStartedAt >= current.windowMs) {
+      const nextState = {
+        count: 1,
+        windowStartedAt: now,
+        windowMs,
+      };
+      this.buckets.set(key, nextState);
+      return {
+        ...nextState,
+        resetAt: now + windowMs,
+      };
+    }
+
+    const nextState = {
+      ...current,
+      count: current.count + 1,
+    };
+    this.buckets.set(key, nextState);
+
+    return {
+      ...nextState,
+      resetAt: current.windowStartedAt + current.windowMs,
+    };
   }
 
-  set(key: string, state: RateLimitBucketState) {
-    this.buckets.set(key, state);
-  }
-
-  entries() {
+  async entries() {
     return Array.from(this.buckets.entries()).map(([key, state]) => ({
       key,
       state,

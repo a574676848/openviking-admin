@@ -4,7 +4,12 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, type FindManyOptions, type FindOneOptions } from 'typeorm';
 import { SystemConfig } from '../../entities/system-config.entity';
 import { ISystemConfigRepository } from '../../domain/repositories/system-config.repository.interface';
+import type { SystemConfigModel } from '../../domain/system-config.model';
 import type { RepositoryRequest } from '../../../common/repository-request.interface';
+import type {
+  RepositoryFindOneQuery,
+  RepositoryFindQuery,
+} from '../../../common/repository-query.types';
 
 @Injectable({ scope: Scope.REQUEST })
 export class SystemConfigRepositoryImpl implements ISystemConfigRepository {
@@ -24,23 +29,56 @@ export class SystemConfigRepositoryImpl implements ISystemConfigRepository {
     return this.defaultRepo;
   }
 
-  async find(options?: FindManyOptions<SystemConfig>): Promise<SystemConfig[]> {
-    return this.repo.find(options ?? {});
+  private toModel(entity: SystemConfig): SystemConfigModel {
+    return {
+      key: entity.key,
+      value: entity.value,
+      description: entity.description,
+      updatedAt: entity.updatedAt,
+    };
+  }
+
+  private toEntityInput(
+    config: Partial<SystemConfigModel>,
+  ): Partial<SystemConfig> {
+    return {
+      key: config.key,
+      value: config.value,
+      description: config.description ?? undefined,
+      updatedAt: config.updatedAt,
+    };
+  }
+
+  async find(
+    options?: RepositoryFindQuery<SystemConfigModel>,
+  ): Promise<SystemConfigModel[]> {
+    const items = await this.repo.find((options ?? {}) as FindManyOptions<SystemConfig>);
+    return items.map((item) => this.toModel(item));
   }
 
   async findOne(
-    options: FindOneOptions<SystemConfig>,
-  ): Promise<SystemConfig | null> {
-    return this.repo.findOne(options);
+    options: RepositoryFindOneQuery<SystemConfigModel>,
+  ): Promise<SystemConfigModel | null> {
+    const item = await this.repo.findOne(options as FindOneOptions<SystemConfig>);
+    return item ? this.toModel(item) : null;
   }
 
-  async save(config: Partial<SystemConfig>): Promise<SystemConfig> {
+  async save(
+    config: Partial<SystemConfigModel>,
+  ): Promise<SystemConfigModel> {
     if (config.key) {
       const existing = await this.repo.findOne({ where: { key: config.key } });
       if (existing) {
-        return this.repo.save({ ...existing, ...config });
+        const saved = await this.repo.save({
+          ...existing,
+          ...this.toEntityInput(config),
+        });
+        return this.toModel(saved);
       }
     }
-    return this.repo.save(this.repo.create(config));
+    const saved = await this.repo.save(
+      this.repo.create(this.toEntityInput(config)),
+    );
+    return this.toModel(saved);
   }
 }

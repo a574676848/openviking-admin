@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode, ElementType } from "react";
+import type { ComponentProps, ElementType, ReactNode } from "react";
 import { cx, toneMap, type Tone } from "./shared";
 
 export function ConsolePageHeader({
@@ -57,6 +57,86 @@ export function ConsolePanel({
   className?: string;
 }) {
   return <section className={cx("ov-card", className)}>{children}</section>;
+}
+
+export function ConsoleSurfaceCard({
+  children,
+  tone = "card",
+  className,
+}: {
+  children: ReactNode;
+  tone?: "card" | "elevated" | "warning" | "danger" | "inverse" | "success";
+  className?: string;
+}) {
+  const toneClass = {
+    card: "bg-[var(--bg-card)] text-[var(--text-primary)]",
+    elevated: "bg-[var(--bg-elevated)] text-[var(--text-primary)]",
+    warning: "bg-[var(--warning)] text-black",
+    danger: "bg-[var(--danger)] text-white",
+    inverse: "bg-black text-white",
+    success: "bg-[var(--success)] text-white",
+  }[tone];
+
+  return (
+    <div className={cx("border-[3px] border-[var(--border)] p-5", toneClass, className)}>
+      {children}
+    </div>
+  );
+}
+
+export function ConsoleIconTile({
+  children,
+  tone = "elevated",
+  className,
+}: {
+  children: ReactNode;
+  tone?: "card" | "elevated" | "warning" | "danger" | "inverse" | "success";
+  className?: string;
+}) {
+  const toneClass = {
+    card: "bg-[var(--bg-card)] text-[var(--text-primary)]",
+    elevated: "bg-[var(--bg-elevated)] text-[var(--text-primary)]",
+    warning: "bg-[var(--warning)] text-black",
+    danger: "bg-[var(--danger)] text-white",
+    inverse: "bg-black text-white",
+    success: "bg-[var(--success)] text-white",
+  }[tone];
+
+  return (
+    <div
+      className={cx(
+        "flex h-10 w-10 items-center justify-center border-[3px] border-[var(--border)]",
+        toneClass,
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+export function ConsoleSelectionCard({
+  active = false,
+  children,
+  className,
+  ...props
+}: ComponentProps<"button"> & {
+  active?: boolean;
+}) {
+  return (
+    <button
+      {...props}
+      className={cx(
+        "border-[3px] border-[var(--border)] px-4 py-4 text-left transition-all",
+        active
+          ? "bg-black text-white shadow-[4px_4px_0px_var(--brand)]"
+          : "bg-[var(--bg-card)] text-[var(--text-primary)] shadow-[3px_3px_0px_#000]",
+        className,
+      )}
+    >
+      {children}
+    </button>
+  );
 }
 
 export function ConsolePanelHeader({

@@ -6,6 +6,8 @@ import { CapabilitiesController } from '../src/capabilities/capabilities.control
 import { CapabilityAuthController } from '../src/capabilities/capability-auth.controller';
 import { CapabilityObservabilityController } from '../src/capabilities/capability-observability.controller';
 import { McpController } from '../src/mcp/mcp.controller';
+import { McpProtocolService } from '../src/mcp/mcp-protocol.service';
+import { McpSseService } from '../src/mcp/mcp-sse.service';
 import { CapabilityCatalogService } from '../src/capabilities/application/capability-catalog.service';
 import { CapabilityDiscoveryService } from '../src/capabilities/application/capability-discovery.service';
 import { CapabilityExecutionService } from '../src/capabilities/application/capability-execution.service';
@@ -16,6 +18,7 @@ import { CapabilityPrometheusExporterService } from '../src/capabilities/infrast
 import { JwtAuthGuard } from '../src/auth/jwt-auth.guard';
 import { McpService } from '../src/mcp/mcp.service';
 import { McpSessionService } from '../src/mcp/mcp-session.service';
+import { AuditService } from '../src/audit/audit.service';
 import type { Principal } from '../src/capabilities/domain/capability.types';
 
 describe('Capability Platform (e2e)', () => {
@@ -137,6 +140,12 @@ describe('Capability Platform (e2e)', () => {
   const prometheusExporterService = {
     render: jest.fn(() => '# HELP capability_invocations_total Total capability invocations by outcome.\n'),
   };
+  const auditService = {
+    log: jest.fn(),
+  };
+  const mcpSseService = {
+    createEventStream: jest.fn(),
+  };
 
   beforeAll(async () => {
     const moduleBuilder = Test.createTestingModule({
@@ -156,6 +165,9 @@ describe('Capability Platform (e2e)', () => {
         { provide: CapabilityPrometheusExporterService, useValue: prometheusExporterService },
         { provide: McpService, useValue: mcpService },
         { provide: McpSessionService, useValue: mcpSessionService },
+        McpProtocolService,
+        { provide: McpSseService, useValue: mcpSseService },
+        { provide: AuditService, useValue: auditService },
       ],
     });
     moduleBuilder.overrideGuard(JwtAuthGuard).useValue({

@@ -1,10 +1,14 @@
-import { KnowledgeNode } from '../../entities/knowledge-node.entity';
+import type {
+  RepositoryFindOneQuery,
+  RepositoryFindQuery,
+} from '../../../common/repository-query.types';
+import type { KnowledgeNodeModel } from '../knowledge-node.model';
 
 export interface IKnowledgeNodeRepository {
-  find(options: any): Promise<KnowledgeNode[]>;
-  findOne(options: any): Promise<KnowledgeNode | null>;
-  save(node: Partial<KnowledgeNode>): Promise<KnowledgeNode>;
-  remove(node: KnowledgeNode): Promise<KnowledgeNode>;
+  find(options: RepositoryFindQuery<KnowledgeNodeModel>): Promise<KnowledgeNodeModel[]>;
+  findOne(options: RepositoryFindOneQuery<KnowledgeNodeModel>): Promise<KnowledgeNodeModel | null>;
+  save(node: Partial<KnowledgeNodeModel>): Promise<KnowledgeNodeModel>;
+  remove(node: KnowledgeNodeModel): Promise<KnowledgeNodeModel>;
   findAllowedUris(
     tenantId: string,
     user: { id: string; role: string },

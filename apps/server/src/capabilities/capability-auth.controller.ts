@@ -1,11 +1,11 @@
 import { Body, Controller, Get, Headers, Post, Req, Res, UseGuards } from '@nestjs/common';
-import { randomUUID } from 'crypto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import type { AuthenticatedRequest } from '../common/authenticated-request.interface';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { CapabilityCredentialService } from './infrastructure/capability-credential.service';
 import { CredentialExchangeService } from './application/credential-exchange.service';
 import { CapabilityObservabilityService } from './application/capability-observability.service';
+import { ensureRequestTrace } from '../common/request-trace';
 
 @Controller('auth')
 export class CapabilityAuthController {
@@ -18,13 +18,10 @@ export class CapabilityAuthController {
   @UseGuards(JwtAuthGuard)
   @Get('credential-options')
   credentialOptions(
-    @Headers('x-request-id') requestId: string | undefined,
+    @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const traceId = randomUUID();
-    const effectiveRequestId = requestId ?? traceId;
-    res.setHeader('x-trace-id', traceId);
-    res.setHeader('x-request-id', effectiveRequestId);
+    const trace = ensureRequestTrace(req, res);
     return {
       data: {
         login: {
@@ -67,9 +64,9 @@ export class CapabilityAuthController {
       meta: {
         channel: 'http',
         flow: 'credential.options',
-        requestId: effectiveRequestId,
+        requestId: trace.requestId,
       },
-      traceId,
+      traceId: trace.traceId,
       error: null,
     };
   }
@@ -78,13 +75,9 @@ export class CapabilityAuthController {
   @Post('token/exchange')
   async exchangeToken(
     @Req() req: AuthenticatedRequest,
-    @Headers('x-request-id') requestIdHeader: string | undefined,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const traceId = randomUUID();
-    const requestId = requestIdHeader ?? traceId;
-    res.setHeader('x-trace-id', traceId);
-    res.setHeader('x-request-id', requestId);
+    const trace = ensureRequestTrace(req, res);
     const principal =
       await this.capabilityCredentialService.resolvePrincipalFromAuthenticatedUser(
         req.user,
@@ -94,15 +87,15 @@ export class CapabilityAuthController {
     return {
       data: await this.credentialExchangeService.exchangeAccessToken(
         principal,
-        traceId,
-        requestId,
+        trace.traceId,
+        trace.requestId,
       ),
       meta: {
         channel: 'http',
         flow: 'token.exchange',
-        requestId,
+        requestId: trace.requestId,
       },
-      traceId,
+      traceId: trace.traceId,
       error: null,
     };
   }
@@ -111,13 +104,9 @@ export class CapabilityAuthController {
   @Post('session/exchange')
   async exchangeSession(
     @Req() req: AuthenticatedRequest,
-    @Headers('x-request-id') requestIdHeader: string | undefined,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const traceId = randomUUID();
-    const requestId = requestIdHeader ?? traceId;
-    res.setHeader('x-trace-id', traceId);
-    res.setHeader('x-request-id', requestId);
+    const trace = ensureRequestTrace(req, res);
     const principal =
       await this.capabilityCredentialService.resolvePrincipalFromAuthenticatedUser(
         req.user,
@@ -127,15 +116,15 @@ export class CapabilityAuthController {
     return {
       data: await this.credentialExchangeService.exchangeSessionKey(
         principal,
-        traceId,
-        requestId,
+        trace.traceId,
+        trace.requestId,
       ),
       meta: {
         channel: 'http',
         flow: 'session.exchange',
-        requestId,
+        requestId: trace.requestId,
       },
-      traceId,
+      traceId: trace.traceId,
       error: null,
     };
   }
@@ -144,13 +133,9 @@ export class CapabilityAuthController {
   @Get('whoami')
   async whoami(
     @Req() req: AuthenticatedRequest,
-    @Headers('x-request-id') requestIdHeader: string | undefined,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const traceId = randomUUID();
-    const requestId = requestIdHeader ?? traceId;
-    res.setHeader('x-trace-id', traceId);
-    res.setHeader('x-request-id', requestId);
+    const trace = ensureRequestTrace(req, res);
     const principal =
       await this.capabilityCredentialService.resolvePrincipalFromAuthenticatedUser(
         req.user,
@@ -167,9 +152,9 @@ export class CapabilityAuthController {
       },
       meta: {
         channel: 'http',
-        requestId,
+        requestId: trace.requestId,
       },
-      traceId,
+      traceId: trace.traceId,
       error: null,
     };
   }
@@ -179,13 +164,9 @@ export class CapabilityAuthController {
   async clientCredentials(
     @Body() body: { name?: string },
     @Req() req: AuthenticatedRequest,
-    @Headers('x-request-id') requestIdHeader: string | undefined,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const traceId = randomUUID();
-    const requestId = requestIdHeader ?? traceId;
-    res.setHeader('x-trace-id', traceId);
-    res.setHeader('x-request-id', requestId);
+    const trace = ensureRequestTrace(req, res);
     const key = await this.capabilityCredentialService.createApiKey(
       req.user.id,
       req.user.tenantId!,
@@ -197,8 +178,8 @@ export class CapabilityAuthController {
         'cli',
       );
     await this.capabilityObservabilityService.recordCredentialExchange({
-      traceId,
-      requestId,
+      traceId: trace.traceId,
+      requestId: trace.requestId,
       principal,
       flow: 'client.credentials',
       issuedCredentialType: 'api_key',
@@ -214,9 +195,9 @@ export class CapabilityAuthController {
       meta: {
         channel: 'http',
         flow: 'client.credentials',
-        requestId,
+        requestId: trace.requestId,
       },
-      traceId,
+      traceId: trace.traceId,
       error: null,
     };
   }

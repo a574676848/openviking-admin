@@ -68,8 +68,10 @@ export function ConsoleIconButton({
   className,
   children,
   tone = "neutral",
+  title,
   ...props
 }: ComponentProps<"button"> & {
+  "aria-label": string;
   tone?: "neutral" | "danger" | "warning" | "dark";
 }) {
   const toneClass = {
@@ -82,8 +84,9 @@ export function ConsoleIconButton({
   return (
     <button
       {...props}
+      title={title ?? props["aria-label"]}
       className={cx(
-        "flex h-11 w-11 items-center justify-center border-[3px] border-[var(--border)] shadow-[3px_3px_0px_#000] transition-all hover:translate-y-0.5 hover:shadow-none disabled:opacity-30",
+        "flex h-11 w-11 items-center justify-center border-[3px] border-[var(--border)] shadow-[3px_3px_0px_#000] transition-all hover:translate-y-0.5 hover:shadow-none disabled:opacity-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-base)]",
         toneClass,
         className,
       )}

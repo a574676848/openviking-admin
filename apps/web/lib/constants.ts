@@ -1,22 +1,22 @@
 /** 全局 API 路径中心 */
 export const API_ENDPOINTS = {
   AUTH: {
-    LOGIN: '/api/auth/login',
-    SWITCH_ROLE: '/api/auth/switch-role',
+    LOGIN: '/api/v1/auth/login',
+    SWITCH_ROLE: '/api/v1/auth/switch-role',
   },
-  TENANTS: '/api/tenants',
-  USERS: '/api/users',
-  INTEGRATIONS: '/api/integrations',
-  IMPORT_TASKS: '/api/import-tasks',
-  KNOWLEDGE_BASES: '/api/knowledge-bases',
-  KNOWLEDGE_TREE: '/api/knowledge-tree',
+  TENANTS: '/api/v1/tenants',
+  USERS: '/api/v1/users',
+  INTEGRATIONS: '/api/v1/integrations',
+  IMPORT_TASKS: '/api/v1/import-tasks',
+  KNOWLEDGE_BASES: '/api/v1/knowledge-bases',
+  KNOWLEDGE_TREE: '/api/v1/knowledge-tree',
   SYSTEM: {
-    HEALTH: '/api/system/health',
-    STATS: '/api/system/stats',
-    DASHBOARD: '/api/system/dashboard',
-    SETTINGS: '/api/settings',
+    HEALTH: '/api/v1/system/health',
+    STATS: '/api/v1/system/stats',
+    DASHBOARD: '/api/v1/system/dashboard',
+    SETTINGS: '/api/v1/settings',
   },
-  AUDIT: '/api/audit',
+  AUDIT: '/api/v1/audit',
 };
 
 /** 物理连接默认值 */

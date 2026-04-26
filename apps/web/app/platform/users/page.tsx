@@ -6,6 +6,16 @@ import { FormModal } from "@/components/ui/FormModal";
 import { ScrambleText } from "@/components/ui/ScrambleText";
 import { apiClient } from "@/lib/apiClient";
 import { useConfirm } from "@/components/ui/ConfirmProvider";
+import {
+  DangerAction,
+  PlatformButton,
+  PlatformField,
+  PlatformInput,
+  PlatformPageHeader,
+  PlatformSelect,
+  PlatformStateBadge,
+  PlatformStatPill,
+} from "@/components/ui/platform-primitives";
 
 interface User {
   id: string;
@@ -17,16 +27,22 @@ interface User {
 }
 
 const ROLE_MAP: Record<string, { label: string; color: string; bg: string }> = {
-  super_admin:     { label: "PLATFORM_OWNER", color: "var(--danger)", bg: "bg-[var(--danger)]/10" },
-  tenant_admin:    { label: "TENANT_ADMIN", color: "var(--brand)", bg: "bg-[var(--brand)]/10" },
-  tenant_operator: { label: "DATA_OPERATOR", color: "var(--warning)", bg: "bg-[var(--warning)]/10" },
-  tenant_viewer:   { label: "READ_ONLY", color: "var(--text-muted)", bg: "bg-[var(--text-muted)]/10" },
+  super_admin:     { label: "平台所有者", color: "var(--danger)", bg: "bg-[var(--danger)]/10" },
+  tenant_admin:    { label: "租户管理员", color: "var(--brand)", bg: "bg-[var(--brand)]/10" },
+  tenant_operator: { label: "数据运营", color: "var(--warning)", bg: "bg-[var(--warning)]/10" },
+  tenant_viewer:   { label: "只读成员", color: "var(--text-muted)", bg: "bg-[var(--text-muted)]/10" },
 };
+
+const WARNING_BUTTON_FOCUS_CLASS =
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--warning)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-card)]";
+const SUCCESS_BUTTON_FOCUS_CLASS =
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--success)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-card)]";
 
 export default function UsersPage() {
   const confirm = useConfirm();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ username: "", password: "", role: "tenant_viewer", tenantId: "" });
   const [submitting, setSubmitting] = useState(false);
@@ -35,8 +51,10 @@ export default function UsersPage() {
 
   const load = useCallback(() => {
     setLoading(true);
+    setLoadError("");
     apiClient.get("/users")
       .then((data) => setUsers(Array.isArray(data) ? data : []))
+      .catch((err: unknown) => setLoadError(err instanceof Error ? err.message : "平台用户列表加载失败"))
       .finally(() => setLoading(false));
   }, []);
 
@@ -62,7 +80,7 @@ export default function UsersPage() {
       setShowCreate(false);
       load();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "CREATE_FAIL");
+      setError(err instanceof Error ? err.message : "创建用户失败");
     } finally {
       setSubmitting(false);
     }
@@ -96,14 +114,14 @@ export default function UsersPage() {
   const columns: ColumnDef<User>[] = [
     {
       key: 'username',
-      header: 'Username',
+      header: '账号',
       cell: (u) => {
         const isSuper = u.role === "super_admin";
         return (
           <div className="font-mono font-black text-sm text-[var(--text-primary)] flex items-center">
             <Key size={14} className={`mr-2 ${isSuper ? 'text-[var(--danger)]' : 'text-[var(--text-muted)]'} group-hover:scale-110 transition-transform`} />
             {u.username}
-            <span title="PLATFORM_SUPER_ADMIN" className="flex items-center">
+            <span title="平台超级管理员" className="flex items-center">
               {isSuper && <Globe size={12} className="ml-2 text-[var(--danger)] animate-pulse" />}
             </span>
           </div>
@@ -112,159 +130,160 @@ export default function UsersPage() {
     },
     {
       key: 'role',
-      header: 'Role_Type',
+      header: '角色',
       cell: (u) => {
         const r = ROLE_MAP[u.role] ?? { label: u.role.toUpperCase(), color: "var(--text-muted)", bg: "bg-[var(--text-muted)]/10" };
+        const tone =
+          r.color === "var(--danger)"
+            ? "danger"
+            : r.color === "var(--brand)"
+              ? "brand"
+              : r.color === "var(--warning)"
+                ? "warning"
+                : "muted";
         return (
-          <span className={`font-mono text-[9px] font-black tracking-widest px-2 py-1 border-[var(--border-width)] inline-block ${r.bg}`} style={{ color: r.color, borderColor: r.color }}>
+          <PlatformStateBadge tone={tone} className={r.bg}>
             [{r.label}]
-          </span>
+          </PlatformStateBadge>
         );
       }
     },
     {
       key: 'tenant',
-      header: 'Data_Domain',
+      header: '租户域',
       cell: (u) => (
         <div className="font-mono text-[10px] tracking-widest text-[var(--text-secondary)]">
           {u.tenantId ? (
             <span className="flex items-center gap-1.5">
               <Building2 size={12} className="opacity-50" />
-              <span className="bg-[var(--bg-elevated)] border border-[var(--border)] px-1.5 py-0.5">{u.tenantId}</span>
+              <PlatformStateBadge tone="default">{u.tenantId}</PlatformStateBadge>
             </span>
           ) : (
-            <span className="text-[var(--danger)] font-black italic">GLOBAL_ACCESS</span>
+            <PlatformStateBadge tone="danger" className="italic">全局访问</PlatformStateBadge>
           )}
         </div>
       )
     },
     {
       key: 'status',
-      header: 'Status',
+      header: '状态',
       cell: (u) => (
-        <span className={`font-mono text-[9px] font-black tracking-widest px-2 py-1 border-[var(--border-width)] inline-flex items-center ${u.active ? 'bg-[var(--success)]/10 text-[var(--success)] border-[var(--success)]' : 'bg-[var(--danger)]/10 text-[var(--danger)] border-[var(--danger)]'}`}>
-          {u.active ? "ACTIVE" : "SUSPENDED"}
-        </span>
+        <PlatformStateBadge tone={u.active ? "success" : "danger"}>
+          {u.active ? "启用中" : "已停用"}
+        </PlatformStateBadge>
       )
     },
     {
       key: 'actions',
-      header: 'Actions',
+      header: '操作',
       cell: (u) => (
         <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button
+          <PlatformButton
+            type="button"
+            aria-label={u.active ? `禁用用户 ${u.username}` : `启用用户 ${u.username}`}
+            title={u.active ? `禁用用户 ${u.username}` : `启用用户 ${u.username}`}
             onClick={() => toggleActive(u)}
-            className={`font-mono text-[9px] font-black tracking-widest uppercase px-2 py-1 border-[var(--border-width)] hover:text-white transition-colors ${u.active ? 'border-[var(--warning)] text-[var(--warning)] hover:bg-[var(--warning)]' : 'border-[var(--success)] text-[var(--success)] hover:bg-[var(--success)]'}`}
+            className={`px-2 py-1 text-[9px] tracking-widest hover:text-white ${u.active ? `border-[var(--warning)] text-[var(--warning)] hover:bg-[var(--warning)] ${WARNING_BUTTON_FOCUS_CLASS}` : `border-[var(--success)] text-[var(--success)] hover:bg-[var(--success)] ${SUCCESS_BUTTON_FOCUS_CLASS}`}`}
           >
-            {u.active ? 'SUSPEND' : 'ACTIVATE'}
-          </button>
-          <button
+            {u.active ? '停用' : '启用'}
+          </PlatformButton>
+          <DangerAction
+            type="button"
+            aria-label={`删除用户 ${u.username}`}
+            title={`删除用户 ${u.username}`}
             onClick={() => handleDelete(u.id, u.username)}
-            className="font-mono text-[9px] font-black tracking-widest uppercase px-2 py-1 border-[var(--border-width)] border-[var(--danger)] text-[var(--danger)] hover:bg-[var(--danger)] hover:text-white transition-colors flex items-center"
+            className="flex items-center border-[var(--border-width)]"
           >
-            <Trash2 size={10} className="mr-1" /> DEL
-          </button>
+            <Trash2 size={10} className="mr-1" /> 删除
+          </DangerAction>
         </div>
       )
     }
   ];
 
   return (
-    <div className="w-full flex flex-col pb-10 min-h-full theme-swiss">
-      {/* ─── Header ─── */}
-      <div className="flex flex-col md:flex-row gap-6 justify-between items-start md:items-end border-b-[var(--border-width)] border-[var(--border)] pb-6 mb-8">
-        <div>
-           <h1 className="text-5xl md:text-7xl font-black font-sans tracking-tighter uppercase mb-2 text-[var(--text-primary)] flex items-center">
-             <Users size={40} strokeWidth={2} className="mr-4 text-[var(--text-primary)]" />
-             <ScrambleText text="全局用户治理_" scrambleDuration={1200} />
-           </h1>
-           <p className="font-bold font-mono tracking-widest text-[var(--text-secondary)] uppercase text-[10px]">
-             {"// MANAGE GLOBAL SUPER_ADMINS & TENANT ACCOUNTS"}
-           </p>
-        </div>
-        <div className="flex gap-4 items-center">
-           <button
-             onClick={() => { setShowCreate(!showCreate); setError(""); }}
-             className={`ov-button px-6 py-3 text-xs flex items-center gap-2 ${showCreate ? 'bg-[var(--danger)] text-white' : ''}`}
-             style={{ borderRadius: 0 }}
-           >
-             <Plus size={16} strokeWidth={2} className={showCreate ? 'rotate-45 transition-transform' : 'transition-transform'} />
-             <span className="font-mono font-black tracking-widest uppercase">{showCreate ? '取消指派' : '指派新账号'}</span>
-           </button>
-        </div>
-      </div>
+    <div className="w-full flex flex-col pb-10 min-h-full">
+      <PlatformPageHeader
+        title={
+          <h1 className="mb-2 flex items-center text-4xl font-black tracking-tighter text-[var(--text-primary)] md:text-6xl">
+            <Users size={34} strokeWidth={2} className="mr-4 text-[var(--text-primary)]" />
+            <ScrambleText text="全局用户治理_" scrambleDuration={1200} />
+          </h1>
+        }
+        subtitle={"// 管理平台超级管理员与租户成员账号"}
+        subtitleClassName="text-[10px]"
+        actions={
+          <PlatformButton
+            type="button"
+            onClick={() => { setShowCreate(!showCreate); setError(""); }}
+            className={`ov-button px-6 py-3 text-xs ${showCreate ? 'bg-[var(--danger)] text-white border-[var(--danger)] hover:bg-[var(--danger)]' : ''}`}
+            style={{ borderRadius: 0 }}
+          >
+            <Plus size={16} strokeWidth={2} className={showCreate ? 'rotate-45 transition-transform' : 'transition-transform'} />
+            <span className="font-mono font-black tracking-widest uppercase">{showCreate ? '取消指派' : '指派新账号'}</span>
+          </PlatformButton>
+        }
+      />
 
       {/* ─── Create Form Modal ─── */}
       <FormModal
         isOpen={showCreate}
         onClose={() => setShowCreate(false)}
         onSubmit={handleCreate}
-        title="NEW_ACCOUNT_PROVISION_FORM"
+        title="新账号分配"
         saving={submitting}
-        saveText=">> CONFIRM_PROVISION"
+        saveText="确认分配"
       >
         {error && (
           <div className="flex items-start gap-3 p-4 mb-6 border-[var(--border-width)] border-[var(--danger)] bg-[var(--danger)]/10 text-[var(--danger)] font-mono text-xs font-bold uppercase tracking-widest">
             <ShieldAlert size={16} strokeWidth={2} className="shrink-0 mt-0.5" />
-            <span>[PROVISION_FAIL] {error}</span>
+            <span>[分配失败] {error}</span>
           </div>
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-          <div className="flex flex-col gap-2">
-            <label className="font-mono text-[10px] font-black tracking-widest uppercase text-[var(--text-secondary)] flex items-center">
-                <span className="w-1.5 h-1.5 inline-block mr-1.5 bg-[var(--info)]" /> ACCOUNT_ID <span className="text-[var(--danger)] ml-1">*</span>
-            </label>
-            <input
+          <PlatformField label="账号 ID *" className="gap-2">
+            <PlatformInput
               required
               value={form.username}
               onChange={(e) => setForm({ ...form, username: e.target.value })}
               placeholder="e.g. platform_root"
-              className="ov-input px-4 py-3 font-mono text-xs tracking-widest bg-[var(--bg-input)]"
+              className="bg-[var(--bg-input)] px-4 py-3"
             />
-          </div>
-          <div className="flex flex-col gap-2">
-            <label className="font-mono text-[10px] font-black tracking-widest uppercase text-[var(--text-secondary)] flex items-center">
-                <span className="w-1.5 h-1.5 inline-block mr-1.5 bg-[var(--danger)]" /> SECURE_SECRET <span className="text-[var(--danger)] ml-1">*</span>
-            </label>
-            <input
+          </PlatformField>
+          <PlatformField label="登录密钥 *" className="gap-2">
+            <PlatformInput
               type="password"
               required
               minLength={6}
               value={form.password}
               onChange={(e) => setForm({ ...form, password: e.target.value })}
-              placeholder="MIN 6 CHARACTERS"
-              className="ov-input px-4 py-3 font-mono text-xs tracking-widest bg-[var(--bg-input)]"
+              placeholder="至少 6 位字符"
+              className="bg-[var(--bg-input)] px-4 py-3"
             />
-          </div>
-          <div className="flex flex-col gap-2">
-            <label className="font-mono text-[10px] font-black tracking-widest uppercase text-[var(--text-secondary)] flex items-center">
-                <span className="w-1.5 h-1.5 inline-block mr-1.5 bg-[var(--brand)]" /> ROLE_SCOPE
-            </label>
-            <select
+          </PlatformField>
+          <PlatformField label="角色范围" className="gap-2">
+            <PlatformSelect
               value={form.role}
               onChange={(e) => setForm({ ...form, role: e.target.value })}
-              className="ov-input px-4 py-3 font-mono text-xs tracking-widest uppercase font-bold bg-[var(--bg-input)]"
+              className="bg-[var(--bg-input)] px-4 py-3 font-bold tracking-widest"
             >
-              <option value="super_admin">PLATFORM_SUPER_ADMIN</option>
-              <option value="tenant_admin">TENANT_ADMIN</option>
-              <option value="tenant_operator">TENANT_OPERATOR</option>
-              <option value="tenant_viewer">TENANT_VIEWER</option>
-            </select>
-          </div>
-          <div className="flex flex-col gap-2">
-            <label className="font-mono text-[10px] font-black tracking-widest uppercase text-[var(--text-secondary)] flex items-center">
-                <span className="w-1.5 h-1.5 inline-block mr-1.5 bg-[var(--warning)]" /> TENANT_ID_MAPPING
-            </label>
-            <input
+              <option value="super_admin">平台超级管理员</option>
+              <option value="tenant_admin">租户管理员</option>
+              <option value="tenant_operator">租户运营</option>
+              <option value="tenant_viewer">租户只读成员</option>
+            </PlatformSelect>
+          </PlatformField>
+          <PlatformField label="租户绑定" className="gap-2">
+            <PlatformInput
               type="text"
               disabled={form.role === "super_admin"}
-              value={form.role === "super_admin" ? "PLATFORM_GLOBAL" : form.tenantId}
+              value={form.role === "super_admin" ? "平台全局" : form.tenantId}
               onChange={(e) => setForm({ ...form, tenantId: e.target.value })}
               placeholder="e.g. demo-space"
-              className="ov-input px-4 py-3 font-mono text-xs tracking-widest bg-[var(--bg-input)] disabled:opacity-50 disabled:bg-[var(--bg-elevated)]"
+              className="bg-[var(--bg-input)] px-4 py-3 disabled:bg-[var(--bg-elevated)] disabled:opacity-50"
             />
-          </div>
+          </PlatformField>
         </div>
       </FormModal>
 
@@ -273,7 +292,10 @@ export default function UsersPage() {
         data={users}
         columns={columns}
         loading={loading}
-        emptyMessage="// ZERO_ACCOUNTS_FOUND"
+        loadingMessage="正在同步平台用户列表..."
+        errorMessage={loadError ? `用户列表加载失败：${loadError}` : undefined}
+        emptyMessage="当前还没有平台账号"
+        tableLabel="平台用户列表"
         className="flex-1 mt-4"
         rowClassName={(u) => deletingIds.includes(u.id) ? "animate-collapse" : ""}
       />
@@ -281,18 +303,10 @@ export default function UsersPage() {
       {/* ─── Footer Stats ─── */}
       {!loading && users.length > 0 && (
         <div className="mt-4 flex flex-wrap gap-4 text-[10px] font-mono font-black tracking-widest uppercase">
-          <span className="border border-[var(--border)] px-2 py-1 bg-[var(--bg-elevated)] text-[var(--text-primary)]">
-            TOTAL_ACCOUNTS: <ScrambleText text={users.length.toString()} scrambleSpeed={50} />
-          </span>
-          <span className="border border-[var(--brand)] px-2 py-1 text-[var(--brand)] bg-[var(--brand)]/10">
-            ADMINS: {users.filter((u) => u.role === "super_admin" || u.role === "tenant_admin").length}
-          </span>
-          <span className="border border-[var(--warning)] px-2 py-1 text-[var(--warning)] bg-[var(--warning)]/10">
-            OPERATORS: {users.filter((u) => u.role === "tenant_operator").length}
-          </span>
-          <span className="border border-[var(--danger)] px-2 py-1 text-[var(--danger)] bg-[var(--danger)]/10">
-            SUSPENDED: {users.filter((u) => !u.active).length}
-          </span>
+          <PlatformStatPill label="账号总数" value={<ScrambleText text={users.length.toString()} scrambleSpeed={50} />} accent="var(--border)" />
+          <PlatformStatPill label="管理员" value={users.filter((u) => u.role === "super_admin" || u.role === "tenant_admin").length} accent="var(--brand)" backgroundClassName="bg-[var(--brand)]/10" />
+          <PlatformStatPill label="运营成员" value={users.filter((u) => u.role === "tenant_operator").length} accent="var(--warning)" backgroundClassName="bg-[var(--warning)]/10" />
+          <PlatformStatPill label="停用账号" value={users.filter((u) => !u.active).length} accent="var(--danger)" backgroundClassName="bg-[var(--danger)]/10" />
         </div>
       )}
     </div>

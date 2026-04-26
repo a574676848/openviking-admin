@@ -5,12 +5,13 @@ import { LogIn, Lock, Share2, Globe, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { VikingWatcher } from "@/components/watcher";
 import { ThemeSwitcher } from "@/components/theme-switcher";
+import { useApp } from "@/components/app-provider";
 import { API_ENDPOINTS, SystemRoles } from "@/lib/constants";
-import { writeSessionToken } from "@/lib/session";
 
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { login } = useApp();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [tenantCode, setTenantCode] = useState("");
@@ -36,13 +37,13 @@ export default function LoginPage() {
         if (!result.ok) {
           throw new Error(data.message || "SSO 票据交换失败");
         }
-        writeSessionToken(data.accessToken);
+        login(data.accessToken, data.user);
         router.replace(data.user?.role === SystemRoles.SUPER_ADMIN ? "/platform/dashboard" : "/console/dashboard");
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "SSO 登录失败");
       }
     })();
-  }, [router, searchParams]);
+  }, [login, router, searchParams]);
 
   async function checkTenant(code: string) {
     if (code.length < 2) return;
@@ -84,7 +85,7 @@ export default function LoginPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "登录凭证校验未通过");
 
-      writeSessionToken(data.accessToken);
+      login(data.accessToken, data.user);
       toast.success("身份验证成功，欢迎进入维京知识系统", { id: toastId });
       router.replace(data.user?.role === SystemRoles.SUPER_ADMIN ? "/platform/dashboard" : "/console/dashboard");
     } catch (err: unknown) {

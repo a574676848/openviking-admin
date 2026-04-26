@@ -75,10 +75,10 @@ OpenViking Admin 的设计目标，是把这些问题作为平台能力解决，
 
 | Capability | HTTP | CLI | MCP Tool |
 |------|------|------|------|
-| `knowledge.search` | `POST /api/knowledge/search` | `ova knowledge search` | `knowledge.search` |
-| `knowledge.grep` | `POST /api/knowledge/grep` | `ova knowledge grep` | `knowledge.grep` |
-| `resources.list` | `GET /api/resources` | `ova resources list` | `resources.list` |
-| `resources.tree` | `GET /api/resources/tree` | `ova resources tree` | `resources.tree` |
+| `knowledge.search` | `POST /api/v1/knowledge/search` | `ova knowledge search` | `knowledge.search` |
+| `knowledge.grep` | `POST /api/v1/knowledge/grep` | `ova knowledge grep` | `knowledge.grep` |
+| `resources.list` | `GET /api/v1/resources` | `ova resources list` | `resources.list` |
+| `resources.tree` | `GET /api/v1/resources/tree` | `ova resources tree` | `resources.tree` |
 
 ## 快速开始
 
@@ -112,12 +112,19 @@ GRANT CREATE ON DATABASE openviking_admin TO postgres;
 ```bash
 cd apps/server
 cp .env.example .env
-pnpm typeorm migration:run -d src/data-source.ts
+pnpm migration:run
 node seed-admin.js
 pnpm start:dev
 ```
 
-后端默认地址：`http://localhost:6001/api`。
+也可以在仓库根目录直接执行：
+
+```bash
+pnpm server:migration:run
+pnpm server:dev
+```
+
+后端默认地址：`http://localhost:6001/api/v1`，控制台与脚本都应使用 `/api/v1/*` 作为稳定入口。
 
 ### 启动 Web 控制台
 
@@ -135,7 +142,7 @@ Web 控制台默认地址：`http://localhost:6002`。
 ### HTTP
 
 ```bash
-curl -X POST "http://localhost:6001/api/knowledge/search" \
+curl -X POST "http://localhost:6001/api/v1/knowledge/search" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <jwt-or-capability-token>" \
   -d '{
@@ -170,7 +177,7 @@ ova doctor
       "args": [
         "@anthropic-ai/mcp-remote",
         "--url",
-        "http://localhost:6001/api/mcp/sse?key=<ov-sk-...>"
+        "http://localhost:6001/api/v1/mcp/sse?key=<ov-sk-...>"
       ]
     }
   }
