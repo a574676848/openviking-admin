@@ -10,7 +10,7 @@ function cx(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
 }
 
-export type ShellTheme = "neo" | "swiss";
+export type ShellTheme = "neo" | "starry";
 
 type ShellTone = "default" | "danger";
 type ShellPanelVariant = "surface" | "sidebar" | "popover" | "drawer";
@@ -24,37 +24,37 @@ const SHELL_FOCUS_RING = {
 
 const SHELL_PANEL_VARIANT_CLASS: Record<ShellPanelVariant, Record<ShellTheme, string>> = {
   surface: {
-    neo: "border-[3px] border-[var(--border)] bg-[var(--bg-card)] shadow-[4px_4px_0px_#000]",
-    swiss: "border border-[var(--border)] bg-[var(--bg-card)] shadow-none",
+    neo: "border border-[var(--border)] bg-[var(--bg-card)] rounded-[var(--radius-base)] shadow-sm",
+    starry: "border border-[var(--border)] bg-[var(--bg-card)] shadow-[0_0_15px_rgba(0,240,255,0.05)]",
   },
   sidebar: {
-    neo: "border-r-[3px] border-[var(--border)] bg-[var(--bg-card)] shadow-[8px_0px_0px_#000]",
-    swiss: "border-r border-[var(--border)] bg-[var(--bg-base)] shadow-none",
+    neo: "border-r border-[var(--border)] bg-[var(--bg-card)] shadow-none",
+    starry: "border-r border-[var(--border)] bg-[var(--bg-base)] shadow-none",
   },
   popover: {
-    neo: "border-[2px] border-[var(--border)] bg-[var(--bg-card)] shadow-[8px_8px_0px_#000]",
-    swiss: "border border-[var(--border)] bg-[var(--bg-card)] shadow-none",
+    neo: "border border-[var(--border)] bg-[var(--bg-card)] rounded-[var(--radius-base)] shadow-md",
+    starry: "border border-[var(--border)] bg-[var(--bg-card)] shadow-[0_0_20px_rgba(0,240,255,0.1)]",
   },
   drawer: {
-    neo: "border-r-[3px] border-[var(--border)] bg-[var(--bg-card)] shadow-[12px_0_24px_rgba(0,0,0,0.18)]",
-    swiss: "border-r border-[var(--border)] bg-[var(--bg-base)] shadow-[12px_0_24px_rgba(0,0,0,0.18)]",
+    neo: "border-r border-[var(--border)] bg-[var(--bg-card)] rounded-r-[var(--radius-base)] shadow-[4px_0_24px_rgba(0,0,0,0.08)]",
+    starry: "border-r border-[var(--border)] bg-[var(--bg-base)] shadow-[12px_0_24px_rgba(0,240,255,0.05)]",
   },
 };
 
 const SHELL_BUTTON_TONE_CLASS: Record<ShellTone, Record<ShellTheme, string>> = {
   default: {
-    neo: "border-[3px] border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-primary)] shadow-[2px_2px_0px_#000] transition-all hover:translate-y-0.5 hover:shadow-none",
-    swiss: "border border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-elevated)]",
+    neo: "border border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-primary)] rounded-[var(--radius-pill)] transition-all hover:bg-[var(--bg-elevated)] hover:shadow-sm",
+    starry: "border border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-primary)] rounded-[var(--radius-pill)] transition-all hover:bg-[var(--bg-elevated)] hover:shadow-[0_0_10px_rgba(0,240,255,0.1)]",
   },
   danger: {
-    neo: "border-[3px] border-[var(--border)] bg-[var(--danger)] text-white shadow-[2px_2px_0px_#000] transition-all hover:translate-y-0.5 hover:shadow-none",
-    swiss: "border border-[var(--danger)] bg-transparent text-[var(--danger)] transition-colors hover:bg-[var(--danger)] hover:text-white",
+    neo: "border border-[var(--danger)]/20 bg-[var(--bg-card)] text-[var(--danger)] rounded-[var(--radius-pill)] transition-all hover:bg-[var(--danger)]/10 hover:shadow-sm",
+    starry: "border border-[var(--danger)]/50 bg-[var(--danger)]/10 text-[var(--danger)] rounded-[var(--radius-pill)] transition-all hover:bg-[var(--danger)] hover:text-white hover:shadow-[0_0_10px_rgba(239,68,68,0.2)]",
   },
 };
 
 const SHELL_TILE_CLASS: Record<ShellTheme, string> = {
-  neo: "border-[2px] border-[var(--border)] bg-[var(--bg-card)] shadow-[2px_2px_0px_#000]",
-  swiss: "border border-[var(--border)] bg-[var(--bg-card)] shadow-none",
+  neo: "border border-[var(--border)] bg-[var(--bg-card)] rounded-[var(--radius-tile)]",
+  starry: "border border-[var(--border)] bg-[var(--bg-card)] shadow-[0_0_5px_rgba(0,240,255,0.05)] rounded-[var(--radius-tile)]",
 };
 
 export function getShellPanelClass(
@@ -71,8 +71,7 @@ export function getShellButtonClass(
   className?: string,
 ) {
   return cx(
-    "inline-flex items-center justify-center gap-2 font-mono text-[10px] font-black uppercase",
-    tone === "danger" ? "tracking-[0.2em]" : "tracking-[0.18em]",
+    "inline-flex items-center justify-center gap-2 font-sans text-xs font-bold",
     SHELL_FOCUS_RING[tone],
     SHELL_BUTTON_TONE_CLASS[tone][theme],
     className,

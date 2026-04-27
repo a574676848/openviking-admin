@@ -23,7 +23,7 @@ export function ConsoleButton({
     <button
       {...props}
       className={cx(
-        "ov-button inline-flex items-center gap-3 px-5 py-3 font-mono text-[10px] font-black uppercase tracking-[0.18em]",
+        "ov-button inline-flex items-center gap-3 px-5 py-3 font-sans text-xs font-bold rounded-[var(--radius-base)] transition-all active:scale-[0.98]",
         toneClass,
         className,
       )}
@@ -35,13 +35,13 @@ export function ConsoleButton({
 
 export function ConsoleInput(props: ComponentProps<"input">) {
   const { className, ...rest } = props;
-  return <input {...rest} className={cx("ov-input w-full px-4 py-3 font-mono text-sm font-black", className)} />;
+  return <input {...rest} className={cx("ov-input w-full px-4 py-3 font-sans text-sm rounded-[var(--radius-base)]", className)} />;
 }
 
 export function ConsoleSelect(props: ComponentProps<"select">) {
   const { className, children, ...rest } = props;
   return (
-    <select {...rest} className={cx("ov-input w-full px-4 py-3 font-mono text-sm font-black", className)}>
+    <select {...rest} className={cx("ov-input w-full px-4 py-3 font-sans text-sm rounded-[var(--radius-base)]", className)}>
       {children}
     </select>
   );
@@ -56,7 +56,7 @@ export function ConsoleField({
 }) {
   return (
     <div>
-      <label className="font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-secondary)]">
+      <label className="font-sans text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
         {label}
       </label>
       <div className="mt-2">{children}</div>

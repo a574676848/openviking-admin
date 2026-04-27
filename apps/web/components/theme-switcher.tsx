@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect, useId } from 'react';
 import { useApp, ThemeType } from './app-provider';
-import { Zap, MousePointer2, ChevronDown, Check, type LucideIcon } from 'lucide-react';
+import { Zap, MousePointer2, ChevronDown, Check, Sparkles, type LucideIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   getShellButtonClass,
@@ -15,17 +15,26 @@ type ThemePlacement = 'top' | 'bottom';
 export function ThemeSwitcher({
   className = "",
   placement = 'bottom',
+  align = 'left',
+  compact = false,
 }: {
   className?: string;
   placement?: ThemePlacement;
+  align?: 'left' | 'right';
+  compact?: boolean;
 }) {
   const { theme, setTheme } = useApp();
   const [isOpen, setIsOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const firstOptionRef = useRef<HTMLButtonElement>(null);
-  const isSwiss = theme === 'swiss';
+  const isStarry = theme === 'starry';
   const menuId = useId();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const themes: {
     id: ThemeType;
@@ -38,34 +47,35 @@ export function ThemeSwitcher({
     { 
       id: 'neo', 
       icon: Zap, 
-      label: '现代波普',
-      englishLabel: 'Neo-Brutalism',
-      description: '白底黑线 · 硬阴影',
-      color: 'bg-[#FFDE00]'
+      label: '星智流光',
+      englishLabel: 'Luminous',
+      description: '圆润柔和 · 呼吸感',
+      color: 'bg-[var(--brand-muted)] text-[var(--brand)]'
     },
     { 
-      id: 'swiss', 
-      icon: MousePointer2, 
-      label: '瑞士极简',
-      englishLabel: 'Swiss Mini',
-      description: '极简留白 · 细线秩序',
-      color: 'bg-[#FF3E3E]'
+      id: 'starry', 
+      icon: Sparkles, 
+      label: '浩瀚星空',
+      englishLabel: 'Starry Sky',
+      description: '深邃暗色 · 星芒漫游',
+      color: 'bg-[#00F0FF]'
     },
   ];
 
   const currentTheme = themes.find(t => t.id === theme) || themes[0];
   const dropdownPlacementClass = placement === 'top' ? 'bottom-full mb-2' : 'top-full mt-2';
+  const dropdownAlignClass = align === 'right' ? 'right-0' : 'left-0';
   const dropdownInitialY = placement === 'top' ? 10 : -10;
   const dropdownAnimateY = placement === 'top' ? -8 : 8;
   const triggerClassName = getShellButtonClass(
-    isSwiss ? 'swiss' : 'neo',
+    isStarry ? 'starry' : 'neo',
     'default',
-    'group relative px-4 py-2',
+    `group relative ${compact ? 'w-11 h-11 justify-center' : 'w-full h-11 px-4'}`,
   );
   const dropdownClassName = getShellPanelClass(
-    isSwiss ? 'swiss' : 'neo',
+    isStarry ? 'starry' : 'neo',
     'popover',
-    `absolute left-0 ${dropdownPlacementClass} z-[100] w-64 overflow-hidden`,
+    `absolute ${dropdownAlignClass} ${dropdownPlacementClass} z-[100] w-64 overflow-hidden`,
   );
 
   useEffect(() => {
@@ -107,20 +117,23 @@ export function ThemeSwitcher({
         onClick={() => setIsOpen(!isOpen)}
         className={triggerClassName}
       >
-        <div className={getShellTileClass(isSwiss ? 'swiss' : 'neo', `p-1.5 ${currentTheme.color}`)}>
-          <currentTheme.icon size={14} strokeWidth={3} />
+        <div className={getShellTileClass(isStarry ? 'starry' : 'neo', `p-1.5 ${currentTheme.color}`)}>
+          {mounted && <currentTheme.icon size={14} strokeWidth={2.5} />}
         </div>
-        <div className="flex flex-col items-start leading-none">
-          <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">主题</span>
-          <span className="text-[12px] font-black tracking-tighter">{currentTheme.label}</span>
-        </div>
-        <motion.div
-          animate={{ rotate: isOpen ? 180 : 0 }}
-          transition={{ type: "spring", stiffness: 300, damping: 20 }}
-          className="ml-2"
-        >
-          <ChevronDown size={16} strokeWidth={3} />
-        </motion.div>
+        {!compact && (
+          <>
+            <div className="flex flex-col items-start leading-none ml-2">
+              <span className="text-xs font-bold whitespace-nowrap">{currentTheme.label}</span>
+            </div>
+            <motion.div
+              animate={{ rotate: isOpen ? 180 : 0 }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              className="ml-auto"
+            >
+              <ChevronDown size={16} strokeWidth={2.5} />
+            </motion.div>
+          </>
+        )}
       </button>
 
       {/* Dropdown Menu */}
@@ -135,9 +148,7 @@ export function ThemeSwitcher({
             role="menu"
             aria-label="主题选项"
           >
-            <div className={`p-2 text-[10px] font-black tracking-[0.2em] ${
-              isSwiss ? "border-b border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--text-primary)]" : "border-b-2 border-[var(--border)] bg-black text-white"
-            }`}>
+            <div className={`p-2 text-[10px] font-bold uppercase tracking-wider border-b border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--text-primary)]`}>
               选择界面风格
             </div>
             <div className="p-1">
@@ -158,28 +169,26 @@ export function ThemeSwitcher({
                       triggerRef.current?.focus();
                     }}
                     className={`
-                      w-full flex items-center gap-3 p-2 mb-1 last:mb-0 transition-all border-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-card)]
+                      w-full flex items-center gap-3 p-2 mb-1 last:mb-0 transition-all border border-transparent rounded-[var(--radius-base)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-card)]
                       ${isActive 
-                        ? isSwiss
-                          ? "bg-[var(--brand-muted)] text-[var(--text-primary)] border-[var(--border)]"
-                          : "bg-black text-white border-[var(--border)]" 
-                        : "bg-[var(--bg-card)] text-black border-transparent hover:bg-[var(--brand-muted)] hover:border-[var(--border)]"
+                        ? "bg-[var(--brand-muted)] text-[var(--brand)] border-[var(--brand)]/20 shadow-sm"
+                        : "bg-transparent text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]"
                       }
                     `}
                   >
                     <div className={getShellTileClass(
-                      isSwiss ? 'swiss' : 'neo',
-                      `p-1.5 ${t.color} ${!isSwiss && isActive ? 'shadow-[2px_2px_0px_rgba(255,255,255,0.3)]' : ''}`,
+                      isStarry ? 'starry' : 'neo',
+                      `p-1.5 ${t.color}`,
                     )}>
-                      <Icon size={14} strokeWidth={3} />
+                      <Icon size={14} strokeWidth={2.5} />
                     </div>
                     <div className="flex-1 text-left">
-                      <div className="text-[11px] font-black tracking-tighter">{t.label}</div>
-                      <div className={`text-[9px] ${isActive ? 'text-gray-400' : 'text-gray-500'}`}>
+                      <div className="text-xs font-bold whitespace-nowrap">{t.label}</div>
+                      <div className={`text-[9px] font-medium ${isActive ? 'text-[var(--brand)] opacity-80' : 'text-[var(--text-muted)]'}`}>
                         {t.englishLabel} · {t.description}
                       </div>
                     </div>
-                    {isActive && <Check size={16} strokeWidth={4} className="text-[var(--success)]" />}
+                    {isActive && <Check size={16} strokeWidth={3} className="text-[var(--brand)]" />}
                   </button>
                 );
               })}

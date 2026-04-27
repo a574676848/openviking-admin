@@ -101,20 +101,21 @@ JWT access token
 租户隔离由身份、角色、URI scope 和数据路由共同保证：
 
 1. `TenantGuard` 识别租户身份并注入请求上下文。
-2. Repository 通过请求上下文选择主库、Schema 或独立租户库。
-3. Capability gateway 对租户外 URI 返回显式拒绝。
-4. 下游 OpenViking 请求只使用服务端推导出的租户 scope。
+2. 身份数据（`users`、登录凭证、SSO 映射）固定存放在公共控制平面，不跟随租户 Schema 或独立库漂移。
+3. 业务 Repository 通过请求上下文选择主库、Schema 或独立租户库。
+4. Capability gateway 对租户外 URI 返回显式拒绝。
+5. 下游 OpenViking 请求只使用服务端推导出的租户 scope。
 
 ## 请求级动态寻址
 
-系统通过 request-scoped repository 和动态 datasource 支持不同隔离级别。
+系统通过请求上下文和动态 datasource 支持不同隔离级别，但身份中心始终使用公共库。
 
 | 组件 | 说明 |
 |------|------|
 | `TenantGuard` | 识别租户身份，准备数据路由上下文 |
-| `DynamicDataSourceService` | 管理 Large 租户独立连接池 |
+| `DynamicDataSourceService` | 管理 Large 租户业务库连接池，不承载 `users` / `tenants` |
 | `TenantCleanupInterceptor` | 请求结束后释放 QueryRunner |
-| Repository implementations | 基于请求上下文选择实际数据源 |
+| Repository implementations | 业务数据按租户路由；身份数据固定走公共库 |
 
 ## 可观测性
 

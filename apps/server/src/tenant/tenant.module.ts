@@ -12,10 +12,11 @@ import { TenantRepository } from './infrastructure/repositories/tenant.repositor
 import { TENANT_REPOSITORY } from './domain/repositories/tenant.repository.interface';
 import { IIntegrationRepository } from './domain/repositories/integration.repository.interface';
 import { IntegrationRepositoryImpl } from './infrastructure/repositories/integration.repository.impl';
+import { UsersModule } from '../users/users.module';
 
 @Global()
 @Module({
-  imports: [TypeOrmModule.forFeature([Tenant, Integration])],
+  imports: [TypeOrmModule.forFeature([Tenant, Integration]), UsersModule],
   providers: [
     TenantService,
     IntegrationService,

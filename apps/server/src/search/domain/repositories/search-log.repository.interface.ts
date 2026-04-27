@@ -14,4 +14,20 @@ export interface ISearchLogRepository {
     hitCount: number;
     avgLatency: number;
   }>;
+  getFeedbackStats(tenantId?: string | null): Promise<{
+    helpfulCount: number;
+    unhelpfulCount: number;
+  }>;
+  getTopUris(
+    tenantId?: string | null,
+    limit?: number,
+  ): Promise<{ uri: string; count: number; hits: number; hitRate: number }[]>;
+  getTopQueries(
+    tenantId?: string | null,
+    limit?: number,
+  ): Promise<{ query: string; count: number; hits: number; hitRate: number }[]>;
+  getDailyStats(
+    tenantId?: string | null,
+    days?: number,
+  ): Promise<{ day: string; total: number; hits: number; hitRate: number; avgLatency: number }[]>;
 }

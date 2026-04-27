@@ -25,6 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- 前端 UI/UX 生态动画大重构：
+  - “浩瀚星空 (Starry Sky)”主题引入随机斜向流星雨 (`MeteorShower`) 特效，并附带环境光晕照亮底层玻璃拟态卡片。
+  - “星智流光 (Luminous)”主题引入仿生“数据萤火虫” (`DataWisps`)，实现具有物理弹性、高频振翅与生命周期繁衍的生态游走特效。
+  - 移除登录页原先僵硬的巨大静态呼吸色块，确立“网格+动态粒子”的极简高级背景规范。
+  - 全局移除业务内页容器的不透明底色遮挡，使得流星与萤火虫动画能够穿透至所有系统设置层级。
+  - 引入了基于空闲 2 秒判定的“维京守望者视线追踪系统 (Watcher Gaze Tracking)”，让 Watcher 在鼠标静止时智能接管视线，去跟随离它最近的流星或萤火虫。
 - 架构中心从“扩展 MCP”调整为 “Capability-First”
 - MCP adapter 改为复用统一 capability catalog 与 execution service
 - CLI 与 skill 改为调用平铺 capability，而非通用 tool runner

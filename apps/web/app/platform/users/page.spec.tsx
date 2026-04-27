@@ -13,6 +13,10 @@ vi.mock("@/components/ui/ConfirmProvider", () => ({
   useConfirm: () => confirmMock,
 }));
 
+vi.mock("@/components/app-provider", () => ({
+  useApp: () => ({ user: { id: "self-id", username: "admin", role: "super_admin" } }),
+}));
+
 vi.mock("@/lib/apiClient", () => ({
   apiClient: {
     get: (...args: unknown[]) => getMock(...args),
@@ -62,13 +66,13 @@ describe("Platform UsersPage", () => {
     expect(container.textContent).toContain("用户列表加载失败：用户目录暂不可用");
   });
 
-  it("切换为超级管理员角色后租户绑定输入进入禁用态", async () => {
+  it("切换为超级管理员角色后租户绑定选择进入禁用态", async () => {
     getMock.mockResolvedValueOnce([]);
 
     await renderPage();
 
     const toggleButton = Array.from(container.querySelectorAll("button")).find((button) =>
-      button.textContent?.includes("指派新账号"),
+      button.textContent?.includes("创建新账号"),
     );
     expect(toggleButton).toBeTruthy();
 
@@ -76,20 +80,95 @@ describe("Platform UsersPage", () => {
       toggleButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    const select = container.querySelector("select");
-    expect(select).toBeTruthy();
+    const selects = Array.from(container.querySelectorAll("select"));
+    const roleSelect = selects.find((s) => {
+      const options = Array.from(s.querySelectorAll("option"));
+      return options.some((o) => o.value === "super_admin");
+    });
+    expect(roleSelect).toBeTruthy();
 
     await act(async () => {
-      if (select) {
-        select.value = "super_admin";
-        select.dispatchEvent(new Event("change", { bubbles: true }));
+      if (roleSelect) {
+        roleSelect.value = "super_admin";
+        roleSelect.dispatchEvent(new Event("change", { bubbles: true }));
       }
     });
 
-    const inputs = Array.from(container.querySelectorAll("input"));
-    const tenantBindingInput = inputs.find((input) => input.placeholder === "e.g. demo-space");
-    expect(tenantBindingInput).toBeTruthy();
-    expect(tenantBindingInput?.getAttribute("disabled")).not.toBeNull();
-    expect((tenantBindingInput as HTMLInputElement).value).toBe("平台全局");
+    const tenantSelect = selects.find((s) => {
+      const options = Array.from(s.querySelectorAll("option"));
+      return options.some((o) => o.textContent?.includes("选择租户") || o.textContent?.includes("平台全局"));
+    });
+    expect(tenantSelect).toBeTruthy();
+    expect(tenantSelect?.getAttribute("disabled")).not.toBeNull();
+    expect((tenantSelect as HTMLSelectElement).value).toBe("");
+  });
+
+  it("自身账号的停用按钮处于禁用态", async () => {
+    getMock.mockResolvedValueOnce([{ id: "self-id", username: "admin", role: "super_admin", tenantId: null, active: true, createdAt: "2024-01-01" }]);
+
+    await renderPage();
+
+    const disableBtn = Array.from(container.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("停用账号"),
+    );
+    expect(disableBtn).toBeTruthy();
+    expect(disableBtn?.getAttribute("disabled")).not.toBeNull();
+  });
+
+  it("更多菜单包含编辑和重置密码按钮", async () => {
+    getMock.mockResolvedValueOnce([{ id: "other-id", username: "testuser", role: "tenant_viewer", tenantId: "demo", active: true, createdAt: "2024-01-01" }]);
+
+    await renderPage();
+
+    expect(container.textContent).toContain("编辑");
+    expect(container.textContent).toContain("重置密码");
+    expect(container.textContent).toContain("删除用户");
+  });
+
+  it("编辑弹窗中角色范围字段为禁用态，仅可调整租户绑定", async () => {
+    getMock.mockResolvedValueOnce([{ id: "other-id", username: "testuser", role: "tenant_viewer", tenantId: "demo", active: true, createdAt: "2024-01-01" }]);
+
+    await renderPage();
+
+    const editBtn = Array.from(container.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("编辑"),
+    );
+    expect(editBtn).toBeTruthy();
+
+    await act(async () => {
+      editBtn?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(container.textContent).toContain("编辑用户");
+    expect(container.textContent).toContain("保存修改");
+
+    const selects = Array.from(container.querySelectorAll("select"));
+    const roleSelect = selects.find((s) => {
+      const options = Array.from(s.querySelectorAll("option"));
+      return options.some((o) => o.value === "super_admin");
+    });
+    expect(roleSelect).toBeTruthy();
+    expect(roleSelect?.getAttribute("disabled")).not.toBeNull();
+  });
+
+  it("重置密码弹窗需输入两遍新密码且一致才能提交", async () => {
+    getMock.mockResolvedValueOnce([{ id: "other-id", username: "testuser", role: "tenant_viewer", tenantId: "demo", active: true, createdAt: "2024-01-01" }]);
+
+    await renderPage();
+
+    const resetBtn = Array.from(container.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("重置密码"),
+    );
+    expect(resetBtn).toBeTruthy();
+
+    await act(async () => {
+      resetBtn?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(container.textContent).toContain("重置");
+    expect(container.textContent).toContain("确认重置");
+
+    const passwordInputs = Array.from(container.querySelectorAll("input[type='password']"));
+    expect(passwordInputs.length).toBe(2);
   });
 });

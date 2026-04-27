@@ -1,28 +1,19 @@
-import { Injectable, Inject, Scope } from '@nestjs/common';
-import { REQUEST } from '@nestjs/core';
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, type FindManyOptions } from 'typeorm';
+import { IsNull, Repository, type FindManyOptions } from 'typeorm';
 import { User } from '../../entities/user.entity';
 import { IUserRepository } from '../../domain/repositories/user.repository.interface';
 import type { UserModel } from '../../domain/user.model';
-import type { RepositoryRequest } from '../../../common/repository-request.interface';
 import type { RepositoryFindQuery } from '../../../common/repository-query.types';
 
-@Injectable({ scope: Scope.REQUEST })
+@Injectable()
 export class TypeOrmUserRepository implements IUserRepository {
   constructor(
-    @Inject(REQUEST) private readonly request: RepositoryRequest,
     @InjectRepository(User)
     private readonly defaultRepo: Repository<User>,
   ) {}
 
   private get repo(): Repository<User> {
-    if (this.request?.tenantQueryRunner) {
-      return this.request.tenantQueryRunner.manager.getRepository(User);
-    }
-    if (this.request?.tenantDataSource) {
-      return this.request.tenantDataSource.getRepository(User);
-    }
     return this.defaultRepo;
   }
 
@@ -69,8 +60,17 @@ export class TypeOrmUserRepository implements IUserRepository {
     return item ? this.toModel(item) : null;
   }
 
-  async findByUsername(username: string): Promise<UserModel | null> {
-    const item = await this.repo.findOne({ where: { username } });
+  async findByUsername(
+    username: string,
+    tenantId?: string | null,
+  ): Promise<UserModel | null> {
+    const where =
+      tenantId === undefined
+        ? { username }
+        : tenantId === null
+          ? { username, tenantId: IsNull() }
+          : { username, tenantId };
+    const item = await this.repo.findOne({ where });
     return item ? this.toModel(item) : null;
   }
 

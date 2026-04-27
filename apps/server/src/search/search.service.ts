@@ -23,6 +23,16 @@ export interface OVSearchResource {
   content?: string;
   title?: string;
   abstract?: string;
+  image?: string | string[];
+  images?: string[];
+  image_url?: string;
+  image_urls?: string[];
+  screenshot?: string | string[];
+  screenshots?: string[];
+  video?: string | string[];
+  videos?: string[];
+  video_url?: string;
+  video_urls?: string[];
   [key: string]: unknown;
 }
 
@@ -34,11 +44,18 @@ interface OVSearchResponse {
 
 interface RerankResult {
   index: number;
-  relevance_score: number;
+  relevance_score?: number;
+  score?: number;
 }
 
 interface RerankResponse {
   results?: RerankResult[];
+}
+
+interface RerankMultimodalDocument {
+  text?: string | string[];
+  image?: string | string[];
+  video?: string | string[];
 }
 
 @Injectable()
@@ -93,8 +110,11 @@ export class SearchService {
         const rerankData = (await this.ovKnowledgeGateway.rerank(
           {
             endpoint: config.rerankEndpoint!,
+            apiKey: config.rerankApiKey || undefined,
             query: params.query,
-            documents: resources.map((resource) => resource.content || resource.title || ''),
+            documents: resources.map((resource) =>
+              this.buildRerankDocument(resource),
+            ),
             model: config.rerankModel || undefined,
           },
           meta,
@@ -107,7 +127,7 @@ export class SearchService {
             return {
               ...r,
               stage1Score: r.score,
-              score: rerankMatch ? rerankMatch.relevance_score : r.score,
+              score: this.resolveRerankScore(rerankMatch, r.score),
               reranked: true,
             };
           })
@@ -175,20 +195,24 @@ export class SearchService {
   async getStatsDeep(tenantId: string | null) {
     const { total, hitCount, avgLatency } =
       await this.logRepo.getStats(tenantId);
+    const { helpfulCount, unhelpfulCount } =
+      await this.logRepo.getFeedbackStats(tenantId);
+    const zeroCount = total - hitCount;
+    const feedbackTotal = helpfulCount + unhelpfulCount;
     return {
       overview: {
         total,
         hitCount,
-        zeroCount: total - hitCount,
+        zeroCount,
         hitRate: total > 0 ? Number(((hitCount / total) * 100).toFixed(1)) : 0,
         avgLatency: Math.round(avgLatency),
-        helpfulCount: 0,
-        unhelpfulCount: 0,
-        feedbackTotal: 0,
+        helpfulCount,
+        unhelpfulCount,
+        feedbackTotal,
       },
-      topUris: [],
-      daily: [],
-      topQueries: [],
+      topUris: await this.logRepo.getTopUris(tenantId),
+      daily: await this.logRepo.getDailyStats(tenantId),
+      topQueries: await this.logRepo.getTopQueries(tenantId),
     };
   }
 
@@ -213,5 +237,92 @@ export class SearchService {
 
   private toConnection(connection: OVConnection): OVConnection {
     return connection;
+  }
+
+  private resolveRerankScore(
+    rerankMatch: RerankResult | undefined,
+    fallbackScore: number,
+  ) {
+    if (!rerankMatch) {
+      return fallbackScore;
+    }
+
+    if (typeof rerankMatch.relevance_score === 'number') {
+      return rerankMatch.relevance_score;
+    }
+
+    if (typeof rerankMatch.score === 'number') {
+      return rerankMatch.score;
+    }
+
+    return fallbackScore;
+  }
+
+  private buildRerankDocument(resource: OVSearchResource) {
+    const images = this.collectMediaUrls(
+      resource.image,
+      resource.images,
+      resource.image_url,
+      resource.image_urls,
+      resource.screenshot,
+      resource.screenshots,
+    );
+    const videos = this.collectMediaUrls(
+      resource.video,
+      resource.videos,
+      resource.video_url,
+      resource.video_urls,
+    );
+    const text = this.buildRerankText(resource);
+
+    if (images.length === 0 && videos.length === 0) {
+      return text;
+    }
+
+    const document: RerankMultimodalDocument = {};
+    if (text) {
+      document.text = text;
+    }
+    if (images.length === 1) {
+      document.image = images[0];
+    } else if (images.length > 1) {
+      document.image = images;
+    }
+    if (videos.length === 1) {
+      document.video = videos[0];
+    } else if (videos.length > 1) {
+      document.video = videos;
+    }
+
+    return document;
+  }
+
+  private buildRerankText(resource: OVSearchResource) {
+    const sections = [resource.title, resource.abstract, resource.content]
+      .filter((value): value is string => !!value && value.trim().length > 0)
+      .map((value) => value.trim());
+
+    if (sections.length === 0) {
+      return resource.uri;
+    }
+
+    return sections.join('\n\n');
+  }
+
+  private collectMediaUrls(...values: unknown[]) {
+    return values.flatMap((value) => this.toStringList(value));
+  }
+
+  private toStringList(value: unknown): string[] {
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      return trimmed ? [trimmed] : [];
+    }
+
+    if (Array.isArray(value)) {
+      return value.flatMap((item) => this.toStringList(item));
+    }
+
+    return [];
   }
 }

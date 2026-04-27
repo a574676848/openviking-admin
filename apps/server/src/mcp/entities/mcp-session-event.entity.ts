@@ -19,7 +19,7 @@ export class McpSessionEvent {
   @Column({ name: 'session_id', length: 36 })
   sessionId: string;
 
-  @Column({ name: 'event_type', length: 32, nullable: true })
+  @Column({ type: 'varchar', name: 'event_type', length: 32, nullable: true })
   eventType: string | null;
 
   @Column({ type: 'text' })

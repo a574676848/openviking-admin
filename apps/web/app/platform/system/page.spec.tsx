@@ -49,17 +49,17 @@ describe("Platform SystemPage", () => {
     expect(container.textContent).toContain("重试加载");
   });
 
-  it("无图存储统计时展示空态，并渲染 OpenViking 与队列状态", async () => {
+  it("无图存储统计时展示空态，并渲染引擎与队列状态", async () => {
     getMock
       .mockResolvedValueOnce({
         ok: true,
         openviking: {
-          host: "http://openviking.local",
-          version: "1.4.2",
-          commit: "abc1234def",
-          dimension: 1536,
-          embeddingModel: "text-embedding-3-large",
+          status: "ok",
+          healthy: true,
+          version: "0.3.9",
+          auth_mode: "api_key",
         },
+        resolvedBaseUrl: "http://192.168.10.99:1933",
       })
       .mockResolvedValueOnce({
         queue: {
@@ -67,7 +67,7 @@ describe("Platform SystemPage", () => {
           Semantic: 1,
           "Semantic-Nodes": 0,
         },
-        dbStats: null,
+        vikingdb: null,
       });
 
     await renderPage();
@@ -75,9 +75,35 @@ describe("Platform SystemPage", () => {
     expect(container.textContent).toContain("底层状态监控_");
     expect(container.textContent).toContain("OpenViking 核心引擎");
     expect(container.textContent).toContain("在线");
-    expect(container.textContent).toContain("http://openviking.local");
+    expect(container.textContent).toContain("http://192.168.10.99:1933");
     expect(container.textContent).toContain("异步任务队列");
     expect(container.textContent).toContain("暂无图存储遥测");
     expect(container.textContent).toContain("当前未返回可展示的图存储指标。");
+  });
+
+  it("有图存储统计时展示集合详情", async () => {
+    getMock
+      .mockResolvedValueOnce({
+        ok: true,
+        openviking: { status: "ok", healthy: true, version: "0.3.9" },
+        resolvedBaseUrl: "http://192.168.10.99:1933",
+      })
+      .mockResolvedValueOnce({
+        queue: { Embedding: 0, Semantic: 0, "Semantic-Nodes": 0 },
+        vikingdb: {
+          collections: [
+            { Collection: "context", "Index Count": "1", "Vector Count": "4032", Status: "OK" },
+          ],
+          totalCollections: 1,
+          totalIndexCount: 1,
+          totalVectorCount: 4032,
+        },
+      });
+
+    await renderPage();
+
+    expect(container.textContent).toContain("底层图存储统计");
+    expect(container.textContent).toContain("context");
+    expect(container.textContent).toContain("4,032");
   });
 });

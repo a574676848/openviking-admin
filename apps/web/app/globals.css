@@ -2,55 +2,75 @@
 
 /* ─── OpenViking Admin Design Tokens (Neo / Swiss Theme) ─── */
 :root {
-  /* 浅色主题：Neo-Brutalism (现代波普极客风) */
-  --bg-base:     #FFFFFF;
+  /* 浅色主题：星智流光 (Luminous) */
+  --bg-base:     #F8FAF9; /* 极轻微的薄荷灰，透亮感 */
   --bg-card:     #FFFFFF;
-  --bg-elevated: #F8F9FA;
-  --bg-input:    #FFFFFF;
+  --bg-elevated: #FFFFFF;
+  --bg-input:    #F9FBFA;
 
-  --border-width: 2px;
-  --border:       #000000;
-  --shadow-base:  4px 4px 0px #000000;
-  --shadow-hover: 0px 0px 0px #000000; /* 按压感 */
-  --radius-base:  6px;
+  --border-width: 1px;
+  --border:       #E2EAE5; /* 带一点点绿意的灰色边框 */
+  --shadow-base:  0 1px 3px rgba(22, 163, 74, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
+  --shadow-hover: 0 10px 25px -5px rgba(22, 163, 74, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  --radius-base:  28px; /* 提升圆润感，匹配现代波普/流光风格 */
+  --radius-inner: 20px;
+  --radius-tile:  16px;
+  --radius-pill:  9999px;
+  --pulse-animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 
-  --brand:       #0011FF;
-  --brand-hover: #0000CC;
-  --brand-muted: #E5E7FE;
+  --brand:       #16A34A;
+  --brand-hover: #15803D;
+  --brand-muted: #DCFCE7;
   --brand-text:  #FFFFFF;
 
-  --text-primary:   #000000;
-  --text-secondary: #4A4A4A;
-  --text-muted:     #8C8C8C;
+  --text-primary:   #1F1F1F;
+  --text-secondary: #444746;
+  --text-muted:     #747775;
 
-  --success: #00E676;
-  --warning: #FFE600;
-  --danger:  #FF4A4A;
-  --info:    #00E5FF;
+  --success: #16A34A;
+  --warning: #F9AB00;
+  --danger:  #D93025;
+  --info:    #16A34A;
 }
 
-/* ─── Swiss Minimal Style Overrides ─── */
-.theme-swiss {
-  --bg-base: #FAFAFA;
-  --bg-card: #FFFFFF;
-  --bg-elevated: #F4F4F2;
-  --bg-input: #FFFFFF;
-  --border: #E5E7EB;
+/* ─── Starry Sky Dark Style Overrides ─── */
+.theme-starry {
+  --bg-base: #0B0F19; /* 深邃星空黑/暗蓝 */
+  --bg-card: rgba(15, 23, 42, 0.6); /* 玻璃拟态半透明 */
+  --bg-elevated: rgba(30, 41, 59, 0.8);
+  --bg-input: rgba(15, 23, 42, 0.8);
+  --border: #1E293B; /* 暗色边框 */
   --border-width: 1px;
-  --shadow-base: none;
-  --shadow-hover: none;
-  --radius-base: 0px;
-  --brand: #0055FF;
-  --brand-hover: #0047D6;
-  --brand-muted: #EEF3FF;
-  --brand-text: #FFFFFF;
-  --text-primary: #0A0A0A;
-  --text-secondary: #4B5563;
-  --text-muted: #9CA3AF;
-  --success: #0A7A35;
-  --warning: #D39A00;
-  --danger: #B42318;
-  --info: #0055FF;
+  --shadow-base: 0 0 10px rgba(0, 240, 255, 0.05), 0 0 2px rgba(0, 0, 0, 0.5); /* 微光阴影 */
+  --shadow-hover: 0 0 20px rgba(0, 240, 255, 0.2), 0 0 5px rgba(0, 0, 0, 0.5); /* 强烈悬浮微光 */
+  --radius-base: 28px; /* 恢复圆润感 */
+  --radius-inner: 20px;
+  --radius-tile: 16px;
+  --radius-pill: 9999px;
+  --pulse-animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --brand: #00F0FF; /* 霓虹亮蓝/发光青色 */
+  --brand-hover: #38BDF8;
+  --brand-muted: rgba(0, 240, 255, 0.15);
+  --brand-text: #0B0F19; /* 亮色背景上的暗色文本 */
+  --text-primary: #F8FAFC;
+  --text-secondary: #CBD5E1;
+  --text-muted: #64748B;
+  --success: #10B981;
+  --warning: #F59E0B;
+  --danger: #EF4444;
+  --info: #0EA5E9;
+}
+
+/* ─── Theme Visibility Helpers ─── */
+.theme-starry-only { display: none !important; }
+.theme-starry .theme-starry-only { display: block !important; }
+
+.theme-neo-only { display: block !important; }
+.theme-starry .theme-neo-only { display: none !important; }
+
+/* 增强星空主题下的背景融合效果 */
+.theme-starry .ov-card, .theme-starry .ov-input {
+  backdrop-filter: blur(12px);
 }
 
 @theme inline {
@@ -76,17 +96,17 @@ html, body { min-height: 100%; }
 body {
   background: var(--bg-base);
   color: var(--text-primary);
-  font-family: var(--font-geist), "PingFang SC", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-inter), "PingFang SC", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   transition: background-color 0.4s ease, color 0.4s ease;
 }
 
 .font-sans {
-  font-family: var(--font-space-grotesk), var(--font-geist), "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-family: var(--font-inter), "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
 .font-mono {
-  font-family: var(--font-geist-mono), "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  font-family: var(--font-mono), "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
 /* Base Classes */
@@ -103,23 +123,22 @@ body {
   color: var(--brand-text);
   border: var(--border-width) solid var(--border);
   box-shadow: var(--shadow-base);
-  border-radius: var(--radius-base);
+  border-radius: var(--radius-pill);
   transition: all 0.15s ease-out;
   font-weight: bold;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  text-transform: uppercase;
 }
 .ov-button:hover:not(:disabled) {
-  transform: translate(2px, 2px);
+  transform: translateY(-1px);
   box-shadow: var(--shadow-hover);
   background: var(--brand-hover);
 }
-.theme-swiss .ov-button:hover:not(:disabled) {
-  transform: translateY(1px);
-  box-shadow: none;
+.theme-starry .ov-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 0 20px rgba(0, 240, 255, 0.3);
 }
 .ov-button:disabled {
   opacity: 0.6;
@@ -131,7 +150,7 @@ body {
 .ov-input {
   background: var(--bg-input);
   border: var(--border-width) solid var(--border);
-  border-radius: var(--radius-base);
+  border-radius: var(--radius-pill);
   color: var(--text-primary);
   transition: all 0.2s;
   width: 100%;
@@ -139,11 +158,13 @@ body {
 .ov-input:focus {
   outline: none;
   border-color: var(--brand);
-  background: var(--brand-muted);
-  box-shadow: 4px 4px 0px var(--brand);
+  background: #FFFFFF;
+  box-shadow: 0 0 0 2px var(--brand-muted);
 }
-.theme-swiss .ov-input:focus {
-  box-shadow: none;
+.theme-starry .ov-input:focus,
+.theme-starry .ov-input:focus-visible {
+  background: var(--bg-elevated) !important;
+  box-shadow: 0 0 0 2px rgba(0, 240, 255, 0.2);
 }
 
 @keyframes auth-shake {
@@ -207,3 +228,189 @@ body {
   0% { transform: translate(0, 0) rotate(0deg); }
   100% { transform: translate(-100px, -100px) rotate(5deg); }
 }
+
+/* ─── 隐形式主题滚动条 (Stealth Scrollbars) ─── */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: transparent; /* 默认完全透明 */
+  border-radius: 10px;
+  transition: background-color 0.3s ease;
+}
+
+/* 当鼠标悬停在可滚动区域时，滑块显示为极浅色 */
+*:hover::-webkit-scrollbar-thumb {
+  background-color: var(--border);
+}
+
+/* 当鼠标直接悬停在滑块上时，颜色加深 */
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--text-muted) !important;
+}
+
+/* 针对星空主题的细化 */
+.theme-starry ::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.theme-starry ::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+  background-color: rgba(0, 240, 255, 0.1);
+}
+
+/* Firefox 支持 */
+@supports (scrollbar-width: thin) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+    transition: scrollbar-color 0.3s ease;
+  }
+  *:hover {
+    scrollbar-color: var(--border) transparent;
+  }
+}
+
+/* 兼容既有的 hidden-scrollbar 类名，统一转向隐形审美 */
+.hidden-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.hidden-scrollbar:hover {
+  scrollbar-color: var(--border) transparent;
+}
+
+.animate-theme-pulse {
+  animation: var(--pulse-animation);
+}
+
+.hidden-scrollbar::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.hidden-scrollbar::-webkit-scrollbar-thumb {
+  background-color: transparent;
+}
+
+.hidden-scrollbar:hover::-webkit-scrollbar-thumb {
+  background-color: var(--border);
+}
+
+/* 流星雨特效 */
+.animate-meteor {
+  position: absolute;
+  width: 120px;
+  height: 2px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(0, 240, 255, 0.8), rgba(255, 255, 255, 1));
+  transform: rotate(135deg);
+  animation: meteor linear infinite;
+  border-radius: 999px;
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.8);
+  opacity: 0;
+  /* 确保发光层不会被其他容器裁剪 */
+  z-index: 10;
+}
+
+.animate-meteor::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  right: 0;
+  width: 3px;
+  height: 3px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 15px 3px rgba(0, 240, 255, 1);
+  z-index: 2;
+}
+
+/* 照亮周边区域的发光光晕 */
+.animate-meteor::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: -100px;
+  width: 200px;
+  height: 200px;
+  transform: translateY(-50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(0, 240, 255, 0.25) 0%, rgba(0, 240, 255, 0.05) 40%, transparent 70%);
+  mix-blend-mode: screen;
+  pointer-events: none;
+  z-index: 1;
+}
+
+@keyframes meteor {
+  0% {
+    opacity: 0;
+    transform: rotate(135deg) translateX(0);
+  }
+  2% {
+    opacity: 1;
+  }
+  20% {
+    opacity: 1;
+  }
+  25% {
+    opacity: 0;
+    transform: rotate(135deg) translateX(150vw);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(135deg) translateX(150vw);
+  }
+}
+
+/* 萤火虫闪烁特效 */
+@keyframes firefly-blink {
+  0%, 100% { 
+    opacity: 0; 
+    transform: scale(0.5);
+  }
+  20% { 
+    opacity: 1; 
+    transform: scale(1.2);
+  }
+  40% { 
+    opacity: 0.1; 
+    transform: scale(0.8);
+  }
+  60% { 
+    opacity: 0.8; 
+    transform: scale(1);
+  }
+  80% { 
+    opacity: 0; 
+    transform: scale(0.5);
+  }
+}
+.animate-firefly {
+  animation: firefly-blink 6s ease-in-out infinite;
+}
+
+@keyframes wing-flap-top {
+  0%, 100% { transform: rotate(10deg); }
+  50% { transform: rotate(50deg); }
+}
+@keyframes wing-flap-bottom {
+  0%, 100% { transform: rotate(-10deg); }
+  50% { transform: rotate(-50deg); }
+}
+.animate-wing-top {
+  animation: wing-flap-top 0.08s linear infinite;
+}
+.animate-wing-bottom {
+  animation: wing-flap-bottom 0.08s linear infinite;
+}
+
+

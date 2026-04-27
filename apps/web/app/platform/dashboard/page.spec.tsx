@@ -26,7 +26,9 @@ async function renderPage() {
 
 describe("Platform DashboardPage", () => {
   beforeEach(() => {
-    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    (
+      globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true;
     getMock.mockReset();
   });
 
@@ -40,7 +42,9 @@ describe("Platform DashboardPage", () => {
   });
 
   it("加载失败时展示平台总览失败态", async () => {
-    getMock.mockRejectedValueOnce(new Error("总览服务不可用")).mockResolvedValueOnce(null);
+    getMock
+      .mockRejectedValueOnce(new Error("总览服务不可用"))
+      .mockResolvedValueOnce(null);
 
     await renderPage();
 
@@ -57,6 +61,7 @@ describe("Platform DashboardPage", () => {
         zeroCount: 5,
         failedTasks: 1,
         runningTasks: 2,
+        tenantCount: 3,
         recentTasks: [
           {
             targetUri: "https://docs.openviking.dev/runbook",
@@ -77,12 +82,14 @@ describe("Platform DashboardPage", () => {
     await renderPage();
 
     expect(container.textContent).toContain("平台总览");
-    expect(container.textContent).toContain("向量总量");
+    expect(container.textContent).toContain("导入任务");
     expect(container.textContent).toContain("活跃租户");
     expect(container.textContent).toContain("全局命中率");
     expect(container.textContent).toContain("系统采样流");
     expect(container.textContent).toContain("系统守望者");
-    expect(container.textContent).toContain("https://docs.openviking.dev/runbook");
+    expect(container.textContent).toContain(
+      "https://docs.openviking.dev/runbook",
+    );
     expect(container.textContent).toContain("webdav");
     expect(container.textContent).toContain("核心在线");
   });

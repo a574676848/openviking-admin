@@ -1,5 +1,5 @@
 type JsonBody = BodyInit | Record<string, unknown> | unknown[] | null | undefined;
-import { destroySession, readSessionToken } from "./session";
+import { clearSessionToken, readSessionToken } from "./session";
 
 type ApiErrorPayload = {
   message?: string;
@@ -88,8 +88,8 @@ export const apiClient = {
 
     if (!response.ok) {
       if (response.status === 401 && typeof window !== "undefined") {
-        destroySession();
-        return {} as T;
+        clearSessionToken();
+        throw new ApiError(401, "登录已过期，请重新登录");
       }
       const errorData = await readErrorPayload(response);
       const message = errorData.error?.message || errorData.message || "请求失败";

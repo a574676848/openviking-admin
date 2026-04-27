@@ -31,7 +31,35 @@ export class AuthService {
   ) {}
 
   async login(dto: LoginDto, ip?: string) {
-    const user = await this.userRepo.findByUsername(dto.username);
+    let user: UserModel | null = null;
+    let tenantId: string | null = null;
+
+    if (dto.tenantCode) {
+      const tenant = await this.tenantRepo.findByTenantId(dto.tenantCode);
+      tenantId = tenant?.id ?? null;
+
+      if (!tenant) {
+        await this.auditService.log({
+          username: dto.username,
+          action: 'login',
+          success: false,
+          ip,
+          meta: { reason: '租户校验失败' },
+        });
+        throw new UnauthorizedException('租户信息不匹配');
+      }
+
+      const tenantUser = await this.userRepo.findByUsername(dto.username, tenant.id);
+      const platformUser = await this.userRepo.findByUsername(dto.username, null);
+
+      user = await this.resolveTenantLoginUser(
+        dto.password,
+        tenantUser,
+        platformUser,
+      );
+    } else {
+      user = await this.userRepo.findByUsername(dto.username, null);
+    }
 
     if (!user || !(await bcrypt.compare(dto.password, user.passwordHash))) {
       await this.auditService.log({
@@ -46,10 +74,9 @@ export class AuthService {
 
     // 校验租户逻辑
     if (dto.tenantCode) {
-      const tenant = await this.tenantRepo.findByTenantId(dto.tenantCode);
       if (
-        !tenant ||
-        (user.role !== SystemRoles.SUPER_ADMIN && user.tenantId !== tenant.id)
+        user.role !== SystemRoles.SUPER_ADMIN &&
+        user.tenantId !== tenantId
       ) {
         await this.auditService.log({
           userId: user.id,
@@ -189,5 +216,24 @@ export class AuthService {
       expiresInSeconds: accessExpiresInSeconds,
       refreshExpiresInSeconds,
     };
+  }
+
+  private async resolveTenantLoginUser(
+    password: string,
+    tenantUser: UserModel | null,
+    platformUser: UserModel | null,
+  ): Promise<UserModel | null> {
+    if (tenantUser && (await bcrypt.compare(password, tenantUser.passwordHash))) {
+      return tenantUser;
+    }
+
+    if (
+      platformUser?.role === SystemRoles.SUPER_ADMIN &&
+      (await bcrypt.compare(password, platformUser.passwordHash))
+    ) {
+      return platformUser;
+    }
+
+    return null;
   }
 }

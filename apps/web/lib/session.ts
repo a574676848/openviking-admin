@@ -17,6 +17,11 @@ function isBrowser() {
   return typeof window !== "undefined";
 }
 
+function writeSessionTokenToStorage(targetStorage: Storage, token: string): void {
+  targetStorage.setItem(TOKEN_STORAGE_KEY, token);
+  targetStorage.setItem(TOKEN_ISSUED_AT_KEY, String(Date.now()));
+}
+
 export function readSessionToken(): string | null {
   if (!isBrowser()) return null;
   const issuedAt = sessionStorage.getItem(TOKEN_ISSUED_AT_KEY);
@@ -32,8 +37,11 @@ export function readSessionToken(): string | null {
 
 export function writeSessionToken(token: string): void {
   if (!isBrowser()) return;
-  sessionStorage.setItem(TOKEN_STORAGE_KEY, token);
-  sessionStorage.setItem(TOKEN_ISSUED_AT_KEY, String(Date.now()));
+  writeSessionTokenToStorage(sessionStorage, token);
+}
+
+export function writeSessionTokenToWindow(targetWindow: Window, token: string): void {
+  writeSessionTokenToStorage(targetWindow.sessionStorage, token);
 }
 
 export function readSessionUser(): SessionUser | null {

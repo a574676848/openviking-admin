@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import {
   OVClientService,
   OVConnection,
+  OpenVikingRequestException,
   OVRequestMeta,
 } from './ov-client.service';
 
@@ -26,9 +27,16 @@ interface TreeResourcesInput {
 
 interface RerankInput {
   endpoint: string;
+  apiKey?: string | null;
   model?: string;
-  query: string;
-  documents: string[];
+  query: string | RerankMultimodalDocument;
+  documents: Array<string | RerankMultimodalDocument>;
+}
+
+interface RerankMultimodalDocument {
+  text?: string | string[];
+  image?: string | string[];
+  video?: string | string[];
 }
 
 interface GatewayRequestOptions {
@@ -44,6 +52,7 @@ const DEFAULT_OV_TIMEOUT_MS = 2500;
 const DEFAULT_OV_RETRY_COUNT = 1;
 const DEFAULT_RERANK_TIMEOUT_MS = 1500;
 const DEFAULT_RERANK_RETRY_COUNT = 1;
+const RERANK_SERVICE_LABEL = 'Rerank';
 
 @Injectable()
 export class OVKnowledgeGatewayService {
@@ -147,20 +156,110 @@ export class OVKnowledgeGatewayService {
     meta?: OVRequestMeta,
     options?: GatewayRequestOptions,
   ) {
-    return this.ovClient.requestExternal(
-      input.endpoint,
-      'POST',
-      {
-        query: input.query,
-        documents: input.documents,
-        model: input.model,
-      },
-      meta,
-      {
-        timeoutMs: options?.timeoutMs ?? DEFAULT_RERANK_TIMEOUT_MS,
-        serviceLabel: options?.serviceLabel ?? 'Rerank',
-        retryCount: DEFAULT_RERANK_RETRY_COUNT,
-      },
-    );
+    return this.requestRerank(input, meta, options);
+  }
+
+  private normalizeRerankResponse(response: unknown) {
+    const payload = this.asRecord(response);
+    const data = this.asRecord(payload.data);
+    if (Array.isArray(data.results) && !Array.isArray(payload.results)) {
+      return {
+        ...payload,
+        results: data.results,
+      };
+    }
+
+    return payload;
+  }
+
+  private asRecord(value: unknown): Record<string, unknown> {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return {};
+    }
+
+    return value as Record<string, unknown>;
+  }
+
+  private async requestRerank(
+    input: RerankInput,
+    meta?: OVRequestMeta,
+    options?: GatewayRequestOptions,
+  ) {
+    const body = {
+      query: input.query,
+      documents: input.documents,
+      model: input.model,
+    } as Record<string, unknown>;
+    const headers = input.apiKey?.trim()
+      ? { Authorization: `Bearer ${input.apiKey.trim()}` }
+      : undefined;
+    const targets = this.buildRerankTargets(input.endpoint);
+
+    let lastError: unknown;
+    for (const target of targets) {
+      try {
+        const response = await this.ovClient.requestExternal(
+          target,
+          'POST',
+          body,
+          meta,
+          {
+            headers,
+            timeoutMs: options?.timeoutMs ?? DEFAULT_RERANK_TIMEOUT_MS,
+            retryCount: DEFAULT_RERANK_RETRY_COUNT,
+            serviceLabel: options?.serviceLabel ?? RERANK_SERVICE_LABEL,
+          },
+        );
+        return this.normalizeRerankResponse(response);
+      } catch (error: unknown) {
+        lastError = error;
+        if (!this.shouldTryNextRerankTarget(error)) {
+          throw error;
+        }
+      }
+    }
+
+    throw lastError;
+  }
+
+  private buildRerankTargets(endpoint: string) {
+    const trimmed = endpoint.trim().replace(/\/+$/, '');
+    if (trimmed.endsWith('/rerank') || trimmed.endsWith('/reranks')) {
+      return [trimmed];
+    }
+
+    if (trimmed.endsWith('/v1')) {
+      return [`${trimmed}/rerank`, `${trimmed}/reranks`];
+    }
+
+    return [
+      `${trimmed}/v1/rerank`,
+      `${trimmed}/v1/reranks`,
+      `${trimmed}/rerank`,
+      `${trimmed}/reranks`,
+    ];
+  }
+
+  private shouldTryNextRerankTarget(error: unknown) {
+    if (!(error instanceof OpenVikingRequestException)) {
+      return false;
+    }
+
+    if (error.statusCode === 404) {
+      return true;
+    }
+
+    const payload = error.getResponse();
+    if (
+      payload &&
+      typeof payload === 'object' &&
+      'message' in payload &&
+      typeof payload.message === 'string' &&
+      payload.message.includes('非 JSON 响应')
+    ) {
+      return true;
+    }
+
+    return false;
   }
 }

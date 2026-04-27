@@ -14,15 +14,52 @@ export function VikingWatcher({ isClosed = false, isThinking = false, size = "md
   const springY = useSpring(0, { stiffness: 100, damping: 20 });
 
   useEffect(() => {
+    let idleTimeout: NodeJS.Timeout;
+    let isMouseIdle = true;
+
+    const resetIdle = () => {
+      isMouseIdle = false;
+      clearTimeout(idleTimeout);
+      idleTimeout = setTimeout(() => {
+        isMouseIdle = true;
+      }, 2000);
+    };
+
     const handleMouseMove = (e: MouseEvent) => {
+      resetIdle();
       const { innerWidth, innerHeight } = window;
       const x = (e.clientX / innerWidth) * 2 - 1;
       const y = (e.clientY / innerHeight) * 2 - 1;
       springX.set(x);
       springY.set(y);
     };
+
+    const handleMeteorTrack = (e: Event) => {
+      if (!isMouseIdle) return;
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail) {
+        const { innerWidth, innerHeight } = window;
+        const x = (customEvent.detail.x / innerWidth) * 2 - 1;
+        const y = (customEvent.detail.y / innerHeight) * 2 - 1;
+        springX.set(x);
+        springY.set(y);
+      } else {
+        springX.set(0);
+        springY.set(0);
+      }
+    };
+
     window.addEventListener("mousemove", handleMouseMove);
-    return () => window.removeEventListener("mousemove", handleMouseMove);
+    window.addEventListener("meteor-track", handleMeteorTrack);
+    window.addEventListener("wisp-track", handleMeteorTrack);
+    resetIdle();
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("meteor-track", handleMeteorTrack);
+      window.removeEventListener("wisp-track", handleMeteorTrack);
+      clearTimeout(idleTimeout);
+    };
   }, [springX, springY]);
 
   const pupilX = useTransform(springX, [-1, 1], [-8, 8]);
@@ -76,9 +113,9 @@ export function VikingWatcher({ isClosed = false, isThinking = false, size = "md
             )}
           </AnimatePresence>
           
-          {/* 光泽感 */}
+          {/* 光泽感 - 仅在非瑞士主题显示 */}
           {!isClosed && (
-            <div className="absolute top-2 left-2 w-2 h-2 bg-[var(--bg-card)]/30 rounded-full blur-[1px]" />
+            <div className="absolute top-2 left-2 w-2 h-2 bg-[var(--bg-card)]/30 rounded-full blur-[1px] theme-neo-only" />
           )}
         </div>
       ))}

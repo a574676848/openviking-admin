@@ -27,7 +27,7 @@ ova <group> <command> [options]
 ova auth login \
   --server http://localhost:6001 \
   --username admin \
-  --password admin123 \
+  --password acme@123 \
   --tenant-code acme
 ```
 
@@ -60,7 +60,7 @@ Profile 用于隔离本地、测试、生产等环境。
 ova auth login \
   --server http://localhost:6001 \
   --username admin \
-  --password admin123 \
+  --password acme@123 \
   --tenant-code acme \
   --profile dev
 

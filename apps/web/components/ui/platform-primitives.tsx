@@ -17,7 +17,7 @@ const BASE_FOCUS_RING =
 
 const PLATFORM_TONE_CLASS = {
   default:
-    "border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] focus-visible:ring-[var(--brand)] focus-visible:ring-offset-[var(--bg-card)]",
+    "border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-primary)] hover:border-[var(--brand)] hover:bg-[var(--brand-muted)] hover:text-[var(--brand)] focus-visible:ring-[var(--brand)] focus-visible:ring-offset-[var(--bg-card)]",
   danger:
     "border-[var(--danger)] bg-transparent text-[var(--danger)] hover:bg-[var(--danger)] hover:text-white focus-visible:ring-[var(--danger)] focus-visible:ring-offset-[var(--bg-card)]",
 } as const;
@@ -41,7 +41,7 @@ export function PlatformPanel({
   return (
     <div
       className={cx(
-        "bg-[var(--bg-card)] border-[var(--border-width)] border-[var(--border)] shadow-[var(--shadow-base)]",
+        "bg-[var(--bg-card)] border border-[var(--border)] shadow-sm rounded-[var(--radius-base)]",
         className,
       )}
       {...props}
@@ -78,7 +78,7 @@ export function PlatformPageHeader({
         {subtitle ? (
           <div
             className={cx(
-              "font-mono text-xs font-bold uppercase tracking-widest text-[var(--text-secondary)]",
+              "text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]",
               subtitleClassName,
             )}
           >
@@ -102,7 +102,7 @@ export function PlatformField({
 }) {
   return (
     <div className={cx("flex flex-col gap-1.5", className)}>
-      <label className="font-mono text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
+      <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
         {label}
       </label>
       {children}
@@ -123,30 +123,32 @@ export function PlatformSectionTitle({
 }) {
   return (
     <div className={cx("mb-8", className)}>
-      <div className="flex items-center gap-3 font-sans text-2xl font-black uppercase tracking-tighter text-[var(--text-primary)]">
+      <div className="flex items-center gap-3 font-sans text-xl font-bold text-[var(--text-primary)]">
         {icon}
         <span>{title}</span>
       </div>
-      {subtitle ? (
-        <p className="mt-2 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--text-secondary)]">
-          {subtitle}
-        </p>
-      ) : null}
+        {subtitle ? (
+          <p className="mt-1 text-xs font-medium text-[var(--text-muted)]">
+            {subtitle}
+          </p>
+        ) : null}
     </div>
   );
 }
 
-export function PlatformButton({
-  className,
-  tone = "default",
-  ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & {
-  tone?: keyof typeof PLATFORM_TONE_CLASS;
-}) {
+import { forwardRef } from "react";
+
+export const PlatformButton = forwardRef<
+  HTMLButtonElement,
+  ButtonHTMLAttributes<HTMLButtonElement> & {
+    tone?: keyof typeof PLATFORM_TONE_CLASS;
+  }
+>(({ className, tone = "default", ...props }, ref) => {
   return (
     <button
+      ref={ref}
       className={cx(
-        "inline-flex items-center justify-center gap-2 border font-mono text-[10px] font-black uppercase tracking-[0.18em] transition-colors disabled:opacity-50",
+        "inline-flex items-center justify-center gap-2 border font-sans text-xs font-bold rounded-[var(--radius-pill)] px-4 py-2 transition-all disabled:opacity-50 active:scale-[0.98]",
         BASE_FOCUS_RING,
         PLATFORM_TONE_CLASS[tone],
         className,
@@ -154,23 +156,34 @@ export function PlatformButton({
       {...props}
     />
   );
-}
+});
+
+PlatformButton.displayName = "PlatformButton";
 
 export function PlatformSegmentedControl<T extends string>({
   value,
   items,
   onChange,
+  disabled = false,
   className,
   buttonClassName,
 }: {
   value: T;
   items: Array<{ value: T; label: ReactNode }>;
   onChange: (next: T) => void;
+  disabled?: boolean;
   className?: string;
   buttonClassName?: string;
 }) {
   return (
-    <div className={cx("grid auto-cols-fr grid-flow-col gap-px border border-[var(--border)] bg-[var(--border)]", className)}>
+    <div
+      className={cx(
+        "flex p-1 gap-1 border border-[var(--border)] bg-[var(--bg-base)] rounded-[var(--radius-base)]",
+        disabled && "opacity-60",
+        className,
+      )}
+      aria-disabled={disabled}
+    >
       {items.map((item) => {
         const active = item.value === value;
         return (
@@ -178,12 +191,14 @@ export function PlatformSegmentedControl<T extends string>({
             key={item.value}
             type="button"
             aria-pressed={active}
+            disabled={disabled}
             onClick={() => onChange(item.value)}
             className={cx(
-              "px-4 py-3",
+              "relative flex-1 rounded-[calc(var(--radius-base)-4px)] px-3 py-1.5 text-xs transition-all",
               active
-                ? "bg-[var(--text-primary)] text-[var(--bg-card)] hover:bg-[var(--text-primary)]"
-                : "bg-[var(--bg-card)] text-[var(--text-secondary)]",
+                ? "bg-[var(--bg-card)] text-[var(--brand)] shadow-sm font-bold"
+                : "bg-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)] font-medium",
+              disabled && "cursor-not-allowed opacity-50",
               buttonClassName,
             )}
           >
@@ -218,7 +233,7 @@ export function PlatformInput({
   return (
     <input
       className={cx(
-        "ov-input border-[var(--border-width)] px-3 py-2 font-mono text-xs tracking-widest",
+        "ov-input px-3 py-2 font-sans text-sm rounded-[var(--radius-pill)]",
         BASE_FOCUS_RING,
         "focus-visible:ring-[var(--brand)] focus-visible:ring-offset-[var(--bg-card)]",
         className,
@@ -235,7 +250,7 @@ export function PlatformSelect({
   return (
     <select
       className={cx(
-        "ov-input border-[var(--border-width)] bg-[var(--bg-input)] px-3 py-2 font-mono text-xs uppercase",
+        "ov-input bg-[var(--bg-input)] px-3 py-2 font-sans text-sm rounded-[var(--radius-pill)]",
         BASE_FOCUS_RING,
         "focus-visible:ring-[var(--brand)] focus-visible:ring-offset-[var(--bg-card)]",
         className,
@@ -253,7 +268,7 @@ export function PlatformBadge({
   return (
     <span
       className={cx(
-        "inline-flex items-center gap-1.5 border px-2 py-1 font-mono text-[9px] font-black tracking-widest",
+        "inline-flex items-center gap-1.5 border rounded-[var(--radius-pill)] px-2 py-0.5 font-sans text-[10px] font-bold tracking-tight",
         className,
       )}
       {...props}
@@ -304,7 +319,7 @@ export function PlatformMetric({
     <PlatformPanel className={cx("flex min-h-[180px] flex-col justify-between px-6 py-5", className)}>
       <p
         className={cx(
-          "font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-secondary)]",
+          "text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]",
           labelClassName,
         )}
       >
@@ -312,7 +327,7 @@ export function PlatformMetric({
       </p>
       <p
         className={cx(
-          "mt-2 font-mono text-5xl font-black tracking-tighter tabular-nums text-[var(--text-primary)]",
+          "mt-2 font-sans text-4xl font-bold tabular-nums text-[var(--text-primary)]",
           valueClassName,
         )}
         style={accent ? { color: accent } : undefined}
@@ -322,7 +337,7 @@ export function PlatformMetric({
       {hint ? (
         <p
           className={cx(
-            "font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--text-secondary)]",
+            "text-[10px] font-medium text-[var(--text-muted)]",
             hintClassName,
           )}
         >
@@ -361,15 +376,15 @@ export function PlatformSignalCard({
         className,
       )}
     >
-      <div className="relative z-10 mb-4 flex items-center font-mono text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
+      <div className="relative z-10 mb-4 flex items-center font-sans text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
         {marker}
         {label}
       </div>
       <div className="relative z-10 flex flex-col gap-1">
         <div
           className={cx(
-            "font-mono text-4xl font-black tracking-tighter uppercase text-[var(--text-primary)] md:text-5xl",
-            pulse && "animate-pulse",
+            "font-sans text-4xl font-bold text-[var(--text-primary)]",
+            pulse && "animate-theme-pulse",
             valueClassName,
           )}
           style={{ color: accent }}
@@ -377,7 +392,7 @@ export function PlatformSignalCard({
           {value}
         </div>
         {hint ? (
-          <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)]">
+          <span className="text-[10px] font-medium text-[var(--text-muted)]">
             {hint}
           </span>
         ) : null}
@@ -420,13 +435,12 @@ export function PlatformControlCard({
       )}
     >
       <div className={layout === "inline" ? "flex-1" : undefined}>
-        <div className="mb-2 flex items-center font-mono text-[11px] font-black uppercase tracking-widest text-[var(--text-primary)]">
-          <span className={cx("mr-2 h-1.5 w-1.5 shrink-0", accentClass)} />
+        <div className="mb-2 flex items-center font-sans text-[11px] font-bold uppercase tracking-wider text-[var(--text-primary)]">
+          <span className={cx("mr-2 h-2 w-2 rounded-full shrink-0", accentClass)} />
           {label}
         </div>
         {description ? (
-          <div className="font-mono text-[9px] uppercase tracking-widest text-[var(--text-secondary)]">
-            {"// "}
+          <div className="text-[10px] font-medium text-[var(--text-muted)]">
             {description}
           </div>
         ) : null}
@@ -462,14 +476,14 @@ export function PlatformActivityRow({
   return (
     <div
       className={cx(
-        "flex items-center border-b-[var(--border-width)] border-[var(--border)] p-4 font-mono text-[10px] uppercase tracking-widest transition-colors hover:bg-[var(--bg-elevated)] last:border-0",
+        "flex items-center border-b border-[var(--border)] p-4 font-sans text-xs transition-colors hover:bg-[var(--bg-elevated)] last:border-0",
         className,
       )}
     >
       <span className="mr-6 w-20 opacity-40">{time}</span>
-      <span className={cx("mr-6 font-black", toneClass)}>{primary}</span>
+      <span className={cx("mr-6 font-bold", toneClass)}>{primary}</span>
       <span className="flex-1 truncate opacity-60">{secondary}</span>
-      <span className="ml-4 text-right font-black">[{status}]</span>
+      <span className="ml-4 text-right font-bold opacity-80">[{status}]</span>
     </div>
   );
 }
@@ -491,17 +505,17 @@ export function PlatformDataRow({
 }) {
   return (
     <div className={cx("grid grid-cols-[48px_minmax(0,1fr)_120px_110px] gap-px bg-[var(--border)]", className)}>
-      <div className="bg-[var(--bg-card)] px-3 py-4 font-mono text-[10px] font-black tracking-[0.2em] text-[var(--text-muted)]">
+      <div className="bg-[var(--bg-card)] px-3 py-4 font-sans text-xs font-bold text-[var(--text-muted)]">
         {String(rank).padStart(2, "0")}
       </div>
       <div className="min-w-0 bg-[var(--bg-card)] px-4 py-4">
-        <div className="truncate font-mono text-[11px] font-black tracking-[0.12em] text-[var(--text-primary)]">{primary}</div>
-        <div className="mt-1 truncate font-mono text-[9px] font-bold tracking-[0.1em] text-[var(--text-muted)]">{secondary}</div>
+        <div className="truncate font-sans text-sm font-bold text-[var(--text-primary)]">{primary}</div>
+        <div className="mt-1 truncate font-sans text-[11px] font-medium text-[var(--text-muted)]">{secondary}</div>
       </div>
-      <div className="bg-[var(--bg-card)] px-4 py-4 text-right font-mono text-[11px] font-black tracking-[0.12em] text-[var(--brand)]">
+      <div className="bg-[var(--bg-card)] px-4 py-4 text-right font-sans text-sm font-bold text-[var(--brand)]">
         {value}
       </div>
-      <div className="bg-[var(--bg-card)] px-4 py-4 text-right font-mono text-[10px] font-black tracking-[0.12em] text-[var(--text-secondary)]">
+      <div className="bg-[var(--bg-card)] px-4 py-4 text-right font-sans text-xs font-medium text-[var(--text-secondary)]">
         {status}
       </div>
     </div>
@@ -522,15 +536,15 @@ export function PlatformKeyValueRow({
   return (
     <div
       className={cx(
-        "flex items-center justify-between border-b-[var(--border-width)] border-[var(--border)] border-dashed px-2 py-2 transition-colors hover:bg-[var(--brand-muted)] last:border-0",
+        "flex items-center justify-between border-b border-[var(--border)] border-dashed px-2 py-2 transition-colors hover:bg-[var(--bg-base)] last:border-0",
         className,
       )}
     >
-      <span className="font-mono text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
+      <span className="font-sans text-xs font-medium text-[var(--text-secondary)]">
         {label}
       </span>
       <span
-        className="max-w-[50%] truncate text-right font-mono text-[11px] font-bold"
+        className="max-w-[50%] truncate text-right font-sans text-xs font-bold"
         style={{ color: accent }}
         title={typeof value === "string" ? value : undefined}
       >
@@ -556,7 +570,7 @@ export function PlatformStatPill({
   return (
     <span
       className={cx(
-        "inline-flex items-center gap-1 border px-2 py-1 font-mono text-[10px] font-black uppercase tracking-widest",
+        "inline-flex items-center gap-1 border rounded-full px-2 py-0.5 font-sans text-[10px] font-bold uppercase tracking-tight",
         backgroundClassName,
         className,
       )}
@@ -578,10 +592,129 @@ export function PlatformMiniChart({
 }) {
   return (
     <div className={className}>
-      <p className="font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-secondary)]">
+      <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
         {label}
       </p>
       {children}
+    </div>
+  );
+}
+
+import { useState, useRef, useEffect, useLayoutEffect } from "react";
+import { createPortal } from "react-dom";
+import { MoreHorizontal } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+
+export function PlatformActionMenu({
+  items,
+  className,
+}: {
+  items: Array<{
+    label: ReactNode;
+    icon?: ReactNode;
+    onClick: () => void;
+    tone?: keyof typeof PLATFORM_TONE_CLASS;
+    disabled?: boolean;
+  }>;
+  className?: string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const [coords, setCoords] = useState({ top: 0, left: 0 });
+
+  const updateCoords = () => {
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setCoords({
+        top: rect.bottom + window.scrollY,
+        left: rect.right + window.scrollX - 160, // 160 is roughly the min-width
+      });
+    }
+  };
+
+  useLayoutEffect(() => {
+    if (isOpen) {
+      updateCoords();
+      window.addEventListener("scroll", updateCoords);
+      window.addEventListener("resize", updateCoords);
+    }
+    return () => {
+      window.removeEventListener("scroll", updateCoords);
+      window.removeEventListener("resize", updateCoords);
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (triggerRef.current && !triggerRef.current.contains(event.target as Node)) {
+        // Since we use portal, we need to handle click outside carefully
+        // Or just let the menu close itself on click
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <div className={cx("relative inline-block", className)}>
+      <PlatformButton
+        ref={triggerRef}
+        type="button"
+        className="h-9 px-3 bg-[var(--bg-card)] border-[var(--border)] shadow-sm hover:border-[var(--brand)] hover:bg-[var(--brand-muted)] group"
+        onClick={() => setIsOpen(!isOpen)}
+        aria-label="更多操作"
+        title="更多操作"
+      >
+        <MoreHorizontal size={14} className="text-[var(--text-muted)] group-hover:text-[var(--brand)] transition-colors" />
+        <span>更多</span>
+      </PlatformButton>
+
+      {isOpen && createPortal(
+        <>
+          <div 
+            className="fixed inset-0 z-[100]" 
+            onClick={() => setIsOpen(false)} 
+          />
+          <motion.div
+            initial={{ opacity: 0, y: 4, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 4, scale: 0.95 }}
+            transition={{ duration: 0.1, ease: "easeOut" }}
+            style={{ 
+              position: 'absolute',
+              top: coords.top + 8,
+              left: coords.left,
+              zIndex: 101,
+            }}
+            className="min-w-[160px] border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-card)] p-1 shadow-2xl rounded-[var(--radius-base)] overflow-hidden"
+          >
+            <div className="flex flex-col gap-0.5">
+              {items.map((item, idx) => (
+                <button
+                  key={idx}
+                  disabled={item.disabled}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    item.onClick();
+                    setIsOpen(false);
+                  }}
+                  className={cx(
+                    "flex w-full items-center gap-3 rounded-[calc(var(--radius-base)-4px)] px-3 py-2.5 text-left font-sans text-xs font-bold transition-colors",
+                    item.tone === "danger"
+                      ? "text-[var(--danger)] hover:bg-[var(--danger)]/10"
+                      : "text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]",
+                    item.disabled && "opacity-50 cursor-not-allowed"
+                  )}
+                >
+                  <span className="shrink-0">{item.icon}</span>
+                  <span className="truncate">{item.label}</span>
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        </>,
+        document.body
+      )}
     </div>
   );
 }
@@ -598,7 +731,7 @@ export function PlatformFooterBar({
   return (
     <div
       className={cx(
-        "flex items-center justify-between border-t border-[var(--border)] px-6 py-4 font-mono text-[10px] font-black uppercase tracking-[0.16em] text-[var(--text-muted)]",
+        "flex items-center justify-between border-t border-[var(--border)] px-6 py-4 font-sans text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]",
         className,
       )}
     >
@@ -643,8 +776,8 @@ export function PlatformEmptyState({
 }) {
   return (
     <PlatformPanel className={cx("px-6 py-16 text-center", className)}>
-      <p className="font-sans text-2xl font-black text-[var(--text-primary)]">{title}</p>
-      <p className="mt-2 font-mono text-[10px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)]">
+      <p className="font-sans text-2xl font-bold text-[var(--text-primary)]">{title}</p>
+      <p className="mt-2 text-xs font-medium text-[var(--text-muted)]">
         {description}
       </p>
       {action ? <div className="mt-6 flex justify-center">{action}</div> : null}
@@ -665,10 +798,10 @@ export function PlatformStatusPanel({
 }) {
   return (
     <PlatformPanel className={cx("px-6 py-16 text-center", className)}>
-      <p className="font-mono text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">
+      <p className="font-sans text-sm font-bold uppercase tracking-wider text-[var(--text-primary)]">
         {title}
       </p>
-      <p className="mt-3 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--text-secondary)]">
+      <p className="mt-2 text-xs font-medium text-[var(--text-muted)]">
         {description}
       </p>
       {action ? <div className="mt-6 flex justify-center">{action}</div> : null}

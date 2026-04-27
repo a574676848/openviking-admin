@@ -26,6 +26,8 @@ interface OVRequestErrorResponse {
 
 const DEFAULT_RETRY_DELAY_MS = 200;
 const RETRIABLE_STATUS_CODES = new Set([408, 429, 502, 503, 504]);
+const JSON_CONTENT_TYPE_MARKER = 'json';
+const RESPONSE_PREVIEW_LIMIT = 160;
 
 export class OpenVikingRequestException extends HttpException {
   constructor(
@@ -155,7 +157,7 @@ export class OVClientService {
           );
         }
 
-        return (await res.json()) as Record<string, unknown>;
+        return await this.parseJsonResponse(res, serviceLabel, meta);
       } catch (error: unknown) {
         const mappedError = this.normalizeError(
           serviceLabel,
@@ -339,6 +341,59 @@ export class OVClientService {
           },
         );
     }
+  }
+
+  private async parseJsonResponse(
+    response: Response,
+    serviceLabel: string,
+    meta?: OVRequestMeta,
+  ) {
+    const rawContentType = response.headers.get('content-type') ?? '';
+    const contentType = rawContentType.toLowerCase();
+    const text = await response.text();
+
+    if (!text) {
+      return {} as Record<string, unknown>;
+    }
+
+    if (!contentType.includes(JSON_CONTENT_TYPE_MARKER)) {
+      throw new OpenVikingRequestException(
+        serviceLabel,
+        false,
+        HttpStatus.BAD_GATEWAY,
+        meta?.traceId,
+        meta?.requestId,
+        {
+          code: 'OV_UPSTREAM_INVALID_RESPONSE',
+          message: `${serviceLabel} 返回了非 JSON 响应 (${rawContentType || 'unknown'})：${this.buildPreview(text)}`,
+        },
+      );
+    }
+
+    try {
+      return JSON.parse(text) as Record<string, unknown>;
+    } catch {
+      throw new OpenVikingRequestException(
+        serviceLabel,
+        false,
+        HttpStatus.BAD_GATEWAY,
+        meta?.traceId,
+        meta?.requestId,
+        {
+          code: 'OV_UPSTREAM_INVALID_RESPONSE',
+          message: `${serviceLabel} 返回了无法解析的 JSON：${this.buildPreview(text)}`,
+        },
+      );
+    }
+  }
+
+  private buildPreview(text: string) {
+    const normalized = text.replace(/\s+/g, ' ').trim();
+    if (normalized.length <= RESPONSE_PREVIEW_LIMIT) {
+      return normalized;
+    }
+
+    return `${normalized.slice(0, RESPONSE_PREVIEW_LIMIT)}...`;
   }
 
   private isAbortError(error: unknown) {

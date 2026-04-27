@@ -5,11 +5,13 @@ import SettingsPage from "./page";
 
 const getMock = vi.fn();
 const patchMock = vi.fn();
+const postMock = vi.fn();
 
 vi.mock("@/lib/apiClient", () => ({
   apiClient: {
     get: (...args: unknown[]) => getMock(...args),
     patch: (...args: unknown[]) => patchMock(...args),
+    post: (...args: unknown[]) => postMock(...args),
   },
 }));
 
@@ -31,6 +33,7 @@ describe("Platform SettingsPage", () => {
     (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     getMock.mockReset();
     patchMock.mockReset();
+    postMock.mockReset();
   });
 
   afterEach(async () => {
@@ -95,5 +98,60 @@ describe("Platform SettingsPage", () => {
     });
 
     vi.useRealTimers();
+  });
+
+  it("点击测试链接后应调用引擎测试接口并展示结果", async () => {
+    getMock.mockResolvedValueOnce([
+      {
+        key: "ov.base_url",
+        value: "http://ov.default",
+        description: "引擎地址",
+        updatedAt: "2026-04-26T10:00:00.000Z",
+      },
+      {
+        key: "ov.api_key",
+        value: "secret",
+        description: "访问密钥",
+        updatedAt: "2026-04-26T10:00:00.000Z",
+      },
+      {
+        key: "ov.account",
+        value: "default",
+        description: "账号",
+        updatedAt: "2026-04-26T10:00:00.000Z",
+      },
+      {
+        key: "search.rerank_enabled",
+        value: "false",
+        description: "是否启用 rerank",
+        updatedAt: "2026-04-26T10:00:00.000Z",
+      },
+    ]);
+    postMock.mockResolvedValueOnce({
+      ok: true,
+      type: "engine",
+      message: "核心引擎连接成功",
+      target: "http://ov.default/health",
+    });
+
+    await renderPage();
+
+    const testButton = Array.from(container.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("测试链接"),
+    );
+    expect(testButton).toBeTruthy();
+
+    await act(async () => {
+      testButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(postMock).toHaveBeenCalledWith("/settings/test-connection", {
+      type: "engine",
+      baseUrl: "http://ov.default",
+      apiKey: "secret",
+      account: "default",
+    });
+    expect(container.textContent).toContain("核心引擎连接成功：http://ov.default/health");
   });
 });

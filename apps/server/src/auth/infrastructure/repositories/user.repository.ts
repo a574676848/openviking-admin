@@ -1,28 +1,19 @@
-import { Injectable, Inject, Scope } from '@nestjs/common';
-import { REQUEST } from '@nestjs/core';
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, type FindManyOptions } from 'typeorm';
 import { User } from '../../../users/entities/user.entity';
 import { IUserRepository } from '../../domain/repositories/user.repository.interface';
-import type { RepositoryRequest } from '../../../common/repository-request.interface';
 import type { RepositoryFindQuery } from '../../../common/repository-query.types';
 import type { UserModel } from '../../../users/domain/user.model';
 
-@Injectable({ scope: Scope.REQUEST })
+@Injectable()
 export class UserRepository implements IUserRepository {
   constructor(
-    @Inject(REQUEST) private readonly request: RepositoryRequest,
     @InjectRepository(User)
     private readonly defaultRepo: Repository<User>,
   ) {}
 
   private get repo(): Repository<User> {
-    if (this.request?.tenantQueryRunner) {
-      return this.request.tenantQueryRunner.manager.getRepository(User);
-    }
-    if (this.request?.tenantDataSource) {
-      return this.request.tenantDataSource.getRepository(User);
-    }
     return this.defaultRepo;
   }
 

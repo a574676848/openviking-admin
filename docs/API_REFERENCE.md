@@ -6,14 +6,14 @@
 
 ### 认证方式
 
-| 方式 | 适用接口 | 说明 |
-|------|------|------|
-| 无认证 | 登录、公开探测接口 | 不包含用户身份 |
-| `Authorization: Bearer <jwt>` | 控制台、管理 API、换证接口 | 用户登录态 |
-| `Authorization: Bearer <capability_access_token>` | Capability HTTP 接口 | 已登录用户换取的能力 token |
-| `Authorization: Bearer <session_key>` | 短会话能力调用 | 适合临时 Agent 会话 |
-| `Authorization: Bearer <ov-sk-...>` | Capability HTTP 接口、MCP | 兼容 API key 方式 |
-| `x-capability-key: <ov-sk-...>` | Capability HTTP 接口 | 推荐的 API key header |
+| 方式                                              | 适用接口                   | 说明                       |
+| ------------------------------------------------- | -------------------------- | -------------------------- |
+| 无认证                                            | 登录、公开探测接口         | 不包含用户身份             |
+| `Authorization: Bearer <jwt>`                     | 控制台、管理 API、换证接口 | 用户登录态                 |
+| `Authorization: Bearer <capability_access_token>` | Capability HTTP 接口       | 已登录用户换取的能力 token |
+| `Authorization: Bearer <session_key>`             | 短会话能力调用             | 适合临时 Agent 会话        |
+| `Authorization: Bearer <ov-sk-...>`               | Capability HTTP 接口、MCP  | 兼容 API key 方式          |
+| `x-capability-key: <ov-sk-...>`                   | Capability HTTP 接口       | 推荐的 API key header      |
 
 ### 请求追踪
 
@@ -53,12 +53,12 @@
 
 ### 角色体系
 
-| 角色 | 权限范围 |
-|------|------|
-| `super_admin` | 平台全局管理，可切换视角模拟租户管理员 |
-| `tenant_admin` | 租户内管理员，可管理租户用户和配置 |
+| 角色              | 权限范围                                 |
+| ----------------- | ---------------------------------------- |
+| `super_admin`     | 平台全局管理，可切换视角模拟租户管理员   |
+| `tenant_admin`    | 租户内管理员，可管理租户用户和配置       |
 | `tenant_operator` | 租户操作员，可执行知识库、导入和资源操作 |
-| `tenant_viewer` | 租户只读用户，可查看和检索授权资源 |
+| `tenant_viewer`   | 租户只读用户，可查看和检索授权资源       |
 
 ## 认证接口
 
@@ -71,7 +71,7 @@
 ```json
 {
   "username": "admin",
-  "password": "admin123",
+  "password": "default@123",
   "tenantCode": "default"
 }
 ```
@@ -101,10 +101,10 @@
 
 发起企业 SSO 认证重定向。
 
-| 参数 | 位置 | 说明 |
-|------|------|------|
-| `tenantId` | path | 租户 ID |
-| `type` | path | `feishu`、`dingtalk`、`oidc` 或 `ldap` |
+| 参数       | 位置 | 说明                                   |
+| ---------- | ---- | -------------------------------------- |
+| `tenantId` | path | 租户 ID                                |
+| `type`     | path | `feishu`、`dingtalk`、`oidc` 或 `ldap` |
 
 ### GET /api/v1/auth/sso/callback/:tenantId/:type
 
@@ -277,9 +277,9 @@ SSO Provider 回调入口。认证成功后重定向到前端并携带一次性 
 
 查询参数：
 
-| 参数 | 必填 | 说明 |
-|------|------|------|
-| `uri` | 否 | 资源 URI 前缀 |
+| 参数  | 必填 | 说明          |
+| ----- | ---- | ------------- |
+| `uri` | 否   | 资源 URI 前缀 |
 
 ### GET /api/v1/resources/tree
 
@@ -287,10 +287,10 @@ SSO Provider 回调入口。认证成功后重定向到前端并携带一次性 
 
 查询参数：
 
-| 参数 | 必填 | 说明 |
-|------|------|------|
-| `uri` | 否 | 根资源 URI |
-| `depth` | 否 | 树深度 |
+| 参数    | 必填 | 说明       |
+| ------- | ---- | ---------- |
+| `uri`   | 否   | 根资源 URI |
+| `depth` | 否   | 树深度     |
 
 响应 `data`：
 
@@ -321,9 +321,9 @@ SSO Provider 回调入口。认证成功后重定向到前端并携带一次性 
 
 查询参数：
 
-| 参数 | 必填 | 说明 |
-|------|------|------|
-| `limit` | 否 | 返回最近审计轨迹条数，默认 `20` |
+| 参数    | 必填 | 说明                            |
+| ------- | ---- | ------------------------------- |
+| `limit` | 否   | 返回最近审计轨迹条数，默认 `20` |
 
 ### GET /api/v1/observability/capabilities/prometheus
 
@@ -347,9 +347,9 @@ SSO Provider 回调入口。认证成功后重定向到前端并携带一次性 
 
 查询参数：
 
-| 参数 | 说明 |
-|------|------|
-| `key` | API key，可选 |
+| 参数         | 说明                   |
+| ------------ | ---------------------- |
+| `key`        | API key，可选          |
 | `sessionKey` | 短期 session key，可选 |
 
 使用示例：
@@ -375,33 +375,34 @@ MCP JSON-RPC 消息接口。
 
 查询参数：
 
-| 参数 | 说明 |
-|------|------|
-| `sessionId` | SSE 建立后返回的会话 ID |
+| 参数           | 说明                       |
+| -------------- | -------------------------- |
+| `sessionId`    | SSE 建立后返回的会话 ID    |
 | `sessionToken` | SSE 建立后返回的会话 token |
-| `key` | API key，可选 |
-| `sessionKey` | 短期 session key，可选 |
+| `key`          | API key，可选              |
+| `sessionKey`   | 短期 session key，可选     |
 
 支持方法：
 
-| 方法 | 说明 |
-|------|------|
-| `initialize` | 初始化 MCP 会话 |
+| 方法         | 说明                                 |
+| ------------ | ------------------------------------ |
+| `initialize` | 初始化 MCP 会话                      |
 | `tools/list` | 返回 capability catalog 投影出的工具 |
-| `tools/call` | 调用指定 capability |
+| `tools/call` | 调用指定 capability                  |
 
 ## 租户接口
 
 租户管理接口需要 `super_admin`，公开探测接口除外。
 
-| Method | Path | 说明 |
-|------|------|------|
-| `GET` | `/api/v1/tenants` | 获取租户列表 |
-| `GET` | `/api/v1/tenants/:id` | 获取租户详情 |
-| `POST` | `/api/v1/tenants` | 创建租户 |
-| `PATCH` | `/api/v1/tenants/:id` | 更新租户 |
-| `DELETE` | `/api/v1/tenants/:id` | 删除租户 |
-| `GET` | `/api/v1/tenants/check-auth/:code` | 公开接口，检查租户可用 SSO 方式 |
+| Method   | Path                               | 说明                            |
+| -------- | ---------------------------------- | ------------------------------- |
+| `GET`    | `/api/v1/tenants`                  | 获取租户列表                    |
+| `GET`    | `/api/v1/tenants/:id`              | 获取租户详情                    |
+| `POST`   | `/api/v1/tenants`                  | 创建租户                        |
+| `PATCH`  | `/api/v1/tenants/:id`              | 更新租户                        |
+| `PATCH`  | `/api/v1/tenants/:id/status`       | 更新租户启用状态                |
+| `DELETE` | `/api/v1/tenants/:id`              | 软删除租户                      |
+| `GET`    | `/api/v1/tenants/check-auth/:code` | 公开接口，检查租户可用 SSO 方式 |
 
 创建租户请求体：
 
@@ -417,16 +418,23 @@ MCP JSON-RPC 消息接口。
 }
 ```
 
+说明：
+
+- `tenantId`（即命名空间 ID）要求全局唯一；服务端会先做冲突校验，数据库层也有唯一约束兜底。
+- 创建成功后，系统会自动创建初始租户管理员：用户名固定为 `admin`，初始密码为 `{tenantId}@123`，角色为 `tenant_admin`。
+- `status` 字段用于租户启用/禁用，推荐值为 `active` 或 `disabled`。
+- 删除租户时采用软删除；已软删租户不会出现在默认查询结果中。
+
 ## 用户接口
 
 需要 `super_admin` 或 `tenant_admin`。
 
-| Method | Path | 说明 |
-|------|------|------|
-| `GET` | `/api/v1/users` | 获取用户列表 |
-| `POST` | `/api/v1/users` | 创建用户 |
-| `PATCH` | `/api/v1/users/:id` | 更新用户 |
-| `DELETE` | `/api/v1/users/:id` | 删除用户 |
+| Method   | Path                | 说明         |
+| -------- | ------------------- | ------------ |
+| `GET`    | `/api/v1/users`     | 获取用户列表 |
+| `POST`   | `/api/v1/users`     | 创建用户     |
+| `PATCH`  | `/api/v1/users/:id` | 更新用户     |
+| `DELETE` | `/api/v1/users/:id` | 删除用户     |
 
 `tenant_admin` 不能创建或提升 `super_admin`。
 
@@ -434,140 +442,142 @@ MCP JSON-RPC 消息接口。
 
 需要 JWT 和租户上下文。
 
-| Method | Path | 说明 |
-|------|------|------|
-| `GET` | `/api/v1/knowledge-bases` | 获取当前租户知识库 |
-| `GET` | `/api/v1/knowledge-bases/:id` | 获取知识库详情 |
-| `POST` | `/api/v1/knowledge-bases` | 创建知识库 |
-| `PATCH` | `/api/v1/knowledge-bases/:id` | 更新知识库 |
-| `DELETE` | `/api/v1/knowledge-bases/:id` | 删除知识库 |
+| Method   | Path                          | 说明               |
+| -------- | ----------------------------- | ------------------ |
+| `GET`    | `/api/v1/knowledge-bases`     | 获取当前租户知识库 |
+| `GET`    | `/api/v1/knowledge-bases/:id` | 获取知识库详情     |
+| `POST`   | `/api/v1/knowledge-bases`     | 创建知识库         |
+| `PATCH`  | `/api/v1/knowledge-bases/:id` | 更新知识库         |
+| `DELETE` | `/api/v1/knowledge-bases/:id` | 删除知识库         |
 
 ## 知识树接口
 
 需要 JWT 和租户上下文。
 
-| Method | Path | 说明 |
-|------|------|------|
-| `GET` | `/api/v1/knowledge-tree` | 获取知识树节点 |
-| `GET` | `/api/v1/knowledge-tree/graph` | 获取知识图谱 |
-| `POST` | `/api/v1/knowledge-tree` | 创建知识节点 |
-| `PATCH` | `/api/v1/knowledge-tree/:id` | 更新知识节点 |
-| `DELETE` | `/api/v1/knowledge-tree/:id` | 删除知识节点 |
-| `PATCH` | `/api/v1/knowledge-tree/:id/move` | 移动节点 |
+| Method   | Path                              | 说明           |
+| -------- | --------------------------------- | -------------- |
+| `GET`    | `/api/v1/knowledge-tree`          | 获取知识树节点 |
+| `GET`    | `/api/v1/knowledge-tree/graph`    | 获取知识图谱   |
+| `POST`   | `/api/v1/knowledge-tree`          | 创建知识节点   |
+| `PATCH`  | `/api/v1/knowledge-tree/:id`      | 更新知识节点   |
+| `DELETE` | `/api/v1/knowledge-tree/:id`      | 删除知识节点   |
+| `PATCH`  | `/api/v1/knowledge-tree/:id/move` | 移动节点       |
 
 知识树查询参数：
 
-| 接口 | 参数 | 说明 |
-|------|------|------|
-| `/api/v1/knowledge-tree` | `kbId` | 目标知识库 ID |
+| 接口                           | 参数   | 说明          |
+| ------------------------------ | ------ | ------------- |
+| `/api/v1/knowledge-tree`       | `kbId` | 目标知识库 ID |
 | `/api/v1/knowledge-tree/graph` | `kbId` | 目标知识库 ID |
 
 ## 导入任务接口
 
 需要 JWT 和租户上下文。
 
-| Method | Path | 说明 |
-|------|------|------|
-| `GET` | `/api/v1/import-tasks` | 获取导入任务列表 |
-| `GET` | `/api/v1/import-tasks/:id` | 获取任务详情 |
-| `POST` | `/api/v1/import-tasks` | 创建导入任务 |
-| `GET` | `/api/v1/import-tasks/:id/sync` | 同步任务执行结果 |
-| `POST` | `/api/v1/import-tasks/:id/retry` | 重试失败或已取消的导入任务 |
-| `POST` | `/api/v1/import-tasks/:id/cancel` | 取消正在执行的导入任务 |
+| Method | Path                              | 说明                       |
+| ------ | --------------------------------- | -------------------------- |
+| `GET`  | `/api/v1/import-tasks`            | 获取导入任务列表           |
+| `GET`  | `/api/v1/import-tasks/:id`        | 获取任务详情               |
+| `POST` | `/api/v1/import-tasks`            | 创建导入任务               |
+| `GET`  | `/api/v1/import-tasks/:id/sync`   | 同步任务执行结果           |
+| `POST` | `/api/v1/import-tasks/:id/retry`  | 重试失败或已取消的导入任务 |
+| `POST` | `/api/v1/import-tasks/:id/cancel` | 取消正在执行的导入任务     |
 
 导入来源：
 
-| sourceType | 说明 |
-|------|------|
-| `feishu` | 飞书文档 |
-| `dingtalk` | 钉钉知识库 |
-| `git` | GitHub 或 GitLab 仓库 |
+| sourceType | 说明                  |
+| ---------- | --------------------- |
+| `feishu`   | 飞书文档              |
+| `dingtalk` | 钉钉知识库            |
+| `git`      | GitHub 或 GitLab 仓库 |
 
 ## 搜索接口
 
 保留给控制台和历史搜索页面使用。Capability 搜索入口见 `/api/v1/knowledge/search`。
 
-| Method | Path | 说明 |
-|------|------|------|
-| `POST` | `/api/v1/search/find` | 语义检索 |
-| `POST` | `/api/v1/search/grep` | 文本匹配 |
-| `GET` | `/api/v1/search/analysis` | 检索分析 |
-| `GET` | `/api/v1/search/stats-deep` | 深度检索统计 |
-| `GET` | `/api/v1/search/logs` | 最近检索日志 |
+| Method | Path                               | 说明         |
+| ------ | ---------------------------------- | ------------ |
+| `POST` | `/api/v1/search/find`              | 语义检索     |
+| `POST` | `/api/v1/search/grep`              | 文本匹配     |
+| `GET`  | `/api/v1/search/analysis`          | 检索分析     |
+| `GET`  | `/api/v1/search/stats-deep`        | 深度检索统计 |
+| `GET`  | `/api/v1/search/logs`              | 最近检索日志 |
 | `POST` | `/api/v1/search/logs/:id/feedback` | 提交检索反馈 |
 
 ## 系统接口
 
 公开探针与管理员诊断接口分离。
 
-| Method | Path | 说明 |
-|------|------|------|
-| `GET` | `/api/v1/healthz` | 匿名存活探针 |
-| `GET` | `/api/v1/readyz` | 匿名就绪探针 |
-| `GET` | `/api/v1/system/health` | 受保护的系统诊断健康检查 |
-| `GET` | `/api/v1/system/queue` | OpenViking 处理队列 |
-| `GET` | `/api/v1/system/stats` | 系统统计 |
-| `GET` | `/api/v1/system/dashboard` | 控制台仪表盘 |
-| `POST` | `/api/v1/system/reindex` | 触发重新索引 |
+| Method | Path                       | 说明                     |
+| ------ | -------------------------- | ------------------------ |
+| `GET`  | `/api/v1/healthz`          | 匿名存活探针             |
+| `GET`  | `/api/v1/readyz`           | 匿名就绪探针             |
+| `GET`  | `/api/v1/system/health`    | 受保护的系统诊断健康检查 |
+| `GET`  | `/api/v1/system/queue`     | OpenViking 处理队列      |
+| `GET`  | `/api/v1/system/stats`     | 系统统计                 |
+| `GET`  | `/api/v1/system/dashboard` | 控制台仪表盘             |
+| `POST` | `/api/v1/system/reindex`   | 触发重新索引             |
+
+`/api/v1/system/dashboard` 在租户视角返回当前租户数据；在平台视角返回全平台数据，并按活跃租户解析有效 OV 配置。租户未配置 `ovConfig` 时使用 `DEFAULT_OV_CONFIG` 默认配置，平台视角会对相同 OV 连接去重后聚合健康状态和队列数据，并额外返回 `tenantCount`。
 
 ## 配置接口
 
-| Method | Path | 说明 |
-|------|------|------|
-| `GET` | `/api/v1/settings` | 获取系统配置，需要 JWT |
+| Method  | Path               | 说明                                 |
+| ------- | ------------------ | ------------------------------------ |
+| `GET`   | `/api/v1/settings` | 获取系统配置，需要 JWT               |
 | `PATCH` | `/api/v1/settings` | 批量更新系统配置，需要 `super_admin` |
 
 ## 审计接口
 
 需要 JWT 和租户上下文。
 
-| Method | Path | 说明 |
-|------|------|------|
-| `GET` | `/api/v1/audit` | 分页查询审计日志 |
-| `GET` | `/api/v1/audit/stats` | 审计统计 |
+| Method | Path                       | 说明                                         |
+| ------ | -------------------------- | -------------------------------------------- |
+| `GET`  | `/api/v1/audit`            | 分页查询审计日志                             |
+| `GET`  | `/api/v1/audit/stats`      | 审计统计                                     |
 | `POST` | `/api/v1/audit/client-log` | Web 前端异常日志入口，供浏览器侧上报错误摘要 |
 
 常用查询参数：
 
-| 参数 | 说明 |
-|------|------|
-| `page` | 页码 |
-| `pageSize` | 每页条数 |
-| `action` | 操作类型 |
-| `username` | 用户名 |
+| 参数       | 说明               |
+| ---------- | ------------------ |
+| `page`     | 页码               |
+| `pageSize` | 每页条数           |
+| `action`   | 操作类型           |
+| `username` | 用户名             |
 | `dateFrom` | 起始日期，ISO 8601 |
-| `dateTo` | 结束日期，ISO 8601 |
+| `dateTo`   | 结束日期，ISO 8601 |
 
 ## 集成配置接口
 
 需要 JWT 和租户上下文。敏感字段返回前会自动脱敏。
 
-| Method | Path | 说明 |
-|------|------|------|
-| `GET` | `/api/v1/integrations` | 获取集成配置 |
-| `POST` | `/api/v1/integrations` | 创建集成配置 |
-| `PATCH` | `/api/v1/integrations/:id` | 更新集成配置 |
+| Method   | Path                       | 说明         |
+| -------- | -------------------------- | ------------ |
+| `GET`    | `/api/v1/integrations`     | 获取集成配置 |
+| `POST`   | `/api/v1/integrations`     | 创建集成配置 |
+| `PATCH`  | `/api/v1/integrations/:id` | 更新集成配置 |
 | `DELETE` | `/api/v1/integrations/:id` | 删除集成配置 |
 
 ## 全局错误语义
 
-| 状态码 | 说明 |
-|------|------|
-| `400` | 请求参数错误 |
-| `401` | 未认证、凭证无效或 token 过期 |
-| `403` | 权限不足、租户上下文缺失或越权 URI |
-| `404` | 资源或 capability 不存在 |
-| `409` | 资源冲突 |
-| `429` | 触发 rate limit 或 quota |
-| `500` | 服务内部错误或 OpenViking 下游异常 |
+| 状态码 | 说明                               |
+| ------ | ---------------------------------- |
+| `400`  | 请求参数错误                       |
+| `401`  | 未认证、凭证无效或 token 过期      |
+| `403`  | 权限不足、租户上下文缺失或越权 URI |
+| `404`  | 资源或 capability 不存在           |
+| `409`  | 资源冲突                           |
+| `429`  | 触发 rate limit 或 quota           |
+| `500`  | 服务内部错误或 OpenViking 下游异常 |
 
 ## 能力错误码
 
-| 错误码 | 说明 |
-|------|------|
-| `CAPABILITY_UNAUTHORIZED` | 缺少有效凭证 |
-| `CAPABILITY_FORBIDDEN` | 权限不足或租户边界不匹配 |
-| `CAPABILITY_NOT_FOUND` | capability 不存在 |
-| `CAPABILITY_INVALID_INPUT` | 输入不符合 schema |
-| `CAPABILITY_RATE_LIMITED` | 触发限流 |
-| `CAPABILITY_EXECUTION_FAILED` | 下游服务或执行异常 |
+| 错误码                        | 说明                     |
+| ----------------------------- | ------------------------ |
+| `CAPABILITY_UNAUTHORIZED`     | 缺少有效凭证             |
+| `CAPABILITY_FORBIDDEN`        | 权限不足或租户边界不匹配 |
+| `CAPABILITY_NOT_FOUND`        | capability 不存在        |
+| `CAPABILITY_INVALID_INPUT`    | 输入不符合 schema        |
+| `CAPABILITY_RATE_LIMITED`     | 触发限流                 |
+| `CAPABILITY_EXECUTION_FAILED` | 下游服务或执行异常       |

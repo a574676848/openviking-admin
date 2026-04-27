@@ -1,4 +1,10 @@
-import { Inject, Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  Optional,
+} from '@nestjs/common';
 import Redis from 'ioredis';
 import {
   CAPABILITY_RATE_LIMIT_STORE_OPTIONS,
@@ -75,6 +81,7 @@ export class RedisCapabilityRateLimitStore
   constructor(
     @Inject(CAPABILITY_RATE_LIMIT_STORE_OPTIONS)
     private readonly options: CapabilityRateLimitStoreOptions,
+    @Optional()
     client?: RedisLikeClient,
   ) {
     this.bucketPrefix = `${options.redisKeyPrefix}:bucket`;

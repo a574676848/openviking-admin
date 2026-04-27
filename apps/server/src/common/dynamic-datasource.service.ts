@@ -1,7 +1,5 @@
 import { Injectable, OnModuleDestroy, Logger } from '@nestjs/common';
 import { DataSource } from 'typeorm';
-import { User } from '../users/entities/user.entity';
-import { Tenant } from '../tenant/entities/tenant.entity';
 import { KnowledgeNode } from '../knowledge-tree/entities/knowledge-node.entity';
 import { SearchLog } from '../search/entities/search-log.entity';
 import { ImportTask } from '../import-task/entities/import-task.entity';
@@ -22,8 +20,6 @@ export class DynamicDataSourceService implements OnModuleDestroy {
   private pool = new Map<string, DataSource>();
 
   private readonly CORE_ENTITIES = [
-    User,
-    Tenant,
     KnowledgeNode,
     SearchLog,
     ImportTask,

@@ -47,6 +47,7 @@ export class TenantRepository implements ITenantRepository {
       description: entity.description,
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,
+      deletedAt: entity.deletedAt,
     };
   }
 
@@ -64,6 +65,7 @@ export class TenantRepository implements ITenantRepository {
       description: tenant.description ?? undefined,
       createdAt: tenant.createdAt,
       updatedAt: tenant.updatedAt,
+      deletedAt: tenant.deletedAt ?? undefined,
     };
   }
 
@@ -96,6 +98,10 @@ export class TenantRepository implements ITenantRepository {
   }
 
   async delete(id: string): Promise<void> {
+    await this.repo.softDelete(id);
+  }
+
+  async purge(id: string): Promise<void> {
     await this.repo.delete(id);
   }
 }

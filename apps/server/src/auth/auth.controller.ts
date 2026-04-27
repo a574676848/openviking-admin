@@ -23,7 +23,6 @@ import { SsoTicketService } from './sso/sso-ticket.service';
 import type { AuthenticatedRequest } from '../common/authenticated-request.interface';
 
 @Controller('auth')
-@UseGuards(RolesGuard)
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
@@ -83,7 +82,7 @@ export class AuthController {
     return this.authService.refreshAccessToken(refreshToken);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(SystemRoles.SUPER_ADMIN)
   @Post('switch-role')
   async switchRole(

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Activity, Clock3, Database, HardDrive, Radar, RefreshCw } from "lucide-react";
+import { Activity, Clock3, Database, HardDrive, Radar, RefreshCw, Layers } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 import {
   ConsoleButton,
@@ -21,11 +21,29 @@ interface QueueData {
   "Semantic-Nodes"?: number;
 }
 
+interface VikingDBCollection {
+  Collection: string;
+  "Index Count": string;
+  "Vector Count": string;
+  Status: string;
+}
+
+interface VikingDBData {
+  collections: VikingDBCollection[];
+  totalCollections: number;
+  totalIndexCount: number;
+  totalVectorCount: number;
+}
+
 interface HealthData {
   ok: boolean;
   openviking?: {
-    host?: string;
+    status?: string;
+    healthy?: boolean;
+    version?: string;
+    auth_mode?: string;
   };
+  resolvedBaseUrl?: string;
   dbPool?: unknown;
 }
 
@@ -33,7 +51,8 @@ type DbStats = Record<string, string | number | null>;
 
 interface StatsData {
   queue: QueueData | null;
-  dbStats: DbStats | null;
+  vikingdb: VikingDBData | null;
+  models: { status: string } | null;
 }
 
 export default function SystemPage() {
@@ -68,7 +87,7 @@ export default function SystemPage() {
   }, [load]);
 
   const queue = stats?.queue ?? null;
-  const dbStats = stats?.dbStats ?? null;
+  const vikingdb = stats?.vikingdb ?? null;
   const totalQueue = (queue?.Embedding ?? 0) + (queue?.Semantic ?? 0) + (queue?.["Semantic-Nodes"] ?? 0);
 
   const queueRows = useMemo(
@@ -108,8 +127,8 @@ export default function SystemPage() {
       <ConsoleStatsGrid className="lg:grid-cols-4">
         <ConsoleMetricCard label="核心健康度" value={health?.ok ? "在线" : "降级"} tone={health?.ok ? "success" : "danger"} />
         <ConsoleMetricCard label="队列总量" value={totalQueue.toLocaleString()} tone="warning" />
-        <ConsoleMetricCard label="已存节点" value={String(dbStats?.total_nodes ?? 0)} tone="brand" />
-        <ConsoleMetricCard label="最近刷新" value={lastRefresh ? lastRefresh.toLocaleTimeString("zh-CN") : "--:--:--"} />
+        <ConsoleMetricCard label="向量总数" value={vikingdb?.totalVectorCount?.toLocaleString() ?? "0"} tone="brand" />
+        <ConsoleMetricCard label="引擎版本" value={health?.openviking?.version ?? "未知"} tone="brand" />
       </ConsoleStatsGrid>
 
       <section className={`grid grid-cols-1 gap-8 xl:grid-cols-[1.02fr_0.98fr] ${loadError ? "opacity-60" : ""}`}>
@@ -124,7 +143,7 @@ export default function SystemPage() {
                 </div>
                 <p className="mt-3 font-sans text-3xl font-black">{health?.ok ? "在线" : "离线"}</p>
                 <p className="mt-2 font-mono text-xs font-bold uppercase tracking-[0.12em]">
-                  {health?.openviking?.host ?? "未分配下游节点"}
+                  {health?.resolvedBaseUrl ?? "未分配下游节点"}
                 </p>
               </ConsoleSurfaceCard>
               <ConsoleStatsGrid className="md:grid-cols-2">
@@ -162,14 +181,21 @@ export default function SystemPage() {
               存储遥测
             </div>
             <div className="grid grid-cols-1 gap-px bg-[var(--border)]">
-              {dbStats && Object.keys(dbStats).length > 0 ? (
-                Object.entries(dbStats).map(([key, value]) => (
-                  <div key={key} className="grid gap-px bg-[var(--border)] lg:grid-cols-[minmax(0,1fr)_160px]">
-                    <div className="bg-[var(--bg-card)] px-5 py-5 font-mono text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">
-                      {key}
+              {vikingdb && vikingdb.collections.length > 0 ? (
+                vikingdb.collections.map((col) => (
+                  <div key={col.Collection} className="grid gap-px bg-[var(--border)] lg:grid-cols-[minmax(0,1fr)_160px_160px_100px]">
+                    <div className="bg-[var(--bg-card)] px-5 py-5 font-mono text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-primary)]">
+                      <Layers size={12} strokeWidth={2.6} className="inline mr-2" />
+                      {col.Collection}
                     </div>
-                    <div className="bg-[var(--bg-card)] px-5 py-5 text-right font-mono text-sm font-black tabular-nums text-[var(--text-primary)]">
-                      {typeof value === "number" ? value.toLocaleString() : String(value)}
+                    <div className="bg-[var(--bg-card)] px-5 py-5 text-right font-mono text-sm font-black tabular-nums text-[var(--text-secondary)]">
+                      索引 {col["Index Count"]}
+                    </div>
+                    <div className="bg-[var(--bg-card)] px-5 py-5 text-right font-mono text-sm font-black tabular-nums text-[var(--brand)]">
+                      {parseInt(col["Vector Count"]).toLocaleString()} 向量
+                    </div>
+                    <div className="bg-[var(--bg-card)] px-5 py-5 text-right font-mono text-[10px] font-black uppercase tracking-[0.14em] text-[var(--success)]">
+                      {col.Status}
                     </div>
                   </div>
                 ))
@@ -177,6 +203,17 @@ export default function SystemPage() {
                 <ConsoleEmptyState icon={Database} title="暂无存储遥测" description="当前没有可展示的存储遥测数据。" />
               )}
             </div>
+            {/* 汇总行 */}
+            {vikingdb && vikingdb.collections.length > 0 && (
+              <div className="flex items-center justify-between border-t-[3px] border-[var(--border)] bg-[var(--bg-elevated)] px-5 py-4">
+                <span className="font-mono text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                  合计: {vikingdb.totalCollections} 集合 / {vikingdb.totalIndexCount} 索引
+                </span>
+                <span className="font-mono text-sm font-black tabular-nums text-[var(--brand)]">
+                  {vikingdb.totalVectorCount.toLocaleString()} 向量
+                </span>
+              </div>
+            )}
           </ConsolePanel>
 
           <ConsolePanel className="p-6">
@@ -184,7 +221,7 @@ export default function SystemPage() {
             <div className="mt-6 space-y-4 font-mono text-xs font-bold text-[var(--text-secondary)]">
               <p className="flex items-center gap-3">
                 <Activity size={14} strokeWidth={2.6} />
-                引擎健康优先看“在线 / 降级”状态。
+                引擎健康优先看"在线 / 降级"状态。
               </p>
               <p className="flex items-center gap-3">
                 <Clock3 size={14} strokeWidth={2.6} />
@@ -192,7 +229,7 @@ export default function SystemPage() {
               </p>
               <p className="flex items-center gap-3">
                 <Database size={14} strokeWidth={2.6} />
-                节点数与向量数应与知识库增长同步。
+                向量数应与知识库增长同步。
               </p>
               <p className="flex items-center gap-3">
                 <HardDrive size={14} strokeWidth={2.6} />

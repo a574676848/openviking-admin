@@ -10,4 +10,5 @@ export interface ITenantRepository {
   save(tenant: TenantModel): Promise<TenantModel>;
   update(id: string, data: Partial<TenantModel>): Promise<void>;
   delete(id: string): Promise<void>;
+  purge(id: string): Promise<void>;
 }

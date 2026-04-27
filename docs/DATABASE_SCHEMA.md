@@ -23,7 +23,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 | 列名 | 类型 | 约束 | 默认值 | 说明 |
 |------|------|------|--------|------|
 | `id` | UUID | PK, NOT NULL | `uuid_generate_v4()` | 主键 |
-| `username` | VARCHAR(64) | UNIQUE, NOT NULL | — | 登录用户名 |
+| `username` | VARCHAR(64) | NOT NULL | — | 登录用户名；平台账号要求全局唯一，租户账号要求租户内唯一 |
 | `password_hash` | VARCHAR(255) | NOT NULL | — | bcrypt 哈希 |
 | `role` | VARCHAR(30) | NOT NULL | `'tenant_viewer'` | `super_admin` / `tenant_admin` / `tenant_operator` / `tenant_viewer` |
 | `tenant_id` | VARCHAR(64) | NULLABLE | — | 所属租户标识，超管为 NULL |
@@ -32,6 +32,11 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 | `provider` | VARCHAR(32) | NULLABLE | — | `feishu` / `dingtalk` / `oidc` / `ldap` |
 | `created_at` | TIMESTAMP | NOT NULL | `now()` | 创建时间 |
 | `updated_at` | TIMESTAMP | NOT NULL | `now()` | 更新时间 |
+
+唯一性约束说明：
+
+- 平台账号（`tenant_id IS NULL`）使用部分唯一索引 `uq_users_platform_username`，保证平台用户名全局唯一。
+- 租户账号（`tenant_id IS NOT NULL`）使用部分唯一索引 `uq_users_tenant_username`，保证同一租户内用户名唯一，不同租户可重复使用同名账号。
 
 ---
 
@@ -247,6 +252,7 @@ users (1) ────< (N) capability_keys
 | `InitSchema` | 1745000000000 | 创建 users, knowledge_bases, import_tasks, search_logs, audit_logs + 初始管理员 |
 | `AddMissingTables` | 1745100000000 | 创建 tenants, knowledge_nodes, system_configs |
 | `FixSchemaInconsistencies` | 1745200000000 | 添加 SSO 字段 (sso_id, provider)、隔离等级字段、修复列类型 |
+| `ScopeUsernamesPerTenant` | 1746400000000 | 将 users.username 调整为平台全局唯一 + 租户内唯一 |
 
 ---
 

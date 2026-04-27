@@ -1,4 +1,5 @@
 import React, { ReactNode, useEffect, useId, useRef } from 'react';
+import { X } from 'lucide-react';
 
 interface FormModalProps {
   isOpen: boolean;
@@ -23,6 +24,11 @@ export function FormModal({
 }: FormModalProps) {
   const titleId = useId();
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -31,13 +37,13 @@ export function FormModal({
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        onClose();
+        onCloseRef.current();
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -47,31 +53,31 @@ export function FormModal({
       role="presentation"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) {
-          onClose();
+          onCloseRef.current();
         }
       }}
     >
-      <div className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+      <div className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto hidden-scrollbar">
         <form 
           onSubmit={onSubmit} 
           role="dialog"
           aria-modal="true"
           aria-labelledby={titleId}
-          className="bg-[var(--bg-card)] border-[var(--border-width)] border-[var(--border)] shadow-[var(--shadow-base)] p-10 animate-in slide-in-from-bottom-8 edge-pulse"
+          className="bg-[var(--bg-card)] border border-[var(--border)] shadow-xl rounded-[var(--radius-base)] p-8 animate-in slide-in-from-bottom-4"
         >
           {/* Header */}
           <div className="flex justify-between items-center border-b-[var(--border-width)] border-[var(--border)] pb-4 mb-8">
-            <h2 id={titleId} className="text-3xl font-black uppercase font-mono tracking-tighter">
+            <h2 id={titleId} className="text-2xl font-bold text-[var(--text-primary)]">
               {title}
             </h2>
             <button 
               ref={closeButtonRef}
               type="button" 
-              onClick={onClose}
+              onClick={() => onCloseRef.current()}
               aria-label="关闭表单弹窗"
-              className="p-2 border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-card)] shadow-[var(--shadow-base)] hover:translate-y-0.5 hover:shadow-none transition-all font-mono font-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-card)]"
+              className="p-2 rounded-full text-[var(--text-muted)] hover:bg-[var(--bg-base)] hover:text-[var(--text-primary)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2"
             >
-              X
+              <X size={20} />
             </button>
           </div>
 
@@ -81,11 +87,11 @@ export function FormModal({
           </div>
 
           {/* Footer */}
-          <div className="flex justify-end pt-6 border-t-2 border-[var(--border)] border-dashed">
+          <div className="flex justify-end pt-6 border-t border-[var(--border)]">
             <button 
               type="submit"
               disabled={saving} 
-              className="px-12 py-4 bg-black text-white border-[var(--border-width)] border-[var(--border)] shadow-[var(--shadow-base)] font-black uppercase text-sm hover:translate-y-1 hover:shadow-none transition-all disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-card)]"
+              className="px-8 py-3 bg-[var(--brand)] text-[var(--brand-text)] rounded-[var(--radius-base)] font-bold transition-all hover:opacity-90 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2"
             >
                {saving ? savingText : saveText}
             </button>

@@ -77,6 +77,8 @@ export default function AuditPage() {
     {
       key: "createdAt",
       header: "时间",
+      sortable: true,
+      sortValue: (log) => new Date(log.createdAt),
       cell: (log) => (
         <div className="font-mono text-[10px] tracking-widest text-[var(--text-secondary)] whitespace-nowrap">
           {new Date(log.createdAt).toLocaleString("en-GB", { hour12: false }).replace(",", "")}
@@ -86,8 +88,12 @@ export default function AuditPage() {
     {
       key: "username",
       header: "操作人",
+      searchable: true,
+      searchValue: (log) => log.username || "ROOT",
+      sortable: true,
+      sortValue: (log) => log.username || "ROOT",
       cell: (log) => (
-        <div className="font-black text-[11px] text-[var(--text-primary)] uppercase">
+        <div className="font-bold text-[11px] text-[var(--text-primary)] uppercase">
           {log.username || "ROOT"}
         </div>
       ),
@@ -95,6 +101,10 @@ export default function AuditPage() {
     {
       key: "classification",
       header: "操作类型",
+      searchable: true,
+      searchValue: (log) => ACTION_MAP[log.action]?.label ?? log.action,
+      sortable: true,
+      sortValue: (log) => ACTION_MAP[log.action]?.label ?? log.action,
       cell: (log) => {
         const mapped = ACTION_MAP[log.action] ?? { label: log.action.toUpperCase(), color: "var(--text-muted)", icon: Shield };
         const Icon = mapped.icon;
@@ -121,6 +131,10 @@ export default function AuditPage() {
     {
       key: "target",
       header: "目标对象",
+      searchable: true,
+      searchValue: (log) => log.target || "",
+      sortable: true,
+      sortValue: (log) => log.target || "",
       cell: (log) => (
         <div className="max-w-[120px] truncate text-[10px] text-[var(--text-secondary)] uppercase font-bold" title={log.target}>
           {log.target || "---"}
@@ -130,6 +144,10 @@ export default function AuditPage() {
     {
       key: "status",
       header: "结果",
+      searchable: true,
+      searchValue: (log) => (log.success ? "成功" : "失败"),
+      sortable: true,
+      sortValue: (log) => log.success,
       cell: (log) => (
         <PlatformStateBadge tone={log.success ? "success" : "danger"}>
           {log.success ? "成功" : "失败"}
@@ -139,6 +157,8 @@ export default function AuditPage() {
     {
       key: "meta",
       header: "附加信息",
+      searchable: true,
+      searchValue: (log) => JSON.stringify(log.meta),
       cell: (log) => (
         <div className="max-w-[150px] truncate rounded-none border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-elevated)] p-1.5 text-[9px] text-[var(--text-muted)]" title={JSON.stringify(log.meta)}>
           {JSON.stringify(log.meta)}
@@ -151,7 +171,7 @@ export default function AuditPage() {
     <div className="w-full flex flex-col pb-10 min-h-full">
       <PlatformPageHeader
         title={
-          <h1 className="mb-2 flex items-center text-4xl font-black tracking-tighter text-[var(--text-primary)] md:text-5xl">
+          <h1 className="mb-2 flex items-center text-4xl font-bold tracking-tighter text-[var(--text-primary)] md:text-5xl">
             <Shield size={40} strokeWidth={2} className="mr-4 text-[var(--text-primary)]" />
             平台审计流_
           </h1>
@@ -216,7 +236,7 @@ export default function AuditPage() {
                 >
                   上一页
                 </PlatformButton>
-                <span className="px-2 font-mono text-[10px] font-black tracking-widest text-[var(--text-primary)]">P.{page}/{result.pages}</span>
+                <span className="px-2 font-mono text-[10px] font-bold tracking-widest text-[var(--text-primary)]">P.{page}/{result.pages}</span>
                 <PlatformButton
                   type="button"
                   aria-label="下一页平台审计日志"
@@ -239,6 +259,7 @@ export default function AuditPage() {
           errorMessage={loadError ? `审计日志加载失败：${loadError}` : undefined}
           emptyMessage="当前筛选条件下没有审计记录"
           tableLabel="平台审计日志表"
+          searchConfig={{ placeholder: "搜索操作人 / 事件类型 / 目标对象..." }}
           className="border-0 shadow-none"
           rowClassName={() => "hover:bg-[var(--bg-elevated)] transition-colors"}
         />

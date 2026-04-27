@@ -161,7 +161,7 @@ describe('AuthController (e2e)', () => {
   it('POST /api/v1/auth/login - should return access token', () => {
     return request(app.getHttpServer())
       .post('/api/v1/auth/login')
-      .send({ username: 'admin', password: 'admin123', tenantCode: 'default' })
+      .send({ username: 'admin', password: 'default@123', tenantCode: 'default' })
       .expect(201)
       .expect((res) => {
         expect(res.body.accessToken).toBeDefined();

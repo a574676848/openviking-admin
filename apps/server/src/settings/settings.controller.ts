@@ -1,4 +1,12 @@
-import { Controller, Get, Patch, Body, UseGuards, Req } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Patch,
+  Post,
+  Body,
+  UseGuards,
+  Req,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../common/roles.decorator';
 import { SettingsService } from './settings.service';
@@ -23,5 +31,26 @@ export class SettingsController {
     @Req() req: AuthenticatedRequest,
   ) {
     return this.svc.batchSet(body, req.user);
+  }
+
+  @Post('test-connection')
+  @Roles(SystemRoles.SUPER_ADMIN)
+  testConnection(
+    @Body()
+    body: {
+      type: 'engine' | 'rerank';
+      baseUrl?: string;
+      apiKey?: string;
+      account?: string;
+      endpoint?: string;
+      model?: string;
+    },
+  ): Promise<{
+    ok: true;
+    type: 'engine' | 'rerank';
+    message: string;
+    target: string;
+  }> {
+    return this.svc.testConnection(body);
   }
 }

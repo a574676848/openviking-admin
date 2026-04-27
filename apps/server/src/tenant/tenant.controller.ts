@@ -11,7 +11,11 @@ import {
 } from '@nestjs/common';
 import { TenantService } from './tenant.service';
 import { IntegrationService } from './integration.service';
-import { CreateTenantDto, UpdateTenantDto } from './dto/tenant.dto';
+import {
+  CreateTenantDto,
+  UpdateTenantDto,
+  UpdateTenantStatusDto,
+} from './dto/tenant.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../common/roles.guard';
 import { Roles } from '../common/roles.decorator';
@@ -64,6 +68,17 @@ export class TenantController {
     @Req() req: AuthenticatedRequest,
   ) {
     return this.tenantService.update(id, dto, req.user);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(SystemRoles.SUPER_ADMIN)
+  @Patch(':id/status')
+  updateStatus(
+    @Param('id') id: string,
+    @Body() dto: UpdateTenantStatusDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.tenantService.updateStatus(id, dto.status, req.user);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

@@ -1,4 +1,5 @@
-import { IsString, IsOptional, MaxLength } from 'class-validator';
+import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
+import { TenantStatus } from '../../common/constants/system.enum';
 
 export class CreateTenantDto {
   @IsString()
@@ -18,6 +19,15 @@ export class CreateTenantDto {
   isolationLevel?: string;
 
   @IsOptional()
+  dbConfig?: {
+    host?: string;
+    port?: number;
+    username?: string;
+    password?: string;
+    database?: string;
+  };
+
+  @IsOptional()
   @IsString()
   @MaxLength(128)
   vikingAccount?: string;
@@ -35,6 +45,7 @@ export class CreateTenantDto {
     apiKey?: string;
     account?: string;
     rerankEndpoint?: string;
+    rerankApiKey?: string;
     rerankModel?: string;
   };
 }
@@ -50,6 +61,15 @@ export class UpdateTenantDto {
   status?: string;
 
   @IsOptional()
+  dbConfig?: {
+    host?: string;
+    port?: number;
+    username?: string;
+    password?: string;
+    database?: string;
+  };
+
+  @IsOptional()
   @IsString()
   @MaxLength(128)
   vikingAccount?: string;
@@ -67,6 +87,12 @@ export class UpdateTenantDto {
     apiKey?: string;
     account?: string;
     rerankEndpoint?: string;
+    rerankApiKey?: string;
     rerankModel?: string;
   };
+}
+
+export class UpdateTenantStatusDto {
+  @IsEnum(TenantStatus)
+  status: TenantStatus;
 }

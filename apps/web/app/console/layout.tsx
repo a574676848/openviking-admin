@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useApp } from "@/components/app-provider";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { getShellButtonClass, getShellPanelClass, getShellTileClass, type ShellTheme } from "@/components/ui/shell-primitives";
-import { SquareTerminal, Database, Network, FileText, Search, Activity, MessageSquare, Users2, Link2, ClipboardList, MonitorCheck, LogOut, Bot, Menu, X } from "lucide-react";
+import { SquareTerminal, Database, Network, FileText, Search, Activity, MessageSquare, Users2, Link2, ClipboardList, MonitorCheck, LogOut, Bot, Menu, X, ChevronLeft } from "lucide-react";
 
 const navItems = [
   { id: "01", href: "/console/dashboard", label: "租户工作台", icon: SquareTerminal, full: "租户工作台" },
@@ -29,8 +29,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const { user, logout, isLoading, theme } = useApp();
   const [mounted, setMounted] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const shellTheme: ShellTheme = theme === "swiss" ? "swiss" : "neo";
-  const isSwiss = shellTheme === "swiss";
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const shellTheme: ShellTheme = theme === "starry" ? "starry" : "neo";
+  const isStarry = shellTheme === "starry";
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -43,7 +44,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     if (!user) {
       router.replace("/login");
     }
-  }, [isLoading, mounted, router, user]);
+  }, [isLoading, mounted, user]);
 
   useEffect(() => {
     setMobileNavOpen(false);
@@ -57,7 +58,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   if (!mounted || isLoading || !user) return null;
 
   return (
-    <div className="relative flex min-h-screen bg-[var(--bg-base)] text-[var(--text-primary)]">
+    <div className="relative flex h-screen bg-transparent text-[var(--text-primary)]">
       <div
         className="pointer-events-none absolute inset-0 opacity-[0.05]"
         style={{
@@ -67,16 +68,26 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         }}
       />
 
-      <aside className={getShellPanelClass(shellTheme, "sidebar", "relative hidden w-[292px] shrink-0 lg:flex lg:flex-col")}>
-        <div className="border-b-[3px] border-[var(--border)] bg-[var(--brand)] px-5 py-6 text-white">
-          <div className="flex items-center gap-3">
-            <div className={getShellTileClass(shellTheme, "flex h-11 w-11 items-center justify-center text-black")}>
-              <SquareTerminal size={20} strokeWidth={2.5} />
+      <aside className={getShellPanelClass(shellTheme, "sidebar", `relative hidden shrink-0 lg:flex lg:flex-col transition-all duration-300 ${sidebarCollapsed ? 'w-[72px]' : 'w-[292px]'}`)}>
+        <div className="border-b border-[var(--border)] px-6 py-7">
+          <div className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-4'}`}>
+            <div className="flex h-12 w-12 items-center justify-center border border-[var(--border)] bg-[var(--bg-card)] shrink-0 rounded-[var(--radius-tile)]">
+              <SquareTerminal size={20} strokeWidth={1.8} className="text-[var(--brand)]" />
             </div>
-            <div className="min-w-0">
-              <p className="font-mono text-[10px] font-black uppercase tracking-[0.28em] opacity-80">Tenant Node</p>
-              <h1 className="truncate font-sans text-2xl font-black tracking-tight">{user.username}</h1>
-            </div>
+            {!sidebarCollapsed && (
+              <div className="min-w-0 flex-1">
+                <p className="font-sans text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Tenant Node</p>
+                <h1 className="truncate font-sans text-2xl font-bold tracking-tight">{user.username}</h1>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-tile)] hover:bg-[var(--bg-elevated)] shrink-0"
+              title={sidebarCollapsed ? "展开侧栏" : "收起侧栏"}
+            >
+              <ChevronLeft size={16} className={`transition-transform ${sidebarCollapsed ? 'rotate-180' : ''}`} />
+            </button>
           </div>
         </div>
 
@@ -89,67 +100,60 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <Link
                   key={item.id}
                   href={item.href}
-                  className={`group flex items-center gap-3 border-[3px] px-3 py-3 font-mono text-[10px] font-black uppercase tracking-[0.18em] transition-all ${
+                  title={sidebarCollapsed ? item.label : undefined}
+                  className={`group flex items-center font-sans text-[11px] font-bold transition-all mb-1 rounded-[var(--radius-base)] ${
+                    sidebarCollapsed ? 'justify-center px-2 py-3' : 'gap-3 px-3 py-3'
+                  } ${
                     isActive
-                      ? isSwiss
-                        ? "border-[var(--border)] bg-[var(--brand-muted)] text-[var(--text-primary)]"
-                        : "translate-x-1 border-[var(--border)] bg-black text-white shadow-[4px_4px_0px_var(--brand)]"
-                      : isSwiss
-                        ? "border-transparent bg-[var(--bg-card)] text-[var(--text-primary)] hover:border-[var(--border)] hover:bg-[var(--bg-elevated)]"
-                        : "border-transparent bg-[var(--bg-card)] text-[var(--text-primary)] hover:translate-x-2 hover:border-[var(--border)] hover:shadow-[4px_4px_0px_#000]"
+                      ? "border border-[var(--border)] bg-[var(--brand-muted)] text-[var(--text-primary)]"
+                      : "border border-transparent bg-transparent text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]"
                   }`}
                 >
-                  <span className="w-7 text-[9px]">{item.id}</span>
-                  <Icon size={16} strokeWidth={2.4} className={isActive ? "text-[var(--brand)]" : ""} />
-                  <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                  <span className={`${isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>{">>"}</span>
+                  {!sidebarCollapsed && <span className="w-7 opacity-50">{item.id}</span>}
+                  <Icon size={16} strokeWidth={2.4} className={`${isActive ? "text-[var(--brand)]" : ""} shrink-0`} />
+                  {!sidebarCollapsed && <span className="min-w-0 flex-1 truncate">{item.label}</span>}
+                  {!sidebarCollapsed && (
+                    <span className={`${isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>{">>"}</span>
+                  )}
                 </Link>
               );
             })}
           </div>
         </nav>
 
-        <div className="mt-auto border-t-[3px] border-[var(--border)] p-4">
-          <div className="space-y-3">
-            <ThemeSwitcher className="w-full" />
+        <div className="mt-auto border-t border-[var(--border)] px-4 py-4">
+          <div className={`flex ${sidebarCollapsed ? 'flex-col items-center gap-3' : 'flex-row items-center gap-2'}`}>
+            <ThemeSwitcher className={sidebarCollapsed ? '' : 'flex-1 min-w-0'} placement="top" compact={sidebarCollapsed} />
             <button
               type="button"
               onClick={logout}
-              className={getShellButtonClass(shellTheme, "danger", "flex h-11 w-full")}
+              className={getShellButtonClass(shellTheme, "danger", `flex h-11 ${sidebarCollapsed ? 'w-11 px-0 justify-center' : 'px-3 shrink-0'}`)}
+              title="退出系统"
             >
-              <LogOut size={14} strokeWidth={2.4} />
-              退出系统
+              <div className={getShellTileClass(shellTheme, "p-1.5 bg-[var(--danger)]/10")}>
+                <LogOut size={14} strokeWidth={2.5} />
+              </div>
+              {!sidebarCollapsed && <span className="ml-1">退出系统</span>}
             </button>
           </div>
         </div>
       </aside>
 
       <div className="relative flex min-w-0 flex-1 flex-col">
-        <header className="border-b-[3px] border-[var(--border)] bg-[var(--bg-base)] px-6 py-5">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <p className="font-mono text-[10px] font-black uppercase tracking-[0.28em] text-[var(--brand)]">
-                控制台导航
-              </p>
-              <div className="mt-2 flex flex-wrap items-end gap-3">
-                <h2 className="font-sans text-4xl font-black tracking-tight">{activeItem.label}</h2>
-                <span className="pb-1 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">
-                  {activeItem.full}
-                </span>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 lg:hidden">
-              <button
-                type="button"
-                aria-label={mobileNavOpen ? "关闭导航菜单" : "打开导航菜单"}
-                title={mobileNavOpen ? "关闭导航菜单" : "打开导航菜单"}
-                aria-expanded={mobileNavOpen}
-                onClick={() => setMobileNavOpen((value) => !value)}
-                className={getShellButtonClass(shellTheme, "default", "flex h-11 w-11")}
-              >
-                {mobileNavOpen ? <X size={18} strokeWidth={2.4} /> : <Menu size={18} strokeWidth={2.4} />}
-              </button>
-              <ThemeSwitcher />
+        <header className="border-b border-[var(--border)] bg-[var(--bg-base)] px-4 py-3 lg:hidden">
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              aria-label={mobileNavOpen ? "关闭导航菜单" : "打开导航菜单"}
+              title={mobileNavOpen ? "关闭导航菜单" : "打开导航菜单"}
+              aria-expanded={mobileNavOpen}
+              onClick={() => setMobileNavOpen((value) => !value)}
+              className={getShellButtonClass(shellTheme, "default", "flex h-11 w-11")}
+            >
+              {mobileNavOpen ? <X size={18} strokeWidth={2.4} /> : <Menu size={18} strokeWidth={2.4} />}
+            </button>
+            <div className="flex items-center gap-2">
+              <ThemeSwitcher align="right" />
               <button
                 type="button"
                 onClick={logout}
@@ -165,7 +169,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </header>
 
         {mobileNavOpen ? (
-          <div className="border-b-[3px] border-[var(--border)] bg-[var(--bg-card)] px-4 py-4 lg:hidden">
+          <div className="border-b border-[var(--border)] bg-[var(--bg-card)] px-4 py-4 lg:hidden">
             <nav className="grid gap-2" aria-label="移动端控制台导航">
               {navItems.map((item) => {
                 const isActive = pathname.startsWith(item.href);
@@ -174,19 +178,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <Link
                     key={item.id}
                     href={item.href}
-                    className={`flex items-center gap-3 border-[3px] px-3 py-3 font-mono text-[11px] font-black ${
+                    className={`flex items-center gap-3 border px-3 py-3 font-sans text-sm font-bold rounded-[var(--radius-base)] mb-2 ${
                       isActive
-                        ? isSwiss
-                          ? "border-[var(--border)] bg-[var(--brand-muted)] text-[var(--text-primary)]"
-                          : "border-[var(--border)] bg-black text-white"
-                        : isSwiss
-                          ? "border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-primary)]"
-                          : "border-[var(--border)] bg-[var(--bg-base)] text-[var(--text-primary)]"
+                        ? "border-[var(--border)] bg-[var(--brand-muted)] text-[var(--text-primary)]"
+                        : "border-transparent bg-[var(--bg-card)] text-[var(--text-primary)]"
                     }`}
                   >
                     <Icon size={16} strokeWidth={2.4} />
                     <span className="flex-1">{item.label}</span>
-                    <span className="text-[10px] text-[var(--text-muted)]">{item.id}</span>
+                    <span className="text-[11px] font-bold text-[var(--text-muted)] opacity-50">{item.id}</span>
                   </Link>
                 );
               })}

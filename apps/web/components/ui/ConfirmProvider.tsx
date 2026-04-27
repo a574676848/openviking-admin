@@ -75,22 +75,22 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
               aria-modal="true"
               aria-labelledby="confirm-title"
               aria-describedby={pending.description ? "confirm-description" : undefined}
-              className="w-full max-w-md border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-card)] p-6 text-[var(--text-primary)] shadow-[var(--shadow-base)]"
+              className="w-full max-w-md border border-[var(--border)] bg-[var(--bg-card)] p-6 text-[var(--text-primary)] shadow-xl rounded-[var(--radius-base)]"
               initial={{ y: 24, scale: 0.96 }}
               animate={{ y: 0, scale: 1 }}
               exit={{ y: 16, scale: 0.98 }}
               transition={{ type: "spring", stiffness: 320, damping: 24 }}
             >
               <div className="mb-6 flex items-start gap-4 border-b-[var(--border-width)] border-[var(--border)] pb-5">
-                <div className={`border-[var(--border-width)] border-[var(--border)] p-3 shadow-[var(--shadow-base)] ${toneClass(pending.tone ?? "default")}`}>
+                <div className={`rounded-xl p-3 ${toneClass(pending.tone ?? "default")}`}>
                   <AlertTriangle size={22} strokeWidth={2} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h2 id="confirm-title" className="font-sans text-2xl font-black tracking-tighter">
+                  <h2 id="confirm-title" className="font-sans text-xl font-bold">
                     {pending.title}
                   </h2>
                   {pending.description && (
-                    <p id="confirm-description" className="mt-2 font-mono text-xs font-bold leading-6 text-[var(--text-secondary)]">
+                    <p id="confirm-description" className="mt-2 text-sm leading-relaxed text-[var(--text-secondary)]">
                       {pending.description}
                     </p>
                   )}
@@ -99,7 +99,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
                   ref={closeButtonRef}
                   type="button"
                   onClick={() => close(false)}
-                  className="border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-card)] p-2 shadow-[var(--shadow-base)] transition-all hover:translate-y-0.5 hover:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-card)]"
+                  className="rounded-full p-2 text-[var(--text-muted)] hover:bg-[var(--bg-base)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]"
                   aria-label="关闭确认弹窗"
                 >
                   <X size={16} strokeWidth={2} />
@@ -109,14 +109,14 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
                 <button
                   type="button"
                   onClick={() => close(false)}
-                  className="border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-card)] px-5 py-3 font-mono text-[10px] font-black tracking-[0.2em] text-[var(--text-primary)] shadow-[var(--shadow-base)] transition-all hover:translate-y-0.5 hover:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-card)]"
+                  className="px-5 py-2.5 rounded-[var(--radius-base)] font-bold text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-base)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]"
                 >
                   {pending.cancelText ?? "取消"}
                 </button>
                 <button
                   type="button"
                   onClick={() => close(true)}
-                  className={`border-[var(--border-width)] border-[var(--border)] px-6 py-3 font-mono text-[10px] font-black tracking-[0.2em] shadow-[var(--shadow-base)] transition-all hover:translate-y-0.5 hover:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-card)] ${toneClass(pending.tone ?? "default")}`}
+                  className={`px-6 py-2.5 rounded-[var(--radius-base)] font-bold text-sm shadow-sm transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] ${toneClass(pending.tone ?? "default")}`}
                 >
                   {pending.confirmText ?? "确认"}
                 </button>

@@ -21,8 +21,8 @@ app/
 ├── loading.tsx           # 加载状态
 ├── not-found.tsx         # 404
 │
-├── platform/             # 超管平台 (Swiss 极简风格)
-│   ├── layout.tsx        # 侧边栏 (7 菜单项, 角色守卫)
+├── platform/             # 超管平台 (Starry 浩瀚星空)
+│   ├── layout.tsx        # 侧边栏 (7 菜单项, 角色守卫，放行 /platform/login)
 │   ├── dashboard/        # 平台总览 (Bento Grid)
 │   ├── tenants/          # 租户管理
 │   ├── users/            # 全局用户
@@ -32,7 +32,7 @@ app/
 │   ├── analytics/        # 全局数据分析
 │   └── login/            # 平台登录页
 │
-├── console/              # 租户工作台 (Neo-Brutalism 波普风格)
+├── console/              # 租户工作台 (星智流光)
 │   ├── layout.tsx        # 侧边栏 (12 菜单项)
 │   ├── dashboard/        # 租户工作台 (ScrambleNumber 特效)
 │   ├── knowledge-bases/  # 知识库管理
@@ -56,6 +56,7 @@ app/
 ## 角色路由逻辑
 
 - `super_admin` → `/platform/dashboard`
+- `平台超管登录入口` → `/platform/login`
 - 其他角色 → `/console/dashboard`
 - 未登录 → `/login`
 
@@ -64,8 +65,10 @@ app/
 | 组件 | 路径 | 功能 |
 |------|------|------|
 | `AppProvider` | `components/app-provider.tsx` | 全局状态 (user, theme, login/logout) |
-| `VikingWatcher` | `components/watcher.tsx` | 登录页"守望者"眼睛组件 (跟随鼠标/密码闭眼) |
-| `ThemeSwitcher` | `components/theme-switcher.tsx` | 主题切换 (neo-brutalism / swiss) |
+| `VikingWatcher` | `components/watcher.tsx` | 登录页"守望者"眼睛组件 (跟随鼠标/追踪粒子/密码闭眼) |
+| `MeteorShower` | `components/ui/meteor-shower.tsx` | “浩瀚星空”主题专属背景流星特效 |
+| `DataWisps` | `components/ui/data-wisps.tsx` | “星智流光”主题专属背景数据萤火虫生态特效 |
+| `ThemeSwitcher` | `components/theme-switcher.tsx` | 主题切换 (neo-brutalism / starry) |
 | `DataTable` | `components/ui/DataTable.tsx` | 通用数据表格 |
 | `FormModal` | `components/ui/FormModal.tsx` | 表单弹窗 |
 | `ScrambleText` | `components/ui/ScrambleText.tsx` | 文字乱码解码特效 |

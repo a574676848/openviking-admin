@@ -61,29 +61,40 @@ Stage 2: BGE-Rerank 重排序 (可选)
 
 ### 启用/禁用
 
-通过 `system_configs` 表控制：
+通过平台设置页或 `system_configs` 表控制：
 
 ```sql
 -- 启用 Rerank
-UPDATE system_configs SET value = 'true' WHERE key = 'rerank_enabled';
+UPDATE system_configs SET value = 'true' WHERE key = 'search.rerank_enabled';
 
 -- 禁用 Rerank
-UPDATE system_configs SET value = 'false' WHERE key = 'rerank_enabled';
+UPDATE system_configs SET value = 'false' WHERE key = 'search.rerank_enabled';
 ```
 
 ### 参数说明
 
 | 配置键 | 类型 | 默认值 | 说明 |
 |--------|------|--------|------|
-| `rerank_endpoint` | string | — | Rerank 服务地址 (如 `http://rerank:8080/rerank`) |
-| `rerank_enabled` | boolean | `false` | 是否启用二阶段重排序 |
-| `rerank_timeout_ms` | number | `1500` | Rerank 请求超时时间 (毫秒) |
+| `search.rerank_enabled` | boolean | `false` | 是否启用二阶段重排序 |
+| `rerank.endpoint` | string | — | 推荐填写完整地址，例如 `http://host:port/v1/rerank` |
+| `rerank.api_key` | string | — | OpenAI 兼容 Rerank Bearer Token |
+| `rerank.model` | string | `bge-reranker-v2-m3` | Rerank 模型名称 |
+
+### 控制台配置入口
+
+在“平台设置 → 全局参数配置”页面中：
+
+- `Rerank 开关` 控制是否启用二阶段重排序。
+- 开关启用后，会显示独立的 `Rerank 配置` 区域，用于填写 `rerank.endpoint`、`rerank.api_key` 和 `rerank.model`。
+- `引擎基础连接` 区域始终可编辑核心引擎地址、访问密钥和业务账号，并支持通过 `测试链接` 按钮直接探测 `/health`。
+- `Rerank 配置` 区域同样提供 `测试链接` 按钮，会使用当前填写的 endpoint、token 与 model 发起一次最小重排探测。
 
 ### Rerank 服务要求
 
-- **模型**: BGE-Rerank (bge-reranker-base 或 bge-reranker-large)
-- **接口**: 接受 `{ query, passages: [...] }` 格式请求，返回 `{ scores: [...] }`
-- **超时**: 默认 1.5 秒，超时则降级为仅使用 Stage 1 结果
+- **模型**: 支持 OpenAI 兼容重排模型，例如 `qwen3-rerank`、`qwen3-vl-rerank`
+- **接口**: 当前建议优先配置为完整地址 `POST /v1/rerank`；系统也会兼容尝试同类常见路径
+- **多模态**: `documents` 可传纯文本，也可传包含 `text`、`image`、`video` 字段的图文混合对象
+- **超时**: 当前由 Rerank 服务自身或网关侧控制，超时则降级为仅使用 Stage 1 结果
 
 ### 调优建议
 

@@ -5,12 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ThemeSwitcher } from "./theme-switcher";
 
 const setThemeMock = vi.fn();
+const useAppMock = vi.fn();
 
 vi.mock("./app-provider", () => ({
-  useApp: () => ({
-    theme: "neo",
-    setTheme: setThemeMock,
-  }),
+  useApp: () => useAppMock(),
 }));
 
 vi.mock("framer-motion", () => ({
@@ -41,6 +39,10 @@ describe("ThemeSwitcher", () => {
   beforeEach(() => {
     (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     setThemeMock.mockReset();
+    useAppMock.mockReturnValue({
+      theme: "neo",
+      setTheme: setThemeMock,
+    });
   });
 
   afterEach(async () => {
@@ -57,23 +59,35 @@ describe("ThemeSwitcher", () => {
 
     const trigger = container.querySelector('button[aria-label="切换界面主题"]');
     expect(trigger).toBeTruthy();
-    expect(container.textContent).toContain("现代波普");
+    expect(container.textContent).toContain("星智流光");
 
     await act(async () => {
       trigger?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    expect(container.textContent).toContain("瑞士极简");
+    expect(container.textContent).toContain("浩瀚星空");
 
-    const swissOption = Array.from(container.querySelectorAll("button")).find((button) =>
-      button.textContent?.includes("瑞士极简"),
+    const starryOption = Array.from(container.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("浩瀚星空"),
     );
-    expect(swissOption).toBeTruthy();
+    expect(starryOption).toBeTruthy();
 
     await act(async () => {
-      swissOption?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      starryOption?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    expect(setThemeMock).toHaveBeenCalledWith("swiss");
+    expect(setThemeMock).toHaveBeenCalledWith("starry");
+  });
+
+  it("根据当前主题显示对应文案", async () => {
+    useAppMock.mockReturnValue({
+      theme: "starry",
+      setTheme: setThemeMock,
+    });
+
+    await renderComponent();
+
+    expect(container.textContent).toContain("浩瀚星空");
+    expect(container.textContent).not.toContain("星智流光");
   });
 });

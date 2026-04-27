@@ -75,6 +75,51 @@ describe('AuthService', () => {
       expect(result.accessToken).toContain('"tokenType":"access_token"');
       expect(result.refreshToken).toContain('"tokenType":"refresh_token"');
       expect(result.user.role).toBe('super_admin');
+      expect(mockUserRepo.findByUsername).toHaveBeenCalledWith('admin', null);
+    });
+
+    it('租户登录应优先命中租户内同名账号', async () => {
+      const tenantUser = {
+        id: 'tenant-user-1',
+        username: 'admin',
+        passwordHash: await bcrypt.hash('acme@123', 10),
+        role: 'tenant_admin',
+        tenantId: 'tenant-1',
+      };
+      const superAdmin = {
+        id: 'platform-admin-1',
+        username: 'admin',
+        passwordHash: await bcrypt.hash('Admin@2026', 10),
+        role: 'super_admin',
+        tenantId: null,
+      };
+
+      mockTenantRepo.findByTenantId.mockResolvedValue({
+        id: 'tenant-1',
+        tenantId: 'acme',
+      } as never);
+      mockUserRepo.findByUsername
+        .mockResolvedValueOnce(tenantUser as never)
+        .mockResolvedValueOnce(superAdmin as never);
+
+      const result = await service.login({
+        username: 'admin',
+        password: 'acme@123',
+        tenantCode: 'acme',
+      });
+
+      expect(result.user.id).toBe('tenant-user-1');
+      expect(result.user.role).toBe('tenant_admin');
+      expect(mockUserRepo.findByUsername).toHaveBeenNthCalledWith(
+        1,
+        'admin',
+        'tenant-1',
+      );
+      expect(mockUserRepo.findByUsername).toHaveBeenNthCalledWith(
+        2,
+        'admin',
+        null,
+      );
     });
   });
 

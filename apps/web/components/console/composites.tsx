@@ -186,17 +186,17 @@ export function ConsoleListRow({
               {name}
             </p>
             {description ? (
-              <p className="mt-2 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--text-secondary)]">
+              <p className="mt-2 font-sans text-xs font-medium text-[var(--text-secondary)]">
                 {description}
               </p>
             ) : null}
             {detailId ? (
-              <p className="mt-2 font-mono text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-muted)]">
+              <p className="mt-2 font-sans text-xs font-medium text-[var(--text-muted)]">
                 {detailId}
               </p>
             ) : null}
             {date ? (
-              <p className="mt-2 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--text-secondary)]">
+              <p className="mt-2 font-sans text-xs font-medium text-[var(--text-secondary)]">
                 {date}
               </p>
             ) : null}
@@ -218,7 +218,7 @@ export function ConsoleListRow({
         <div
           key={i}
           className={cx(
-            "bg-[var(--bg-card)] px-5 py-5 font-mono text-3xl font-black tabular-nums text-[var(--text-primary)]",
+            "bg-[var(--bg-card)] px-5 py-5 font-sans text-3xl font-bold tabular-nums text-[var(--text-primary)]",
             metric.className,
           )}
         >
@@ -273,7 +273,7 @@ export function ConsoleInspectorStack({
               key={i}
               className="border-[3px] border-[var(--border)] bg-[var(--bg-elevated)] p-5"
             >
-              <p className="font-mono text-[10px] font-black uppercase tracking-[0.16em] text-[var(--text-muted)]">
+              <p className="font-sans text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
                 {field.label}
               </p>
               <p
@@ -334,7 +334,7 @@ export function ConsoleTelemetryPanel({
   return (
     <ConsolePanel className={cx("p-6", className)}>
       <ConsolePanelHeader eyebrow={eyebrow} title={title} />
-      <div className="mt-6 space-y-4 font-mono text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">
+      <div className="mt-6 space-y-4 font-sans text-xs font-medium text-[var(--text-secondary)]">
         {rules.map((rule, i) => (
           <p key={i}>{rule.text}</p>
         ))}

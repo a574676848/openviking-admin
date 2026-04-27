@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { apiClient } from "@/lib/apiClient";
-import { Server, Activity, Clock, Database, ShieldCheck } from "lucide-react";
+import { Server, Activity, Clock, Database, ShieldCheck, Layers } from "lucide-react";
 import {
   PlatformButton,
   PlatformEmptyState,
@@ -19,20 +19,36 @@ interface QueueData {
   "Semantic-Nodes"?: number;
 }
 
+interface VikingDBCollection {
+  Collection: string;
+  "Index Count": string;
+  "Vector Count": string;
+  Status: string;
+}
+
+interface VikingDBData {
+  collections: VikingDBCollection[];
+  totalCollections: number;
+  totalIndexCount: number;
+  totalVectorCount: number;
+}
+
 interface StatsData {
   queue: QueueData | null;
-  dbStats: Record<string, string | number | null> | null;
+  vikingdb: VikingDBData | null;
+  models: { status: string } | null;
 }
 
 interface HealthData {
   ok: boolean;
   openviking?: {
-    host?: string;
+    status?: string;
+    healthy?: boolean;
     version?: string;
-    commit?: string;
-    dimension?: number;
-    embeddingModel?: string;
+    auth_mode?: string;
   };
+  resolvedBaseUrl?: string;
+  dbPool?: { activeTenants?: number; tenantList?: string[] };
 }
 
 const ScrambleText = ({ value, className = "" }: { value: string | number, className?: string }) => {
@@ -62,8 +78,6 @@ export default function SystemPage() {
   const [loadError, setLoadError] = useState("");
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
 
-
-
   async function load() {
     setLoading(true);
     setLoadError("");
@@ -89,7 +103,7 @@ export default function SystemPage() {
   }, []);
 
   const queue = stats?.queue ?? null;
-  const dbStats = stats?.dbStats ?? null;
+  const vikingdb = stats?.vikingdb ?? null;
   const ovInfo = health?.openviking;
 
   const totalQueue = (queue?.Embedding ?? 0) + (queue?.Semantic ?? 0) + (queue?.['Semantic-Nodes'] ?? 0);
@@ -98,7 +112,7 @@ export default function SystemPage() {
     <div className="w-full flex flex-col pb-10 min-h-full">
       <PlatformPageHeader
         title={
-          <h1 className="mb-2 flex items-center text-4xl font-black tracking-tighter text-[var(--text-primary)] md:text-6xl">
+          <h1 className="mb-2 flex items-center text-4xl font-bold tracking-tighter text-[var(--text-primary)] md:text-6xl">
             <Server size={34} strokeWidth={2} className="mr-4 text-[var(--text-primary)]" />
             底层状态监控_
           </h1>
@@ -120,10 +134,9 @@ export default function SystemPage() {
             onClick={load}
             disabled={loading}
             className="ov-button px-6 py-3 text-xs"
-            style={{ borderRadius: 0 }}
           >
             <Activity size={16} strokeWidth={2} className={loading ? "animate-spin" : ""} />
-            <span className="font-mono font-black tracking-widest uppercase">强制刷新节点状态</span>
+            <span className="font-mono font-bold tracking-widest uppercase">强制刷新节点状态</span>
           </PlatformButton>
         }
       />
@@ -145,9 +158,9 @@ export default function SystemPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-[var(--border-width)] bg-[var(--border)] border-[var(--border-width)] border-[var(--border)] shadow-[var(--shadow-base)] mb-8">
          <PlatformSignalCard
            label="OpenViking 核心引擎"
-           marker={<span className={`mr-2 inline-block h-2 w-2 ${loading ? 'bg-[var(--warning)] animate-pulse' : health?.ok ? 'bg-[var(--success)]' : 'bg-[var(--danger)]'}`} />}
+           marker={<span className={`mr-2 inline-block h-2 w-2 ${loading ? 'bg-[var(--warning)] animate-theme-pulse' : health?.ok ? 'bg-[var(--success)]' : 'bg-[var(--danger)]'}`} />}
            value={loading ? <ScrambleText value="探测中" /> : health?.ok ? "在线" : "离线"}
-           hint={ovInfo?.host ?? "未返回主机地址"}
+           hint={health?.resolvedBaseUrl ?? "未配置引擎地址"}
            accent={loading ? "var(--warning)" : health?.ok ? "var(--success)" : "var(--danger)"}
            overlay={<ShieldCheck size={120} strokeWidth={1} className={health?.ok ? 'text-[var(--success)]' : 'text-[var(--danger)]'} />}
          />
@@ -159,30 +172,30 @@ export default function SystemPage() {
            hint="Embedding / Semantic 队列"
            accent={totalQueue > 0 ? "var(--warning)" : "var(--success)"}
            valueClassName="text-4xl md:text-5xl tabular-nums"
-           className={totalQueue > 0 ? "before:absolute before:left-0 before:top-0 before:h-full before:w-1 before:animate-pulse before:bg-[var(--warning)]" : undefined}
+           className={totalQueue > 0 ? "before:absolute before:left-0 before:top-0 before:h-full before:w-1 before:animate-theme-pulse before:bg-[var(--warning)]" : undefined}
          />
 
          <PlatformSignalCard
-           label="核心版本"
+           label="引擎版本"
            marker={<span className="mr-2 inline-block h-2 w-2 bg-[var(--info)]" />}
            value={loading ? '...' : (ovInfo?.version ?? '未知')}
-           hint={ovInfo?.commit ? `Commit: ${String(ovInfo.commit).slice(0, 7)}` : '未返回 Commit'}
+           hint={ovInfo?.auth_mode ? `认证: ${ovInfo.auth_mode}` : ''}
            accent="var(--info)"
            valueClassName="truncate"
          />
 
          <PlatformSignalCard
-           label="向量维度"
+           label="向量总数"
            marker={<span className="mr-2 inline-block h-2 w-2 bg-[var(--brand)]" />}
-           value={<ScrambleText value={loading ? '---' : (dbStats?.dimension ?? ovInfo?.dimension ?? '---')} />}
-           hint={dbStats?.model ?? ovInfo?.embeddingModel ?? '未返回模型名'}
+           value={<ScrambleText value={loading ? '---' : (vikingdb?.totalVectorCount ?? '---')} />}
+           hint={vikingdb ? `${vikingdb.totalCollections} 集合 / ${vikingdb.totalIndexCount} 索引` : '暂无图存储数据'}
            accent="var(--brand)"
          />
       </div>
 
       {/* ─── Details Grid ─── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-[var(--border-width)] bg-[var(--border)] border-[var(--border-width)] border-[var(--border)] shadow-[var(--shadow-base)]">
-         
+
          <PlatformPanel className="relative flex flex-col overflow-hidden p-6 md:p-8">
            <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: "radial-gradient(circle at 2px 2px, currentColor 1px, transparent 0)", backgroundSize: "24px 24px" }} />
            <PlatformSectionTitle
@@ -203,10 +216,10 @@ export default function SystemPage() {
                     className="group flex items-center justify-between bg-[var(--bg-elevated)] p-4 transition-colors hover:border-[var(--brand)]"
                   >
                     <div>
-                      <div className="mb-1 font-mono text-xs font-black uppercase tracking-widest text-[var(--text-primary)]">{q.label}</div>
+                      <div className="mb-1 font-mono text-xs font-bold uppercase tracking-widest text-[var(--text-primary)]">{q.label}</div>
                       <div className="font-mono text-[9px] uppercase tracking-wider text-[var(--text-muted)]">{"// "}{q.desc}</div>
                     </div>
-                    <div className={`font-mono text-2xl font-black tracking-tighter tabular-nums ${cnt > 0 ? 'text-[var(--warning)]' : 'text-[var(--success)]'}`}>
+                    <div className={`font-mono text-2xl font-bold tracking-tighter tabular-nums ${cnt > 0 ? 'text-[var(--warning)]' : 'text-[var(--success)]'}`}>
                       {loading ? '--' : cnt.toLocaleString()}
                     </div>
                   </PlatformPanel>
@@ -221,15 +234,31 @@ export default function SystemPage() {
              icon={<Database size={20} strokeWidth={2} className="text-[var(--info)]" />}
              className="relative z-10"
            />
-           {dbStats ? (
-             <div className="space-y-2 relative z-10 flex-1 overflow-y-auto max-h-[300px] pr-2 hidden-scrollbar">
-                {Object.entries(dbStats).map(([k, v]) => (
-                  <PlatformKeyValueRow
-                    key={k}
-                    label={k}
-                    value={typeof v === 'number' ? v.toLocaleString() : String(v)}
-                  />
-                ))}
+           {vikingdb ? (
+             <div className="space-y-4 relative z-10 flex-1 overflow-y-auto max-h-[300px] pr-2 hidden-scrollbar">
+               {/* 集合列表 */}
+               {vikingdb.collections.map((col) => (
+                 <PlatformPanel key={col.Collection} className="bg-[var(--bg-elevated)] p-4">
+                   <div className="mb-2 font-mono text-xs font-bold uppercase tracking-widest text-[var(--text-primary)]">
+                     <Layers size={14} strokeWidth={2} className="inline mr-2" />
+                     {col.Collection}
+                   </div>
+                   <div className="grid grid-cols-3 gap-2">
+                     <PlatformKeyValueRow label="索引数" value={col['Index Count']} />
+                     <PlatformKeyValueRow label="向量数" value={parseInt(col['Vector Count']).toLocaleString()} />
+                     <PlatformKeyValueRow label="状态" value={col.Status} />
+                   </div>
+                 </PlatformPanel>
+               ))}
+               {/* 汇总 */}
+               <div className="flex items-center justify-between bg-[var(--bg-elevated)] p-3 border-t border-[var(--border)]">
+                 <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                   合计: {vikingdb.totalCollections} 集合 / {vikingdb.totalIndexCount} 索引
+                 </span>
+                 <span className="font-mono text-sm font-bold tabular-nums text-[var(--brand)]">
+                   {vikingdb.totalVectorCount.toLocaleString()} 向量
+                 </span>
+               </div>
              </div>
            ) : (
              <PlatformEmptyState

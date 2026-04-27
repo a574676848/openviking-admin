@@ -6,6 +6,10 @@ describe('SearchService', () => {
     find: jest.fn(),
     count: jest.fn(),
     getStats: jest.fn(),
+    getFeedbackStats: jest.fn(),
+    getTopUris: jest.fn(),
+    getTopQueries: jest.fn(),
+    getDailyStats: jest.fn(),
   };
   const nodeRepo = {
     findAllowedUris: jest.fn(),
@@ -42,6 +46,7 @@ describe('SearchService', () => {
       apiKey: 'key',
       account: 'default',
       rerankEndpoint: 'http://rerank.local',
+      rerankApiKey: 'rerank-key',
       rerankModel: 'test-model',
     });
     ovKnowledgeGateway.findKnowledge.mockResolvedValue({
@@ -89,6 +94,7 @@ describe('SearchService', () => {
       apiKey: 'key',
       account: 'default',
       rerankEndpoint: 'http://rerank.local',
+      rerankApiKey: 'rerank-key',
       rerankModel: 'test-model',
     });
     ovKnowledgeGateway.findKnowledge.mockResolvedValue({
@@ -126,6 +132,7 @@ describe('SearchService', () => {
     expect(ovKnowledgeGateway.rerank).toHaveBeenCalledWith(
       expect.objectContaining({
         endpoint: 'http://rerank.local',
+        apiKey: 'rerank-key',
         query: '配置说明',
         model: 'test-model',
       }),
@@ -153,6 +160,7 @@ describe('SearchService', () => {
       apiKey: 'key',
       account: 'default',
       rerankEndpoint: 'http://rerank.local',
+      rerankApiKey: 'rerank-key',
       rerankModel: 'test-model',
     });
     ovKnowledgeGateway.findKnowledge.mockResolvedValue({
@@ -200,6 +208,7 @@ describe('SearchService', () => {
       apiKey: 'key',
       account: 'default',
       rerankEndpoint: 'http://rerank.local',
+      rerankApiKey: 'rerank-key',
       rerankModel: 'test-model',
     });
     ovKnowledgeGateway.findKnowledge.mockResolvedValue({
@@ -238,6 +247,7 @@ describe('SearchService', () => {
       apiKey: 'key',
       account: 'default',
       rerankEndpoint: null,
+      rerankApiKey: null,
       rerankModel: null,
     });
     ovKnowledgeGateway.findKnowledge.mockResolvedValue({
@@ -270,6 +280,7 @@ describe('SearchService', () => {
       apiKey: 'key',
       account: 'default',
       rerankEndpoint: null,
+      rerankApiKey: null,
       rerankModel: null,
     });
     ovKnowledgeGateway.findKnowledge.mockRejectedValue(
@@ -286,5 +297,61 @@ describe('SearchService', () => {
         { id: 'user-1', role: 'tenant_admin' },
       ),
     ).rejects.toThrow('OpenViking Search 暂时不可用');
+  });
+
+  it('多模态资源应以图文混合文档传给 rerank', async () => {
+    settings.resolveOVConfig.mockResolvedValue({
+      baseUrl: 'http://ov.local',
+      apiKey: 'key',
+      account: 'default',
+      rerankEndpoint: 'http://rerank.local/v1',
+      rerankApiKey: 'rerank-key',
+      rerankModel: 'qwen3-vl-rerank',
+    });
+    ovKnowledgeGateway.findKnowledge.mockResolvedValue({
+      result: {
+        resources: [
+          {
+            uri: 'viking://a',
+            score: 0.61,
+            title: '封面图',
+            abstract: '图像说明',
+            image_url: 'https://example.com/a.png',
+            video_url: 'https://example.com/a.mp4',
+          },
+        ],
+      },
+    });
+    ovKnowledgeGateway.rerank.mockResolvedValue({
+      results: [{ index: 0, score: 0.95 }],
+    });
+
+    const result = await service.find(
+      {
+        query: '看图找答案',
+        topK: 1,
+        useRerank: true,
+      },
+      'tenant-a',
+      { id: 'user-1', role: 'tenant_admin' },
+    );
+
+    expect(ovKnowledgeGateway.rerank).toHaveBeenCalledWith(
+      expect.objectContaining({
+        documents: [
+          {
+            text: '封面图\n\n图像说明',
+            image: 'https://example.com/a.png',
+            video: 'https://example.com/a.mp4',
+          },
+        ],
+      }),
+      undefined,
+    );
+    expect(result.resources?.[0]).toEqual(
+      expect.objectContaining({
+        score: 0.95,
+      }),
+    );
   });
 });

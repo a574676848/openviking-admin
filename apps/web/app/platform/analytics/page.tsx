@@ -65,24 +65,71 @@ function Histogram({
   keyName: "total" | "hitRate" | "avgLatency";
   color: string;
 }) {
-  const maxValue = Math.max(...data.map((item) => item[keyName] || 0), 1);
+  const displayData = data.slice(-10);
+  const rawValues = displayData.map((item) => item[keyName] || 0);
+  const maxVal = Math.max(...rawValues, 1);
+
+  // 仅用于生成网格线
+  const scales = [maxVal, maxVal * 0.75, maxVal * 0.5, maxVal * 0.25, 0];
 
   return (
-    <div className="grid h-44 grid-cols-10 items-end gap-x-2 border-t border-[var(--border)] pt-4">
-      {data.slice(-10).map((item) => {
-        const value = item[keyName];
-        const height = Math.max(8, Math.round((value / maxValue) * 160));
-        return (
-          <div key={`${keyName}-${item.day}`} className="flex flex-col items-center gap-2">
-            <div className="w-full bg-[var(--bg-elevated)]" style={{ height }}>
-              <div className="h-full w-full" style={{ background: color }} />
-            </div>
-            <span className="font-mono text-[9px] font-black tracking-[0.14em] text-[var(--text-muted)]">
-              {new Date(item.day).toLocaleDateString("zh-CN", { month: "2-digit", day: "2-digit" })}
-            </span>
+    <div className="mt-4 flex w-full flex-col gap-2">
+      <div className="relative flex h-80 w-full">
+        {/* 图表主区域 */}
+        <div className="relative flex-1">
+          {/* 背景网格线 */}
+          <div className="absolute inset-0 flex flex-col justify-between pb-6">
+            {scales.map((_, i) => (
+              <div
+                key={i}
+                className="h-px w-full border-b border-dashed border-[var(--border)] opacity-30"
+              />
+            ))}
           </div>
-        );
-      })}
+
+          {/* 柱状图容器 */}
+          <div className="absolute inset-0 flex items-end justify-between px-2 pb-6 pt-10">
+            {displayData.map((item) => {
+              const value = item[keyName];
+              const percentage = (value / maxVal) * 100;
+              const label = keyName === "hitRate" ? `${value}%` : String(Math.round(value));
+
+              return (
+                <div
+                  key={item.day}
+                  className="group relative flex h-full flex-1 flex-col items-center justify-end"
+                >
+                  <span className="mb-1 font-mono text-[9px] font-black text-[var(--text-primary)] opacity-80 group-hover:opacity-100">
+                    {label}
+                  </span>
+
+                  <div
+                    className="w-4 bg-[var(--bg-elevated)] transition-all sm:w-6"
+                    style={{ height: `${percentage}%` }}
+                  >
+                    <div
+                      className="h-full w-full opacity-80 transition-opacity group-hover:opacity-100"
+                      style={{ background: color }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* X轴标签与底线 */}
+      <div className="flex justify-between border-t border-[var(--border)] px-2 pt-2">
+        {displayData.map((item) => (
+          <span
+            key={item.day}
+            className="flex-1 text-center font-mono text-[9px] font-black tracking-tighter text-[var(--text-muted)]"
+          >
+            {new Date(item.day).toLocaleDateString("zh-CN", { month: "2-digit", day: "2-digit" })}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
@@ -126,7 +173,6 @@ export default function AnalyticsPage() {
       <PlatformPageHeader
         title={
           <>
-            <p className="font-mono text-[10px] font-black uppercase tracking-[0.28em] text-[var(--brand)]">平台检索分析</p>
             <h1 className="mt-2 font-sans text-5xl font-black tracking-tight">检索运营分析</h1>
           </>
         }
@@ -193,13 +239,12 @@ export default function AnalyticsPage() {
           </section>
 
           <section className="grid grid-cols-1 gap-px border border-[var(--border)] bg-[var(--border)] xl:grid-cols-[1.2fr_0.8fr]">
-            <div className="bg-[var(--bg-card)] px-6 py-6">
+            <div className="bg-[var(--bg-card)] px-6 py-6 flex flex-col h-full">
               <PlatformSectionTitle
                 title="近十日趋势"
-                subtitle="只保留直角柱体与等宽标签"
                 className="mb-5"
               />
-              <div className="grid grid-cols-1 gap-8 xl:grid-cols-3">
+              <div className="grid grid-cols-1 gap-8 xl:grid-cols-3 flex-1">
                 <PlatformMiniChart label="检索量">
                   <Histogram data={data.daily} keyName="total" color="var(--brand)" />
                 </PlatformMiniChart>
@@ -281,13 +326,13 @@ export default function AnalyticsPage() {
             </div>
 
             <PlatformFooterBar
-              leading="分析数据流"
-              trailing={
-                <span className="inline-flex items-center gap-2 text-[var(--brand)]">
-                  <ArrowUpRight size={12} strokeWidth={1.8} />
-                  Search Deep Stats 接口
+              leading={
+                <span className="inline-flex items-center gap-2">
+                  数据来源：检索日志
+                  <ArrowUpRight size={12} strokeWidth={1.8} className="text-[var(--brand)]" />
                 </span>
               }
+              className="justify-center"
             />
           </PlatformPanel>
         </>

@@ -19,6 +19,44 @@ import { SystemService } from './system.service';
 import { DynamicDataSourceService } from '../common/dynamic-datasource.service';
 import type { AuthenticatedRequest } from '../common/authenticated-request.interface';
 
+/** 解析 OV 文本表格为结构化行数据 */
+function parseOVTable(tableStr: string): Array<Record<string, string>> {
+  const lines = tableStr.split('\n').filter(l => l.trim() && !l.trim().startsWith('+'));
+  if (lines.length < 2) return [];
+  const headers = lines[0].split('|').map(h => h.trim()).filter(Boolean);
+  return lines.slice(1).map(line => {
+    const cells = line.split('|').map(c => c.trim()).filter(Boolean);
+    const row: Record<string, string> = {};
+    headers.forEach((h, i) => { row[h] = cells[i] ?? ''; });
+    return row;
+  });
+}
+
+/** 从队列表格中提取各队列 Pending 数值 */
+function parseQueueTable(tableStr: string): Record<string, number> {
+  const rows = parseOVTable(tableStr);
+  const queue: Record<string, number> = {};
+  for (const row of rows) {
+    const name = row['Queue']?.trim();
+    const pending = parseInt(row['Pending'] || '0', 10);
+    if (name && name !== 'TOTAL' && !isNaN(pending)) {
+      queue[name] = pending;
+    }
+  }
+  return queue;
+}
+
+/** 从 VikingDB 表格中提取集合统计 */
+function parseVikingDBTable(tableStr: string): {
+  collections: Array<Record<string, string>>;
+  total: Record<string, string>;
+} {
+  const rows = parseOVTable(tableStr);
+  const collections = rows.filter(r => r['Collection']?.trim() !== 'TOTAL');
+  const total = rows.find(r => r['Collection']?.trim() === 'TOTAL') || {};
+  return { collections, total };
+}
+
 @UseGuards(JwtAuthGuard, TenantGuard)
 @Controller('system')
 export class SystemController {
@@ -71,12 +109,33 @@ export class SystemController {
     const conn = await this.resolveOVConnection(req.tenantScope);
     const results = await Promise.allSettled([
       this.ovClient.request(conn, '/api/v1/observer/queue'),
-      this.ovClient.request(conn, '/api/v1/observer/db/stats'),
+      this.ovClient.request(conn, '/api/v1/observer/vikingdb'),
     ]);
-    return {
-      queue: results[0].status === 'fulfilled' ? results[0].value : null,
-      dbStats: results[1].status === 'fulfilled' ? results[1].value : null,
-    };
+
+    const queueRaw = results[0].status === 'fulfilled' ? (results[0].value as Record<string, unknown>) : null;
+    const vikingdbRaw = results[1].status === 'fulfilled' ? (results[1].value as Record<string, unknown>) : null;
+
+    // 解析队列文本表格
+    const queue =
+      queueRaw && (queueRaw.result as Record<string, unknown>)?.status
+        ? parseQueueTable((queueRaw.result as Record<string, unknown>).status as string)
+        : null;
+
+    // 解析 VikingDB 文本表格
+    let vikingdb = null;
+    if (vikingdbRaw && (vikingdbRaw.result as Record<string, unknown>)?.status) {
+      const parsed = parseVikingDBTable(
+        (vikingdbRaw.result as Record<string, unknown>).status as string,
+      );
+      vikingdb = {
+        collections: parsed.collections,
+        totalCollections: parsed.collections.length,
+        totalIndexCount: parseInt(parsed.total['Index Count'] || '0', 10),
+        totalVectorCount: parseInt(parsed.total['Vector Count'] || '0', 10),
+      };
+    }
+
+    return { queue, vikingdb };
   }
 
   @Get('dashboard')

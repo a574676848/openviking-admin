@@ -29,7 +29,7 @@ MCP 客户端可以使用两类凭证：
 示例：
 
 ```bash
-ova auth login --server http://localhost:6001 --username admin --password admin123 --tenant-code acme
+ova auth login --server http://localhost:6001 --username admin --password acme@123 --tenant-code acme
 ova auth client-credentials --name claude-desktop --output json
 ova auth session-exchange --output json
 ```

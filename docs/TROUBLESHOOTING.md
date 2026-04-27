@@ -157,9 +157,10 @@ cat apps/server/.env | grep OV_
 **原因**: Rerank 服务响应慢或未配置。
 
 **解决**:
-- 检查 `system_configs` 表中 `rerank_endpoint` 配置
-- 默认超时 1500ms，可在 `CONFIGURATION.md` 中查看如何调整 `rerank_timeout_ms`
-- 如果不需要 Rerank，设置 `rerank_enabled` 为 `false`
+- 检查 `system_configs` 表中 `rerank.endpoint`、`rerank.api_key` 与 `rerank.model` 配置
+- 确认 `rerank.endpoint` 指向可用的完整重排地址，推荐格式为 `http://host:port/v1/rerank`
+- 默认超时 1500ms，由服务端网关控制，超时会自动回退到 Stage 1 结果
+- 如果不需要 Rerank，设置 `search.rerank_enabled` 为 `false`
 
 ---
 

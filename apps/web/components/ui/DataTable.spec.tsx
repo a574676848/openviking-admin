@@ -79,4 +79,64 @@ describe("DataTable", () => {
     expect(container.querySelector(".row-done")).toBeTruthy();
     expect(container.querySelector(".row-running")).toBeTruthy();
   });
+
+  it("支持按配置进行搜索与排序", async () => {
+    const interactiveColumns: ColumnDef<DemoRow>[] = [
+      {
+        key: "name",
+        header: "名称",
+        cell: (row) => row.name,
+        searchable: true,
+        searchValue: (row) => row.name,
+        sortable: true,
+        sortValue: (row) => row.name,
+      },
+      {
+        key: "status",
+        header: "状态",
+        cell: (row) => row.status,
+        searchable: true,
+        searchValue: (row) => row.status,
+      },
+    ];
+
+    await renderTable(
+      <DataTable
+        data={[
+          { name: "Beta", status: "处理中" },
+          { name: "Alpha", status: "完成" },
+          { name: "Gamma", status: "失败" },
+        ]}
+        columns={interactiveColumns}
+        searchConfig={{ placeholder: "搜索名称" }}
+      />,
+    );
+
+    const sortButton = container.querySelector("th button");
+    expect(sortButton?.textContent).toContain("名称");
+
+    await act(async () => {
+      sortButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    const ascendingRows = Array.from(container.querySelectorAll("tbody tr")).map((row) => row.textContent ?? "");
+    expect(ascendingRows[0]).toContain("Alpha");
+    expect(ascendingRows[1]).toContain("Beta");
+
+    const searchInput = container.querySelector('input[type="search"]') as HTMLInputElement | null;
+    expect(searchInput?.getAttribute("placeholder")).toBe("搜索名称");
+
+    await act(async () => {
+      if (searchInput) {
+        const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+        setValue?.call(searchInput, "gam");
+        searchInput.dispatchEvent(new Event("change", { bubbles: true }));
+        searchInput.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+    });
+
+    const filteredRows = Array.from(container.querySelectorAll("tbody tr")).map((row) => row.textContent ?? "");
+    expect(filteredRows).toHaveLength(1);
+    expect(filteredRows[0]).toContain("Gamma");
+  });
 });

@@ -35,18 +35,18 @@ describe("shell-primitives", () => {
     container?.remove();
   });
 
-  it("neo danger button 保留硬边框与投影约束", () => {
+  it("neo danger button 输出相应的 Gemini 样式", () => {
     const className = getShellButtonClass("neo", "danger");
-    expect(className).toContain("border-[3px]");
-    expect(className).toContain("bg-[var(--danger)]");
-    expect(className).toContain("shadow-[2px_2px_0px_#000]");
+    expect(className).toContain("border");
+    expect(className).toContain("text-[var(--danger)]");
+    expect(className).toContain("rounded-[var(--radius-pill)]");
   });
 
-  it("swiss default button 使用细边框且不带硬投影", () => {
-    const className = getShellButtonClass("swiss", "default");
+  it("starry default button 使用细边框且带星空悬停阴影", () => {
+    const className = getShellButtonClass("starry", "default");
     expect(className).toContain("border border-[var(--border)]");
     expect(className).toContain("hover:bg-[var(--bg-elevated)]");
-    expect(className).not.toContain("shadow-[2px_2px_0px_#000]");
+    expect(className).toContain("hover:shadow-[0_0_10px_rgba(0,240,255,0.1)]");
   });
 
   it("ShellPanel 与 ShellInsetTile 会输出对应主题壳层类", async () => {
@@ -55,10 +55,10 @@ describe("shell-primitives", () => {
         <ShellPanel theme="neo" variant="sidebar" data-testid="panel">
           sidebar
         </ShellPanel>
-        <ShellInsetTile theme="swiss" data-testid="tile">
+        <ShellInsetTile theme="starry" data-testid="tile">
           tile
         </ShellInsetTile>
-        <ShellButton theme="swiss" data-testid="button">
+        <ShellButton theme="starry" data-testid="button">
           action
         </ShellButton>
       </div>,
@@ -68,10 +68,10 @@ describe("shell-primitives", () => {
     const tile = container.querySelector('[data-testid="tile"]');
     const button = container.querySelector('[data-testid="button"]');
 
-    expect(panel?.className).toContain("border-r-[3px]");
-    expect(panel?.className).toContain("shadow-[8px_0px_0px_#000]");
+    expect(panel?.className).toContain("border-r border-[var(--border)]");
+    expect(panel?.className).toContain("shadow-none");
     expect(tile?.className).toContain("border border-[var(--border)]");
-    expect(tile?.className).not.toContain("shadow-[2px_2px_0px_#000]");
+    expect(tile?.className).toContain("shadow-[0_0_5px_rgba(0,240,255,0.05)]");
     expect(button?.className).toContain("hover:bg-[var(--bg-elevated)]");
   });
 });

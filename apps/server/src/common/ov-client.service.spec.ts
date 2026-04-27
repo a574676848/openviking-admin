@@ -23,6 +23,10 @@ describe('OVClientService', () => {
       })
       .mockResolvedValueOnce({
         ok: true,
+        headers: {
+          get: () => 'application/json; charset=utf-8',
+        },
+        text: async () => JSON.stringify({ result: { ok: true } }),
         json: async () => ({ result: { ok: true } }),
       });
 
@@ -89,6 +93,29 @@ describe('OVClientService', () => {
     ).rejects.toMatchObject<Partial<OpenVikingRequestException>>({
       statusCode: HttpStatus.GATEWAY_TIMEOUT,
       retriable: true,
+    });
+  });
+
+  it('200 但返回 HTML 时应抛出非 JSON 响应异常', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      headers: {
+        get: () => 'text/html; charset=utf-8',
+      },
+      text: async () => '<!doctype html><html><body>gateway</body></html>',
+    });
+
+    await expect(
+      service.requestExternal(
+        'http://rerank.local',
+        'POST',
+        { query: 'tenant' },
+        undefined,
+        { retryCount: 0, serviceLabel: 'Rerank' },
+      ),
+    ).rejects.toMatchObject<Partial<OpenVikingRequestException>>({
+      statusCode: HttpStatus.BAD_GATEWAY,
+      retriable: false,
     });
   });
 });

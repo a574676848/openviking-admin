@@ -155,7 +155,7 @@ curl -X POST "http://localhost:6001/api/v1/knowledge/search" \
 ### CLI
 
 ```bash
-npm run ova -- auth login --server http://localhost:6001 --username admin --password admin123 --tenant-code acme
+npm run ova -- auth login --server http://localhost:6001 --username admin --password acme@123 --tenant-code acme
 npm run ova -- capabilities list
 npm run ova -- knowledge search --query "多租户隔离" --limit 5
 ```

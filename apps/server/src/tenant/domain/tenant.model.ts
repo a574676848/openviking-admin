@@ -13,6 +13,7 @@ export interface TenantOvConfig {
   apiKey?: string;
   account?: string;
   rerankEndpoint?: string;
+  rerankApiKey?: string;
   rerankModel?: string;
 }
 
@@ -29,4 +30,5 @@ export interface TenantModel {
   description: string | null;
   createdAt: Date;
   updatedAt: Date;
+  deletedAt: Date | null;
 }

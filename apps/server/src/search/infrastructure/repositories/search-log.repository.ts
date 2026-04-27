@@ -1,7 +1,7 @@
 import { Injectable, Inject, Scope } from '@nestjs/common';
 import { REQUEST } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, type FindManyOptions } from 'typeorm';
+import { Repository, DataSource, MoreThan, type FindManyOptions } from 'typeorm';
 import { SearchLog } from '../../entities/search-log.entity';
 import { ISearchLogRepository } from '../../domain/repositories/search-log.repository.interface';
 import type { SearchLogModel } from '../../domain/search-log.model';
@@ -105,11 +105,120 @@ export class SearchLogRepository implements ISearchLogRepository {
     const hitCount = await this.repo.count({
       where: {
         ...where,
-        resultCount: 0,
+        resultCount: MoreThan(0),
       },
     });
     const avgLatency = await this.getAverageLatency(tenantId);
 
     return { total, hitCount, avgLatency };
+  }
+
+  async getFeedbackStats(tenantId?: string | null): Promise<{
+    helpfulCount: number;
+    unhelpfulCount: number;
+  }> {
+    const query = this.repo
+      .createQueryBuilder('l')
+      .select("COUNT(*) FILTER (WHERE l.feedback = 'helpful')", 'helpfulCount')
+      .addSelect("COUNT(*) FILTER (WHERE l.feedback = 'unhelpful')", 'unhelpfulCount')
+      .where('l.feedback IS NOT NULL');
+    if (tenantId) {
+      query.andWhere('l.tenantId = :tenantId', { tenantId });
+    }
+    const result = await query.getRawOne<{ helpfulCount: string | null; unhelpfulCount: string | null }>();
+    return {
+      helpfulCount: Number(result?.helpfulCount || 0),
+      unhelpfulCount: Number(result?.unhelpfulCount || 0),
+    };
+  }
+
+  async getTopUris(
+    tenantId?: string | null,
+    limit: number = 20,
+  ): Promise<{ uri: string; count: number; hits: number; hitRate: number }[]> {
+    const query = this.repo
+      .createQueryBuilder('l')
+      .select('l.scope', 'uri')
+      .addSelect('COUNT(*)', 'count')
+      .addSelect("COUNT(*) FILTER (WHERE l.result_count > 0)", 'hits')
+      .where('l.scope IS NOT NULL AND l.scope != :empty', { empty: '' });
+    if (tenantId) {
+      query.andWhere('l.tenantId = :tenantId', { tenantId });
+    }
+    const rows = await query
+      .groupBy('l.scope')
+      .orderBy('count', 'DESC')
+      .limit(limit)
+      .getRawMany();
+    return rows.map((row: any) => ({
+      uri: row.uri,
+      count: Number(row.count),
+      hits: Number(row.hits),
+      hitRate:
+        Number(row.count) > 0
+          ? Number(((Number(row.hits) / Number(row.count)) * 100).toFixed(1))
+          : 0,
+    }));
+  }
+
+  async getTopQueries(
+    tenantId?: string | null,
+    limit: number = 20,
+  ): Promise<{ query: string; count: number; hits: number; hitRate: number }[]> {
+    const query = this.repo
+      .createQueryBuilder('l')
+      .select('l.query', 'query')
+      .addSelect('COUNT(*)', 'count')
+      .addSelect("COUNT(*) FILTER (WHERE l.result_count > 0)", 'hits')
+      .where('l.query IS NOT NULL AND l.query != :empty', { empty: '' });
+    if (tenantId) {
+      query.andWhere('l.tenantId = :tenantId', { tenantId });
+    }
+    const rows = await query
+      .groupBy('l.query')
+      .orderBy('count', 'DESC')
+      .limit(limit)
+      .getRawMany();
+    return rows.map((row: any) => ({
+      query: row.query,
+      count: Number(row.count),
+      hits: Number(row.hits),
+      hitRate:
+        Number(row.count) > 0
+          ? Number(((Number(row.hits) / Number(row.count)) * 100).toFixed(1))
+          : 0,
+    }));
+  }
+
+  async getDailyStats(
+    tenantId?: string | null,
+    days: number = 10,
+  ): Promise<
+    { day: string; total: number; hits: number; hitRate: number; avgLatency: number }[]
+  > {
+    const query = this.repo
+      .createQueryBuilder('l')
+      .select("TO_CHAR(l.created_at, 'YYYY-MM-DD')", 'day')
+      .addSelect('COUNT(*)', 'total')
+      .addSelect("COUNT(*) FILTER (WHERE l.result_count > 0)", 'hits')
+      .addSelect('AVG(l.latency_ms)', 'avgLatency')
+      .where(`l.created_at >= NOW() - INTERVAL '${days} days'`);
+    if (tenantId) {
+      query.andWhere('l.tenantId = :tenantId', { tenantId });
+    }
+    const rows = await query
+      .groupBy("TO_CHAR(l.created_at, 'YYYY-MM-DD')")
+      .orderBy('day', 'ASC')
+      .getRawMany();
+    return rows.map((row: any) => ({
+      day: row.day,
+      total: Number(row.total),
+      hits: Number(row.hits),
+      hitRate:
+        Number(row.total) > 0
+          ? Number(((Number(row.hits) / Number(row.total)) * 100).toFixed(1))
+          : 0,
+      avgLatency: Math.round(Number(row.avgLatency) || 0),
+    }));
   }
 }

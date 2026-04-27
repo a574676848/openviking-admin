@@ -1,6 +1,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useState } from "react";
 import { FormModal } from "./FormModal";
 
 let container: HTMLDivElement;
@@ -126,5 +127,40 @@ describe("FormModal", () => {
     });
 
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("输入表单时不会把焦点抢回关闭按钮", async () => {
+    function InputDrivenModal() {
+      const [value, setValue] = useState("");
+
+      return (
+        <FormModal
+          isOpen
+          onClose={() => undefined}
+          onSubmit={vi.fn()}
+          title="创建新租户"
+        >
+          <input
+            value={value}
+            onChange={(event) => setValue(event.target.value)}
+            aria-label="租户名称"
+          />
+        </FormModal>
+      );
+    }
+
+    await renderModal(<InputDrivenModal />);
+
+    const input = container.querySelector('input[aria-label="租户名称"]') as HTMLInputElement | null;
+    expect(input).toBeTruthy();
+
+    await act(async () => {
+      input?.focus();
+      input!.value = "e";
+      input?.dispatchEvent(new Event("input", { bubbles: true }));
+      input?.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+
+    expect(document.activeElement).toBe(input);
   });
 });

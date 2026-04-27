@@ -16,7 +16,7 @@ import {
 
 export default function PlatformLoginPage() {
   const router = useRouter();
-  const { login } = useApp();
+  const { login, setTheme } = useApp();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -24,10 +24,9 @@ export default function PlatformLoginPage() {
   const [shakeKey, setShakeKey] = useState(0);
 
   useEffect(() => {
-    const savedTheme = localStorage.getItem("ov_theme") || "swiss";
-    document.documentElement.setAttribute("data-theme", "neo");
-    document.documentElement.classList.toggle("theme-swiss", savedTheme === "swiss");
-  }, []);
+    const savedTheme = localStorage.getItem("ov_theme");
+    setTheme(savedTheme === null ? "starry" : savedTheme === "starry" ? "starry" : "neo");
+  }, [setTheme]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -44,8 +43,9 @@ export default function PlatformLoginPage() {
         }),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "登录凭证校验未通过");
+      const payload = await res.json();
+      const data = payload.data ?? payload;
+      if (!res.ok) throw new Error(payload.error?.message || payload.message || "登录凭证校验未通过");
 
       login(data.accessToken, data.user);
       toast.success("身份验证成功，欢迎进入维京知识系统", { id: toastId });
@@ -59,20 +59,31 @@ export default function PlatformLoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-[var(--bg-base)]">
-      {/* 蓝图网格 */}
-      <div className="absolute inset-0 pointer-events-none z-0 opacity-10" 
-        style={{ backgroundImage: "linear-gradient(var(--text-primary) 1px, transparent 1px), linear-gradient(90deg, var(--text-primary) 1px, transparent 1px)", backgroundSize: "32px 32px" }} 
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-transparent">
+      {/* 极简网格 - 星智流光版 */}
+      <div className="absolute inset-0 pointer-events-none z-0 opacity-[0.05] theme-neo-only" 
+        style={{ 
+          backgroundImage: `radial-gradient(var(--brand) 1px, transparent 1px)`, 
+          backgroundSize: "24px 24px" 
+        }} 
+      />
+
+      {/* 粒子流明 - 星空主题版 */}
+      <div className="absolute inset-0 pointer-events-none z-0 opacity-[0.5] theme-starry-only vector-space-bg" 
+        style={{ 
+          backgroundImage: `linear-gradient(var(--brand) 1px, transparent 1px), linear-gradient(90deg, var(--brand) 1px, transparent 1px)`, 
+          backgroundSize: "64px 64px" 
+        }} 
       />
 
       <div className="absolute top-6 right-6 z-20">
-        <ThemeSwitcher />
+        <ThemeSwitcher align="right" />
       </div>
 
       <div className="w-full max-w-sm z-10">
         <PlatformPanel
           key={shakeKey}
-          className="relative rounded-none border-dashed p-10 transition-all duration-500 animate-auth-shake"
+          className="relative rounded-[var(--radius-base)] border border-[var(--border)] p-10 shadow-xl transition-all duration-500 animate-auth-shake"
         >
           
           <div className="flex justify-center mb-8 h-20">
@@ -80,10 +91,10 @@ export default function PlatformLoginPage() {
           </div>
 
           <div className="text-center mb-10">
-            <h2 className="text-3xl font-black font-sans tracking-tighter uppercase mb-1 text-black">
+            <h2 className="text-2xl font-bold font-sans tracking-tight mb-2 text-[var(--text-primary)]">
               平台管控控制台
             </h2>
-            <p className="text-[var(--text-secondary)] text-[10px] font-mono tracking-widest uppercase font-black opacity-60">
+            <p className="text-[var(--text-muted)] text-xs font-medium">
               {'// 核心系统最高权限接入'}
             </p>
           </div>
@@ -95,7 +106,7 @@ export default function PlatformLoginPage() {
                 required
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="w-full bg-[var(--bg-elevated)] px-4 py-4 text-sm font-black shadow-[var(--shadow-base)] focus:shadow-none"
+                className="w-full bg-[var(--bg-elevated)] px-4 py-4 text-sm font-bold rounded-[var(--radius-base)] focus:ring-2 focus:ring-[var(--brand)] transition-all"
                 placeholder="请输入用户名"
               />
             </PlatformField>
@@ -109,7 +120,7 @@ export default function PlatformLoginPage() {
                   onFocus={() => setIsTypingPassword(true)}
                   onBlur={() => setIsTypingPassword(false)}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-[var(--bg-elevated)] px-4 py-4 text-sm font-black shadow-[var(--shadow-base)] focus:shadow-none"
+                  className="w-full bg-[var(--bg-elevated)] px-4 py-4 text-sm font-bold rounded-[var(--radius-base)] focus:ring-2 focus:ring-[var(--brand)] transition-all"
                   placeholder="••••••••"
                 />
                 <Lock className="absolute right-4 top-4 text-black opacity-30" size={18} />
@@ -117,19 +128,19 @@ export default function PlatformLoginPage() {
             </PlatformField>
 
             <div className="pt-4 space-y-4">
-              <PlatformButton
+              <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-black py-5 text-white hover:translate-y-1 hover:bg-black hover:shadow-none disabled:opacity-30"
+                className="w-full py-5 bg-[var(--brand)] text-[var(--brand-text)] rounded-[var(--radius-base)] font-bold hover:opacity-90 transition-all disabled:opacity-30 flex items-center justify-center gap-3 shadow-lg shadow-[var(--brand)]/20"
               >
-                <LogIn size={20} strokeWidth={3} />
+                <LogIn size={20} strokeWidth={2.5} />
                 验证并进入系统
-              </PlatformButton>
+              </button>
             </div>
           </form>
         </PlatformPanel>
         
-        <p className="mt-10 text-center font-mono text-[9px] font-black uppercase text-[var(--text-muted)] tracking-[0.2em] leading-relaxed">
+        <p className="mt-10 text-center font-sans text-xs font-medium text-[var(--text-muted)] leading-relaxed">
            OpenViking 知识管理平台 v2.3.0<br/>
            致力于企业级高性能知识中台构建
         </p>

@@ -108,7 +108,9 @@ node seed-admin.js
 
 > **注意**: `seed-admin.js` 中硬编码了数据库连接参数，使用前需修改为实际值。
 
-默认账号: `admin` / `admin123`
+默认超管账号: `admin` / `admin123`
+
+租户初始管理员账号: `admin` / `{tenantId}@123`
 
 ### 3.6 启动开发服务
 

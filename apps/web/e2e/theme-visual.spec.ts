@@ -107,7 +107,8 @@ async function installMockApi(page: Page, state: MockState) {
     if (path === "/api/v1/system/health" && method === "GET") {
       return jsonResponse(route, {
         ok: true,
-        openviking: { host: "viking-engine.local:1933" },
+        openviking: { status: "ok", healthy: true, version: "0.3.9" },
+        resolvedBaseUrl: "viking-engine.local:1933",
         dbPool: { totalCount: 12 },
       });
     }
@@ -119,10 +120,13 @@ async function installMockApi(page: Page, state: MockState) {
           Semantic: 1,
           "Semantic-Nodes": 0,
         },
-        dbStats: {
-          total_nodes: 1280,
-          total_vectors: 6400,
-          disk_usage_mb: 512,
+        vikingdb: {
+          collections: [
+            { Collection: "context", "Index Count": "1", "Vector Count": "6400", Status: "OK" },
+          ],
+          totalCollections: 1,
+          totalIndexCount: 1,
+          totalVectorCount: 6400,
         },
       });
     }
@@ -251,29 +255,29 @@ test.describe("P1-10 主题视觉基线", () => {
 
     await expect(page.getByRole("main")).toHaveScreenshot("console-dashboard-neo.png");
 
-    await switchTheme(page, "瑞士极简");
-    await expect(page.locator("html")).toHaveClass(/theme-swiss/);
+    await switchTheme(page, "浩瀚星空");
+    await expect(page.locator("html")).toHaveClass(/theme-starry/);
     await page.waitForTimeout(200);
 
-    await expect(page.getByRole("main")).toHaveScreenshot("console-dashboard-swiss.png");
+    await expect(page.getByRole("main")).toHaveScreenshot("console-dashboard-starry.png");
   });
 
-  test("platform dashboard 在 swiss 与 neo 主题下保持稳定布局", async ({ page }) => {
+  test("platform dashboard 在 starry 与 neo 主题下保持稳定布局", async ({ page }) => {
     await login(page, "OV", "root", "secret");
     await expect(page).toHaveURL(/\/platform\/dashboard$/);
     await expect(page.getByRole("main").getByRole("heading", { name: "平台总览" })).toBeVisible();
     await page.waitForTimeout(400);
 
-    await expect(page.getByRole("main")).toHaveScreenshot("platform-dashboard-swiss.png");
+    await expect(page.getByRole("main")).toHaveScreenshot("platform-dashboard-starry.png");
 
-    await switchTheme(page, "现代波普");
-    await expect(page.locator("html")).not.toHaveClass(/theme-swiss/);
+    await switchTheme(page, "星智流光");
+    await expect(page.locator("html")).not.toHaveClass(/theme-starry/);
     await page.waitForTimeout(400);
 
     await expect(page.getByRole("main")).toHaveScreenshot("platform-dashboard-neo.png");
   });
 
-  test("console system 在 neo 与 swiss 主题下保持稳定布局", async ({ page }) => {
+  test("console system 在 neo 与 starry 主题下保持稳定布局", async ({ page }) => {
     await login(page, "alpha", "tenant.admin", "secret");
     await page.goto("/console/system");
     await expect(page).toHaveURL(/\/console\/system$/);
@@ -282,24 +286,24 @@ test.describe("P1-10 主题视觉基线", () => {
 
     await expect(page.getByRole("main")).toHaveScreenshot("console-system-neo.png");
 
-    await switchTheme(page, "瑞士极简");
-    await expect(page.locator("html")).toHaveClass(/theme-swiss/);
+    await switchTheme(page, "浩瀚星空");
+    await expect(page.locator("html")).toHaveClass(/theme-starry/);
     await page.waitForTimeout(250);
 
-    await expect(page.getByRole("main")).toHaveScreenshot("console-system-swiss.png");
+    await expect(page.getByRole("main")).toHaveScreenshot("console-system-starry.png");
   });
 
-  test("platform users 在 swiss 与 neo 主题下保持稳定布局", async ({ page }) => {
+  test("platform users 在 starry 与 neo 主题下保持稳定布局", async ({ page }) => {
     await login(page, "OV", "root", "secret");
     await page.goto("/platform/users");
     await expect(page).toHaveURL(/\/platform\/users$/);
     await expect(page.getByRole("main")).toContainText("全局用户治理");
     await page.waitForTimeout(400);
 
-    await expect(page.getByRole("main")).toHaveScreenshot("platform-users-swiss.png");
+    await expect(page.getByRole("main")).toHaveScreenshot("platform-users-starry.png");
 
-    await switchTheme(page, "现代波普");
-    await expect(page.locator("html")).not.toHaveClass(/theme-swiss/);
+    await switchTheme(page, "星智流光");
+    await expect(page.locator("html")).not.toHaveClass(/theme-starry/);
     await page.waitForTimeout(400);
 
     await expect(page.getByRole("main")).toHaveScreenshot("platform-users-neo.png");
