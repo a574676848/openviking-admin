@@ -1,10 +1,12 @@
-import { Injectable, NotFoundException, Inject } from '@nestjs/common';
+import { Injectable, NotFoundException, Inject, BadRequestException } from '@nestjs/common';
 import { CreateNodeDto, UpdateNodeDto } from './dto/node.dto';
 import { IKnowledgeNodeRepository } from './domain/repositories/knowledge-node.repository.interface';
 import type { KnowledgeNodeModel } from './domain/knowledge-node.model';
 
 @Injectable()
 export class KnowledgeTreeService {
+  private static readonly IMMUTABLE_FIELDS = ['vikingUri'] as const;
+
   constructor(
     @Inject(IKnowledgeNodeRepository)
     private readonly nodeRepo: IKnowledgeNodeRepository,
@@ -46,7 +48,7 @@ export class KnowledgeTreeService {
   async create(
     dto: CreateNodeDto & { tenantId: string },
   ): Promise<KnowledgeNodeModel> {
-    return this.nodeRepo.save(dto);
+    return this.nodeRepo.createWithGeneratedUri(dto);
   }
 
   async findOne(id: string, tenantId: string | null): Promise<KnowledgeNodeModel> {
@@ -63,6 +65,11 @@ export class KnowledgeTreeService {
     tenantId: string | null,
   ): Promise<KnowledgeNodeModel> {
     const node = await this.findOne(id, tenantId);
+    for (const field of KnowledgeTreeService.IMMUTABLE_FIELDS) {
+      if (dto[field] !== undefined && dto[field] !== node[field]) {
+        throw new BadRequestException(`字段 ${field} 不允许修改。`);
+      }
+    }
     Object.assign(node, dto);
     return this.nodeRepo.save(node);
   }

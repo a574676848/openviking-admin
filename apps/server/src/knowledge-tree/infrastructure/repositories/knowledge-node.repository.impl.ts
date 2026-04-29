@@ -1,7 +1,7 @@
 import { Injectable, Inject, Scope } from '@nestjs/common';
 import { REQUEST } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, type FindManyOptions, type FindOneOptions } from 'typeorm';
+import { Repository, type FindManyOptions, type FindOneOptions, type QueryRunner } from 'typeorm';
 import { KnowledgeNode } from '../../entities/knowledge-node.entity';
 import { IKnowledgeNodeRepository } from '../../domain/repositories/knowledge-node.repository.interface';
 import type { KnowledgeNodeModel } from '../../domain/knowledge-node.model';
@@ -13,6 +13,8 @@ import type {
 
 @Injectable({ scope: Scope.REQUEST })
 export class KnowledgeNodeRepositoryImpl implements IKnowledgeNodeRepository {
+  private static readonly RESOURCE_URI_PREFIX = 'viking://resources';
+
   constructor(
     @Inject(REQUEST) private readonly request: RepositoryRequest,
     @InjectRepository(KnowledgeNode)
@@ -63,6 +65,35 @@ export class KnowledgeNodeRepositoryImpl implements IKnowledgeNodeRepository {
     };
   }
 
+  private buildVikingUri(node: {
+    tenantId: string;
+    kbId: string;
+    id: string;
+  }): string {
+    return `${KnowledgeNodeRepositoryImpl.RESOURCE_URI_PREFIX}/${node.tenantId}/${node.kbId}/${node.id}/`;
+  }
+
+  private async createTransactionalQueryRunner(): Promise<{
+    queryRunner: QueryRunner;
+    releaseAfterUse: boolean;
+  }> {
+    if (this.request?.tenantQueryRunner) {
+      return {
+        queryRunner: this.request.tenantQueryRunner,
+        releaseAfterUse: false,
+      };
+    }
+
+    const connection =
+      this.request?.tenantDataSource ?? this.repo.manager.connection;
+    const queryRunner = connection.createQueryRunner();
+    await queryRunner.connect();
+    return {
+      queryRunner,
+      releaseAfterUse: true,
+    };
+  }
+
   async find(
     options: RepositoryFindQuery<KnowledgeNodeModel>,
   ): Promise<KnowledgeNodeModel[]> {
@@ -94,6 +125,56 @@ export class KnowledgeNodeRepositoryImpl implements IKnowledgeNodeRepository {
       this.repo.create(this.toEntityInput(node)),
     );
     return this.toModel(saved);
+  }
+
+  async createWithGeneratedUri(
+    node: Partial<KnowledgeNodeModel>,
+  ): Promise<KnowledgeNodeModel> {
+    if (!node.tenantId || !node.kbId) {
+      throw new Error('生成节点资源 URI 缺少 tenantId 或 kbId。');
+    }
+
+    const { queryRunner, releaseAfterUse } =
+      await this.createTransactionalQueryRunner();
+    const startedTransaction = !queryRunner.isTransactionActive;
+
+    if (startedTransaction) {
+      await queryRunner.startTransaction();
+    }
+
+    try {
+      const entity = queryRunner.manager.create(
+        KnowledgeNode,
+        this.toEntityInput({
+          ...node,
+          vikingUri: undefined,
+        }),
+      );
+      const saved = await queryRunner.manager.save(entity);
+      const vikingUri = this.buildVikingUri({
+        tenantId: node.tenantId,
+        kbId: node.kbId,
+        id: saved.id,
+      });
+
+      await queryRunner.manager.update(KnowledgeNode, saved.id, { vikingUri });
+
+      if (startedTransaction) {
+        await queryRunner.commitTransaction();
+      }
+
+      saved.vikingUri = vikingUri;
+      return this.toModel(saved);
+    } catch (error) {
+      if (startedTransaction) {
+        await queryRunner.rollbackTransaction();
+      }
+      throw error;
+    } finally {
+      if (releaseAfterUse && !queryRunner.isReleased) {
+        await queryRunner.release();
+      }
+    }
   }
 
   async remove(node: KnowledgeNodeModel): Promise<KnowledgeNodeModel> {

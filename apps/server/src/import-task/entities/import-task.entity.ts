@@ -7,7 +7,13 @@ import {
 } from 'typeorm';
 
 export type TaskStatus = 'pending' | 'running' | 'done' | 'failed' | 'cancelled';
-export type SourceType = 'url' | 'git' | 'local';
+export type SourceType =
+  | 'url'
+  | 'git'
+  | 'local'
+  | 'webdav'
+  | 'feishu'
+  | 'dingtalk';
 
 @Entity('import_tasks')
 export class ImportTask {

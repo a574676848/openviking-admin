@@ -45,8 +45,42 @@ describe('OVClientService', () => {
       'http://ov.local/api/v1/search/find',
       expect.objectContaining({
         headers: expect.objectContaining({
+          'X-OpenViking-Account': 'default',
           'x-trace-id': 'trace-1',
           'x-request-id': 'request-1',
+        }),
+      }),
+    );
+  });
+
+  it('应优先透传请求级租户账号和用户头', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      headers: {
+        get: () => 'application/json; charset=utf-8',
+      },
+      text: async () => JSON.stringify({ result: { ok: true } }),
+      json: async () => ({ result: { ok: true } }),
+    });
+
+    await service.request(
+      { baseUrl: 'http://ov.local', apiKey: 'key', account: 'default' },
+      '/api/v1/search/find',
+      'POST',
+      { query: 'tenant' },
+      {
+        account: 'tenant-alpha',
+        user: 'user-1',
+      },
+      { serviceLabel: 'OpenViking Search' },
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://ov.local/api/v1/search/find',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'X-OpenViking-Account': 'tenant-alpha',
+          'X-OpenViking-User': 'user-1',
         }),
       }),
     );

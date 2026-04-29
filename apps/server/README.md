@@ -93,7 +93,10 @@ npm run ova -- knowledge search --query "多租户隔离"
 | `GET /api/auth/credential-options` | 查看推荐换证入口 |
 | `POST /api/auth/token/exchange` | JWT 换 capability access token |
 | `POST /api/auth/session/exchange` | JWT 换 session key |
-| `POST /api/auth/client-credentials` | JWT 签发 API key |
+| `POST /api/auth/client-credentials` | JWT 签发当前用户 API key |
+| `GET /api/capability/keys` | 查询租户内 capability key |
+| `POST /api/capability/keys` | 为租户内指定用户签发 capability key |
+| `DELETE /api/capability/keys/:id` | 吊销租户内 capability key |
 | `GET /api/capabilities` | capability catalog |
 | `GET /api/observability/capabilities` | capability 观测快照 |
 | `GET /api/observability/capabilities/prometheus` | Prometheus 指标导出 |

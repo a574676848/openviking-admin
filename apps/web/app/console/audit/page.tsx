@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   CheckCircle2,
   ChevronLeft,
@@ -12,21 +12,22 @@ import {
   UserRoundCog,
 } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
+import { DataTable, type ColumnDef } from "@/components/ui/DataTable";
+import {
+  PlatformPageHeader,
+  PlatformStateBadge,
+} from "@/components/ui/platform-primitives";
 import {
   ConsoleButton,
-  ConsoleControlPanel,
-  ConsoleEmptyState,
   ConsoleField,
-  ConsoleIconButton,
   ConsoleInput,
-  ConsoleMetricCard,
-  ConsolePageHeader,
+  ConsolePanel,
   ConsoleSelect,
-  ConsoleStatsGrid,
-  ConsoleTableShell,
-  resolveConsoleTableState,
-  ConsoleBadge,
 } from "@/components/console/primitives";
+
+/* ------------------------------------------------------------------ */
+/*  类型定义                                                           */
+/* ------------------------------------------------------------------ */
 
 interface AuditLog {
   id: string;
@@ -48,24 +49,39 @@ interface PageResult {
   pages: number;
 }
 
-const ACTION_MAP: Record<
-  string,
-  {
-    label: string;
-    icon: typeof Shield;
-    className: string;
-  }
-> = {
-  login: { label: "登录鉴权", icon: Shield, className: "bg-[var(--brand)] text-white" },
-  import: { label: "知识导入", icon: RefreshCw, className: "bg-[var(--warning)] text-black" },
-  reindex: { label: "重建索引", icon: RefreshCw, className: "bg-black text-white" },
-  search: { label: "语义检索", icon: Search, className: "bg-[var(--success)] text-white" },
-  settings_change: { label: "参数变更", icon: UserRoundCog, className: "bg-[var(--warning)] text-black" },
-  user_create: { label: "新增成员", icon: CheckCircle2, className: "bg-[var(--success)] text-white" },
-  user_delete: { label: "删除成员", icon: Trash2, className: "bg-[var(--danger)] text-white" },
-  create_kb: { label: "创建知识库", icon: CheckCircle2, className: "bg-[var(--brand)] text-white" },
-  delete_kb: { label: "删除知识库", icon: Trash2, className: "bg-[var(--danger)] text-white" },
+/* ------------------------------------------------------------------ */
+/*  操作类型定义                                                       */
+/* ------------------------------------------------------------------ */
+
+interface ActionDef {
+  label: string;
+  icon: typeof Shield;
+  tone: "brand" | "info" | "success" | "warning" | "danger" | "muted";
+}
+
+const ACTION_DEF: Record<string, ActionDef> = {
+  login:            { label: "登录鉴权",   icon: Shield,        tone: "brand" },
+  import:           { label: "知识导入",   icon: RefreshCw,     tone: "warning" },
+  reindex:          { label: "重建索引",   icon: RefreshCw,     tone: "muted" },
+  search:           { label: "语义检索",   icon: Search,        tone: "success" },
+  settings_change:  { label: "参数变更",   icon: UserRoundCog,  tone: "warning" },
+  user_create:      { label: "新增成员",   icon: CheckCircle2,  tone: "success" },
+  user_delete:      { label: "删除成员",   icon: Trash2,        tone: "danger" },
+  create_kb:        { label: "创建知识库", icon: CheckCircle2,  tone: "brand" },
+  delete_kb:        { label: "删除知识库", icon: Trash2,        tone: "danger" },
 };
+
+function resolveAction(action: string): ActionDef {
+  return ACTION_DEF[action] ?? {
+    label: action || "未知操作",
+    icon: Shield,
+    tone: "muted",
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/*  页面组件                                                           */
+/* ------------------------------------------------------------------ */
 
 export default function AuditPage() {
   const [result, setResult] = useState<PageResult | null>(null);
@@ -74,32 +90,36 @@ export default function AuditPage() {
   const [page, setPage] = useState(1);
   const [filterAction, setFilterAction] = useState("");
   const [filterUser, setFilterUser] = useState("");
+  const [filterDateFrom, setFilterDateFrom] = useState("");
+  const [filterDateTo, setFilterDateTo] = useState("");
+
+  /* ---- 数据加载 ---- */
 
   const load = useCallback(
-    async (targetPage = 1) => {
+    async (targetPage: number) => {
       setLoading(true);
       setLoadError("");
       try {
         const params = new URLSearchParams({
           page: String(targetPage),
-          pageSize: "15",
+          pageSize: "20",
         });
-        if (filterAction) {
-          params.set("action", filterAction);
-        }
-        if (filterUser) {
-          params.set("username", filterUser);
-        }
-        const response = await apiClient.get<PageResult>(`/audit?${params.toString()}`);
-        setResult(response);
+        if (filterAction) params.set("action", filterAction);
+        if (filterUser) params.set("username", filterUser);
+        if (filterDateFrom) params.set("dateFrom", filterDateFrom);
+        if (filterDateTo) params.set("dateTo", filterDateTo);
+
+        const data = await apiClient.get<PageResult>(`/audit?${params.toString()}`);
+        setResult(data);
         setPage(targetPage);
       } catch (error: unknown) {
+        setResult(null);
         setLoadError(error instanceof Error ? error.message : "审计流水加载失败");
       } finally {
         setLoading(false);
       }
     },
-    [filterAction, filterUser],
+    [filterAction, filterUser, filterDateFrom, filterDateTo],
   );
 
   useEffect(() => {
@@ -108,177 +128,241 @@ export default function AuditPage() {
     });
   }, [load]);
 
-  const stats = useMemo(() => {
-    const items = result?.items ?? [];
-    const successCount = items.filter((item) => item.success).length;
-    const failCount = items.length - successCount;
-    const users = new Set(items.map((item) => item.username || item.userId).filter(Boolean)).size;
+  /* ---- 筛选重置 ---- */
 
-    return {
-      successCount,
-      failCount,
-      users,
-    };
-  }, [result]);
+  const handleSearch = () => {
+    setPage(1);
+    void load(1);
+  };
 
-  const tableState = resolveConsoleTableState({
-    loading,
-    hasError: Boolean(loadError),
-    hasData: Boolean(result?.items?.length),
-  });
+  /* ---- 列定义 — Badge 使用 PlatformStateBadge，对齐 platform/audit ---- */
+
+  const columns: ColumnDef<AuditLog>[] = [
+    {
+      key: "createdAt",
+      header: "时间",
+      sortable: true,
+      sortValue: (log) => new Date(log.createdAt),
+      cell: (log) => (
+        <div className="whitespace-nowrap font-mono text-[10px] tracking-widest text-[var(--text-secondary)]">
+          {new Date(log.createdAt).toLocaleString("zh-CN", { hour12: false })}
+        </div>
+      ),
+    },
+    {
+      key: "username",
+      header: "操作人",
+      searchable: true,
+      searchValue: (log) => log.username || "系统",
+      sortable: true,
+      sortValue: (log) => log.username || "系统",
+      cell: (log) => (
+        <div className="font-bold text-[11px] text-[var(--text-primary)]">
+          {log.username || "系统"}
+        </div>
+      ),
+    },
+    {
+      key: "action",
+      header: "操作类型",
+      searchable: true,
+      searchValue: (log) => resolveAction(log.action).label,
+      sortable: true,
+      sortValue: (log) => resolveAction(log.action).label,
+      cell: (log) => {
+        const def = resolveAction(log.action);
+        const Icon = def.icon;
+        return (
+          <PlatformStateBadge tone={def.tone}>
+            <Icon size={12} strokeWidth={3} />
+            {def.label}
+          </PlatformStateBadge>
+        );
+      },
+    },
+    {
+      key: "target",
+      header: "目标对象",
+      searchable: true,
+      searchValue: (log) => log.target || "",
+      sortable: true,
+      sortValue: (log) => log.target || "",
+      cell: (log) => (
+        <div className="max-w-[120px] truncate text-[10px] font-bold uppercase text-[var(--text-secondary)]" title={log.target}>
+          {log.target || "---"}
+        </div>
+      ),
+    },
+    {
+      key: "ip",
+      header: "来源 IP",
+      cell: (log) => (
+        <div className="font-mono text-[10px] tracking-widest text-[var(--text-secondary)]">
+          {log.ip || "---"}
+        </div>
+      ),
+    },
+    {
+      key: "status",
+      header: "结果",
+      searchable: true,
+      searchValue: (log) => (log.success ? "成功" : "失败"),
+      sortable: true,
+      sortValue: (log) => log.success,
+      cell: (log) => (
+        <PlatformStateBadge tone={log.success ? "success" : "danger"}>
+          {log.success ? "成功" : "失败"}
+        </PlatformStateBadge>
+      ),
+    },
+    {
+      key: "meta",
+      header: "附加信息",
+      searchable: true,
+      searchValue: (log) => JSON.stringify(log.meta),
+      cell: (log) => (
+        <div
+          className="max-w-[150px] truncate border border-[var(--border)] bg-[var(--bg-elevated)] p-1.5 text-[9px] text-[var(--text-muted)]"
+          title={JSON.stringify(log.meta)}
+        >
+          {JSON.stringify(log.meta)}
+        </div>
+      ),
+    },
+  ];
+
+  /* ------------------------------------------------------------------ */
+  /*  渲染                                                               */
+  /* ------------------------------------------------------------------ */
 
   return (
-    <div className="flex min-h-full flex-col gap-8">
-      <ConsolePageHeader
-        title="审计日志流"
-        subtitle="查看租户操作留痕、执行结果与筛选分页"
-        icon={Shield}
+    <div className="flex min-h-full flex-col gap-8 pb-10">
+      {/* 页头 — 参考 integrations 的 PlatformPageHeader 写法 */}
+      <PlatformPageHeader
+        title={
+          <h1 className="font-sans text-4xl font-bold tracking-tight text-[var(--text-primary)]">
+            租户审计日志
+          </h1>
+        }
+        subtitle="查看当前租户下所有操作留痕、执行结果与筛选分页"
+        subtitleClassName="mt-2 text-sm font-medium tracking-normal normal-case text-[var(--text-muted)]"
       />
 
-      <ConsoleStatsGrid className="lg:grid-cols-4">
-        <ConsoleMetricCard label="当前页记录" value={String(result?.items.length ?? 0).padStart(2, "0")} />
-        <ConsoleMetricCard label="总记录数" value={(result?.total ?? 0).toLocaleString()} tone="brand" />
-        <ConsoleMetricCard label="成功执行" value={stats.successCount.toLocaleString()} tone="success" />
-        <ConsoleMetricCard label="失败执行" value={stats.failCount.toLocaleString()} tone="danger" />
-      </ConsoleStatsGrid>
+      {/* 筛选区 — 紧凑布局，按钮同行 */}
+      <ConsolePanel className="p-4">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <ConsoleField label="操作类型">
+            <ConsoleSelect
+              value={filterAction}
+              onChange={(e) => setFilterAction(e.target.value)}
+            >
+              <option value="">全部事件</option>
+              {Object.entries(ACTION_DEF).map(([key, def]) => (
+                <option key={key} value={key}>
+                  {def.label}
+                </option>
+              ))}
+            </ConsoleSelect>
+          </ConsoleField>
 
-      <section className="grid grid-cols-1 gap-8 xl:grid-cols-[0.95fr_1.05fr]">
-        <ConsoleControlPanel
-          eyebrow="筛选台"
-          title="按操作类型与执行人筛选"
-          footer={
-            <ConsoleStatsGrid className="grid-cols-2">
-              <ConsoleMetricCard label="当前页用户数" value={stats.users.toLocaleString()} />
-              <ConsoleMetricCard label="当前页码" value={`${page}/${result?.pages ?? 1}`} tone="warning" />
-            </ConsoleStatsGrid>
-          }
-        >
-          <div className="grid grid-cols-1 gap-5">
-            <ConsoleField label="操作类型">
-              <ConsoleSelect value={filterAction} onChange={(event) => setFilterAction(event.target.value)}>
-                <option value="">全部事件</option>
-                {Object.entries(ACTION_MAP).map(([key, item]) => (
-                  <option key={key} value={key}>
-                    {item.label}
-                  </option>
-                ))}
-              </ConsoleSelect>
-            </ConsoleField>
+          <ConsoleField label="执行人">
+            <ConsoleInput
+              value={filterUser}
+              onChange={(e) => setFilterUser(e.target.value)}
+              placeholder="输入用户名关键词"
+            />
+          </ConsoleField>
 
-            <ConsoleField label="执行人">
-              <ConsoleInput
-                value={filterUser}
-                onChange={(event) => setFilterUser(event.target.value)}
-                placeholder="输入用户名关键词"
-              />
-            </ConsoleField>
+          <ConsoleField label="起始日期">
+            <ConsoleInput
+              type="date"
+              value={filterDateFrom}
+              onChange={(e) => setFilterDateFrom(e.target.value)}
+            />
+          </ConsoleField>
 
-            <ConsoleButton type="button" onClick={() => void load(1)} className="mt-2">
+          <ConsoleField label="截止日期">
+            <ConsoleInput
+              type="date"
+              value={filterDateTo}
+              onChange={(e) => setFilterDateTo(e.target.value)}
+            />
+          </ConsoleField>
+
+          <ConsoleField label="&nbsp;">
+            <ConsoleButton type="button" onClick={handleSearch} className="w-full py-3 text-sm">
               应用筛选
             </ConsoleButton>
+          </ConsoleField>
+        </div>
+      </ConsolePanel>
+
+      {/* 数据表格 — 圆角容器 + 工具栏 */}
+      <div className="relative flex-1 overflow-hidden rounded-[var(--radius-base)] border border-[var(--border)] bg-[var(--bg-card)] shadow-[var(--shadow-base)]">
+        {/* 工具栏：记录总数 + 分页 */}
+        <div className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--bg-elevated)] px-5 py-3">
+          <div className="flex items-center gap-3">
+            <span className="font-sans text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              记录总数
+            </span>
+            <span className="font-mono text-sm font-black tabular-nums text-[var(--brand)]">
+              [{result?.total ?? 0}]
+            </span>
           </div>
-        </ConsoleControlPanel>
 
-        <ConsoleTableShell
-          columns={
-            <div className="grid grid-cols-[minmax(0,1fr)_140px]">
-            <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">
-              当前租户操作流水
-            </div>
-            <div className="flex items-center justify-end gap-2 px-5 py-4">
-              <ConsoleIconButton
+          {result && result.pages > 1 ? (
+            <div className="flex items-center gap-3">
+              <ConsoleButton
                 type="button"
-                aria-label="上一页审计日志"
                 disabled={page <= 1 || loading}
-                onClick={() => void load(page - 1)}
+                onClick={() => { const p = page - 1; setPage(p); void load(p); }}
+                className="px-3 py-1.5 text-[10px]"
               >
-                <ChevronLeft size={14} strokeWidth={2.6} />
-              </ConsoleIconButton>
-              <ConsoleIconButton
+                <ChevronLeft size={12} strokeWidth={2.6} />
+                上一页
+              </ConsoleButton>
+              <span className="font-mono text-[10px] font-bold tracking-widest text-[var(--text-primary)]">
+                第 {page}/{result.pages} 页
+              </span>
+              <ConsoleButton
                 type="button"
-                aria-label="下一页审计日志"
-                disabled={page >= (result?.pages ?? 1) || loading}
-                onClick={() => void load(page + 1)}
+                disabled={page >= result.pages || loading}
+                onClick={() => { const p = page + 1; setPage(p); void load(p); }}
+                className="px-3 py-1.5 text-[10px]"
               >
-                <ChevronRight size={14} strokeWidth={2.6} />
-              </ConsoleIconButton>
+                下一页
+                <ChevronRight size={12} strokeWidth={2.6} />
+              </ConsoleButton>
             </div>
-            </div>
-          }
-          state={tableState}
-          stateContent={{
-            loading: <ConsoleEmptyState icon={RefreshCw} title="正在同步审计流水..." description="系统正在加载当前租户的操作留痕。" />,
-            error: (
-              <ConsoleEmptyState
-                icon={Shield}
-                title="审计流水加载失败"
-                description={loadError}
-                action={
-                  <ConsoleButton type="button" onClick={() => void load(page)}>
-                    重新加载
-                  </ConsoleButton>
-                }
-              />
-            ),
-            empty: <ConsoleEmptyState icon={Shield} title="暂无审计记录" description="当前筛选条件下没有匹配的操作留痕。" />,
-          }}
-        >
-          {result?.items?.map((log) => {
-                const mapped = ACTION_MAP[log.action] ?? {
-                  label: log.action,
-                  icon: Shield,
-                  className: "bg-[var(--bg-card)] text-[var(--text-primary)]",
-                };
-                const Icon = mapped.icon;
+          ) : null}
+        </div>
 
-                return (
-                  <div
-                    key={log.id}
-                    className="grid gap-px bg-[var(--border)] xl:grid-cols-[170px_140px_170px_minmax(0,1fr)_130px_120px]"
-                  >
-                    <div className="bg-[var(--bg-card)] px-5 py-5 font-mono text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">
-                      {new Date(log.createdAt).toLocaleString("zh-CN", { hour12: false })}
-                    </div>
-                    <div className="bg-[var(--bg-card)] px-5 py-5">
-                      <p className="font-sans text-base font-black text-[var(--text-primary)]">
-                        {log.username || "system"}
-                      </p>
-                      <p className="mt-1 font-mono text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-muted)]">
-                        {log.userId || "n/a"}
-                      </p>
-                    </div>
-                    <div className="bg-[var(--bg-card)] px-5 py-5">
-                      <ConsoleBadge className={`items-center gap-2 ${mapped.className}`} tone="default">
-                        <Icon size={12} strokeWidth={2.6} />
-                        {mapped.label}
-                      </ConsoleBadge>
-                    </div>
-                    <div className="bg-[var(--bg-card)] px-5 py-5">
-                      <p className="font-mono text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-muted)]">
-                        目标对象
-                      </p>
-                      <p className="mt-2 break-all font-mono text-xs font-bold text-[var(--text-primary)]">
-                        {log.target || "-"}
-                      </p>
-                      {Object.keys(log.meta ?? {}).length > 0 && (
-                        <p className="mt-3 font-mono text-[10px] font-bold text-[var(--text-secondary)]">
-                          {JSON.stringify(log.meta)}
-                        </p>
-                      )}
-                    </div>
-                    <div className="bg-[var(--bg-card)] px-5 py-5 font-mono text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-primary)]">
-                      {log.ip || "-"}
-                    </div>
-                    <div className="bg-[var(--bg-card)] px-5 py-5">
-                      <ConsoleBadge tone={log.success ? "success" : "danger"}>
-                        {log.success ? "成功" : "失败"}
-                      </ConsoleBadge>
-                    </div>
-                  </div>
-                );
-              })}
-        </ConsoleTableShell>
-      </section>
+        <DataTable
+          data={result?.items ?? []}
+          columns={columns}
+          loading={loading}
+          loadingMessage="正在同步审计流水..."
+          errorMessage={loadError ? `审计流水加载失败：${loadError}` : undefined}
+          emptyMessage="当前筛选条件下没有匹配的审计记录"
+          tableLabel="租户审计日志表"
+          searchConfig={{ placeholder: "搜索操作人 / 事件类型 / 目标对象..." }}
+          className="border-0 shadow-none rounded-none"
+          rowClassName={() => "hover:bg-[var(--bg-elevated)] transition-colors"}
+        />
+
+        {loadError ? (
+          <div className="border-t border-[var(--border)] bg-[var(--bg-card)] px-4 py-4">
+            <ConsoleButton
+              type="button"
+              tone="danger"
+              onClick={() => void load(page)}
+              className="px-4 py-2 text-[10px]"
+            >
+              重试加载
+            </ConsoleButton>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

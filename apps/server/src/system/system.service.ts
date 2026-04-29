@@ -1,14 +1,26 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable, Inject, Logger } from '@nestjs/common';
+import { DataSource } from 'typeorm';
 import { SettingsService } from '../settings/settings.service';
 import { OVClientService } from '../common/ov-client.service';
 import { IMPORT_TASK_REPOSITORY } from '../import-task/domain/repositories/import-task.repository.interface';
 import type { IImportTaskRepository } from '../import-task/domain/repositories/import-task.repository.interface';
 import { KNOWLEDGE_BASE_REPOSITORY } from '../knowledge-base/domain/repositories/knowledge-base.repository.interface';
 import type { IKnowledgeBaseRepository } from '../knowledge-base/domain/repositories/knowledge-base.repository.interface';
+import {
+  KnowledgeBase,
+  KNOWLEDGE_BASE_TABLE,
+} from '../knowledge-base/entities/knowledge-base.entity';
 import { SEARCH_LOG_REPOSITORY } from '../search/domain/repositories/search-log.repository.interface';
 import type { ISearchLogRepository } from '../search/domain/repositories/search-log.repository.interface';
+import { SEARCH_LOG_TABLE } from '../search/entities/search-log.entity';
 import { TENANT_REPOSITORY } from '../tenant/domain/repositories/tenant.repository.interface';
 import type { ITenantRepository } from '../tenant/domain/repositories/tenant.repository.interface';
+import type { TenantModel } from '../tenant/domain/tenant.model';
+import { DynamicDataSourceService } from '../common/dynamic-datasource.service';
+import {
+  TenantIsolationLevel,
+  TenantStatus,
+} from '../common/constants/system.enum';
 
 interface DashboardOVConnection {
   baseUrl: string;
@@ -24,6 +36,17 @@ interface DashboardOVTarget {
 interface DashboardOVTargetsResult {
   targets: DashboardOVTarget[];
   tenantCount?: number;
+}
+
+export interface TenantLeaderboardItem {
+  tenantId: string;
+  tenantName: string;
+  value: number;
+}
+
+interface PlatformKnowledgeBaseStats {
+  total: number;
+  topTenants: TenantLeaderboardItem[];
 }
 
 /** 解析 OV 文本表格为结构化行数据 */
@@ -56,16 +79,22 @@ function parseQueueTable(tableStr: string): Record<string, number> {
 const DEFAULT_OV_BASE_URL = 'http://localhost:8080';
 const DEFAULT_OV_ACCOUNT = 'default';
 const DASHBOARD_RECENT_TASK_LIMIT = 8;
-const ACTIVE_TENANT_STATUS = 'active';
+const DASHBOARD_LEADERBOARD_LIMIT = 5;
+const TENANT_SCHEMA_PREFIX = 'tenant_';
+const EMPTY_VALUE = '';
 const OV_QUEUE_PATH = '/api/v1/observer/queue';
 const OV_VIKINGDB_PATH = '/api/v1/observer/vikingdb';
 const OV_HEALTH_PATH = '/health';
 
 @Injectable()
 export class SystemService {
+  private readonly logger = new Logger(SystemService.name);
+
   constructor(
+    private readonly defaultDataSource: DataSource,
     private readonly settings: SettingsService,
     private readonly ovClient: OVClientService,
+    private readonly dynamicDS: DynamicDataSourceService,
     @Inject(IMPORT_TASK_REPOSITORY)
     private readonly taskRepo: IImportTaskRepository,
     @Inject(KNOWLEDGE_BASE_REPOSITORY)
@@ -78,18 +107,22 @@ export class SystemService {
 
   async getDashboardStats(tenantId: string | null) {
     const where = tenantId ? { tenantId } : {};
-    const ovTargetsResult = await this.resolveDashboardOVTargets(tenantId);
+    const activeTenants = tenantId ? [] : await this.listActiveTenants();
+    const ovTargetsResult = await this.resolveDashboardOVTargets(
+      tenantId,
+      activeTenants,
+    );
     const ovTargets = ovTargetsResult.targets;
 
     const [
-      kbCount,
+      scopedKbCount,
       taskCount,
       searchCount,
       zeroCount,
       recentTasks,
       ovSnapshot,
     ] = await Promise.allSettled([
-      this.kbRepo.count({ where }),
+      tenantId ? this.kbRepo.count({ where }) : Promise.resolve(0),
       this.taskRepo.count(where),
       this.logRepo.count({ where }),
       this.logRepo.count({ where: { ...where, resultCount: 0 } }),
@@ -110,15 +143,45 @@ export class SystemService {
       status: 'running',
     });
 
+    let quota: Record<string, unknown> | null = null;
+    let tenantIdentifier: string | null = null;
+    let platformKnowledgeBaseStats: PlatformKnowledgeBaseStats | null = null;
+    let tenantSearchTop: TenantLeaderboardItem[] = [];
+    if (tenantId) {
+      const tenant =
+        (await this.tenantRepo.findById(tenantId)) ??
+        (await this.tenantRepo.findByTenantId(tenantId));
+      if (tenant) {
+        quota = tenant.quota;
+        tenantIdentifier = tenant.tenantId;
+      }
+    } else {
+      [platformKnowledgeBaseStats, tenantSearchTop] = await Promise.all([
+        this.resolvePlatformKnowledgeBaseStats(activeTenants),
+        this.resolveTenantSearchTop(activeTenants),
+      ]);
+    }
+
+    const effectiveKbCount = tenantId
+      ? scopedKbCount.status === 'fulfilled'
+        ? scopedKbCount.value
+        : 0
+      : (platformKnowledgeBaseStats?.total ?? 0);
+
     return {
-      kbCount: kbCount.status === 'fulfilled' ? kbCount.value : 0,
+      kbCount: effectiveKbCount,
       taskCount: taskCount.status === 'fulfilled' ? taskCount.value : 0,
       searchCount: searchCount.status === 'fulfilled' ? searchCount.value : 0,
       zeroCount: zeroCount.status === 'fulfilled' ? zeroCount.value : 0,
       failedTasks,
       runningTasks,
       recentTasks: recentTasks.status === 'fulfilled' ? recentTasks.value : [],
+      quota,
+      tenantIdentifier,
       tenantCount: ovTargetsResult.tenantCount,
+      platformKbCount: platformKnowledgeBaseStats?.total,
+      tenantSearchTop,
+      tenantKnowledgeBaseTop: platformKnowledgeBaseStats?.topTenants ?? [],
       health:
         ovSnapshot.status === 'fulfilled'
           ? ovSnapshot.value.health
@@ -132,6 +195,7 @@ export class SystemService {
 
   private async resolveDashboardOVTargets(
     tenantId: string | null,
+    activeTenants: TenantModel[],
   ): Promise<DashboardOVTargetsResult> {
     if (tenantId) {
       return {
@@ -144,10 +208,7 @@ export class SystemService {
       };
     }
 
-    const tenants = (await this.tenantRepo.findAll()).filter(
-      (tenant) => tenant.status === ACTIVE_TENANT_STATUS,
-    );
-    if (tenants.length === 0) {
+    if (activeTenants.length === 0) {
       return {
         targets: [
           {
@@ -155,19 +216,25 @@ export class SystemService {
             connection: await this.resolveOVConnection(null),
           },
         ],
-        tenantCount: tenants.length,
+        tenantCount: activeTenants.length,
       };
     }
 
     return {
       targets: await Promise.all(
-        tenants.map(async (tenant) => ({
+        activeTenants.map(async (tenant) => ({
           id: tenant.id,
           connection: await this.resolveOVConnection(tenant.id),
         })),
       ),
-      tenantCount: tenants.length,
+      tenantCount: activeTenants.length,
     };
+  }
+
+  private async listActiveTenants(): Promise<TenantModel[]> {
+    return (await this.tenantRepo.findAll()).filter(
+      (tenant) => tenant.status === TenantStatus.ACTIVE,
+    );
   }
 
   private async resolveOVConnection(
@@ -231,6 +298,116 @@ export class SystemService {
       },
       queue: this.mergeQueues(snapshots.map((item) => item.queue)),
     };
+  }
+
+  private async resolvePlatformKnowledgeBaseStats(
+    tenants: TenantModel[],
+  ): Promise<PlatformKnowledgeBaseStats> {
+    const counts = await Promise.all(
+      tenants.map(async (tenant) => ({
+        tenantId: tenant.tenantId,
+        tenantName: tenant.displayName || tenant.tenantId,
+        value: await this.safeCountKnowledgeBasesForTenant(tenant),
+      })),
+    );
+    const sorted = counts.sort((left, right) => right.value - left.value);
+
+    return {
+      total: sorted.reduce((sum, item) => sum + item.value, 0),
+      topTenants: sorted.slice(0, DASHBOARD_LEADERBOARD_LIMIT),
+    };
+  }
+
+  private async safeCountKnowledgeBasesForTenant(
+    tenant: TenantModel,
+  ): Promise<number> {
+    try {
+      return await this.countKnowledgeBasesForTenant(tenant);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '未知错误';
+      this.logger.warn(
+        `统计租户知识库失败，已按 0 处理: ${tenant.tenantId} (${message})`,
+      );
+      return 0;
+    }
+  }
+
+  private async countKnowledgeBasesForTenant(
+    tenant: TenantModel,
+  ): Promise<number> {
+    switch (tenant.isolationLevel) {
+      case TenantIsolationLevel.MEDIUM:
+        return this.countKnowledgeBasesInSchema(tenant.tenantId);
+      case TenantIsolationLevel.LARGE:
+        return this.countKnowledgeBasesInDedicatedDatabase(tenant);
+      case TenantIsolationLevel.SMALL:
+      default:
+        return this.defaultDataSource.getRepository(KnowledgeBase).count({
+          where: { tenantId: tenant.tenantId },
+        });
+    }
+  }
+
+  private async countKnowledgeBasesInSchema(tenantId: string): Promise<number> {
+    const queryRunner = this.defaultDataSource.createQueryRunner();
+    await queryRunner.connect();
+    try {
+      await queryRunner.query(
+        `SET search_path TO "${this.buildTenantSchemaName(tenantId)}", public`,
+      );
+      const result = await queryRunner.query(
+        `SELECT COUNT(*)::int AS count FROM "${KNOWLEDGE_BASE_TABLE}"`,
+      );
+      return Number(result?.[0]?.count ?? 0);
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  private async countKnowledgeBasesInDedicatedDatabase(
+    tenant: TenantModel,
+  ): Promise<number> {
+    if (!tenant.dbConfig) {
+      this.logger.warn(`LARGE 租户缺少独立库配置，无法统计知识库: ${tenant.tenantId}`);
+      return 0;
+    }
+    const tenantDataSource = await this.dynamicDS.getTenantDataSource(
+      tenant.tenantId,
+      tenant.dbConfig,
+    );
+    return tenantDataSource.getRepository(KnowledgeBase).count();
+  }
+
+  private async resolveTenantSearchTop(
+    tenants: TenantModel[],
+  ): Promise<TenantLeaderboardItem[]> {
+    const tenantNameMap = new Map(
+      tenants.map((tenant) => [tenant.tenantId, tenant.displayName || tenant.tenantId]),
+    );
+    const rows = await this.defaultDataSource
+      .createQueryBuilder()
+      .from(SEARCH_LOG_TABLE, 'l')
+      .select('l.tenant_id', 'tenantId')
+      .addSelect('COUNT(*)', 'count')
+      .where('l.tenant_id IS NOT NULL')
+      .andWhere('l.tenant_id != :empty', { empty: EMPTY_VALUE })
+      .groupBy('l.tenant_id')
+      .orderBy('count', 'DESC')
+      .limit(Math.max(DASHBOARD_LEADERBOARD_LIMIT * 4, 20))
+      .getRawMany<{ tenantId: string; count: string }>();
+
+    return rows
+      .map((row) => ({
+        tenantId: row.tenantId,
+        tenantName: tenantNameMap.get(row.tenantId) ?? row.tenantId,
+        value: Number(row.count ?? 0),
+      }))
+      .filter((item) => tenantNameMap.has(item.tenantId))
+      .slice(0, DASHBOARD_LEADERBOARD_LIMIT);
+  }
+
+  private buildTenantSchemaName(tenantId: string) {
+    return `${TENANT_SCHEMA_PREFIX}${tenantId.replace(/-/g, '_')}`;
   }
 
   private uniqueOVTargets(targets: DashboardOVTarget[]) {

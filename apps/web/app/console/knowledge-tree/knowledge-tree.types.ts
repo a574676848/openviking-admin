@@ -10,6 +10,13 @@ export type KnowledgeAcl = {
   users: string[];
 };
 
+export interface TenantUserOption {
+  id: string;
+  username: string;
+  role: string;
+  active: boolean;
+}
+
 export interface KnowledgeNode {
   id: string;
   kbId: string;

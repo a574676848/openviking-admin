@@ -10,4 +10,6 @@ export interface IKnowledgeBaseRepository {
   create(data: Partial<KnowledgeBaseModel>): KnowledgeBaseModel;
   save(kb: KnowledgeBaseModel): Promise<KnowledgeBaseModel>;
   delete(kb: KnowledgeBaseModel): Promise<void>;
+  /** 在事务内创建知识库并自动补全完整 URI */
+  createWithUri(data: Partial<KnowledgeBaseModel>): Promise<KnowledgeBaseModel>;
 }

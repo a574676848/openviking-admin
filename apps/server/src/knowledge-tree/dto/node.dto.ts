@@ -1,4 +1,28 @@
-import { IsString, IsOptional, IsNumber } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  IsArray,
+  IsBoolean,
+  IsNumber,
+  IsOptional,
+  IsString,
+  ValidateNested,
+} from 'class-validator';
+
+class KnowledgeAclDto {
+  @IsOptional()
+  @IsBoolean()
+  isPublic?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  roles?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  users?: string[];
+}
 
 export class CreateNodeDto {
   @IsString()
@@ -31,7 +55,7 @@ export class UpdateNodeDto {
 
   @IsOptional()
   @IsString()
-  parentId?: string;
+  parentId?: string | null;
 
   @IsOptional()
   @IsNumber()
@@ -40,4 +64,9 @@ export class UpdateNodeDto {
   @IsOptional()
   @IsString()
   vikingUri?: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => KnowledgeAclDto)
+  acl?: KnowledgeAclDto;
 }

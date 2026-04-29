@@ -48,7 +48,7 @@ app/
 │   ├── webdav/           # WebDAV 配置
 │   ├── audit/            # 租户审计
 │   ├── system/           # 系统状态
-│   ├── mcp/              # MCP 智能助手
+│   ├── capability/       # 凭证中心
 │   ├── integrations/     # 集成配置
 │   └── graph/            # 知识图谱可视化
 ```

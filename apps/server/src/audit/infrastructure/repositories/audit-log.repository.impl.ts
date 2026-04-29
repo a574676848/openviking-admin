@@ -23,12 +23,7 @@ export class AuditLogRepositoryImpl implements IAuditLogRepository {
   ) {}
 
   private get repo(): Repository<AuditLog> {
-    if (this.request?.tenantQueryRunner) {
-      return this.request.tenantQueryRunner.manager.getRepository(AuditLog);
-    }
-    if (this.request?.tenantDataSource) {
-      return this.request.tenantDataSource.getRepository(AuditLog);
-    }
+    // AuditLog 属于控制平面审计实体，始终存放在公共库。
     return this.defaultRepo;
   }
 

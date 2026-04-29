@@ -3,10 +3,12 @@ import { ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Tenant } from '../tenant/entities/tenant.entity';
+import { User } from '../users/entities/user.entity';
 import { SystemConfig } from '../settings/entities/system-config.entity';
 import { CapabilityKey } from './entities/capability-key.entity';
 import { CapabilitiesController } from './capabilities.controller';
 import { CapabilityAuthController } from './capability-auth.controller';
+import { CapabilityKeyController } from './capability-key.controller';
 import { CapabilityObservabilityController } from './capability-observability.controller';
 import { CapabilityCatalogService } from './application/capability-catalog.service';
 import { CapabilityDiscoveryService } from './application/capability-discovery.service';
@@ -15,6 +17,7 @@ import { CapabilityObservabilityService } from './application/capability-observa
 import { CapabilityExecutionService } from './application/capability-execution.service';
 import { CapabilitySchemaValidatorService } from './application/capability-schema-validator.service';
 import { CredentialExchangeService } from './application/credential-exchange.service';
+import { CapabilityKeyService } from './capability-key.service';
 import { CapabilityCredentialService } from './infrastructure/capability-credential.service';
 import { CapabilityMetricsService } from './infrastructure/capability-metrics.service';
 import { CapabilityPrometheusExporterService } from './infrastructure/capability-prometheus-exporter.service';
@@ -43,7 +46,7 @@ const CAPABILITY_RATE_LIMIT_ENV = {
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([CapabilityKey, Tenant, SystemConfig]),
+    TypeOrmModule.forFeature([CapabilityKey, Tenant, User, SystemConfig]),
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
@@ -54,6 +57,7 @@ const CAPABILITY_RATE_LIMIT_ENV = {
   controllers: [
     CapabilitiesController,
     CapabilityAuthController,
+    CapabilityKeyController,
     CapabilityObservabilityController,
   ],
   providers: [
@@ -64,6 +68,7 @@ const CAPABILITY_RATE_LIMIT_ENV = {
     CapabilitySchemaValidatorService,
     CapabilityExecutionService,
     CredentialExchangeService,
+    CapabilityKeyService,
     CapabilityCredentialService,
     CapabilityMetricsService,
     CapabilityPrometheusExporterService,

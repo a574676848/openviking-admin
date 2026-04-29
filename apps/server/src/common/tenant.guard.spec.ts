@@ -18,7 +18,7 @@ describe('TenantGuard', () => {
     createQueryRunner: jest.fn(() => queryRunner),
   };
   const tenantCache = {
-    getIsolationConfig: jest.fn(),
+    getIsolationConfigByTenantRecordId: jest.fn(),
   };
   const dynamicDS = {
     getTenantDataSource: jest.fn(),
@@ -35,14 +35,15 @@ describe('TenantGuard', () => {
   });
 
   it('应该为 medium 隔离租户设置 schema search_path', async () => {
-    tenantCache.getIsolationConfig.mockResolvedValue({
+    tenantCache.getIsolationConfigByTenantRecordId.mockResolvedValue({
+      tenantId: 'tenant-a-b',
       level: TenantIsolationLevel.MEDIUM,
     });
     const request = {
       user: {
         id: 'user-1',
         role: SystemRoles.TENANT_ADMIN,
-        tenantId: 'tenant-a-b',
+        tenantId: 'tenant-record-1',
       },
     } as Record<string, unknown>;
 
@@ -57,14 +58,15 @@ describe('TenantGuard', () => {
   });
 
   it('应该为 small 隔离租户落到 public schema', async () => {
-    tenantCache.getIsolationConfig.mockResolvedValue({
+    tenantCache.getIsolationConfigByTenantRecordId.mockResolvedValue({
+      tenantId: 'tenant-small',
       level: TenantIsolationLevel.SMALL,
     });
     const request = {
       user: {
         id: 'user-1',
         role: SystemRoles.TENANT_VIEWER,
-        tenantId: 'tenant-small',
+        tenantId: 'tenant-record-small',
       },
     } as Record<string, unknown>;
 
@@ -78,7 +80,8 @@ describe('TenantGuard', () => {
 
   it('应该为 large 隔离租户挂载独立数据源', async () => {
     const tenantDataSource = { name: 'tenant-ds' };
-    tenantCache.getIsolationConfig.mockResolvedValue({
+    tenantCache.getIsolationConfigByTenantRecordId.mockResolvedValue({
+      tenantId: 'tenant-mem',
       level: TenantIsolationLevel.LARGE,
       dbConfig: { host: 'db.example.com' },
     });
@@ -88,18 +91,18 @@ describe('TenantGuard', () => {
       user: {
         id: 'user-1',
         role: SystemRoles.TENANT_OPERATOR,
-        tenantId: 'tenant-2',
+        tenantId: 'tenant-record-2',
       },
     } as Record<string, unknown>;
 
     const allowed = await guard.canActivate(createExecutionContext(request));
 
     expect(allowed).toBe(true);
-    expect(dynamicDS.getTenantDataSource).toHaveBeenCalledWith(
-      'tenant-2',
-      { host: 'db.example.com' },
-    );
+    expect(dynamicDS.getTenantDataSource).toHaveBeenCalledWith('tenant-mem', {
+      host: 'db.example.com',
+    });
     expect(request.tenantDataSource).toBe(tenantDataSource);
+    expect(request.tenantScope).toBe('tenant-mem');
   });
 
   it('应该让超管落到 public schema', async () => {
@@ -124,26 +127,29 @@ describe('TenantGuard', () => {
     const allowed = await guard.canActivate(createExecutionContext(request));
 
     expect(allowed).toBe(false);
-    expect(tenantCache.getIsolationConfig).not.toHaveBeenCalled();
+    expect(tenantCache.getIsolationConfigByTenantRecordId).not.toHaveBeenCalled();
   });
 
-  it('租户配置读取失败时应该拒绝访问', async () => {
-    tenantCache.getIsolationConfig.mockRejectedValue(new Error('cache down'));
+  it('租户配置读取失败时应该抛错', async () => {
+    tenantCache.getIsolationConfigByTenantRecordId.mockRejectedValue(
+      new Error('cache down'),
+    );
     const request = {
       user: {
         id: 'user-1',
         role: SystemRoles.TENANT_ADMIN,
-        tenantId: 'tenant-fail',
+        tenantId: 'tenant-record-fail',
       },
     } as Record<string, unknown>;
 
-    const allowed = await guard.canActivate(createExecutionContext(request));
-
-    expect(allowed).toBe(false);
+    await expect(guard.canActivate(createExecutionContext(request))).rejects.toThrow(
+      'cache down',
+    );
   });
 
-  it('large 隔离数据源构造失败时应该拒绝访问', async () => {
-    tenantCache.getIsolationConfig.mockResolvedValue({
+  it('large 隔离数据源构造失败时应该抛错', async () => {
+    tenantCache.getIsolationConfigByTenantRecordId.mockResolvedValue({
+      tenantId: 'tenant-large',
       level: TenantIsolationLevel.LARGE,
       dbConfig: { host: 'db.example.com' },
     });
@@ -152,12 +158,73 @@ describe('TenantGuard', () => {
       user: {
         id: 'user-1',
         role: SystemRoles.TENANT_OPERATOR,
-        tenantId: 'tenant-large',
+        tenantId: 'tenant-record-large',
+      },
+    } as Record<string, unknown>;
+
+    await expect(guard.canActivate(createExecutionContext(request))).rejects.toThrow(
+      'db down',
+    );
+  });
+
+  it('找不到租户隔离配置时应该直接抛错而不是回退公共库', async () => {
+    tenantCache.getIsolationConfigByTenantRecordId.mockResolvedValue(null);
+    const request = {
+      user: {
+        id: 'user-1',
+        role: SystemRoles.TENANT_ADMIN,
+        tenantId: 'tenant-record-missing',
+      },
+    } as Record<string, unknown>;
+
+    await expect(guard.canActivate(createExecutionContext(request))).rejects.toThrow(
+      '租户隔离配置不存在：tenant-record-missing',
+    );
+    expect(defaultDataSource.createQueryRunner).not.toHaveBeenCalled();
+  });
+
+  it('租户引用传入业务编码时也应该能命中 large 独立库配置', async () => {
+    const tenantDataSource = { name: 'tenant-ds-fallback' };
+    tenantCache.getIsolationConfigByTenantRecordId.mockResolvedValue({
+      tenantId: 'mem',
+      level: TenantIsolationLevel.LARGE,
+      dbConfig: { host: 'db.mem.example.com' },
+    });
+    dynamicDS.getTenantDataSource.mockResolvedValue(tenantDataSource);
+
+    const request = {
+      user: {
+        id: 'user-1',
+        role: SystemRoles.TENANT_ADMIN,
+        tenantId: 'mem',
       },
     } as Record<string, unknown>;
 
     const allowed = await guard.canActivate(createExecutionContext(request));
 
-    expect(allowed).toBe(false);
+    expect(allowed).toBe(true);
+    expect(dynamicDS.getTenantDataSource).toHaveBeenCalledWith('mem', {
+      host: 'db.mem.example.com',
+    });
+    expect(request.tenantScope).toBe('mem');
+  });
+
+  it('large 租户缺少独立库配置时应该直接抛错', async () => {
+    tenantCache.getIsolationConfigByTenantRecordId.mockResolvedValue({
+      tenantId: 'tenant-large',
+      level: TenantIsolationLevel.LARGE,
+    });
+    const request = {
+      user: {
+        id: 'user-1',
+        role: SystemRoles.TENANT_OPERATOR,
+        tenantId: 'tenant-record-large',
+      },
+    } as Record<string, unknown>;
+
+    await expect(guard.canActivate(createExecutionContext(request))).rejects.toThrow(
+      'LARGE 租户缺少独立库配置：tenant-large',
+    );
+    expect(defaultDataSource.createQueryRunner).not.toHaveBeenCalled();
   });
 });

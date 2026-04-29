@@ -9,6 +9,7 @@ import { USER_REPOSITORY } from '../users/domain/repositories/user.repository.in
 import type { IUserRepository } from '../users/domain/repositories/user.repository.interface';
 import { TENANT_REPOSITORY } from '../tenant/domain/repositories/tenant.repository.interface';
 import type { ITenantRepository } from '../tenant/domain/repositories/tenant.repository.interface';
+import type { TenantOvConfig } from '../tenant/domain/tenant.model';
 
 type AuthTokenPayload = {
   sub: string;
@@ -18,6 +19,28 @@ type AuthTokenPayload = {
   scope: string;
   isAdminSwitch?: boolean;
 };
+
+type SessionUserPayload = {
+  id: string;
+  username: string;
+  role: string;
+  tenantId: string | null;
+  hasCustomOvConfig: boolean;
+};
+
+type AuthContextPayload = Pick<
+  AuthTokenPayload,
+  'role' | 'tenantId' | 'isAdminSwitch'
+>;
+
+const CUSTOM_OV_CONFIG_FIELDS: Array<keyof TenantOvConfig> = [
+  'baseUrl',
+  'apiKey',
+  'account',
+  'rerankEndpoint',
+  'rerankApiKey',
+  'rerankModel',
+];
 
 @Injectable()
 export class AuthService {
@@ -101,27 +124,58 @@ export class AuthService {
       ip,
     });
 
+    const tenantScopedAdminLogin =
+      Boolean(dto.tenantCode) &&
+      user.role === SystemRoles.SUPER_ADMIN &&
+      Boolean(tenantId);
     const payload: AuthTokenPayload = {
       sub: user.id,
       username: user.username,
-      role: user.role,
-      tenantId: user.tenantId || null,
-      scope: user.tenantId ? 'tenant' : 'platform',
+      role: tenantScopedAdminLogin ? SystemRoles.TENANT_ADMIN : user.role,
+      tenantId: tenantScopedAdminLogin ? tenantId : user.tenantId || null,
+      scope: tenantScopedAdminLogin || user.tenantId ? 'tenant' : 'platform',
+      isAdminSwitch: tenantScopedAdminLogin ? true : undefined,
     };
 
     return {
       ...this.issueTokenPair(payload),
-      user: {
-        id: user.id,
-        username: user.username,
-        role: user.role,
-        tenantId: user.tenantId || null,
-      },
+      user: await this.buildSessionUserForAuthContext(user, payload),
     };
   }
 
   async validateUser(userId: string): Promise<UserModel | null> {
     return this.userRepo.findById(userId);
+  }
+
+  async buildSessionUser(user: UserModel): Promise<SessionUserPayload> {
+    return {
+      id: user.id,
+      username: user.username,
+      role: user.role,
+      tenantId: user.tenantId || null,
+      hasCustomOvConfig: await this.hasCustomOvConfig(user.tenantId),
+    };
+  }
+
+  async buildSessionUserForAuthContext(
+    user: UserModel,
+    authContext: AuthContextPayload,
+  ): Promise<SessionUserPayload> {
+    if (
+      authContext.isAdminSwitch &&
+      user.role === SystemRoles.SUPER_ADMIN &&
+      authContext.tenantId
+    ) {
+      return {
+        id: user.id,
+        username: user.username,
+        role: authContext.role,
+        tenantId: authContext.tenantId,
+        hasCustomOvConfig: await this.hasCustomOvConfig(authContext.tenantId),
+      };
+    }
+
+    return this.buildSessionUser(user);
   }
 
   generateToken(user: UserModel) {
@@ -235,5 +289,23 @@ export class AuthService {
     }
 
     return null;
+  }
+
+  private async hasCustomOvConfig(
+    tenantRecordId: string | null | undefined,
+  ): Promise<boolean> {
+    if (!tenantRecordId) {
+      return false;
+    }
+
+    const tenant = await this.tenantRepo.findById(tenantRecordId);
+    if (!tenant?.ovConfig) {
+      return false;
+    }
+
+    return CUSTOM_OV_CONFIG_FIELDS.some((field) => {
+      const value = tenant.ovConfig?.[field];
+      return typeof value === 'string' ? value.trim().length > 0 : Boolean(value);
+    });
   }
 }

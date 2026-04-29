@@ -1,36 +1,22 @@
-import { Injectable, Inject, Scope } from '@nestjs/common';
-import { REQUEST } from '@nestjs/core';
+import { Injectable, Scope } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, MoreThan, type FindManyOptions } from 'typeorm';
+import { Repository, MoreThan, type FindManyOptions } from 'typeorm';
 import { SearchLog } from '../../entities/search-log.entity';
 import { ISearchLogRepository } from '../../domain/repositories/search-log.repository.interface';
 import type { SearchLogModel } from '../../domain/search-log.model';
 import type { RepositoryFindQuery } from '../../../common/repository-query.types';
 
-interface TenantRequest {
-  tenantQueryRunner?: {
-    manager: {
-      getRepository: (entity: typeof SearchLog) => Repository<SearchLog>;
-    };
-  };
-  tenantDataSource?: DataSource;
-}
+const ALL_SCOPE_URI = 'viking://*';
 
 @Injectable({ scope: Scope.REQUEST })
 export class SearchLogRepository implements ISearchLogRepository {
   constructor(
-    @Inject(REQUEST) private readonly request: TenantRequest,
     @InjectRepository(SearchLog)
     private readonly defaultRepo: Repository<SearchLog>,
   ) {}
 
   private get repo(): Repository<SearchLog> {
-    if (this.request?.tenantQueryRunner) {
-      return this.request.tenantQueryRunner.manager.getRepository(SearchLog);
-    }
-    if (this.request?.tenantDataSource) {
-      return this.request.tenantDataSource.getRepository(SearchLog);
-    }
+    // search_logs 属于平台观测数据，统一保留在公共库，避免平台分析读不到租户侧日志。
     return this.defaultRepo;
   }
 
@@ -136,17 +122,18 @@ export class SearchLogRepository implements ISearchLogRepository {
     tenantId?: string | null,
     limit: number = 20,
   ): Promise<{ uri: string; count: number; hits: number; hitRate: number }[]> {
+    const normalizedScopeExpression = "COALESCE(NULLIF(l.scope, ''), :allScope)";
     const query = this.repo
       .createQueryBuilder('l')
-      .select('l.scope', 'uri')
+      .select(normalizedScopeExpression, 'uri')
       .addSelect('COUNT(*)', 'count')
       .addSelect("COUNT(*) FILTER (WHERE l.result_count > 0)", 'hits')
-      .where('l.scope IS NOT NULL AND l.scope != :empty', { empty: '' });
+      .setParameter('allScope', ALL_SCOPE_URI);
     if (tenantId) {
-      query.andWhere('l.tenantId = :tenantId', { tenantId });
+      query.where('l.tenantId = :tenantId', { tenantId });
     }
     const rows = await query
-      .groupBy('l.scope')
+      .groupBy(normalizedScopeExpression)
       .orderBy('count', 'DESC')
       .limit(limit)
       .getRawMany();

@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useApp } from "@/components/app-provider";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { getShellButtonClass, getShellPanelClass, getShellTileClass, type ShellTheme } from "@/components/ui/shell-primitives";
-import { SquareTerminal, Database, Network, FileText, Search, Activity, MessageSquare, Users2, Link2, ClipboardList, MonitorCheck, LogOut, Bot, Menu, X, ChevronLeft } from "lucide-react";
+import { SquareTerminal, Database, Network, FileText, Search, Activity, MessageSquare, Users2, Link2, ClipboardList, MonitorCheck, LogOut, Bot, Menu, X, ChevronLeft, KeyRound } from "lucide-react";
 
 const navItems = [
   { id: "01", href: "/console/dashboard", label: "租户工作台", icon: SquareTerminal, full: "租户工作台" },
@@ -14,13 +14,14 @@ const navItems = [
   { id: "03", href: "/console/knowledge-tree", label: "图谱知识树", icon: Network, full: "图谱知识树" },
   { id: "04", href: "/console/documents", label: "文档处理中心", icon: FileText, full: "文档处理中心" },
   { id: "05", href: "/console/search", label: "智能检索分析", icon: Search, full: "智能检索分析" },
-  { id: "06", href: "/console/analysis", label: "无答案洞察", icon: Activity, full: "无答案洞察" },
-  { id: "07", href: "/console/qa", label: "沙盒问答调试", icon: MessageSquare, full: "沙盒问答调试" },
-  { id: "08", href: "/console/users", label: "租户内用户", icon: Users2, full: "租户内用户管理" },
-  { id: "09", href: "/console/webdav", label: "WebDAV 配置", icon: Link2, full: "WebDAV 挂载" },
-  { id: "10", href: "/console/audit", label: "租户审计", icon: ClipboardList, full: "租户审计日志" },
-  { id: "11", href: "/console/system", label: "系统状态", icon: MonitorCheck, full: "租户系统状态" },
-  { id: "12", href: "/console/mcp", label: "MCP 智能助手", icon: Bot, full: "MCP 智能助手接入" },
+  { id: "06", href: "/console/qa", label: "沙盒问答调试", icon: MessageSquare, full: "沙盒问答调试" },
+  { id: "07", href: "/console/analysis", label: "无答案洞察", icon: Activity, full: "无答案洞察" },
+  { id: "08", href: "/console/users", label: "成员管理", icon: Users2, full: "成员管理" },
+  { id: "09", href: "/console/integrations", label: "集成中心", icon: KeyRound, full: "集成凭证与身份接入" },
+  { id: "10", href: "/console/capability", label: "凭证中心", icon: Bot, full: "Capability 凭证中心" },
+  { id: "11", href: "/console/webdav", label: "WebDAV 配置", icon: Link2, full: "WebDAV 挂载" },
+  { id: "12", href: "/console/audit", label: "租户审计", icon: ClipboardList, full: "租户审计日志" },
+  { id: "13", href: "/console/system", label: "系统状态", icon: MonitorCheck, full: "租户系统状态" },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -50,9 +51,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     setMobileNavOpen(false);
   }, [pathname]);
 
+  const visibleNavItems = useMemo(
+    () =>
+      navItems.filter((item) => {
+        if (item.href !== "/console/system") {
+          return true;
+        }
+        return Boolean(user?.hasCustomOvConfig);
+      }),
+    [user?.hasCustomOvConfig],
+  );
+
   const activeItem = useMemo(
-    () => navItems.find((item) => pathname.startsWith(item.href)) ?? navItems[0],
-    [pathname]
+    () => visibleNavItems.find((item) => pathname.startsWith(item.href)) ?? visibleNavItems[0],
+    [pathname, visibleNavItems]
   );
 
   if (!mounted || isLoading || !user) return null;
@@ -93,7 +105,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         <nav className="flex-1 overflow-y-auto px-3 py-4">
           <div className="space-y-2">
-            {navItems.map((item) => {
+            {visibleNavItems.map((item) => {
               const isActive = pathname.startsWith(item.href);
               const Icon = item.icon;
               return (
@@ -171,7 +183,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         {mobileNavOpen ? (
           <div className="border-b border-[var(--border)] bg-[var(--bg-card)] px-4 py-4 lg:hidden">
             <nav className="grid gap-2" aria-label="移动端控制台导航">
-              {navItems.map((item) => {
+              {visibleNavItems.map((item) => {
                 const isActive = pathname.startsWith(item.href);
                 const Icon = item.icon;
                 return (

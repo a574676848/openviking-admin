@@ -48,7 +48,9 @@ describe("AnalysisPage", () => {
   });
 
   it("加载失败时展示页面级失败态和重试入口", async () => {
-    getMock.mockRejectedValueOnce(new Error("分析服务暂不可用"));
+    getMock
+      .mockRejectedValueOnce(new Error("分析服务暂不可用"))
+      .mockResolvedValueOnce(null);
 
     await renderPage();
 
@@ -61,8 +63,6 @@ describe("AnalysisPage", () => {
     getMock
       .mockResolvedValueOnce({
         total: 10,
-        zeroResults: 3,
-        zeroRate: "30.0",
         noAnswerLogs: [
           {
             id: "log-1",
@@ -73,6 +73,12 @@ describe("AnalysisPage", () => {
             createdAt: "2026-04-26T00:00:00.000Z",
           },
         ],
+      })
+      .mockResolvedValueOnce({
+        overview: {
+          total: 10,
+          zeroCount: 3,
+        },
         topQueries: [],
         daily: [],
       })
@@ -111,5 +117,34 @@ describe("AnalysisPage", () => {
       openTreeButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     expect(pushMock).toHaveBeenCalledWith("/console/knowledge-tree?kbId=kb-1");
+  });
+
+  it("深度统计缺失时仍能用基础分析数据兜底渲染", async () => {
+    getMock
+      .mockResolvedValueOnce({
+        total: 4,
+        noAnswerLogs: [
+          {
+            id: "log-1",
+            query: "权限配置",
+            scope: "viking://auth",
+            tenantId: "tenant-a",
+            latencyMs: 80,
+            createdAt: "2026-04-26T00:00:00.000Z",
+          },
+        ],
+      })
+      .mockRejectedValueOnce(new Error("深度统计暂不可用"))
+      .mockResolvedValueOnce([]);
+
+    await renderPage();
+
+    expect(container.textContent).toContain("总检索量");
+    expect(container.textContent).toContain("4");
+    expect(container.textContent).toContain("零命中");
+    expect(container.textContent).toContain("1");
+    expect(container.textContent).toContain("空窗占比");
+    expect(container.textContent).toContain("25.0%");
+    expect(container.textContent).toContain("高频问题 [0]");
   });
 });

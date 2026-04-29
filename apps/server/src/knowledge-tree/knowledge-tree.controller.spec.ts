@@ -30,6 +30,7 @@ describe('KnowledgeTreeController', () => {
       id: 'node-1',
       kbId: 'kb-1',
       name: '节点 A',
+      vikingUri: 'viking://resources/tenant-alpha/kb-1/node-1/',
     });
 
     await controller.create({ kbId: 'kb-1', title: '节点 A' } as never, req);
@@ -58,6 +59,32 @@ describe('KnowledgeTreeController', () => {
         target: 'node-1',
         meta: expect.objectContaining({
           parentId: 'parent-1',
+          sortOrder: 3,
+        }),
+      }),
+    );
+  });
+
+  it('move 到根目录时应清空父节点', async () => {
+    treeService.update.mockResolvedValue({ id: 'node-1' });
+
+    await controller.move(
+      'node-1',
+      { parentId: null, sortOrder: 3 },
+      req,
+    );
+
+    expect(treeService.update).toHaveBeenCalledWith(
+      'node-1',
+      { parentId: null, sortOrder: 3 },
+      'tenant-alpha',
+    );
+    expect(auditService.log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'move_knowledge_node',
+        target: 'node-1',
+        meta: expect.objectContaining({
+          parentId: null,
           sortOrder: 3,
         }),
       }),

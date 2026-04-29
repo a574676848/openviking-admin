@@ -6,6 +6,8 @@ import { CapabilityCredentialService } from './infrastructure/capability-credent
 import { CredentialExchangeService } from './application/credential-exchange.service';
 import { CapabilityObservabilityService } from './application/capability-observability.service';
 import { ensureRequestTrace } from '../common/request-trace';
+import { CredentialTtlDto } from './dto/credential-ttl.dto';
+import { CREDENTIAL_TTL_POLICIES } from './domain/credential-ttl.policy';
 
 @Controller('auth')
 export class CapabilityAuthController {
@@ -42,21 +44,24 @@ export class CapabilityAuthController {
             channel: 'http',
             credentialType: 'capability_access_token',
             issueEndpoint: '/api/auth/token/exchange',
-            ttlSeconds: 7200,
+            ttlSeconds: CREDENTIAL_TTL_POLICIES.capability_access_token.defaultTtlSeconds,
+            ttlOptions: CREDENTIAL_TTL_POLICIES.capability_access_token.options,
             recommendedFor: ['browser', 'service', 'skill'],
           },
           {
             channel: 'mcp',
             credentialType: 'session_key',
             issueEndpoint: '/api/auth/session/exchange',
-            ttlSeconds: 1800,
+            ttlSeconds: CREDENTIAL_TTL_POLICIES.session_key.defaultTtlSeconds,
+            ttlOptions: CREDENTIAL_TTL_POLICIES.session_key.options,
             recommendedFor: ['mcp', 'short-lived desktop session'],
           },
           {
             channel: 'cli',
             credentialType: 'api_key',
             issueEndpoint: '/api/auth/client-credentials',
-            ttlSeconds: null,
+            ttlSeconds: CREDENTIAL_TTL_POLICIES.api_key.defaultTtlSeconds,
+            ttlOptions: CREDENTIAL_TTL_POLICIES.api_key.options,
             recommendedFor: ['cli', 'automation', 'desktop client'],
           },
         ],
@@ -74,6 +79,7 @@ export class CapabilityAuthController {
   @UseGuards(JwtAuthGuard)
   @Post('token/exchange')
   async exchangeToken(
+    @Body() body: CredentialTtlDto,
     @Req() req: AuthenticatedRequest,
     @Res({ passthrough: true }) res: Response,
   ) {
@@ -89,6 +95,7 @@ export class CapabilityAuthController {
         principal,
         trace.traceId,
         trace.requestId,
+        body.ttlSeconds,
       ),
       meta: {
         channel: 'http',
@@ -103,6 +110,7 @@ export class CapabilityAuthController {
   @UseGuards(JwtAuthGuard)
   @Post('session/exchange')
   async exchangeSession(
+    @Body() body: CredentialTtlDto,
     @Req() req: AuthenticatedRequest,
     @Res({ passthrough: true }) res: Response,
   ) {
@@ -118,6 +126,7 @@ export class CapabilityAuthController {
         principal,
         trace.traceId,
         trace.requestId,
+        body.ttlSeconds,
       ),
       meta: {
         channel: 'http',
@@ -162,7 +171,7 @@ export class CapabilityAuthController {
   @UseGuards(JwtAuthGuard)
   @Post('client-credentials')
   async clientCredentials(
-    @Body() body: { name?: string },
+    @Body() body: { name?: string; ttlSeconds?: number | null },
     @Req() req: AuthenticatedRequest,
     @Res({ passthrough: true }) res: Response,
   ) {
@@ -171,6 +180,7 @@ export class CapabilityAuthController {
       req.user.id,
       req.user.tenantId!,
       body.name ?? 'cli-client',
+      body.ttlSeconds,
     );
     const principal =
       await this.capabilityCredentialService.resolvePrincipalFromAuthenticatedUser(
@@ -191,6 +201,8 @@ export class CapabilityAuthController {
         credentialType: 'api_key',
         apiKey: key.apiKey,
         name: key.name,
+        expiresAt: key.expiresAt,
+        expiresInSeconds: body.ttlSeconds ?? CREDENTIAL_TTL_POLICIES.api_key.defaultTtlSeconds,
       },
       meta: {
         channel: 'http',

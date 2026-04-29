@@ -42,3 +42,5 @@ export class SearchLog {
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 }
+
+export const SEARCH_LOG_TABLE = 'search_logs';

@@ -1,53 +1,75 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Network, RefreshCw } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/apiClient";
 import { useConfirm } from "@/components/ui/ConfirmProvider";
 import { KnowledgeTreeBrowser } from "./knowledge-tree-browser";
-import { KnowledgeTreeEditor } from "./knowledge-tree-editor";
 import { KnowledgeTreeInspector } from "./knowledge-tree-inspector";
-import type { KnowledgeAcl, KnowledgeBase, KnowledgeNode, TreeNode } from "./knowledge-tree.types";
+import { AddNodeModal } from "./add-node-modal";
+import type { KnowledgeAcl, KnowledgeBase, KnowledgeNode, TenantUserOption, TreeNode } from "./knowledge-tree.types";
 import { buildPermissionPreview, buildTree, collectDescendantIds, EMPTY_ACL, findNode } from "./knowledge-tree.utils";
 
 export default function KnowledgeTreePage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const confirm = useConfirm();
   const [kbs, setKbs] = useState<KnowledgeBase[]>([]);
   const [selectedKb, setSelectedKb] = useState("");
   const [nodes, setNodes] = useState<KnowledgeNode[]>([]);
   const [selectedNode, setSelectedNode] = useState<TreeNode | null>(null);
   const [loading, setLoading] = useState(false);
-  const [showForm, setShowForm] = useState(false);
-  const [newName, setNewName] = useState("");
+  const [showAddModal, setShowAddModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [editName, setEditName] = useState("");
-  const [editUri, setEditUri] = useState("");
   const [editAcl, setEditAcl] = useState<KnowledgeAcl>(EMPTY_ACL);
   const [saving, setSaving] = useState(false);
-  const [moveParentId, setMoveParentId] = useState<string>("__KEEP__");
-  const [moving, setMoving] = useState(false);
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
   const [dragOverNodeId, setDragOverNodeId] = useState<string | null>(null);
   const [dragOverRoot, setDragOverRoot] = useState(false);
+  const [tenantUsers, setTenantUsers] = useState<TenantUserOption[]>([]);
+  const [tenantUsersLoading, setTenantUsersLoading] = useState(false);
+  const [tenantUsersError, setTenantUsersError] = useState("");
+  const [nodesLoadedForKb, setNodesLoadedForKb] = useState("");
+  const pendingNodeIdRef = useRef(searchParams.get("nodeId"));
+  const initialKbId = searchParams.get("kbId");
 
-  const tree = useMemo(() => buildTree(nodes), [nodes]);
+  const tree = buildTree(nodes);
   const selectedKbName = kbs.find((kb) => kb.id === selectedKb)?.name ?? "未选择知识库";
 
   function selectNode(node: TreeNode | null) {
     setSelectedNode(node);
     if (!node) {
-      setEditName("");
-      setEditUri("");
       setEditAcl(EMPTY_ACL);
-      setMoveParentId("__KEEP__");
       return;
     }
-    setEditName(node.name);
-    setEditUri(node.vikingUri ?? "");
     setEditAcl(node.acl ?? EMPTY_ACL);
-    setMoveParentId(node.parentId ?? "__ROOT__");
   }
+
+  async function handleInlineRename(node: TreeNode, nextName: string) {
+    const trimmedName = nextName.trim();
+    if (!trimmedName || trimmedName === node.name) {
+      return;
+    }
+
+    try {
+      await apiClient.patch(`/knowledge-tree/${node.id}`, {
+        name: trimmedName,
+      });
+      if (selectedNode?.id === node.id) {
+        setSelectedNode({ ...selectedNode, name: trimmedName });
+      }
+      toast.success("节点名称已更新");
+      loadNodes();
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "更新节点名称失败");
+    }
+  }
+
+  useEffect(() => {
+    pendingNodeIdRef.current = searchParams.get("nodeId");
+  }, [searchParams]);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -56,24 +78,46 @@ export default function KnowledgeTreePage() {
         .then((list) => {
           const safeList = Array.isArray(list) ? list : [];
           setKbs(safeList);
-          if (safeList.length > 0) setSelectedKb(safeList[0].id);
+          const nextKbId = safeList.find((kb) => kb.id === initialKbId)?.id ?? safeList[0]?.id ?? "";
+          setSelectedKb(nextKbId);
         })
         .catch((error: unknown) => {
           toast.error(error instanceof Error ? error.message : "知识库列表加载失败");
         });
+    });
+  }, [initialKbId]);
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      setTenantUsersLoading(true);
+      setTenantUsersError("");
+      void apiClient
+        .get<Array<{ id: string; username: string; role: string; active: boolean }>>("/users")
+        .then((list) => {
+          setTenantUsers(Array.isArray(list) ? list : []);
+        })
+        .catch((error: unknown) => {
+          setTenantUsers([]);
+          setTenantUsersError(error instanceof Error ? error.message : "租户用户列表加载失败");
+        })
+        .finally(() => setTenantUsersLoading(false));
     });
   }, []);
 
   const loadNodes = useCallback(() => {
     if (!selectedKb) return;
     setLoading(true);
+    setNodesLoadedForKb("");
     apiClient
       .get<KnowledgeNode[]>(`/knowledge-tree?kbId=${selectedKb}`)
       .then((list) => setNodes(Array.isArray(list) ? list : []))
       .catch((error: unknown) => {
         toast.error(error instanceof Error ? error.message : "知识树加载失败");
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        setLoading(false);
+        setNodesLoadedForKb(selectedKb);
+      });
   }, [selectedKb]);
 
   useEffect(() => {
@@ -82,20 +126,39 @@ export default function KnowledgeTreePage() {
     });
   }, [loadNodes]);
 
-  async function handleCreate(event: React.FormEvent) {
-    event.preventDefault();
-    if (!newName.trim() || !selectedKb) return;
+  useEffect(() => {
+    if (!pendingNodeIdRef.current) {
+      return;
+    }
+    if (!selectedKb || loading) {
+      return;
+    }
+    if (nodesLoadedForKb !== selectedKb) {
+      return;
+    }
+
+    const targetNode = findNode(tree, pendingNodeIdRef.current);
+    if (!targetNode) {
+      pendingNodeIdRef.current = null;
+      return;
+    }
+
+    selectNode(targetNode);
+    pendingNodeIdRef.current = null;
+  }, [loading, nodesLoadedForKb, selectedKb, tree]);
+
+  async function handleCreate(name: string, parentId: string | null) {
+    if (!name.trim() || !selectedKb) return;
 
     setSubmitting(true);
     try {
       await apiClient.post("/knowledge-tree", {
         kbId: selectedKb,
-        parentId: selectedNode?.id ?? null,
-        name: newName.trim(),
+        parentId,
+        name: name.trim(),
       });
       toast.success("知识节点已创建");
-      setNewName("");
-      setShowForm(false);
+      setShowAddModal(false);
       loadNodes();
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : "创建节点失败");
@@ -109,11 +172,9 @@ export default function KnowledgeTreePage() {
     setSaving(true);
     try {
       await apiClient.patch(`/knowledge-tree/${selectedNode.id}`, {
-        name: editName,
-        vikingUri: editUri,
         acl: editAcl,
       });
-      toast.success("节点属性与访问权限已同步");
+      toast.success("保存成功");
       loadNodes();
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : "保存节点失败");
@@ -143,13 +204,6 @@ export default function KnowledgeTreePage() {
     }
   }
 
-  function toggleRole(role: string, checked: boolean) {
-    const roles = checked
-      ? Array.from(new Set([...(editAcl.roles ?? []), role]))
-      : (editAcl.roles ?? []).filter((item) => item !== role);
-    setEditAcl({ ...editAcl, roles });
-  }
-
   async function moveNode(node: TreeNode, nextParentId: string | null) {
     const targetLabel = nextParentId === null ? "根目录" : findNode(tree, nextParentId)?.name ?? "目标节点";
     const approved = await confirm({
@@ -165,7 +219,6 @@ export default function KnowledgeTreePage() {
       return;
     }
 
-    setMoving(true);
     try {
       await apiClient.patch(`/knowledge-tree/${node.id}/move`, {
         parentId: nextParentId,
@@ -176,21 +229,10 @@ export default function KnowledgeTreePage() {
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : "移动节点失败");
     } finally {
-      setMoving(false);
       setDraggingNodeId(null);
       setDragOverNodeId(null);
       setDragOverRoot(false);
     }
-  }
-
-  async function handleMove() {
-    if (!selectedNode) return;
-    const nextParentId = moveParentId === "__ROOT__" ? null : moveParentId;
-    if (moveParentId === "__KEEP__" || nextParentId === selectedNode.parentId) {
-      toast.error("请先选择新的父节点");
-      return;
-    }
-    await moveNode(selectedNode, nextParentId);
   }
 
   function handleDragStart(node: TreeNode) {
@@ -250,61 +292,72 @@ export default function KnowledgeTreePage() {
     void moveNode(draggingNode, null);
   }
 
+  const permissionPreview = selectedNode ? buildPermissionPreview(editAcl, tenantUsers) : [];
   const detailCards = selectedNode
     ? [
         { label: "系统唯一标识", value: selectedNode.id, className: "text-[var(--text-primary)]" },
-        { label: "所属知识库", value: selectedKbName, className: "text-[var(--brand)]" },
-        {
-          label: "访问权限状态",
-          value: selectedNode.acl?.isPublic ? "公开可见" : "私有受控",
-          className: selectedNode.acl?.isPublic ? "text-[var(--success)]" : "text-[var(--danger)]",
-        },
-        { label: "排序权重", value: String(selectedNode.sortOrder), className: "text-[var(--warning)]" },
+        { label: "所属知识库", value: selectedKbName, className: "text-[var(--text-primary)]" },
         { label: "引擎资源 URI", value: selectedNode.vikingUri || "未挂载", className: "text-[var(--info)]", full: true },
+        {
+          label: "节点状态",
+          value: editAcl.isPublic ? "公开节点" : "私有节点",
+          className: editAcl.isPublic ? "text-[var(--success)]" : "text-[var(--brand)]",
+        },
+        {
+          label: "访问预览",
+          lines: permissionPreview,
+          className: "text-[var(--brand)]",
+        },
       ]
-    : [];
-  const permissionPreview = selectedNode ? buildPermissionPreview(editAcl) : [];
-  const moveCandidates = selectedNode
-    ? nodes.filter((node) => node.id !== selectedNode.id && !collectDescendantIds(selectedNode).includes(node.id))
     : [];
 
   return (
     <div className="flex h-[calc(100vh-4rem)] flex-col overflow-hidden">
       <div className="mb-6 flex shrink-0 items-end justify-between border-b-[var(--border-width)] border-[var(--border)] pb-4">
         <div>
-          <div className="mb-2 flex items-center gap-2 font-mono text-[10px] font-black uppercase tracking-[0.25em] text-[var(--brand)]">
-            <Network size={14} strokeWidth={2} /> Graph Tree Console
-          </div>
-          <h1 className="flex items-center font-sans text-4xl font-black tracking-tighter text-[var(--text-primary)] md:text-6xl">
-            知识树编排
+          <h1 className="flex items-center gap-4 font-sans text-4xl font-bold tracking-tight text-[var(--text-primary)]">
+            图谱知识树
           </h1>
+          <p className="mt-2 text-sm font-medium text-[var(--text-muted)]">
+            统一管理租户知识库、容量使用与知识树入口
+          </p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-card)] px-4 py-3 font-mono text-[10px] font-black uppercase tracking-widest shadow-[var(--shadow-base)]">
+          <button
+            type="button"
+            onClick={() => {
+              if (!selectedKb) {
+                return;
+              }
+              void router.push(`/console/graph?kbId=${encodeURIComponent(selectedKb)}`);
+            }}
+            disabled={!selectedKb}
+            className="rounded-[var(--radius-pill)] border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-card)] px-4 py-3 font-sans text-sm font-bold text-[var(--text-primary)] shadow-[var(--shadow-base)] transition-all hover:-translate-y-px hover:shadow-[var(--shadow-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+            title="切换到图谱视图"
+          >
+            图谱视图
+          </button>
+          <div className="rounded-[var(--radius-pill)] border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-card)] px-4 py-3 font-mono text-[10px] font-black uppercase tracking-widest shadow-[var(--shadow-base)]">
             {loading ? "同步中" : `节点 ${nodes.length}`}
           </div>
           <button
             type="button"
             onClick={loadNodes}
-            className="border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-card)] p-3 shadow-[var(--shadow-base)] transition-all hover:translate-y-0.5 hover:shadow-none"
+            className="flex h-11 w-11 items-center justify-center rounded-[var(--radius-pill)] border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-card)] shadow-[var(--shadow-base)] transition-all hover:-translate-y-px hover:shadow-[var(--shadow-hover)]"
             aria-label="刷新知识树"
             title="刷新知识树"
           >
-            <RefreshCw size={18} strokeWidth={2} className={loading ? "animate-spin" : ""} />
+            <RefreshCw size={18} strokeWidth={2} className={loading ? "animate-theme-pulse" : ""} />
           </button>
         </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-[var(--border-width)] bg-[var(--border)] border-[var(--border-width)] border-[var(--border)] shadow-[var(--shadow-base)] lg:grid-cols-[320px_minmax(0,1fr)_288px]">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-[var(--border-width)] overflow-hidden rounded-[var(--radius-base)] border-[var(--border-width)] border-[var(--border)] bg-[var(--border)] shadow-[var(--shadow-base)] lg:grid-cols-[320px_minmax(0,1fr)]">
         <KnowledgeTreeBrowser
           kbs={kbs}
           selectedKb={selectedKb}
           tree={tree}
           selectedNodeId={selectedNode?.id ?? null}
-          loading={loading}
-          showForm={showForm}
-          newName={newName}
-          submitting={submitting}
           draggingNodeId={draggingNodeId}
           dragOverNodeId={dragOverNodeId}
           dragOverRoot={dragOverRoot}
@@ -312,12 +365,9 @@ export default function KnowledgeTreePage() {
             setSelectedKb(value);
             setSelectedNode(null);
           }}
-          onToggleForm={() => setShowForm((value) => !value)}
-          onNewNameChange={setNewName}
-          onCreate={handleCreate}
-          onCancelCreate={() => setShowForm(false)}
-          onRefresh={loadNodes}
+          onAddNode={() => setShowAddModal(true)}
           onSelectNode={selectNode}
+          onRenameNode={handleInlineRename}
           onDragStart={handleDragStart}
           onDragHover={handleDragHover}
           onDragEnd={handleDragEnd}
@@ -337,31 +387,25 @@ export default function KnowledgeTreePage() {
         <KnowledgeTreeInspector
           selectedNode={selectedNode}
           detailCards={detailCards}
-          onSelectNode={selectNode}
+          editAcl={editAcl}
+          tenantUsers={tenantUsers}
+          tenantUsersLoading={tenantUsersLoading}
+          tenantUsersError={tenantUsersError}
+          saving={saving}
+          onEditAclChange={setEditAcl}
+          onSave={handleSave}
+          onDelete={handleDelete}
         />
-
-        {selectedNode && (
-          <KnowledgeTreeEditor
-            selectedNode={selectedNode}
-            editName={editName}
-            editUri={editUri}
-            editAcl={editAcl}
-            moveParentId={moveParentId}
-            moveCandidates={moveCandidates}
-            permissionPreview={permissionPreview}
-            saving={saving}
-            moving={moving}
-            onEditNameChange={setEditName}
-            onEditUriChange={setEditUri}
-            onEditAclChange={setEditAcl}
-            onMoveParentChange={setMoveParentId}
-            onToggleRole={toggleRole}
-            onMove={handleMove}
-            onSave={handleSave}
-            onDelete={handleDelete}
-          />
-        )}
       </div>
+
+      <AddNodeModal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onSubmit={handleCreate}
+        tree={tree}
+        defaultParentId={selectedNode?.id ?? null}
+        submitting={submitting}
+      />
     </div>
   );
 }

@@ -9,6 +9,8 @@ export interface OVConnection {
 export interface OVRequestMeta {
   traceId?: string;
   requestId?: string;
+  account?: string;
+  user?: string;
 }
 
 export interface OVRequestOptions {
@@ -65,8 +67,14 @@ export class OVClientService {
       'Content-Type': 'application/json',
       'x-api-key': conn.apiKey || '',
       'X-OpenViking-Account': conn.account || 'default',
-      ...(options?.headers ?? {}),
     };
+    if (meta?.account) {
+      headers['X-OpenViking-Account'] = meta.account;
+    }
+    if (meta?.user) {
+      headers['X-OpenViking-User'] = meta.user;
+    }
+    Object.assign(headers, options?.headers ?? {});
     return this.requestJson(
       url,
       method,

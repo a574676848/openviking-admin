@@ -182,6 +182,8 @@ describe('SearchService', () => {
       {
         traceId: 'trace-1',
         requestId: 'request-1',
+        account: 'tenant-a',
+        user: 'user-1',
       },
     );
 
@@ -191,6 +193,8 @@ describe('SearchService', () => {
       {
         traceId: 'trace-1',
         requestId: 'request-1',
+        account: 'tenant-a',
+        user: 'user-1',
       },
     );
     expect(ovKnowledgeGateway.rerank).toHaveBeenCalledWith(
@@ -198,6 +202,8 @@ describe('SearchService', () => {
       {
         traceId: 'trace-1',
         requestId: 'request-1',
+        account: 'tenant-a',
+        user: 'user-1',
       },
     );
   });

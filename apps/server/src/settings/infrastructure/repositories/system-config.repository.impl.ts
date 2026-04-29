@@ -20,12 +20,7 @@ export class SystemConfigRepositoryImpl implements ISystemConfigRepository {
   ) {}
 
   private get repo(): Repository<SystemConfig> {
-    if (this.request?.tenantQueryRunner) {
-      return this.request.tenantQueryRunner.manager.getRepository(SystemConfig);
-    }
-    if (this.request?.tenantDataSource) {
-      return this.request.tenantDataSource.getRepository(SystemConfig);
-    }
+    // SystemConfig 属于控制平面配置，始终存放在公共库，不能随租户业务库切换。
     return this.defaultRepo;
   }
 

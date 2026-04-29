@@ -2,12 +2,22 @@ export interface CapabilityKey {
   id: string;
   name: string;
   apiKey: string;
+  userId: string;
   lastUsedAt: string | null;
+  expiresAt?: string | null;
   createdAt: string;
+}
+
+export interface TenantUserOption {
+  id: string;
+  username: string;
+  role: string;
+  active: boolean;
 }
 
 export interface CreateCapabilityKeyResult {
   apiKey: string;
+  expiresAt?: string | null;
 }
 
 export interface IssuedCredential {
@@ -16,6 +26,13 @@ export interface IssuedCredential {
   sessionKey?: string;
   apiKey?: string;
   expiresInSeconds?: number | null;
+  expiresAt?: string | null;
+}
+
+export interface CredentialTtlOption {
+  label: string;
+  value: number | null;
+  default?: boolean;
 }
 
 export interface CredentialOption {
@@ -23,13 +40,12 @@ export interface CredentialOption {
   credentialType: string;
   issueEndpoint: string;
   ttlSeconds: number | null;
+  ttlOptions: CredentialTtlOption[];
   recommendedFor: string[];
 }
 
 export interface CredentialOptionsResponse {
-  data: {
-    capabilities: CredentialOption[];
-  };
+  capabilities: CredentialOption[];
 }
 
 export interface ConnectionDiagnostic {

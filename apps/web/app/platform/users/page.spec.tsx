@@ -125,8 +125,10 @@ describe("Platform UsersPage", () => {
     expect(container.textContent).toContain("删除用户");
   });
 
-  it("编辑弹窗中角色范围字段为禁用态，仅可调整租户绑定", async () => {
-    getMock.mockResolvedValueOnce([{ id: "other-id", username: "testuser", role: "tenant_viewer", tenantId: "demo", active: true, createdAt: "2024-01-01" }]);
+  it("编辑弹窗中角色范围可选，租户绑定为禁用态", async () => {
+    getMock.mockResolvedValueOnce([
+      { id: "other-id", username: "testuser", role: "tenant_viewer", tenantId: "demo", active: true, createdAt: "2024-01-01" },
+    ]);
 
     await renderPage();
 
@@ -142,13 +144,20 @@ describe("Platform UsersPage", () => {
     expect(container.textContent).toContain("编辑用户");
     expect(container.textContent).toContain("保存修改");
 
-    const selects = Array.from(container.querySelectorAll("select"));
-    const roleSelect = selects.find((s) => {
-      const options = Array.from(s.querySelectorAll("option"));
-      return options.some((o) => o.value === "super_admin");
-    });
-    expect(roleSelect).toBeTruthy();
-    expect(roleSelect?.getAttribute("disabled")).not.toBeNull();
+    // ConsoleSelect 渲染为 button，角色范围按钮不应有 disabled 属性
+    const buttons = Array.from(container.querySelectorAll("button"));
+    const roleSelectBtn = buttons.find((b) =>
+      b.textContent?.includes("租户只读成员") || b.textContent?.includes("租户管理员") || b.textContent?.includes("平台超级管理员"),
+    );
+    expect(roleSelectBtn).toBeTruthy();
+    expect(roleSelectBtn?.getAttribute("disabled")).toBeNull();
+
+    // 租户绑定按钮应有 disabled 属性
+    const tenantSelectBtn = buttons.find((b) =>
+      b.textContent?.includes("平台全局") || b.textContent?.includes("demo"),
+    );
+    expect(tenantSelectBtn).toBeTruthy();
+    expect(tenantSelectBtn?.getAttribute("disabled")).not.toBeNull();
   });
 
   it("重置密码弹窗需输入两遍新密码且一致才能提交", async () => {

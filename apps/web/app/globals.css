@@ -132,9 +132,9 @@ body {
   cursor: pointer;
 }
 .ov-button:hover:not(:disabled) {
+  background: var(--brand-hover);
   transform: translateY(-1px);
   box-shadow: var(--shadow-hover);
-  background: var(--brand-hover);
 }
 .theme-starry .ov-button:hover:not(:disabled) {
   transform: translateY(-1px);
@@ -412,5 +412,4 @@ body {
 .animate-wing-bottom {
   animation: wing-flap-bottom 0.08s linear infinite;
 }
-
 

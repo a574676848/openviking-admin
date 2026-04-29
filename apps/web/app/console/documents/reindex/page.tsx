@@ -3,6 +3,7 @@
 import { apiClient } from "@/lib/apiClient";
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { ConsoleSelect } from "@/components/console/primitives";
 
 interface KnowledgeBase { id: string; name: string; vikingUri: string; tenantId: string; }
 interface ReindexResult { taskCount?: number; }
@@ -58,14 +59,10 @@ export default function ReindexPage() {
         <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '0.5rem' }}>
           从已有知识库选择
         </label>
-        <select
+        <ConsoleSelect
           value={selectedUri}
           onChange={e => { setSelectedUri(e.target.value); setCustomUri(''); }}
-          style={{
-            width: '100%', padding: '0.6rem 0.75rem', marginBottom: '1.25rem',
-            background: 'var(--bg-input)', border: '1px solid var(--border)',
-            borderRadius: '6px', color: 'var(--text-primary)', fontSize: '0.875rem',
-          }}
+          className="mb-5"
         >
           <option value="">— 请选择知识库 —</option>
           {kbs.map(kb => (
@@ -73,7 +70,7 @@ export default function ReindexPage() {
               {kb.name}（{kb.vikingUri}）
             </option>
           ))}
-        </select>
+        </ConsoleSelect>
 
         {/* 或手动输入 */}
         <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '0.5rem' }}>

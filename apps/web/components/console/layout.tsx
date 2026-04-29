@@ -8,14 +8,16 @@ export function ConsolePageHeader({
   subtitle,
   icon: Icon,
   actions,
+  className,
 }: {
   title: string;
   subtitle: string;
   icon?: ElementType;
   actions?: ReactNode;
+  className?: string;
 }) {
   return (
-    <section className="flex flex-col gap-4 border-b border-[var(--border)] pb-6 lg:flex-row lg:items-end lg:justify-between">
+    <section className={cx("flex flex-col gap-4 border-b border-[var(--border)] pb-6 lg:flex-row lg:items-end lg:justify-between", className)}>
       <div>
         <h1 className="flex items-center gap-4 font-sans text-4xl font-bold tracking-tight text-[var(--text-primary)]">
           {Icon ? <Icon size={34} strokeWidth={2.6} /> : null}
@@ -39,11 +41,14 @@ export function ConsoleMetricCard({
   label: string;
   value: ReactNode;
   tone?: Tone;
+  icon?: ElementType;
   className?: string;
 }) {
   return (
-    <div className={cx("bg-[var(--bg-card)] border border-[var(--border)] rounded-[var(--radius-base)] px-6 py-6", className)}>
-      <p className="font-sans text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">{label}</p>
+    <div className={cx("bg-[var(--bg-card)] border border-[var(--border)] rounded-[var(--radius-base)] px-6 py-6 relative overflow-hidden group hover:border-[var(--brand)] transition-colors", className)}>
+      <p className="font-sans text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)] flex items-center gap-2">
+        {label}
+      </p>
       <div className={cx("mt-4 font-sans text-4xl font-bold tabular-nums", toneMap[tone])}>{value}</div>
     </div>
   );

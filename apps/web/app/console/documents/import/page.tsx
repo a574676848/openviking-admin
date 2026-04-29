@@ -2,75 +2,63 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Database, FileUp, Globe, Layers, Share2, Terminal } from "lucide-react";
+import { FileUp, Globe, Layers, Share2, Terminal, X } from "lucide-react";
 import { VikingWatcher } from "@/components/watcher";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/apiClient";
-import { ConsoleButton, ConsoleSelectionCard, ConsoleSurfaceCard } from "@/components/console/primitives";
+import { ConsoleButton, ConsoleSelectionCard, ConsoleSurfaceCard, ConsoleSelect } from "@/components/console/primitives";
 
-type SourceType = "git" | "webdav" | "local" | "url" | "enterprise";
+type SourceType = "git" | "local" | "url" | "enterprise";
 type Integration = { id: string; name: string; type: string };
 type KnowledgeBase = { id: string; name: string };
+type KnowledgeNode = { id: string; name: string; vikingUri: string | null };
 
 const sourceOptions = [
   {
     id: "git" as const,
-    label: "Git Repository",
+    label: "Git 仓库",
     icon: Globe,
-    desc: "GitHub / GitLab 私有仓库",
+    desc: "支持 GitHub / GitLab 私有仓库",
     color: "var(--brand)",
     supportsBatchUrls: true,
-    sourceListLabel: "[02] 来源路径列表",
+    sourceListLabel: "仓库地址列表",
     sourceListPlaceholder: "https://github.com/org/repo1.git\nhttps://github.com/org/repo2.git",
     supportsSubType: false,
-    credentialLabel: "[03] 集成凭证",
-    credentialEmptyLabel: "公开库 (NO_AUTH)",
+    requiresIntegration: false,
+    credentialLabel: "集成凭证",
+    credentialEmptyLabel: "公开库 (无需凭证)",
     resolveSourceType: () => "git",
     filterIntegrations: (integrations: Integration[]) =>
       integrations.filter((integration) => ["github", "gitlab"].includes(integration.type)),
   },
   {
     id: "enterprise" as const,
-    label: "Enterprise Docs",
+    label: "企业文档",
     icon: Share2,
-    desc: "飞书 / 钉钉在线文档",
+    desc: "支持 飞书 / 钉钉 在线文档",
     color: "#FF5733",
     supportsBatchUrls: true,
-    sourceListLabel: "[02] 来源路径列表",
+    sourceListLabel: "文档地址列表",
     sourceListPlaceholder: "https://docs.example.com/page1\nhttps://docs.example.com/page2",
     supportsSubType: true,
-    credentialLabel: "[04] 集成凭证",
+    requiresIntegration: true,
+    credentialLabel: "集成凭证",
     credentialEmptyLabel: "请选择已存储的凭证",
     resolveSourceType: (subType: string) => subType,
     filterIntegrations: (integrations: Integration[], subType: string) =>
       integrations.filter((integration) => integration.type === subType),
   },
   {
-    id: "webdav" as const,
-    label: "WebDAV Sync",
-    icon: Database,
-    desc: "Obsidian / 思源同步",
-    color: "var(--info)",
-    supportsBatchUrls: false,
-    sourceListLabel: "",
-    sourceListPlaceholder: "",
-    supportsSubType: false,
-    credentialLabel: "[03] 集成凭证",
-    credentialEmptyLabel: "请选择已存储的凭证",
-    resolveSourceType: () => "webdav",
-    filterIntegrations: (integrations: Integration[]) =>
-      integrations.filter((integration) => integration.type === "webdav"),
-  },
-  {
     id: "local" as const,
-    label: "Local Upload",
+    label: "本地上传",
     icon: FileUp,
-    desc: "PDF / MD / Word 注入",
+    desc: "支持 PDF / MD / Word 格式",
     color: "var(--warning)",
     supportsBatchUrls: false,
     sourceListLabel: "",
     sourceListPlaceholder: "",
     supportsSubType: false,
+    requiresIntegration: false,
     credentialLabel: "",
     credentialEmptyLabel: "",
     resolveSourceType: () => "local",
@@ -78,14 +66,15 @@ const sourceOptions = [
   },
   {
     id: "url" as const,
-    label: "Web Extractor",
+    label: "网页提取",
     icon: Globe,
-    desc: "公开网页 / Wiki 提取",
+    desc: "公开网页或 Wiki 知识提取",
     color: "var(--success)",
     supportsBatchUrls: true,
-    sourceListLabel: "[02] 来源路径列表",
+    sourceListLabel: "网页地址列表",
     sourceListPlaceholder: "https://docs.example.com/page1\nhttps://docs.example.com/page2",
     supportsSubType: false,
+    requiresIntegration: false,
     credentialLabel: "",
     credentialEmptyLabel: "",
     resolveSourceType: () => "url",
@@ -99,12 +88,13 @@ export default function IngestionPage() {
   const [activeSource, setActiveSource] = useState<SourceType>("git");
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [kbs, setKbs] = useState<KnowledgeBase[]>([]);
+  const [nodes, setNodes] = useState<KnowledgeNode[]>([]);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     kbId: "",
     rawSourceUrls: "",
-    targetUri: "",
     integrationId: "",
+    targetNodeUri: "",
     subType: "feishu",
   });
 
@@ -112,6 +102,31 @@ export default function IngestionPage() {
     void apiClient.get<Integration[]>("/integrations").then(setIntegrations);
     void apiClient.get<KnowledgeBase[]>("/knowledge-bases").then(setKbs);
   }, []);
+
+  useEffect(() => {
+    if (!form.kbId) {
+      setNodes([]);
+      setForm((prev) => ({ ...prev, targetNodeUri: "" }));
+      return;
+    }
+    void apiClient
+      .get<KnowledgeNode[]>(`/knowledge-tree?kbId=${encodeURIComponent(form.kbId)}`)
+      .then((items) => {
+        const nextNodes = items.filter((item) => Boolean(item.vikingUri));
+        setNodes(nextNodes);
+        setForm((prev) => {
+          if (!prev.targetNodeUri) {
+            return prev;
+          }
+          const stillExists = nextNodes.some((item) => item.vikingUri === prev.targetNodeUri);
+          return stillExists ? prev : { ...prev, targetNodeUri: "" };
+        });
+      })
+      .catch(() => {
+        setNodes([]);
+        setForm((prev) => ({ ...prev, targetNodeUri: "" }));
+      });
+  }, [form.kbId]);
 
   const urls = useMemo(
     () =>
@@ -122,14 +137,37 @@ export default function IngestionPage() {
     [form.rawSourceUrls]
   );
 
-  const selectedSource = sourceOptions.find((option) => option.id === activeSource) ?? sourceOptions[0];
+  const selectedSource =
+    sourceOptions.find((option) => option.id === activeSource) ?? sourceOptions[0];
   const filteredIntegrations = selectedSource.filterIntegrations(integrations, form.subType);
   const suggestedTopic = searchParams.get("q") ?? "";
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.kbId || urls.length === 0 || !form.targetUri) {
-      toast.error("请完善注入参数信息，并至少输入一个来源地址");
+    if (!form.kbId) {
+      toast.error("请完善配置信息");
+      return;
+    }
+
+    if (activeSource === "local" && selectedFiles.length === 0) {
+      toast.error("请先上传文件");
+      return;
+    }
+
+    if (activeSource === "local") {
+      toast.error("当前版本暂不支持本地上传导入任务");
+      return;
+    }
+
+    if (selectedSource.supportsBatchUrls && urls.length === 0) {
+      toast.error("请至少提供一个来源地址");
+      return;
+    }
+
+    if (selectedSource.requiresIntegration && !form.integrationId) {
+      toast.error("请先选择集成凭证");
       return;
     }
 
@@ -137,81 +175,103 @@ export default function IngestionPage() {
     try {
       await apiClient.post("/import-tasks", {
         kbId: form.kbId,
-        sourceUrls: urls,
-        targetUri: form.targetUri,
+        sourceUrl: urls[0],
+        sourceUrls: urls.length > 0 ? urls : ["local://upload"],
         integrationId: form.integrationId || undefined,
+        targetUri: form.targetNodeUri || undefined,
         sourceType: selectedSource.resolveSourceType(form.subType),
       });
-      toast.success(`成功开启批量注入：已创建 ${urls.length} 个异步任务`);
+      toast.success(`任务创建成功：已启动 ${Math.max(1, urls.length)} 个处理进程`);
       router.push("/console/documents");
     } catch (err) {
-      toast.error(`注入失败：${err instanceof Error ? err.message : "未知错误"}`);
+      toast.error(`处理失败：${err instanceof Error ? err.message : "未知错误"}`);
     } finally {
       setLoading(false);
     }
   }
 
-  return (
-    <div className="flex min-h-full flex-col gap-8">
-      <section className="flex items-end justify-between border-b-[3px] border-[var(--border)] pb-6">
-        <div>
-          <h1 className="font-sans text-5xl font-black tracking-tight text-[var(--text-primary)]">注入航站楼</h1>
-          <p className="mt-3 font-mono text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-secondary)]">
-            多来源批量注入控制台
-          </p>
-        </div>
-        <VikingWatcher isThinking={loading} size="md" />
-      </section>
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const files = e.dataTransfer.files ? Array.from(e.dataTransfer.files) : [];
+    setSelectedFiles((prev) => [...prev, ...files]);
+  };
 
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[0.9fr_1.1fr]">
-        <section className="grid grid-cols-1 gap-4">
+  return (
+    <div className="flex min-h-full flex-col gap-1">
+      {/* Bento Header Section */}
+      <ConsoleSurfaceCard>
+        <div className="flex items-end justify-between">
+          <div>
+            <h1 className="font-sans text-4xl font-bold tracking-tight text-[var(--text-primary)]">
+              文档导入中心
+            </h1>
+            <p className="mt-2 text-sm font-medium text-[var(--text-muted)]">
+              支持多维数据源接入，自动化清洗、向量化并存入知识库
+            </p>
+          </div>
+          <VikingWatcher isThinking={loading} size="md" />
+        </div>
+      </ConsoleSurfaceCard>
+
+      <div className="grid grid-cols-1 gap-1 lg:grid-cols-12">
+        {/* Source Selection Bento Column */}
+        <div className="grid grid-cols-1 gap-1 lg:col-span-4">
           {sourceOptions.map((source) => (
             <ConsoleSelectionCard
               key={source.id}
               type="button"
-              aria-label={`选择导入来源 ${source.label}`}
-              title={source.desc}
               onClick={() => setActiveSource(source.id)}
               active={activeSource === source.id}
-              className={`p-5 ${activeSource !== source.id ? "text-black hover:translate-x-1 hover:translate-y-1 hover:shadow-none" : "translate-x-1 translate-y-1"}`}
+              className="flex items-center gap-4 px-5 py-4"
             >
-              <div className="mb-2 flex items-center gap-4">
-                <source.icon size={22} strokeWidth={2.4} style={{ color: activeSource === source.id ? "#FFF" : source.color }} />
-                <span className="font-mono text-sm font-black uppercase tracking-[0.16em]">{source.label}</span>
+              <div
+                className={`flex h-10 w-10 items-center justify-center rounded-lg border border-[var(--border)] transition-all ${
+                  activeSource === source.id ? "bg-white/20" : "bg-[var(--bg-elevated)]"
+                }`}
+              >
+                <source.icon
+                  size={20}
+                  strokeWidth={2.4}
+                  style={{ color: activeSource === source.id ? "#FFF" : source.color }}
+                />
               </div>
-              <p className={`font-mono text-[9px] font-bold uppercase tracking-[0.14em] ${activeSource === source.id ? "text-white/75" : "text-[var(--text-secondary)]"}`}>
-                {source.desc}
-              </p>
+              <div className="text-left">
+                <span className="block font-sans text-sm font-bold uppercase tracking-wider">
+                  {source.label}
+                </span>
+                <span
+                  className={`block font-sans text-[10px] font-medium uppercase tracking-wider ${
+                    activeSource === source.id ? "text-white/70" : "text-[var(--text-muted)]"
+                  }`}
+                >
+                  {source.desc}
+                </span>
+              </div>
             </ConsoleSelectionCard>
           ))}
-        </section>
+        </div>
 
-        <section className="overflow-hidden border-[3px] border-[var(--border)] bg-[var(--bg-card)] shadow-[12px_12px_0px_#000]">
-          <div className="flex items-center justify-between border-b-[3px] border-[var(--border)] bg-black px-5 py-4 text-white">
-            <span className="flex items-center gap-2 font-mono text-xs font-black uppercase tracking-[0.22em]">
-              <Terminal size={14} /> {">>"} 批量流水线部署: {activeSource.toUpperCase()}
-            </span>
-            {urls.length > 0 && (
-              <span className="bg-[var(--brand)] px-2 py-0.5 font-mono text-[9px] font-black uppercase tracking-[0.14em] text-white">
-                {urls.length} 项
-              </span>
-            )}
+        {/* Configuration Bento Column */}
+        <ConsoleSurfaceCard className="lg:col-span-8">
+          <div className="flex items-center gap-2 border-b border-[var(--border)] pb-4 font-sans text-[11px] font-bold uppercase tracking-widest text-[var(--text-muted)]">
+            <Terminal size={14} strokeWidth={2.6} /> 导入配置参数 / CONFIG_PIPELINE
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-8 p-8">
+          <form onSubmit={handleSubmit} className="mt-8 space-y-8">
             {suggestedTopic ? (
-              <ConsoleSurfaceCard tone="warning" className="px-4 py-3 font-mono text-[10px] font-black uppercase tracking-[0.14em]">
-                建议优先补录主题：{suggestedTopic}
-              </ConsoleSurfaceCard>
+              <div className="rounded-xl border border-[var(--warning)] bg-[var(--warning)]/5 px-4 py-3 font-sans text-xs font-bold text-[var(--warning)]">
+                提示：建议将此资源映射至主题 <span className="underline">{suggestedTopic}</span>
+              </div>
             ) : null}
+
             <div className="space-y-3">
-              <label className="block font-mono text-[11px] font-black uppercase tracking-[0.18em]">
-                [01] 目标知识集群
+              <label className="block font-sans text-[11px] font-bold uppercase tracking-widest text-[var(--text-muted)]">
+                01. 目标知识库集群
               </label>
-              <select
+              <ConsoleSelect
                 value={form.kbId}
                 onChange={(e) => setForm({ ...form, kbId: e.target.value })}
-                className="w-full border-[3px] border-[var(--border)] bg-[var(--bg-elevated)] px-6 py-4 font-mono text-sm font-bold outline-none"
               >
                 <option value="">-- 选择存储集群 --</option>
                 {kbs.map((kb) => (
@@ -219,112 +279,180 @@ export default function IngestionPage() {
                     {kb.name}
                   </option>
                 ))}
-              </select>
+              </ConsoleSelect>
             </div>
 
+            {nodes.length > 0 && (
+              <div className="space-y-3">
+                <label className="block font-sans text-[11px] font-bold uppercase tracking-widest text-[var(--text-muted)]">
+                  02. 导入目标节点
+                </label>
+                <ConsoleSelect
+                  value={form.targetNodeUri}
+                  onChange={(e) => setForm({ ...form, targetNodeUri: e.target.value })}
+                  placeholder="知识库根目录（默认）"
+                >
+                  <option value="">知识库根目录（默认）</option>
+                  {nodes.map((node) => (
+                    <option key={node.id} value={node.vikingUri ?? ""}>
+                      {node.name}
+                    </option>
+                  ))}
+                </ConsoleSelect>
+                <p className="font-sans text-[11px] text-[var(--text-muted)]">
+                  已存在知识树节点时，可将本次导入内容挂到指定节点；不选择时默认进入知识库根目录。
+                </p>
+              </div>
+            )}
+
+            {/* Source URLs */}
             {selectedSource.supportsBatchUrls && (
               <div className="space-y-3">
-                <div className="flex items-end justify-between">
-                  <label className="block font-mono text-[11px] font-black uppercase tracking-[0.18em]">
-                    {selectedSource.sourceListLabel}
+                <div className="flex items-center justify-between">
+                  <label className="block font-sans text-[11px] font-bold uppercase tracking-widest text-[var(--text-muted)]">
+                    {nodes.length > 0 ? "03." : "02."} {selectedSource.sourceListLabel}
                   </label>
-                  <span className="font-mono text-[9px] font-black uppercase tracking-[0.12em] text-[var(--text-muted)]">
-                    每行一个地址
+                  <span className="font-mono text-[9px] font-black text-[var(--text-muted)]">
+                    COUNT: {urls.length} / 支持换行批量录入
                   </span>
                 </div>
                 <textarea
-                  rows={5}
+                  rows={4}
                   value={form.rawSourceUrls}
                   onChange={(e) => setForm({ ...form, rawSourceUrls: e.target.value })}
                   placeholder={selectedSource.sourceListPlaceholder}
-                  className="w-full resize-none border-[3px] border-[var(--border)] bg-[var(--bg-elevated)] px-6 py-4 font-mono text-sm font-bold outline-none shadow-inner"
+                  className="w-full resize-none rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] px-4 py-4 font-mono text-xs font-bold outline-none focus:border-[var(--brand)]"
                 />
               </div>
             )}
 
+            {/* Local File Upload */}
+            {activeSource === "local" && (
+              <div className="space-y-3">
+                <label className="block font-sans text-[11px] font-bold uppercase tracking-widest text-[var(--text-muted)]">
+                  {nodes.length > 0 ? "03." : "02."} 本地资源上传
+                </label>
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsDragging(true);
+                  }}
+                  onDragLeave={() => setIsDragging(false)}
+                  onDrop={onDrop}
+                  className={`relative flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-10 transition-all ${
+                    isDragging
+                      ? "border-[var(--brand)] bg-[var(--brand)]/5"
+                      : "border-[var(--border)] bg-[var(--bg-elevated)] hover:border-[var(--text-muted)]"
+                  }`}
+                >
+                  <input
+                    type="file"
+                    multiple
+                    className="absolute inset-0 cursor-pointer opacity-0"
+                    onChange={(e) => {
+                      const files = e.target.files ? Array.from(e.target.files) : [];
+                      setSelectedFiles((prev) => [...prev, ...files]);
+                    }}
+                  />
+                  <FileUp
+                    size={32}
+                    strokeWidth={1.5}
+                    className={isDragging ? "text-[var(--brand)]" : "text-[var(--text-muted)]"}
+                  />
+                  <p className="mt-4 font-sans text-xs font-bold text-[var(--text-primary)]">
+                    点击或将文件拖拽至此处上传
+                  </p>
+                  <p className="mt-2 font-sans text-[10px] text-[var(--text-muted)]">
+                    支持 PDF, Markdown, Word 等格式
+                  </p>
+                </div>
+
+                {selectedFiles.length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    {selectedFiles.map((file, i) => (
+                      <div
+                        key={i}
+                        className="flex items-center justify-between rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-4 py-2"
+                      >
+                        <span className="font-mono text-[10px] font-bold">{file.name}</span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSelectedFiles((prev) => prev.filter((_, idx) => idx !== i))
+                          }
+                          className="text-[var(--text-muted)] hover:text-[var(--danger)]"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Enterprise Sub-Type */}
             {selectedSource.supportsSubType && (
               <div className="space-y-3">
-                <label className="block font-mono text-[11px] font-black uppercase tracking-[0.18em]">
-                  [03] 企业平台选择
+                <label className="block font-sans text-[11px] font-bold uppercase tracking-widest text-[var(--text-muted)]">
+                  {nodes.length > 0 ? "04." : "03."} 选择接入平台
                 </label>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3">
                   {["feishu", "dingtalk"].map((platform) => (
-                    <ConsoleSelectionCard
+                    <button
                       key={platform}
                       type="button"
-                      aria-label={`选择企业平台 ${platform === "feishu" ? "飞书" : "钉钉"}`}
-                      title={platform === "feishu" ? "飞书 / Lark 文档接入" : "钉钉 / DingTalk 文档接入"}
                       onClick={() => setForm({ ...form, subType: platform })}
-                      active={form.subType === platform}
-                      className={`px-4 py-4 text-center font-mono text-xs font-black uppercase tracking-[0.18em] ${
-                        form.subType !== platform ? "text-black hover:translate-y-0.5 hover:shadow-none" : ""
+                      className={`rounded-xl border p-4 text-center font-sans text-xs font-bold uppercase tracking-wider transition-all ${
+                        form.subType === platform
+                          ? "border-[var(--brand)] bg-[var(--brand)] text-white shadow-sm"
+                          : "border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-primary)] hover:border-[var(--text-muted)]"
                       }`}
                     >
                       {platform === "feishu" ? "飞书 / Lark" : "钉钉 / DingTalk"}
-                    </ConsoleSelectionCard>
+                    </button>
                   ))}
                 </div>
               </div>
             )}
 
+            {/* Credential Selection */}
             {selectedSource.credentialLabel && (
               <div className="space-y-3">
-                <label className="block font-mono text-[11px] font-black uppercase tracking-[0.18em]">
-                  {selectedSource.credentialLabel}
+                <label className="block font-sans text-[11px] font-bold uppercase tracking-widest text-[var(--text-muted)]">
+                  {nodes.length > 0 ? "05." : "04."} {selectedSource.credentialLabel}
                 </label>
-                <select
+                <ConsoleSelect
                   value={form.integrationId}
                   onChange={(e) => setForm({ ...form, integrationId: e.target.value })}
-                  className="w-full border-[3px] border-[var(--border)] bg-[var(--bg-elevated)] px-6 py-4 font-mono text-sm font-bold outline-none"
                 >
                   <option value="">-- {selectedSource.credentialEmptyLabel} --</option>
                   {filteredIntegrations.map((integration) => (
                     <option key={integration.id} value={integration.id}>
-                      {integration.name} (ID: {integration.id.substring(0, 6)})
+                      {integration.name}
                     </option>
                   ))}
-                </select>
+                </ConsoleSelect>
               </div>
             )}
 
-            <div className="space-y-3">
-              <label className="block font-mono text-[11px] font-black uppercase tracking-[0.18em]">
-                [05] 引擎目标根路径
-              </label>
-              <div className="relative">
-                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 font-mono text-xs font-bold opacity-40">
-                  viking://
-                </div>
-                <input
-                  value={form.targetUri}
-                  onChange={(e) => setForm({ ...form, targetUri: e.target.value })}
-                  placeholder="batch-ingest/project-alpha"
-                  className="w-full border-[3px] border-[var(--border)] bg-[var(--bg-elevated)] py-4 pl-20 pr-6 font-mono text-sm font-bold outline-none"
-                />
+            {/* Action Bar */}
+            <div className="flex items-center justify-between border-t border-[var(--border)] pt-8">
+              <div className="font-mono text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">
+                DEPLOY_MODE: <span className="text-[var(--brand)]">ASYNC_PIPELINE</span>
               </div>
-              <p className="font-mono text-[9px] font-black uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-                批量注入时，系统会自动在根路径下创建对应的子目录。
-              </p>
-            </div>
-
-            <div className="flex items-center justify-end gap-6 border-t-[3px] border-[var(--border)] border-dashed pt-8">
-              {urls.length > 1 && (
-                <span className="font-mono text-[10px] font-black uppercase tracking-[0.16em] text-[var(--brand)]">
-                  准备部署 {urls.length} 个注入节点
-                </span>
-              )}
               <ConsoleButton
                 type="submit"
                 tone="dark"
                 disabled={loading || (selectedSource.supportsBatchUrls && urls.length === 0)}
-                className="gap-3 px-12 py-5 text-[10px] tracking-[0.2em] shadow-[6px_6px_0px_var(--brand)]"
+                className="h-14 px-10 font-sans tracking-[0.2em]"
               >
-                <Layers size={18} strokeWidth={3} />
-                {loading ? "正在调度批量任务..." : ">> 启动批量注入流水线"}
+                <Layers size={18} strokeWidth={2.6} className={loading ? "animate-spin" : ""} />
+                {loading ? "正在调度处理..." : "执行导入任务"}
               </ConsoleButton>
             </div>
           </form>
-        </section>
+        </ConsoleSurfaceCard>
       </div>
     </div>
   );

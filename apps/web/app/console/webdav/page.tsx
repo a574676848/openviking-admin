@@ -1,31 +1,25 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, Copy, KeyRound, Link2, Monitor, TerminalSquare } from "lucide-react";
+import { Check, Copy, Link2, TerminalSquare, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { useApp } from "@/components/app-provider";
 import { apiClient } from "@/lib/apiClient";
 import {
   ConsoleButton,
-  ConsoleIconButton,
-  ConsoleMetricCard,
-  ConsolePageHeader,
-  ConsolePanel,
-  ConsolePanelHeader,
-  ConsoleSelectionCard,
   ConsoleStatusPanel,
-  ConsoleSurfaceCard,
 } from "@/components/console/primitives";
+import { PlatformPageHeader } from "@/components/ui/platform-primitives";
 
-interface HealthResponse {
-  openviking?: {
-    host?: string;
+interface DashboardData {
+  health?: {
+    ok: boolean;
+    message?: string;
   };
-  resolvedBaseUrl?: string;
 }
 
 type ClientPreset = {
-  id: "obsidian" | "siyuan" | "vscode" | "cli";
+  id: "obsidian" | "vscode" | "windows" | "mac";
   label: string;
   hint: string;
   blockLabel: string;
@@ -35,8 +29,8 @@ type ClientPreset = {
 const clientPresets: ClientPreset[] = [
   {
     id: "obsidian",
-    label: "Obsidian",
-    hint: "适合 Remotely Save / 通用 WebDAV 插件",
+    label: "OBSIDIAN",
+    hint: "使用 Remotely Save 插件",
     blockLabel: "obsidian.json",
     buildSnippet: ({ url, tenantId }) => [
       "{",
@@ -50,22 +44,9 @@ const clientPresets: ClientPreset[] = [
     ],
   },
   {
-    id: "siyuan",
-    label: "思源笔记",
-    hint: "直接填服务器地址与租户凭据",
-    blockLabel: "siyuan.conf",
-    buildSnippet: ({ url, tenantId }) => [
-      "provider=webdav",
-      `endpoint=${url}`,
-      `username=${tenantId}`,
-      "password=<YOUR_API_KEY>",
-      "base_path=/",
-    ],
-  },
-  {
     id: "vscode",
-    label: "VS Code",
-    hint: "适合 WebDAV 挂载插件或文件同步扩展",
+    label: "VS CODE",
+    hint: "使用 WebDAV 远程同步扩展",
     blockLabel: "settings.json",
     buildSnippet: ({ url, tenantId }) => [
       "{",
@@ -77,96 +58,95 @@ const clientPresets: ClientPreset[] = [
     ],
   },
   {
-    id: "cli",
-    label: "命令行",
-    hint: "适合桌面挂载与自动化脚本",
-    blockLabel: "mount.sh",
+    id: "windows",
+    label: "WINDOWS",
+    hint: "网络驱动器挂载脚本",
+    blockLabel: "explorer.ps1",
     buildSnippet: ({ url, tenantId }) => [
-      `WEBDAV_URL="${url}"`,
-      `WEBDAV_USER="${tenantId}"`,
-      'WEBDAV_PASSWORD="<YOUR_API_KEY>"',
-      "",
-      'curl -u "$WEBDAV_USER:$WEBDAV_PASSWORD" \\',
-      '  "$WEBDAV_URL" -X PROPFIND',
+      `$url = "${url}"`,
+      `$user = "${tenantId}"`,
+      `$pass = "<YOUR_API_KEY>"`,
+      "net use Z: $url /user:$user $pass /persistent:yes",
+    ],
+  },
+  {
+    id: "mac",
+    label: "MAC",
+    hint: "Finder 远程连接指令",
+    blockLabel: "finder.sh",
+    buildSnippet: ({ url, tenantId }) => [
+      `open "https://${tenantId}:<YOUR_API_KEY>@${url.replace('https://', '')}"`,
     ],
   },
 ];
 
 function CodeBlock({
-  title,
   lines,
   onCopy,
   copied,
-  copyLabel,
 }: {
-  title: string;
   lines: string[];
   onCopy: () => void;
   copied: boolean;
-  copyLabel: string;
 }) {
   return (
-    <div className="ov-card overflow-hidden">
-      <div className="flex items-center justify-between border-b-[3px] border-[var(--border)] bg-[var(--bg-elevated)] px-4 py-3">
-        <span className="font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">
-          {title}
-        </span>
-        <ConsoleIconButton type="button" onClick={onCopy} aria-label={copyLabel} className="h-9 w-9">
-          {copied ? <Check size={14} strokeWidth={2.6} /> : <Copy size={14} strokeWidth={2.6} />}
-        </ConsoleIconButton>
+    <div className="ov-card relative flex h-full flex-col overflow-hidden group border-none">
+      <div className="absolute right-6 top-6 z-10 opacity-0 transition-opacity group-hover:opacity-100">
+        <button
+          type="button"
+          onClick={onCopy}
+          className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/20 bg-white/10 text-white backdrop-blur-md transition-all hover:bg-white/20 active:scale-95 shadow-2xl"
+          title="复制配置"
+        >
+          {copied ? <Check size={18} strokeWidth={3} /> : <Copy size={18} strokeWidth={3} />}
+        </button>
       </div>
-      <div className="grid grid-cols-[48px_minmax(0,1fr)] bg-black text-[var(--success)]">
-        <div className="border-r-[3px] border-[var(--border)] bg-black/80 px-3 py-4 font-mono text-[10px] font-black text-white/50">
+      <div className="grid h-full flex-1 grid-cols-[56px_minmax(0,1fr)] bg-black text-[var(--success)]">
+        <div className="border-r-[3px] border-[var(--border)] bg-black/80 px-3 py-6 font-mono text-xs font-black text-white/40 select-none">
           {lines.map((_, index) => (
-            <div key={index} className="h-6 leading-6">
+            <div key={index} className="h-7 leading-7 text-right pr-2">
               {index + 1}
             </div>
           ))}
         </div>
-        <pre className="overflow-x-auto px-4 py-4 font-mono text-[11px] font-bold leading-6">{lines.join("\n")}</pre>
+        <pre className="overflow-x-auto px-6 py-6 font-mono text-[13px] font-bold leading-7 tracking-wide">{lines.join("\n")}</pre>
       </div>
     </div>
   );
 }
 
 export default function WebdavConfigPage() {
-  const [engineBaseUrl, setEngineBaseUrl] = useState("");
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState("");
+  const [health, setHealth] = useState<DashboardData["health"] | null>(null);
   const [activePreset, setActivePreset] = useState<ClientPreset["id"]>("obsidian");
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const { user } = useApp();
 
   const tenantId = user?.tenantId || "default";
+  const isHealthy = Boolean(health?.ok);
+  const healthMessage = health?.message ?? "核心引擎状态正常";
 
   useEffect(() => {
-    setLoadError("");
     apiClient
-      .get<HealthResponse>("/system/health")
+      .get<DashboardData>("/system/dashboard")
       .then((response) => {
-        setEngineBaseUrl(resolveWebdavBaseUrl(response.resolvedBaseUrl, response.openviking?.host));
+        setHealth(response.health ?? { ok: false, message: "核心引擎状态未知" });
       })
       .catch((error: unknown) => {
-        setLoadError(error instanceof Error ? error.message : "WebDAV 接入信息加载失败");
+        setHealth({ ok: false, message: error instanceof Error ? error.message : "核心健康度检测失败" });
       })
       .finally(() => {
         setLoading(false);
       });
   }, []);
 
-  const webdavUrl = `${engineBaseUrl || resolveWebdavBaseUrl()}/webdav/${tenantId}/`;
+  const webdavUrl = `${resolveWebdavBaseUrl()}/webdav/${tenantId}/`;
 
   const preset = useMemo(() => {
     return clientPresets.find((item) => item.id === activePreset) ?? clientPresets[0];
   }, [activePreset]);
 
   const snippetLines = preset.buildSnippet({ url: webdavUrl, tenantId });
-  const summaryLines = [
-    `URL        ${webdavUrl}`,
-    `USERNAME   ${tenantId}`,
-    "PASSWORD   <YOUR_API_KEY>",
-    "AUTH       Basic Auth",
-  ];
 
   function copyText(text: string, key: string) {
     navigator.clipboard.writeText(text);
@@ -176,118 +156,112 @@ export default function WebdavConfigPage() {
   }
 
   return (
-    <div className="flex min-h-full flex-col gap-8">
-      <ConsolePageHeader title="WebDAV 接入面板" subtitle="为租户客户端生成挂载参数与诊断指引" />
+    <div className="flex min-h-full flex-col pb-10">
+      <PlatformPageHeader
+        title={
+          <h1 className="flex items-center gap-4 font-sans text-4xl font-bold tracking-tight text-[var(--text-primary)]">
+            WebDAV 接入控制台
+          </h1>
+        }
+        subtitle="为租户客户端生成挂载参数与诊断指引"
+        subtitleClassName="mt-2 text-sm font-medium tracking-normal normal-case text-[var(--text-muted)]"
+        actions={
+          <div className="flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--bg-card)] px-3 py-1.5">
+            <div className={`h-2 w-2 rounded-full ${isHealthy ? "bg-[var(--success)] shadow-[0_0_8px_var(--success)]" : "bg-[var(--danger)]"}`} />
+            <span className="font-mono text-[9px] font-black uppercase tracking-widest opacity-60">
+              {loading ? "CHECKING" : isHealthy ? "ONLINE" : "DEGRADED"}
+            </span>
+          </div>
+        }
+      />
 
-      <section className="grid grid-cols-1 gap-[var(--border-width)] border-[var(--border-width)] border-[var(--border)] bg-[var(--border)] lg:grid-cols-3">
-        <ConsoleMetricCard label="端点状态" value={loading ? "..." : loadError ? "失败" : "就绪"} tone="brand" />
-        <ConsoleMetricCard label="租户 ID" value={tenantId} />
-        <ConsoleMetricCard label="认证方式" value="BASIC" tone="warning" />
-      </section>
-
-      {loadError ? (
+      {!loading && !isHealthy && (
         <ConsoleStatusPanel
           icon={Link2}
-          title="WebDAV 接入信息加载失败"
-          description={loadError}
-          action={
-            <ConsoleButton type="button" onClick={() => window.location.reload()}>
-              重新加载
-            </ConsoleButton>
-          }
+          title="核心健康度降级"
+          description={healthMessage}
+          action={<ConsoleButton onClick={() => window.location.reload()}>重新检测</ConsoleButton>}
+          panelClassName="mb-6"
         />
-      ) : null}
+      )}
 
-      <section className={`grid grid-cols-1 gap-8 xl:grid-cols-[0.88fr_1.12fr] ${loadError ? "opacity-60" : ""}`}>
-        <div className="flex flex-col gap-8">
-          <ConsolePanel className="p-6">
-            <ConsolePanelHeader eyebrow="客户端预设" title="选择接入客户端" />
-            <div className="mt-6 grid grid-cols-1 gap-3">
-              {clientPresets.map((item) => (
-                <ConsoleSelectionCard
-                  key={item.id}
-                  type="button"
-                  onClick={() => setActivePreset(item.id)}
-                  active={activePreset === item.id}
-                >
-                  <div className="font-mono text-[10px] font-black uppercase tracking-[0.18em]">{item.label}</div>
-                  <div className="mt-2 font-mono text-[10px] font-bold uppercase tracking-[0.12em] opacity-80">
-                    {item.hint}
-                  </div>
-                </ConsoleSelectionCard>
-              ))}
-            </div>
-          </ConsolePanel>
-
-          <ConsolePanel className="p-6">
-            <ConsolePanelHeader eyebrow="挂载摘要" title="连接要素" />
-            <div className="mt-6 grid grid-cols-1 gap-4">
-              <ConsoleSurfaceCard tone="elevated" className="p-4">
-                <div className="flex items-center gap-3 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">
-                  <Link2 size={14} strokeWidth={2.6} />
-                  URL
-                </div>
-                <p className="mt-3 break-all font-mono text-xs font-bold text-[var(--brand)]">{webdavUrl}</p>
-              </ConsoleSurfaceCard>
-              <ConsoleSurfaceCard tone="elevated" className="p-4">
-                <div className="flex items-center gap-3 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">
-                  <KeyRound size={14} strokeWidth={2.6} />
-                  Username / Password
-                </div>
-                <p className="mt-3 font-mono text-xs font-bold text-[var(--text-secondary)]">
-                  用户名使用租户 ID，密码使用当前账号 API Key
-                </p>
-              </ConsoleSurfaceCard>
-              <ConsoleSurfaceCard tone="warning" className="p-4">
-                <div className="flex items-center gap-3 font-mono text-[10px] font-black uppercase tracking-[0.18em]">
-                  <Monitor size={14} strokeWidth={2.6} />
-                  注意
-                </div>
-                <p className="mt-3 font-mono text-xs font-bold uppercase tracking-[0.12em]">
-                  不在浏览器或共享终端保存 API Key。客户端侧只填租户凭据，不混用 Bearer Token。
-                </p>
-              </ConsoleSurfaceCard>
-            </div>
-          </ConsolePanel>
+      {/* 集成配置区 */}
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[320px_1fr]">
+        {/* 左侧选择器 */}
+        <div className="ov-card flex flex-col p-2 h-full">
+          <div className="flex flex-1 flex-col gap-1.5">
+            {clientPresets.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setActivePreset(item.id)}
+                className={`flex flex-col items-start rounded-2xl px-6 py-5 transition-all ${
+                  activePreset === item.id 
+                    ? "bg-[var(--brand)] text-white shadow-xl scale-[1.02] z-10" 
+                    : "text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]"
+                }`}
+              >
+                <span className="font-sans text-base font-black uppercase tracking-widest">{item.label}</span>
+                <span className={`mt-1 font-sans text-xs font-medium opacity-80 ${activePreset === item.id ? "text-white" : ""}`}>
+                  {item.hint}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div className="flex flex-col gap-8">
+        {/* 右侧代码块 */}
+        <div className="flex h-full flex-col min-h-[400px]">
           <CodeBlock
-            title="connection.env"
-            lines={summaryLines}
-            onCopy={() => copyText(summaryLines.join("\n"), "summary")}
-            copied={copiedKey === "summary"}
-            copyLabel="复制 WebDAV 摘要配置"
-          />
-          <CodeBlock
-            title={preset.blockLabel}
             lines={snippetLines}
             onCopy={() => copyText(snippetLines.join("\n"), preset.id)}
             copied={copiedKey === preset.id}
-            copyLabel={`复制 ${preset.label} 客户端配置`}
           />
-          <div className="ov-card overflow-hidden">
-            <div className="border-b-[3px] border-[var(--border)] bg-[var(--bg-elevated)] px-4 py-3 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">
-              诊断提示
+        </div>
+      </div>
+
+      {/* 底部双区块布局 */}
+      <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* 左侧：凭据管理说明 */}
+        <div className="ov-card p-8">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--brand)]/10 text-[var(--brand)]">
+              <ShieldCheck size={20} />
             </div>
-            <div className="grid grid-cols-1 gap-px bg-[var(--border)]">
-              {[
-                ["401 Unauthorized", "确认用户名为租户 ID，密码为 API Key，而非 Bearer Token。"],
-                ["Connection Timeout", "检查宿主机端口、反向代理与办公网络策略。"],
-                ["Folder Missing", "确认 URL 末尾保留 `/webdav/{tenantId}/` 目录前缀。"],
-              ].map(([title, desc]) => (
-                <div key={title} className="bg-[var(--bg-card)] px-5 py-5">
-                  <div className="flex items-center gap-3 font-mono text-[10px] font-black uppercase tracking-[0.16em] text-[var(--text-primary)]">
-                    <TerminalSquare size={14} strokeWidth={2.6} />
-                    {title}
-                  </div>
-                  <p className="mt-3 font-mono text-xs font-bold text-[var(--text-secondary)]">{desc}</p>
-                </div>
-              ))}
-            </div>
+            <h4 className="font-sans text-lg font-black text-[var(--text-primary)]">鉴权协议与凭据管理</h4>
+          </div>
+          <div className="mt-4 space-y-4 text-sm font-medium leading-relaxed text-[var(--text-secondary)]">
+            <p>
+              OpenViking 采用标准 <strong>HTTP Basic Auth</strong> 认证。用户名固定为当前租户标识（Tenant ID），
+              密码为用户签发的 <strong>API Key</strong>。
+            </p>
+            <p>
+              <strong>凭据来源：</strong>API Key 需要在控制台的“<strong>凭证中心</strong>”页面进行签发和管理。系统会自动将凭证进行加密落库，并在接入网关层进行实时校验。
+            </p>
           </div>
         </div>
-      </section>
+
+        {/* 右侧：常见诊断 */}
+        <div className="ov-card p-8">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--warning)]/10 text-[var(--warning)]">
+              <TerminalSquare size={20} />
+            </div>
+            <h4 className="font-sans text-lg font-black text-[var(--text-primary)]">连接诊断建议</h4>
+          </div>
+          <div className="mt-6 grid grid-cols-1 gap-5">
+            {[
+              { code: "401 Unauthorized", hint: "API Key 已过期或权限不足。请前往 凭证中心 重新签发。" },
+              { code: "TIMEOUT / 504", hint: "检查办公网防火墙是否允许访问后端端口，或代理配置是否正确。" },
+              { code: "PATH_ERROR", hint: "确认 URL 末尾保留完整路径，例如 /webdav/{tenant_id}/。" },
+            ].map((item) => (
+              <div key={item.code} className="flex items-start gap-4">
+                <div className="mt-1 font-mono text-xs font-black text-[var(--brand)] uppercase shrink-0">[{item.code.split(' ')[0]}]</div>
+                <p className="font-sans text-sm font-medium text-[var(--text-secondary)] leading-tight">{item.hint}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

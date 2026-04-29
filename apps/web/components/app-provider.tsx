@@ -9,6 +9,7 @@ interface User {
   username: string;
   role: string;
   tenantId: string | null;
+  hasCustomOvConfig?: boolean;
 }
 
 export type ThemeType = "neo" | "starry";

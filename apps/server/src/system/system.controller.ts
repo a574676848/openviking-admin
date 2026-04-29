@@ -6,6 +6,8 @@ import {
   Req,
   UseGuards,
   BadGatewayException,
+  ForbiddenException,
+  Inject,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { TenantGuard } from '../common/tenant.guard';
@@ -18,6 +20,18 @@ import {
 import { SystemService } from './system.service';
 import { DynamicDataSourceService } from '../common/dynamic-datasource.service';
 import type { AuthenticatedRequest } from '../common/authenticated-request.interface';
+import { TENANT_REPOSITORY } from '../tenant/domain/repositories/tenant.repository.interface';
+import type { ITenantRepository } from '../tenant/domain/repositories/tenant.repository.interface';
+import type { TenantOvConfig } from '../tenant/domain/tenant.model';
+
+const CUSTOM_OV_CONFIG_FIELDS: Array<keyof TenantOvConfig> = [
+  'baseUrl',
+  'apiKey',
+  'account',
+  'rerankEndpoint',
+  'rerankApiKey',
+  'rerankModel',
+];
 
 /** 解析 OV 文本表格为结构化行数据 */
 function parseOVTable(tableStr: string): Array<Record<string, string>> {
@@ -66,7 +80,31 @@ export class SystemController {
     private readonly systemService: SystemService,
     private readonly dynamicDS: DynamicDataSourceService,
     private readonly auditService: AuditService,
+    @Inject(TENANT_REPOSITORY)
+    private readonly tenantRepo: ITenantRepository,
   ) {}
+
+  private async ensureTenantHasCustomOvConfig(
+    tenantScope: string | null,
+  ): Promise<void> {
+    if (!tenantScope) {
+      return;
+    }
+
+    const tenant =
+      (await this.tenantRepo.findByTenantId(tenantScope)) ??
+      (await this.tenantRepo.findById(tenantScope));
+    const hasCustomOvConfig = CUSTOM_OV_CONFIG_FIELDS.some((field) => {
+      const value = tenant?.ovConfig?.[field];
+      return typeof value === 'string' ? value.trim().length > 0 : Boolean(value);
+    });
+
+    if (!hasCustomOvConfig) {
+      throw new ForbiddenException(
+        '当前租户未启用自定义 OpenViking 引擎配置，不能访问系统状态。',
+      );
+    }
+  }
 
   /** 从配置解析 OV 连接，baseUrl 缺失时直接抛错 */
   private async resolveOVConnection(
@@ -87,25 +125,27 @@ export class SystemController {
 
   @Get('health')
   async health(@Req() req: AuthenticatedRequest) {
+    await this.ensureTenantHasCustomOvConfig(req.tenantScope);
     const conn = await this.resolveOVConnection(req.tenantScope);
     const openviking = await this.ovClient.getHealth(conn.baseUrl);
-    const dbPool = this.dynamicDS.getPoolStatus();
     return {
       ok: !!openviking,
       openviking,
       resolvedBaseUrl: conn.baseUrl,
-      dbPool,
+      dbPool: this.dynamicDS.getPoolStatus(),
     };
   }
 
   @Get('queue')
   async queue(@Req() req: AuthenticatedRequest) {
+    await this.ensureTenantHasCustomOvConfig(req.tenantScope);
     const conn = await this.resolveOVConnection(req.tenantScope);
     return this.ovClient.request(conn, '/api/v1/observer/queue');
   }
 
   @Get('stats')
   async stats(@Req() req: AuthenticatedRequest) {
+    await this.ensureTenantHasCustomOvConfig(req.tenantScope);
     const conn = await this.resolveOVConnection(req.tenantScope);
     const results = await Promise.allSettled([
       this.ovClient.request(conn, '/api/v1/observer/queue'),
@@ -135,7 +175,10 @@ export class SystemController {
       };
     }
 
-    return { queue, vikingdb };
+    return {
+      queue,
+      vikingdb,
+    };
   }
 
   @Get('dashboard')

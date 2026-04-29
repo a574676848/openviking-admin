@@ -18,7 +18,8 @@ export class CreateImportTaskDto {
   sourceUrls?: string[];
 
   @IsString()
-  targetUri: string;
+  @IsOptional()
+  targetUri?: string;
 
   @IsString()
   @IsOptional()

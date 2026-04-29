@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 新增 `capabilities` 模块，收口统一 capability contract、execution、authorization、discovery、credential exchange
 - 新增平铺 HTTP 接口：`/api/capabilities`、`/api/knowledge/search`、`/api/knowledge/grep`、`/api/resources`、`/api/resources/tree`
 - 新增 capability 换证接口：`/api/auth/token/exchange`、`/api/auth/session/exchange`、`/api/auth/client-credentials`
+- 新增 capability key 管理接口：`/api/capability/keys`
+- 凭证中心新增绑定用户选择，支持为当前租户内指定用户签发凭证
 - 新增登录态刷新接口：`/api/auth/refresh`
 - 新增凭证发现接口：`/api/auth/credential-options`
 - 新增 `ov` CLI 命令树
@@ -44,6 +46,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - HTTP adapter 移除未上线前遗留的 `x-mcp-key` 兼容头，统一收口到 `x-capability-key`
 - `x-request-id` 现可在换证、能力执行与 OV 下游请求间透传，观测快照新增 alerts 计算
 - rate limit 状态存储已抽象为可替换 store，默认实现仍为内存版
+- 凭证中心列表改为展示当前租户全部凭证，创建与吊销统一收口到 `/api/capability/keys`
+- 凭证中心吊销成功提示改为“凭证已吊销”
 
 ### Security
 

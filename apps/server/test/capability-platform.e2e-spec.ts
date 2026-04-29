@@ -110,6 +110,7 @@ describe('Capability Platform (e2e)', () => {
     createApiKey: jest.fn(async () => ({
       apiKey: 'ov-sk-test',
       name: 'cli-client',
+      expiresAt: null,
     })),
   };
   const exchangeService = {
@@ -243,10 +244,12 @@ describe('Capability Platform (e2e)', () => {
         expect.objectContaining({
           credentialType: 'capability_access_token',
           issueEndpoint: '/api/auth/token/exchange',
+          ttlOptions: expect.any(Array),
         }),
         expect.objectContaining({
           credentialType: 'session_key',
           issueEndpoint: '/api/auth/session/exchange',
+          ttlOptions: expect.any(Array),
         }),
       ]),
     );
@@ -257,12 +260,19 @@ describe('Capability Platform (e2e)', () => {
       .post('/api/auth/token/exchange')
       .set('Authorization', 'Bearer jwt-token')
       .set('x-request-id', 'request-token-1')
+      .send({ ttlSeconds: 3600 })
       .expect(201);
 
     expect(response.body.data.accessToken).toBe('cap-token');
     expect(response.body.meta.flow).toBe('token.exchange');
     expect(response.body.meta.requestId).toBe('request-token-1');
     expect(response.headers['x-request-id']).toBe('request-token-1');
+    expect(exchangeService.exchangeAccessToken).toHaveBeenCalledWith(
+      principal,
+      'trace-http-1',
+      'request-token-1',
+      3600,
+    );
   });
 
   it('观测快照接口应返回 metrics 与 rate limit 数据', async () => {

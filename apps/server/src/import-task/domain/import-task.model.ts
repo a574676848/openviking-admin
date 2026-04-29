@@ -5,7 +5,13 @@ export type ImportTaskStatus =
   | 'failed'
   | 'cancelled';
 
-export type ImportTaskSourceType = 'url' | 'git' | 'local';
+export type ImportTaskSourceType =
+  | 'url'
+  | 'git'
+  | 'local'
+  | 'webdav'
+  | 'feishu'
+  | 'dingtalk';
 
 export interface ImportTaskModel {
   id: string;

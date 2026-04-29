@@ -90,7 +90,7 @@ Local login / SSO
   -> session key
 
 JWT access token
-  -> /api/v1/auth/client-credentials
+  -> /api/v1/capability/keys 或 /api/v1/auth/client-credentials
   -> scoped API key
 ```
 

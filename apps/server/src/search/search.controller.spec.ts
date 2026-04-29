@@ -3,6 +3,7 @@ import type { AuthenticatedRequest } from '../common/authenticated-request.inter
 
 describe('SearchController audit', () => {
   const searchService = {
+    find: jest.fn(),
     setFeedback: jest.fn(),
   };
   const auditService = {
@@ -41,6 +42,34 @@ describe('SearchController audit', () => {
           feedback: 'helpful',
         }),
       }),
+    );
+  });
+
+  it('检索请求应把租户头透传给 OpenViking 元信息', async () => {
+    const findParams = { query: 'WebDAV', topK: 5 } as never;
+    const findReq = {
+      tenantScope: 'tenant-alpha',
+      user: { id: 'user-1', username: 'alice', tenantId: 'tenant-alpha' },
+      headers: {
+        'x-trace-id': 'trace-1',
+        'x-request-id': 'request-1',
+        'x-openviking-account': 'tenant-alpha',
+        'x-openviking-user': 'user-1',
+      },
+    } as unknown as AuthenticatedRequest;
+
+    controller.find(findParams, findReq);
+
+    expect(searchService.find).toHaveBeenCalledWith(
+      findParams,
+      'tenant-alpha',
+      findReq.user,
+      {
+        traceId: 'trace-1',
+        requestId: 'request-1',
+        account: 'tenant-alpha',
+        user: 'user-1',
+      },
     );
   });
 });

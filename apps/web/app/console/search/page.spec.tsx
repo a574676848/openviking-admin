@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import SearchPage from "./page";
 
 const postMock = vi.fn();
+const getMock = vi.fn();
 const getSearchParamMock = vi.fn();
 
 vi.mock("next/navigation", () => ({
@@ -14,6 +15,7 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/lib/apiClient", () => ({
   apiClient: {
+    get: (...args: unknown[]) => getMock(...args),
     post: (...args: unknown[]) => postMock(...args),
   },
 }));
@@ -34,8 +36,13 @@ describe("SearchPage", () => {
   beforeEach(() => {
     (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     postMock.mockReset();
+    getMock.mockReset();
     getSearchParamMock.mockReset();
     getSearchParamMock.mockReturnValue(null);
+    getMock.mockResolvedValue([
+      { id: "kb-1", name: "WebDAV 知识库", vikingUri: "viking://docs/webdav" },
+      { id: "kb-2", name: "默认知识库", vikingUri: "viking://resources/default/" },
+    ]);
   });
 
   afterEach(async () => {
@@ -51,6 +58,8 @@ describe("SearchPage", () => {
     postMock.mockRejectedValueOnce(new Error("核心检索服务不可用"));
 
     await renderPage();
+
+    expect(getMock).toHaveBeenCalledWith("/knowledge-bases");
 
     const input = container.querySelector('input[placeholder*="输入检索问题"]') as HTMLInputElement;
     expect(input).toBeTruthy();
@@ -153,7 +162,19 @@ describe("SearchPage", () => {
     await renderPage();
 
     const inputs = Array.from(container.querySelectorAll("input"));
+    const select = container.querySelector("select") as HTMLSelectElement;
     expect((inputs[0] as HTMLInputElement).value).toBe("预填问题");
-    expect((inputs[1] as HTMLInputElement).value).toBe("viking://prefill");
+    expect(select.value).toBe("viking://prefill");
+    expect(select.textContent).toContain("指定 URI | viking://prefill");
+  });
+
+  it("检索范围应改为知识库数据源下拉选择", async () => {
+    await renderPage();
+
+    const select = container.querySelector("select") as HTMLSelectElement;
+    expect(select).toBeTruthy();
+    expect(select.textContent).toContain("全部知识库");
+    expect(select.textContent).toContain("WebDAV 知识库 | viking://docs/webdav");
+    expect(select.textContent).toContain("默认知识库 | viking://resources/default/");
   });
 });

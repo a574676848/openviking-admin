@@ -108,11 +108,17 @@ export default function UsersPage() {
   }
 
   async function toggleActive(user: User) {
+    if (currentUser?.id === user.id) {
+      return;
+    }
     await apiClient.patch(`/users/${user.id}`, { active: !user.active });
     load();
   }
 
   async function handleDelete(id: string, username: string) {
+    if (currentUser?.id === id) {
+      return;
+    }
     const approved = await confirm({
       title: "删除平台用户",
       description: `将永久删除「${username}」，该操作不可逆。`,
@@ -309,7 +315,8 @@ export default function UsersPage() {
                   label: "删除用户",
                   icon: <Trash2 size={14} />,
                   onClick: () => handleDelete(u.id, u.username),
-                  tone: "danger"
+                  tone: "danger",
+                  disabled: isSelf,
                 }
               ]}
             />
@@ -435,17 +442,19 @@ export default function UsersPage() {
               {editTarget?.role === "super_admin" ? (
                 <option value="super_admin">平台超级管理员</option>
               ) : (
-                <>
-                  <option value="tenant_admin">租户管理员</option>
-                  <option value="tenant_operator">租户运营</option>
-                  <option value="tenant_viewer">租户只读成员</option>
-                </>
+                <option value="tenant_admin">租户管理员</option>
+              )}
+              {editTarget?.role !== "super_admin" && (
+                <option value="tenant_operator">租户运营</option>
+              )}
+              {editTarget?.role !== "super_admin" && (
+                <option value="tenant_viewer">租户只读成员</option>
               )}
             </PlatformSelect>
           </PlatformField>
           <PlatformField label="租户绑定" className="gap-2">
             <PlatformSelect
-              disabled={editTarget?.role !== "super_admin"}
+              disabled
               value={editForm.tenantId}
               className="bg-[var(--bg-input)] px-4 py-3 font-bold tracking-widest disabled:bg-[var(--bg-elevated)] disabled:opacity-50"
             >

@@ -1,164 +1,239 @@
 "use client";
-
-import { TerminalSquare, Trash2 } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Check, Search, TriangleAlert, UserRound, X } from "lucide-react";
 import { ConsoleButton, ConsoleSelectionCard } from "@/components/console/primitives";
 import { ACL_ROLES, roleLabel } from "./knowledge-tree.utils";
-import type { KnowledgeAcl, KnowledgeNode } from "./knowledge-tree.types";
+import type { KnowledgeAcl, TenantUserOption } from "./knowledge-tree.types";
+
+function TenantUserPicker({
+  value,
+  users,
+  loading,
+  error,
+  onChange,
+}: {
+  value: string[];
+  users: TenantUserOption[];
+  loading: boolean;
+  error: string;
+  onChange: (nextValue: string[]) => void;
+}) {
+  const [query, setQuery] = useState("");
+
+  const userMap = useMemo(() => new Map(users.map((user) => [user.id, user])), [users]);
+  const selectedUsers = useMemo(
+    () =>
+      value.map((userId) => {
+        const matched = userMap.get(userId);
+        return matched ?? { id: userId, username: userId, role: "unknown", active: true };
+      }),
+    [userMap, value],
+  );
+  const normalizedQuery = query.trim().toLowerCase();
+  const filteredUsers = useMemo(() => {
+    const selectedIds = new Set(value);
+    const candidates = users.filter((user) => !selectedIds.has(user.id));
+    if (!normalizedQuery) {
+      return candidates.slice(0, 8);
+    }
+    return candidates
+      .filter((user) => {
+        return user.username.toLowerCase().includes(normalizedQuery) || user.id.toLowerCase().includes(normalizedQuery);
+      })
+      .slice(0, 8);
+  }, [normalizedQuery, users, value]);
+
+  function appendUser(userId: string) {
+    onChange(Array.from(new Set([...value, userId])));
+    setQuery("");
+  }
+
+  function removeUser(userId: string) {
+    onChange(value.filter((item) => item !== userId));
+  }
+
+  return (
+    <div className="space-y-3 pt-1">
+      <label className="block font-mono text-[8px] font-black uppercase text-[var(--text-secondary)]">额外授权用户</label>
+
+      <div className="rounded-[var(--radius-base)] border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-card)] p-3">
+        <div className="relative">
+          <Search size={14} strokeWidth={2.4} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="搜索租户内用户"
+            className="w-full rounded-[var(--radius-pill)] border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-elevated)] py-2.5 pl-9 pr-3 font-mono text-[11px] font-bold text-[var(--text-primary)] outline-none transition-all placeholder:text-[var(--text-muted)] focus:border-[var(--brand)]"
+          />
+        </div>
+
+        {selectedUsers.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {selectedUsers.map((user) => (
+              <span
+                key={user.id}
+                className="inline-flex items-center gap-2 rounded-[var(--radius-pill)] border-[var(--border-width)] border-[var(--border)] bg-[var(--brand-muted)] px-3 py-1.5 font-mono text-[10px] font-black text-[var(--text-primary)]"
+              >
+                <UserRound size={12} strokeWidth={2.2} />
+                <span>{user.username}</span>
+                <button
+                  type="button"
+                  onClick={() => removeUser(user.id)}
+                  className="flex h-4 w-4 items-center justify-center rounded-full text-[var(--text-primary)] opacity-70 transition-opacity hover:opacity-100"
+                  aria-label={`移除用户 ${user.username}`}
+                  title={`移除用户 ${user.username}`}
+                >
+                  <X size={12} strokeWidth={2.6} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
+        <div className="mt-3 max-h-52 overflow-y-auto rounded-[var(--radius-base)] border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-elevated)]">
+          {loading ? (
+            <div className="px-4 py-4 font-mono text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">
+              正在加载租户用户...
+            </div>
+          ) : error ? (
+            <div className="px-4 py-4 font-mono text-[10px] font-black uppercase tracking-[0.14em] text-[var(--danger)]">
+              {error}
+            </div>
+          ) : filteredUsers.length === 0 ? (
+            <div className="px-4 py-4 font-mono text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">
+              {normalizedQuery ? "未找到匹配用户" : "暂无可选用户"}
+            </div>
+          ) : (
+            <div className="divide-y divide-[var(--border)]">
+              {filteredUsers.map((user) => (
+                <button
+                  key={user.id}
+                  type="button"
+                  onClick={() => appendUser(user.id)}
+                  className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-all hover:bg-[var(--brand-muted)]"
+                >
+                  <div className="min-w-0">
+                    <div className="truncate font-sans text-sm font-black text-[var(--text-primary)]">{user.username}</div>
+                    <div className="mt-1 truncate font-mono text-[10px] font-black uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                      {user.id}
+                    </div>
+                  </div>
+                  <div className="shrink-0 font-mono text-[10px] font-black uppercase tracking-[0.12em] text-[var(--text-secondary)]">
+                    {roleLabel(user.role)}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function KnowledgeTreeEditor({
-  selectedNode,
-  editName,
-  editUri,
   editAcl,
-  moveParentId,
-  moveCandidates,
-  permissionPreview,
+  tenantUsers,
+  tenantUsersLoading,
+  tenantUsersError,
   saving,
-  moving,
-  onEditNameChange,
-  onEditUriChange,
   onEditAclChange,
-  onMoveParentChange,
-  onToggleRole,
-  onMove,
   onSave,
   onDelete,
 }: {
-  selectedNode: KnowledgeNode;
-  editName: string;
-  editUri: string;
   editAcl: KnowledgeAcl;
-  moveParentId: string;
-  moveCandidates: KnowledgeNode[];
-  permissionPreview: string[];
+  tenantUsers: TenantUserOption[];
+  tenantUsersLoading: boolean;
+  tenantUsersError: string;
   saving: boolean;
-  moving: boolean;
-  onEditNameChange: (value: string) => void;
-  onEditUriChange: (value: string) => void;
   onEditAclChange: (acl: KnowledgeAcl) => void;
-  onMoveParentChange: (value: string) => void;
-  onToggleRole: (role: string, checked: boolean) => void;
-  onMove: () => void;
   onSave: () => void;
   onDelete: () => void;
 }) {
   return (
-    <aside className="flex min-h-0 flex-col overflow-hidden bg-[var(--bg-card)] p-6">
-      <h3 className="mb-8 flex items-center border-b-[var(--border-width)] border-[var(--border)] pb-2 font-mono text-xs font-black uppercase">
-        <TerminalSquare size={16} className="mr-2 text-[var(--brand)]" /> 节点属性与权限
-      </h3>
-      <div className="hidden-scrollbar min-h-0 flex-1 space-y-6 overflow-y-auto pr-2">
-        <div className="space-y-2">
-          <label className="block font-mono text-[10px] font-black uppercase">显示名称</label>
-          <input value={editName} onChange={(event) => onEditNameChange(event.target.value)} className="w-full border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-elevated)] px-4 py-3 font-mono text-sm font-bold outline-none" />
-        </div>
-
-        <div className="space-y-3 border-t-[var(--border-width)] border-dashed border-[var(--border)] pt-4">
-          <label className="block font-mono text-[10px] font-black uppercase text-[var(--text-secondary)]">访问权限控制 ACL</label>
-          <div className="flex gap-2">
-            <ConsoleSelectionCard
-              type="button"
-              onClick={() => onEditAclChange({ ...editAcl, isPublic: true })}
-              active={editAcl.isPublic}
-              className={`flex-1 py-2 text-center text-[10px] shadow-none ${
-                editAcl.isPublic ? "bg-[var(--success)] shadow-[var(--shadow-base)]" : ""
-              }`}
-            >
-              公开
-            </ConsoleSelectionCard>
-            <ConsoleSelectionCard
-              type="button"
-              onClick={() => onEditAclChange({ ...editAcl, isPublic: false })}
-              active={!editAcl.isPublic}
-              className="flex-1 py-2 text-center text-[10px] shadow-none"
-            >
-              私有
-            </ConsoleSelectionCard>
-          </div>
-          {!editAcl.isPublic && (
-            <div className="space-y-3 border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-elevated)] p-3">
-              <label className="block font-mono text-[8px] font-black uppercase">授权角色</label>
-              <div className="flex flex-wrap gap-2">
-                {ACL_ROLES.map((role) => (
-                  <label key={role} className="flex cursor-pointer items-center gap-1.5">
-                    <input
-                      type="checkbox"
-                      checked={editAcl.roles?.includes(role)}
-                      onChange={(event) => onToggleRole(role, event.target.checked)}
-                      className="h-3 w-3 appearance-none border-2 border-[var(--border)] checked:bg-[var(--brand)]"
-                    />
-                    <span className="font-mono text-[9px] font-bold uppercase">{roleLabel(role)}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="space-y-2">
-          <label className="block font-mono text-[10px] font-black uppercase">引擎资源 URI</label>
-          <input value={editUri} onChange={(event) => onEditUriChange(event.target.value)} placeholder="viking://..." className="w-full border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-elevated)] px-4 py-3 font-mono text-xs font-bold outline-none" />
-        </div>
-
-        <div className="space-y-3 border-t-[var(--border-width)] border-dashed border-[var(--border)] pt-4">
-          <label className="block font-mono text-[10px] font-black uppercase text-[var(--text-secondary)]">访问预览</label>
-          <div className="border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-elevated)] p-3">
-            {permissionPreview.map((line) => (
-              <p key={line} className="font-mono text-[10px] font-bold leading-5 text-[var(--text-secondary)]">
-                {line}
-              </p>
-            ))}
-          </div>
-        </div>
-
-        <div className="space-y-3 border-t-[var(--border-width)] border-dashed border-[var(--border)] pt-4">
-          <label className="block font-mono text-[10px] font-black uppercase text-[var(--text-secondary)]">结构调整</label>
-          <select
-            value={moveParentId}
-            onChange={(event) => onMoveParentChange(event.target.value)}
-            className="w-full border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-elevated)] px-4 py-3 font-mono text-[10px] font-bold uppercase outline-none"
-          >
-            <option value="__KEEP__">保持当前位置</option>
-            <option value="__ROOT__">移动到根目录</option>
-            {moveCandidates.map((node) => (
-              <option key={node.id} value={node.id}>
-                {node.name}
-              </option>
-            ))}
-          </select>
-          <p className="font-mono text-[10px] font-bold leading-5 text-[var(--text-secondary)]">
-            可直接拖拽左侧节点完成调整，提交前会再次确认，避免误操作导致路径和权限继承关系变化。
-          </p>
-          <ConsoleButton
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 gap-3">
+          <ConsoleSelectionCard
             type="button"
-            onClick={onMove}
-            disabled={moving}
-            tone="warning"
-            className="w-full justify-center py-3 text-[10px]"
+            onClick={() => onEditAclChange({ ...editAcl, isPublic: true })}
+            active={editAcl.isPublic}
+            className={`min-h-[52px] w-full justify-center border-[var(--border-width)] py-3 text-center font-mono text-[10px] font-black uppercase tracking-[0.16em] shadow-none ${
+              editAcl.isPublic
+                ? "border-[var(--border)] bg-[var(--brand-muted)] text-[var(--text-primary)] shadow-[var(--shadow-base)]"
+                : "bg-[var(--bg-card)] text-[var(--text-primary)] hover:border-[var(--border)] hover:bg-[var(--bg-elevated)]"
+            }`}
           >
-            {moving ? "移动中" : "调整节点位置"}
-          </ConsoleButton>
-        </div>
+            公开
+          </ConsoleSelectionCard>
+          <ConsoleSelectionCard
+            type="button"
+            onClick={() => onEditAclChange({ ...editAcl, isPublic: false })}
+            active={!editAcl.isPublic}
+            className={`min-h-[52px] w-full justify-center border-[var(--border-width)] py-3 text-center font-mono text-[10px] font-black uppercase tracking-[0.16em] shadow-none ${
+              !editAcl.isPublic
+                ? "border-[var(--border)] bg-[var(--brand-muted)] text-[var(--text-primary)] shadow-[var(--shadow-base)]"
+                : "bg-[var(--bg-card)] text-[var(--text-primary)] hover:border-[var(--border)] hover:bg-[var(--bg-elevated)]"
+            }`}
+          >
+            私有
+          </ConsoleSelectionCard>
       </div>
-      <div className="mt-8 space-y-4">
+        {!editAcl.isPublic && (
+          <div className="mt-4 w-full space-y-3 rounded-[var(--radius-base)] border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-elevated)] p-4">
+            <label className="block font-mono text-[8px] font-black uppercase text-[var(--text-secondary)]">授权角色</label>
+            <div className="grid w-full grid-cols-3 gap-3">
+              {ACL_ROLES.map((role) => (
+                <label
+                  key={role}
+                  className="flex min-h-[60px] w-full cursor-pointer items-center justify-center gap-3 rounded-[var(--radius-pill)] border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-card)] px-4 py-3"
+                >
+                  <input
+                    type="checkbox"
+                    checked={editAcl.roles?.includes(role)}
+                    onChange={(event) => {
+                      const roles = event.target.checked
+                        ? Array.from(new Set([...(editAcl.roles ?? []), role]))
+                        : (editAcl.roles ?? []).filter((item) => item !== role);
+                      onEditAclChange({ ...editAcl, roles });
+                    }}
+                    className="h-5 w-5 appearance-none border-2 border-[var(--border)] checked:bg-[var(--brand)]"
+                  />
+                  <span className="font-mono text-xs font-black uppercase tracking-[0.12em] text-[var(--text-primary)]">{roleLabel(role)}</span>
+                </label>
+              ))}
+            </div>
+
+            <TenantUserPicker
+              value={editAcl.users}
+              users={tenantUsers}
+              loading={tenantUsersLoading}
+              error={tenantUsersError}
+              onChange={(users) => onEditAclChange({ ...editAcl, users })}
+            />
+          </div>
+        )}
+
+      <div className="flex flex-wrap items-center justify-center gap-3 pt-1">
         <ConsoleButton
           type="button"
           onClick={onSave}
           disabled={saving}
           tone="dark"
-          className="w-full justify-center py-4 text-xs"
+          className="w-full max-w-[168px] justify-center py-2.5 text-[10px]"
         >
+          <Check size={14} strokeWidth={2.4} />
           {saving ? "提交中" : "应用变更"}
         </ConsoleButton>
         <ConsoleButton
           type="button"
           onClick={onDelete}
           tone="danger"
-          className="w-full justify-center py-3 text-[10px]"
+          className="w-full max-w-[168px] justify-center !bg-[var(--danger)] py-2.5 text-[10px] !text-white hover:!bg-[var(--danger)]"
         >
-          <Trash2 size={14} strokeWidth={2} /> 删除节点
+          <TriangleAlert size={14} strokeWidth={2.4} />
+          删除节点
         </ConsoleButton>
       </div>
-    </aside>
+    </div>
   );
 }

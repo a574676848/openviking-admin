@@ -7,19 +7,26 @@ import { cx } from "./shared";
 export function ConsoleChatBubble({
   role,
   content,
+  label,
 }: {
   role: "user" | "assistant";
   content: ReactNode;
+  label?: string;
 }) {
   return (
-    <div className={cx("flex flex-col", role === "user" ? "items-end" : "items-start")}>
-      <span className="mb-2 bg-black px-2 py-0.5 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-white">
-        {role === "user" ? "USER_INPUT" : "SYS_RESPONSE"}
+    <div className={cx("flex flex-col group", role === "user" ? "items-end" : "items-start")}>
+      <span className={cx(
+        "mb-2 px-2 py-0.5 font-mono text-[9px] font-black uppercase tracking-[0.18em]",
+        role === "user" ? "text-[var(--text-primary)]" : "text-[var(--brand)]"
+      )}>
+        {label ?? (role === "user" ? "USER_INPUT" : "SYS_RESPONSE")}
       </span>
       <div
         className={cx(
-          "max-w-[90%] border-[3px] border-[var(--border)] p-6 font-mono text-sm font-bold leading-relaxed shadow-[6px_6px_0px_#000]",
-          role === "user" ? "bg-[var(--warning)] text-black" : "bg-[var(--bg-card)] text-black",
+          "max-w-[90%] rounded-2xl border border-[var(--border)] p-6 font-sans text-sm font-medium leading-relaxed transition-all",
+          role === "user" 
+            ? "bg-transparent text-[var(--text-primary)] shadow-none" 
+            : "bg-[var(--bg-card)] text-[var(--text-primary)] shadow-lg theme-starry:backdrop-blur-md theme-starry:bg-[var(--bg-card)]/80",
         )}
       >
         {content}
@@ -45,33 +52,41 @@ export function ConsoleSourceCard({
   source: ConsoleSourceCardData;
 }) {
   return (
-    <div className="border-[3px] border-[var(--border)] bg-[var(--bg-card)] p-5 shadow-[4px_4px_0px_#000]">
-      <div className="mb-3 flex items-start justify-between gap-3 border-b-[2px] border-[var(--border)] pb-3">
+    <div className="group relative overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] p-5 transition-all hover:border-[var(--brand)]/50 hover:shadow-xl theme-starry:backdrop-blur-md">
+      <div className="mb-4 flex items-start justify-between gap-3 border-b border-[var(--border)] pb-3">
         <div>
-          <p className="font-mono text-xs font-black uppercase tracking-[0.12em] text-black">
-            #{index + 1} | {source.title || "REF_CHUNK"}
-          </p>
+          <div className="flex items-center gap-2">
+            <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[var(--brand)]/10 font-mono text-[10px] font-black text-[var(--brand)]">
+              {index + 1}
+            </span>
+            <p className="font-sans text-sm font-black text-[var(--text-primary)]">
+              {source.title || "参考切片 (REF_CHUNK)"}
+            </p>
+          </div>
           {source.reranked ? (
-            <ConsoleBadge className="mt-2 border-[2px] bg-black px-2 py-0.5 text-[8px] tracking-[0.16em] text-white shadow-none">
+            <ConsoleBadge tone="brand" className="mt-2 h-4 px-1.5 text-[8px] tracking-[0.12em] rounded-sm">
               RERANK_BOOSTED
             </ConsoleBadge>
           ) : null}
         </div>
         <div className="text-right">
-          <p className="font-mono text-sm font-black text-[var(--brand)]">{(source.score * 100).toFixed(1)}%</p>
+          <p className="font-mono text-lg font-black text-[var(--brand)]">
+            {(source.score * 100).toFixed(1)}%
+          </p>
           {source.reranked ? (
-            <p className="font-mono text-[8px] font-black uppercase tracking-[0.12em] text-[var(--text-muted)]">
+            <p className="mt-0.5 font-mono text-[9px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">
               ORIGIN {((source.stage1Score ?? 0) * 100).toFixed(1)}%
             </p>
           ) : null}
         </div>
       </div>
       {source.content ? (
-        <div className="border-[2px] border-[var(--border)] border-dashed bg-[#FFF200]/20 p-4 font-mono text-xs leading-relaxed text-black/80">
+        <div className="relative rounded-xl border border-dashed border-[var(--brand)]/20 bg-[var(--brand-muted)]/5 p-4 font-sans text-xs leading-relaxed text-[var(--text-secondary)]">
+          <div className="absolute -left-px top-2 h-4 w-1 bg-[var(--brand)]/30 rounded-r" />
           {source.content}
         </div>
       ) : null}
-      <p className="mt-3 truncate font-mono text-[9px] font-black uppercase tracking-[0.14em] text-[var(--text-muted)]">
+      <p className="mt-4 truncate font-mono text-[9px] font-bold uppercase tracking-[0.14em] text-[var(--text-muted)] group-hover:text-[var(--brand)] transition-colors">
         URI: {source.uri}
       </p>
     </div>

@@ -7,11 +7,15 @@ const getMock = vi.fn();
 const patchMock = vi.fn();
 const deleteMock = vi.fn();
 const confirmMock = vi.fn();
+const { toastSuccessMock, toastErrorMock } = vi.hoisted(() => ({
+  toastSuccessMock: vi.fn(),
+  toastErrorMock: vi.fn(),
+}));
 
 vi.mock("sonner", () => ({
   toast: {
-    success: vi.fn(),
-    error: vi.fn(),
+    success: toastSuccessMock,
+    error: toastErrorMock,
   },
 }));
 
@@ -61,6 +65,8 @@ describe("KnowledgeTreePage", () => {
     patchMock.mockReset();
     deleteMock.mockReset();
     confirmMock.mockReset();
+    toastSuccessMock.mockReset();
+    toastErrorMock.mockReset();
   });
 
   afterEach(async () => {
@@ -78,6 +84,9 @@ describe("KnowledgeTreePage", () => {
         { id: "kb-1", name: "知识库一", tenantId: "tenant-a" },
       ])
       .mockResolvedValueOnce([
+        { id: "user-1", username: "admin", role: "tenant_admin", active: true },
+      ])
+      .mockResolvedValueOnce([
         {
           id: "node-root",
           kbId: "kb-1",
@@ -86,7 +95,7 @@ describe("KnowledgeTreePage", () => {
           path: "/",
           sortOrder: 1,
           vikingUri: "viking://kb-1/root",
-          acl: { isPublic: false, roles: ["tenant_viewer"], users: [] },
+          acl: { isPublic: false, roles: ["tenant_viewer"], users: ["user-1"] },
           createdAt: "2026-04-26T00:00:00.000Z",
         },
       ]);
@@ -104,8 +113,9 @@ describe("KnowledgeTreePage", () => {
 
     expect(container.textContent).toContain("访问预览");
     expect(container.textContent).toContain("当前节点为私有受控资源。");
-    expect(container.textContent).toContain("结构调整");
-    expect(container.textContent).toContain("调整节点位置");
+    expect(container.textContent).toContain("额外授权用户：admin");
+    expect(container.textContent).toContain("访问权限控制 ACL");
+    expect(container.textContent).toContain("应用变更");
   });
 
   it("拖拽节点到目标节点后先确认再调用移动接口", async () => {
@@ -113,6 +123,7 @@ describe("KnowledgeTreePage", () => {
     patchMock.mockResolvedValue({});
     getMock
       .mockResolvedValueOnce([{ id: "kb-1", name: "知识库一", tenantId: "tenant-a" }])
+      .mockResolvedValueOnce([{ id: "user-1", username: "admin", role: "tenant_admin", active: true }])
       .mockResolvedValueOnce([
         {
           id: "node-root",
@@ -187,5 +198,62 @@ describe("KnowledgeTreePage", () => {
       parentId: "node-target",
       sortOrder: 1,
     });
+  });
+
+  it("保存 ACL 时应提交 acl 字段并提示保存成功", async () => {
+    patchMock.mockResolvedValue({});
+    getMock
+      .mockResolvedValueOnce([{ id: "kb-1", name: "知识库一", tenantId: "tenant-a" }])
+      .mockResolvedValueOnce([{ id: "user-1", username: "admin", role: "tenant_admin", active: true }])
+      .mockResolvedValueOnce([
+        {
+          id: "node-root",
+          kbId: "kb-1",
+          parentId: null,
+          name: "根节点",
+          path: "/",
+          sortOrder: 1,
+          vikingUri: "viking://kb-1/root",
+          acl: { isPublic: false, roles: ["tenant_viewer"], users: ["user-1"] },
+          createdAt: "2026-04-26T00:00:00.000Z",
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: "node-root",
+          kbId: "kb-1",
+          parentId: null,
+          name: "根节点",
+          path: "/",
+          sortOrder: 1,
+          vikingUri: "viking://kb-1/root",
+          acl: { isPublic: false, roles: ["tenant_viewer"], users: ["user-1"] },
+          createdAt: "2026-04-26T00:00:00.000Z",
+        },
+      ]);
+
+    await renderPage();
+
+    const rootNodeButton = Array.from(container.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("根节点"),
+    );
+
+    await act(async () => {
+      rootNodeButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    const saveButton = Array.from(container.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("应用变更"),
+    );
+
+    await act(async () => {
+      saveButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(patchMock).toHaveBeenCalledWith("/knowledge-tree/node-root", {
+      acl: { isPublic: false, roles: ["tenant_viewer"], users: ["user-1"] },
+    });
+    expect(toastSuccessMock).toHaveBeenCalledWith("保存成功");
   });
 });

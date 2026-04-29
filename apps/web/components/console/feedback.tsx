@@ -16,7 +16,7 @@ export function ConsoleBadge({
   return (
     <span
       className={cx(
-        "inline-flex border-[3px] border-[var(--border)] px-3 py-1 font-sans text-[10px] font-bold uppercase tracking-wider shadow-[3px_3px_0px_#000]",
+        "inline-flex items-center gap-1.5 border rounded-[var(--radius-pill)] px-2 py-0.5 font-sans text-[10px] font-bold tracking-tight",
         badgeToneMap[tone],
         className,
       )}

@@ -11,6 +11,7 @@ type SessionUser = {
   username: string;
   role: string;
   tenantId: string | null;
+  hasCustomOvConfig?: boolean;
 };
 
 function isBrowser() {

@@ -35,7 +35,9 @@ type MockCapabilityKey = {
     id: string;
     name: string;
     apiKey: string;
+    userId: string;
     lastUsedAt: string | null;
+    expiresAt: string | null;
     createdAt: string;
 };
 
@@ -106,7 +108,9 @@ function createMockState(): MockState {
                 id: "key-seed",
                 name: "已有自动化 Key",
                 apiKey: "seed-key-value",
+                userId: "user-tenant-admin",
                 lastUsedAt: "2026-04-26T02:00:00.000Z",
+                expiresAt: "2026-05-26T02:00:00.000Z",
                 createdAt: "2026-04-26T00:00:00.000Z",
             },
         ],
@@ -274,23 +278,32 @@ async function installMockApi(page: Page, state: MockState) {
             return jsonResponse(route, { ok: true });
         }
 
-        if (path === "/api/v1/mcp/keys" && method === "GET") {
+        if (path === "/api/v1/users" && method === "GET") {
+            return jsonResponse(route, Object.values(state.usersByToken).filter((user) => user.tenantId === "tenant-alpha"));
+        }
+
+        if (path === "/api/v1/capability/keys" && method === "GET") {
             return jsonResponse(route, state.capabilityKeys);
         }
 
-        if (path === "/api/v1/mcp/keys" && method === "POST") {
+        if (path === "/api/v1/capability/keys" && method === "POST") {
             const body = await readBody(route);
             state.capabilityKeys.push({
                 id: "key-created",
                 name: String(body.name ?? "新 Key"),
                 apiKey: "ovk-created-secret",
+                userId: String(body.userId ?? "user-tenant-admin"),
                 lastUsedAt: null,
+                expiresAt: "2026-05-26T05:00:00.000Z",
                 createdAt: "2026-04-26T05:00:00.000Z",
             });
-            return jsonResponse(route, { apiKey: "ovk-created-secret" }, 201);
+            return jsonResponse(route, {
+                apiKey: "ovk-created-secret",
+                expiresAt: "2026-05-26T05:00:00.000Z",
+            }, 201);
         }
 
-        if (path === "/api/v1/mcp/keys/key-created" && method === "DELETE") {
+        if (path === "/api/v1/capability/keys/key-created" && method === "DELETE") {
             state.capabilityKeys = state.capabilityKeys.filter((item) => item.id !== "key-created");
             return jsonResponse(route, { ok: true });
         }
@@ -304,13 +317,23 @@ async function installMockApi(page: Page, state: MockState) {
                             credentialType: "session_key",
                             issueEndpoint: "/api/v1/auth/session-key",
                             ttlSeconds: 3600,
+                            ttlOptions: [
+                                { label: "15 分钟", value: 900 },
+                                { label: "30 分钟", value: 1800, default: true },
+                                { label: "1 小时", value: 3600 },
+                            ],
                             recommendedFor: ["mcp"],
                         },
                         {
                             channel: "mcp",
                             credentialType: "api_key",
                             issueEndpoint: "/api/v1/auth/client-credentials",
-                            ttlSeconds: null,
+                            ttlSeconds: 2592000,
+                            ttlOptions: [
+                                { label: "7 天", value: 604800 },
+                                { label: "30 天", value: 2592000, default: true },
+                                { label: "长期有效", value: null },
+                            ],
                             recommendedFor: ["mcp", "cli"],
                         },
                     ],
@@ -391,10 +414,11 @@ test("tenant_admin 端到端覆盖知识库、搜索与 MCP key 管理", async (
     await expect(page.getByText("WebDAV 配置指南")).toBeVisible();
     await expect(page.getByText("Rerank 已启用")).toBeVisible();
 
-    await page.goto("/console/mcp");
-    await page.getByRole("button", { name: "生成新 Key" }).click();
+    await page.goto("/console/capability");
+    await page.getByRole("button", { name: "新增凭证" }).click();
+    await page.getByLabel("绑定用户 *").selectOption("user-tenant-operator");
     await page.getByPlaceholder("例如：Cursor-Office / Claude-Local").fill("E2E Key");
-    await page.getByRole("button", { name: "生成 Key" }).click();
+    await page.getByRole("button", { name: "确认创建" }).click();
     await expect(page.locator("code").filter({ hasText: /^ovk-created-secret$/ })).toBeVisible();
 
     await page.getByRole("button", { name: "测试当前连接" }).first().click();

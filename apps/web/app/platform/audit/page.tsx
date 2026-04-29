@@ -1,7 +1,7 @@
 "use client";
 import { apiClient } from "@/lib/apiClient";
 import { useEffect, useState, useCallback, type ElementType } from "react";
-import { Shield, Key, TerminalSquare, RefreshCw, Trash2, Database, Settings2 } from "lucide-react";
+import { Shield, Key, TerminalSquare, RefreshCw, Trash2, Database, Settings2, ChevronLeft, ChevronRight } from "lucide-react";
 import { DataTable, type ColumnDef } from "@/components/ui/DataTable";
 import {
   PlatformButton,
@@ -81,7 +81,7 @@ export default function AuditPage() {
       sortValue: (log) => new Date(log.createdAt),
       cell: (log) => (
         <div className="font-mono text-[10px] tracking-widest text-[var(--text-secondary)] whitespace-nowrap">
-          {new Date(log.createdAt).toLocaleString("en-GB", { hour12: false }).replace(",", "")}
+          {new Date(log.createdAt).toLocaleString("zh-CN", { hour12: false })}
         </div>
       ),
     },
@@ -93,7 +93,7 @@ export default function AuditPage() {
       sortable: true,
       sortValue: (log) => log.username || "ROOT",
       cell: (log) => (
-        <div className="font-bold text-[11px] text-[var(--text-primary)] uppercase">
+        <div className="font-bold text-[11px] text-[var(--text-primary)]">
           {log.username || "ROOT"}
         </div>
       ),
@@ -160,7 +160,7 @@ export default function AuditPage() {
       searchable: true,
       searchValue: (log) => JSON.stringify(log.meta),
       cell: (log) => (
-        <div className="max-w-[150px] truncate rounded-none border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-elevated)] p-1.5 text-[9px] text-[var(--text-muted)]" title={JSON.stringify(log.meta)}>
+        <div className="max-w-[150px] truncate border border-[var(--border)] bg-[var(--bg-elevated)] p-1.5 text-[9px] text-[var(--text-muted)]" title={JSON.stringify(log.meta)}>
           {JSON.stringify(log.meta)}
         </div>
       ),
@@ -199,58 +199,57 @@ export default function AuditPage() {
             <PlatformField label="结束日期">
                <PlatformInput type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} />
             </PlatformField>
-            <div className="flex flex-col justify-end">
+            <PlatformField label="&nbsp;">
                <PlatformButton
                  type="button"
                  onClick={handleSearch}
-                 className="ov-button w-full py-2 text-xs"
+                 className="ov-button w-full py-3 text-sm"
                >
                  应用筛选
                </PlatformButton>
-            </div>
+            </PlatformField>
          </div>
       </PlatformPanel>
 
       {/* ─── Data Grid ─── */}
-      <div className="bg-[var(--bg-card)] border-[var(--border-width)] border-[var(--border)] overflow-x-auto relative flex-1 shadow-[var(--shadow-base)]">
-        <PlatformUtilityBar
-          className="border-b-[var(--border-width)] border-[var(--border)] bg-[var(--bg-elevated)]"
-          leading={
-            <PlatformStatPill
-              label="记录总数"
-              value={<span>[{result?.total ?? 0}]</span>}
-              accent="var(--brand)"
-              backgroundClassName="bg-[var(--bg-card)]"
-            />
-          }
-          trailing={
-            result && result.pages > 1 ? (
-              <>
-                <PlatformButton
-                  type="button"
-                  aria-label="上一页平台审计日志"
-                  title="上一页平台审计日志"
-                  disabled={page <= 1 || loading}
-                  onClick={() => { const p = page - 1; setPage(p); load(p); }}
-                  className="ov-button px-2 py-1 text-[10px]"
-                >
-                  上一页
-                </PlatformButton>
-                <span className="px-2 font-mono text-[10px] font-bold tracking-widest text-[var(--text-primary)]">P.{page}/{result.pages}</span>
-                <PlatformButton
-                  type="button"
-                  aria-label="下一页平台审计日志"
-                  title="下一页平台审计日志"
-                  disabled={page >= result.pages || loading}
-                  onClick={() => { const p = page + 1; setPage(p); load(p); }}
-                  className="ov-button px-2 py-1 text-[10px]"
-                >
-                  下一页
-                </PlatformButton>
-              </>
-            ) : undefined
-          }
-        />
+      <div className="relative flex-1 overflow-hidden rounded-[var(--radius-base)] border border-[var(--border)] bg-[var(--bg-card)] shadow-[var(--shadow-base)]">
+        {/* 工具栏：记录总数 + 分页 */}
+        <div className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--bg-elevated)] px-5 py-3">
+          <div className="flex items-center gap-3">
+            <span className="font-sans text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              记录总数
+            </span>
+            <span className="font-mono text-sm font-black tabular-nums text-[var(--brand)]">
+              [{result?.total ?? 0}]
+            </span>
+          </div>
+
+          {result && result.pages > 1 ? (
+            <div className="flex items-center gap-3">
+              <PlatformButton
+                type="button"
+                disabled={page <= 1 || loading}
+                onClick={() => { const p = page - 1; setPage(p); void load(p); }}
+                className="ov-button px-3 py-1.5 text-[10px]"
+              >
+                <ChevronLeft size={12} strokeWidth={2.6} />
+                上一页
+              </PlatformButton>
+              <span className="font-mono text-[10px] font-bold tracking-widest text-[var(--text-primary)]">
+                第 {page}/{result.pages} 页
+              </span>
+              <PlatformButton
+                type="button"
+                disabled={page >= result.pages || loading}
+                onClick={() => { const p = page + 1; setPage(p); void load(p); }}
+                className="ov-button px-3 py-1.5 text-[10px]"
+              >
+                下一页
+                <ChevronRight size={12} strokeWidth={2.6} />
+              </PlatformButton>
+            </div>
+          ) : null}
+        </div>
         <DataTable
           data={result?.items ?? []}
           columns={columns}
@@ -260,7 +259,7 @@ export default function AuditPage() {
           emptyMessage="当前筛选条件下没有审计记录"
           tableLabel="平台审计日志表"
           searchConfig={{ placeholder: "搜索操作人 / 事件类型 / 目标对象..." }}
-          className="border-0 shadow-none"
+          className="border-0 shadow-none rounded-none"
           rowClassName={() => "hover:bg-[var(--bg-elevated)] transition-colors"}
         />
         {loadError ? (

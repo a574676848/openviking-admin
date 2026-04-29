@@ -8,6 +8,7 @@ import {
   Body,
   Req,
   UseGuards,
+  Logger,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { TenantGuard } from '../common/tenant.guard';
@@ -20,6 +21,8 @@ import type { AuthenticatedRequest } from '../common/authenticated-request.inter
 @Controller('knowledge-bases')
 @UseGuards(JwtAuthGuard, TenantGuard)
 export class KnowledgeBaseController {
+  private readonly logger = new Logger(KnowledgeBaseController.name);
+
   constructor(
     private readonly kbService: KnowledgeBaseService,
     private readonly auditService: AuditService,
@@ -42,16 +45,32 @@ export class KnowledgeBaseController {
   ) {
     const data = { ...dto, tenantId: req.tenantScope ?? '' };
     const created = await this.kbService.create(data);
-    await this.auditService.log({
-      tenantId: req.tenantScope ?? undefined,
-      userId: req.user.id,
-      username: req.user.username,
-      action: 'create_knowledge_base',
-      target: created.id,
-      meta: { name: created.name, requestId: req.headers['x-request-id'] },
-      ip: req.ip,
-    });
-    return created;
+    try {
+      await this.auditService.log({
+        tenantId: req.tenantScope ?? undefined,
+        userId: req.user.id,
+        username: req.user.username,
+        action: 'create_knowledge_base',
+        target: created.id,
+        meta: { name: created.name, requestId: req.headers['x-request-id'] },
+        ip: req.ip,
+      });
+      return created;
+    } catch (error) {
+      try {
+        await this.kbService.remove(created.id, req.tenantScope);
+      } catch (rollbackError) {
+        const message =
+          rollbackError instanceof Error
+            ? rollbackError.message
+            : String(rollbackError);
+        this.logger.error(
+          `知识库创建后审计失败，且补偿删除失败：${message}`,
+        );
+      }
+
+      throw error;
+    }
   }
 
   @Patch(':id')

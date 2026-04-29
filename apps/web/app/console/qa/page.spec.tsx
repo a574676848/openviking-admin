@@ -3,6 +3,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import QaPage from "./page";
 
+const getMock = vi.fn();
 const postMock = vi.fn();
 const toastErrorMock = vi.fn();
 
@@ -18,6 +19,7 @@ vi.mock("@/components/watcher", () => ({
 
 vi.mock("@/lib/apiClient", () => ({
   apiClient: {
+    get: (...args: unknown[]) => getMock(...args),
     post: (...args: unknown[]) => postMock(...args),
   },
 }));
@@ -37,7 +39,8 @@ async function renderPage() {
 describe("QaPage", () => {
   beforeEach(() => {
     (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-    Element.prototype.scrollIntoView = vi.fn();
+    getMock.mockReset();
+    getMock.mockResolvedValue([]);
     postMock.mockReset();
     toastErrorMock.mockReset();
   });
@@ -56,7 +59,7 @@ describe("QaPage", () => {
 
     await renderPage();
 
-    const input = container.querySelector('input[placeholder*="请输入问题"]') as HTMLInputElement;
+    const input = container.querySelector('input[placeholder*="输入问题或检索指令"]') as HTMLInputElement;
     expect(input).toBeTruthy();
 
     await act(async () => {
@@ -73,9 +76,8 @@ describe("QaPage", () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain("本轮检索失败");
-    expect(container.textContent).toContain("检索请求失败，请确认核心引擎在线后重试。");
-    expect(container.textContent).toContain("重新加载");
+    expect(container.textContent).toContain("检索服务响应异常，请检查底层引擎 (OpenViking Core) 是否在线。");
+    expect(container.textContent).toContain("重新发起检索请求");
     expect(toastErrorMock).toHaveBeenCalledWith("检索请求失败，核心引擎可能已离线");
   });
 });

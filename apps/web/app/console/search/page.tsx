@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { apiClient } from "@/lib/apiClient";
 import { Terminal, Clock, Zap, FileText, Settings2, ShieldAlert } from "lucide-react";
@@ -11,6 +11,7 @@ import {
   ConsoleInput,
   ConsolePageHeader,
   ConsolePanel,
+  ConsoleSelect,
   ConsoleSurfaceCard,
   ConsoleStatusPanel,
 } from "@/components/console/primitives";
@@ -29,6 +30,12 @@ interface SearchResponse {
   latencyMs?: number | null;
   logId?: string;
   rerankApplied?: boolean;
+}
+
+interface KnowledgeBaseOption {
+  id: string;
+  name: string;
+  vikingUri: string;
 }
 
 function tokenizeQuery(query: string) {
@@ -70,6 +77,7 @@ export default function SearchPage() {
   const searchParams = useSearchParams();
   const [query, setQuery] = useState("");
   const [uri, setUri] = useState("");
+  const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBaseOption[]>([]);
   const [topK, setTopK] = useState(10);
   const [scoreThreshold, setScoreThreshold] = useState(0.3);
   const [useRerank, setUseRerank] = useState(true);
@@ -95,6 +103,33 @@ export default function SearchPage() {
       setUri(nextUri);
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    let active = true;
+
+    void apiClient
+      .get<KnowledgeBaseOption[]>("/knowledge-bases")
+      .then((list) => {
+        if (!active) {
+          return;
+        }
+        setKnowledgeBases(Array.isArray(list) ? list : []);
+      })
+      .catch(() => {
+        if (active) {
+          setKnowledgeBases([]);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const hasMatchedUri = useMemo(
+    () => knowledgeBases.some((item) => item.vikingUri === uri),
+    [knowledgeBases, uri],
+  );
 
   async function runSearch() {
     setLoading(true);
@@ -156,7 +191,7 @@ export default function SearchPage() {
 
   return (
     <div className="flex min-h-full flex-col gap-8">
-      <ConsolePageHeader title="检索调试控制台" subtitle="中文结果预览 / 语义召回调试" />
+      <ConsolePageHeader title="检索调试" subtitle="中文结果预览 / 语义召回调试" />
 
       <ConsolePanel className="relative overflow-hidden p-8">
         <div className="absolute inset-0 opacity-[0.05]" style={{ backgroundImage: "linear-gradient(currentColor 1px, transparent 1px), linear-gradient(90deg, currentColor 1px, transparent 1px)", backgroundSize: "24px 24px" }} />
@@ -185,13 +220,21 @@ export default function SearchPage() {
               <label className="flex items-center font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-secondary)]">
                 <Settings2 size={12} className="mr-2" /> 检索范围 URI
               </label>
-              <ConsoleInput
-                type="text"
+              <ConsoleSelect
                 value={uri}
                 onChange={(e) => setUri(e.target.value)}
-                placeholder="viking://resources/default/"
                 className="px-3 py-2 text-xs tracking-widest"
-              />
+              >
+                <option value="">全部知识库</option>
+                {knowledgeBases.map((kb) => (
+                  <option key={kb.id} value={kb.vikingUri}>
+                    {kb.name} | {kb.vikingUri}
+                  </option>
+                ))}
+                {uri && !hasMatchedUri ? (
+                  <option value={uri}>指定 URI | {uri}</option>
+                ) : null}
+              </ConsoleSelect>
             </ConsoleField>
             <ConsoleField label="">
               <label className="flex items-center font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-secondary)]">

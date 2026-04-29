@@ -76,6 +76,23 @@ describe('TenantService', () => {
     });
   });
 
+  describe('findOneByIdOrTenantId', () => {
+    it('should fallback to tenantId when id lookup misses', async () => {
+      const mockTenant = {
+        id: 'tenant-1',
+        tenantId: 'mem',
+      } as Tenant;
+      mockRepository.findById.mockResolvedValue(null);
+      mockRepository.findByTenantId.mockResolvedValue(mockTenant);
+
+      const result = await service.findOneByIdOrTenantId('mem');
+
+      expect(mockRepository.findById).toHaveBeenCalledWith('mem');
+      expect(mockRepository.findByTenantId).toHaveBeenCalledWith('mem');
+      expect(result).toBe(mockTenant);
+    });
+  });
+
   describe('updateStatus', () => {
     it('should update tenant status and write audit log', async () => {
       const mockTenant = {

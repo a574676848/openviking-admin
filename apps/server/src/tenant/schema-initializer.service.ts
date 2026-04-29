@@ -27,7 +27,6 @@ export class SchemaInitializerService {
   private readonly CORE_BUSINESS_TABLES = [
     'knowledge_bases',
     'knowledge_nodes',
-    'search_logs',
     'import_tasks',
     'integrations',
   ];

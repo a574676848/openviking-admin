@@ -71,78 +71,86 @@ export function DocumentsFiltersPanel({
   filter,
   searchQuery,
   selectedCount,
-  stats,
   onFilterChange,
   onSearchChange,
   onBulkAction,
 }: DocumentsFiltersPanelProps) {
   return (
-    <section className="grid grid-cols-1 gap-8 xl:grid-cols-[0.9fr_1.1fr]">
-      <ConsoleControlPanel
-        eyebrow="任务队列"
-        title="按状态与 URI 收紧任务流"
-        footer={
-          <ConsoleStatsGrid className="grid-cols-2">
-            <ConsoleMetricCard label="已完成" value={stats.done.toLocaleString()} tone="success" />
-            <ConsoleMetricCard label="排队中" value={stats.pending.toLocaleString()} />
-          </ConsoleStatsGrid>
-        }
-      >
-        <div className="flex flex-wrap gap-3">
-          {["all", "pending", "running", "done", "failed"].map((status) => (
-            <ConsoleButton
-              key={status}
-              type="button"
-              onClick={() => onFilterChange(status)}
-              tone={filter === status ? "dark" : "neutral"}
-              className="px-4 py-3 tracking-[0.16em]"
-            >
-              {status === "all" ? "全部" : DOCUMENT_STATUS_MAP[status]?.label ?? status}
-            </ConsoleButton>
-          ))}
-        </div>
-
-        <div className="mt-6">
-          <ConsoleField label="搜索任务">
-            <div className="relative mt-2">
-              <Search
-                size={16}
-                strokeWidth={2.6}
-                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]"
-              />
-              <ConsoleInput
-                value={searchQuery}
-                onChange={(event) => onSearchChange(event.target.value)}
-                placeholder="搜索来源地址、目标 URI 或知识库 ID"
-                className="py-3 pl-11 pr-4"
-              />
-            </div>
-          </ConsoleField>
-        </div>
-      </ConsoleControlPanel>
-
-      <ConsoleStatusPanel
-        icon={RefreshCw}
-        title="任务闭环"
-        description="支持单条同步、失败重试、排队取消与批量操作。运行中的任务会持续刷新，但当前版本不支持中途停止。"
-        action={
-          <div className="flex flex-wrap gap-3">
-            <ConsoleButton type="button" tone="neutral" onClick={() => onBulkAction("sync")} disabled={selectedCount === 0}>
-              <RefreshCw size={14} strokeWidth={2.6} />
-              批量同步
-            </ConsoleButton>
-            <ConsoleButton type="button" tone="dark" onClick={() => onBulkAction("retry")} disabled={selectedCount === 0}>
-              <RotateCcw size={14} strokeWidth={2.6} />
-              批量重试
-            </ConsoleButton>
-            <ConsoleButton type="button" tone="danger" onClick={() => onBulkAction("cancel")} disabled={selectedCount === 0}>
-              <Ban size={14} strokeWidth={2.6} />
-              批量取消
-            </ConsoleButton>
+    <ConsoleSurfaceCard className="px-3 py-2">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        {/* Left: Filters & Search */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center bg-[var(--bg-elevated)] p-1 rounded-xl border border-[var(--border)]">
+            {["all", "pending", "running", "done", "failed"].map((status) => (
+              <button
+                key={status}
+                type="button"
+                onClick={() => onFilterChange(status)}
+                className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-all rounded-lg ${
+                  filter === status
+                    ? "bg-black text-white shadow-sm"
+                    : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                }`}
+              >
+                {status === "all" ? "全部" : DOCUMENT_STATUS_MAP[status]?.label ?? status}
+              </button>
+            ))}
           </div>
-        }
-      />
-    </section>
+
+          <div className="relative">
+            <Search
+              size={12}
+              strokeWidth={3}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]"
+            />
+            <input
+              value={searchQuery}
+              onChange={(event) => onSearchChange(event.target.value)}
+              placeholder="搜索 URI / KB ID"
+              className="h-9 w-48 bg-[var(--bg-elevated)] border border-[var(--border)] rounded-xl pl-8 pr-3 text-[10px] font-bold focus:outline-none focus:border-[var(--brand)] transition-all"
+            />
+          </div>
+        </div>
+
+        {/* Right: Bulk Actions */}
+        <div
+          className={`flex items-center gap-2 transition-all ${
+            selectedCount > 0 ? "opacity-100" : "opacity-40 grayscale pointer-events-none"
+          }`}
+        >
+          <span className="font-mono text-[10px] font-black uppercase tracking-wider text-[var(--text-muted)] mr-2">
+            已选 {selectedCount} 项
+          </span>
+          <ConsoleButton
+            type="button"
+            tone="neutral"
+            onClick={() => onBulkAction("sync")}
+            className="h-8 px-3 text-[10px] border-dashed"
+          >
+            <RefreshCw size={10} strokeWidth={3} className={selectedCount > 0 ? "animate-spin" : ""} />
+            同步
+          </ConsoleButton>
+          <ConsoleButton
+            type="button"
+            tone="dark"
+            onClick={() => onBulkAction("retry")}
+            className="h-8 px-3 text-[10px]"
+          >
+            <RotateCcw size={10} strokeWidth={3} />
+            重试
+          </ConsoleButton>
+          <ConsoleButton
+            type="button"
+            tone="danger"
+            onClick={() => onBulkAction("cancel")}
+            className="h-8 px-3 text-[10px]"
+          >
+            <Ban size={10} strokeWidth={3} />
+            取消
+          </ConsoleButton>
+        </div>
+      </div>
+    </ConsoleSurfaceCard>
   );
 }
 
@@ -162,8 +170,8 @@ export function DocumentsTasksTable({
   return (
     <ConsoleTableShell
       columns={
-        <div className="grid grid-cols-[72px_minmax(0,1fr)_160px]">
-          <div className="flex items-center justify-center bg-[var(--bg-card)] px-5 py-4">
+        <div className="grid grid-cols-[72px_180px_minmax(0,1fr)_140px_140px_260px] divide-x divide-[var(--border)]">
+          <div className="flex items-center justify-center bg-[var(--bg-elevated)] py-4">
             <input
               type="checkbox"
               aria-label="全选任务"
@@ -172,11 +180,24 @@ export function DocumentsTasksTable({
               className="h-4 w-4 accent-black"
             />
           </div>
-          <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">
-            导入任务
+          <div className="flex items-center px-5 py-4 font-mono text-[9px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">
+            状态与时间
           </div>
-          <div className="px-5 py-4 text-right font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-secondary)]">
-            已选择 {selectedIds.length} / 每 10 秒自动刷新
+          <div className="flex items-center px-5 py-4 font-mono text-[9px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">
+            来源与知识映射
+          </div>
+          <div className="flex items-center px-5 py-4 font-mono text-[9px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">
+            节点总数
+          </div>
+          <div className="flex items-center px-5 py-4 font-mono text-[9px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">
+            向量总数
+          </div>
+          <div className="flex items-center justify-between px-5 py-4 font-mono text-[9px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">
+            <span>操作执行</span>
+            <div className="flex items-center gap-2 text-[var(--brand)]">
+              <span className="h-1 w-1 animate-pulse rounded-full bg-current" />
+              <span className="opacity-60">10S 自动刷新</span>
+            </div>
           </div>
         </div>
       }
@@ -266,11 +287,21 @@ export function DocumentsTasksTable({
                 </div>
               </div>
             </div>
-            <div className="bg-[var(--bg-card)] px-5 py-5 font-mono text-3xl font-black tabular-nums text-[var(--text-primary)]">
-              {task.nodeCount ?? 0}
+            <div className="bg-[var(--bg-card)] px-5 py-5">
+              <p className="font-sans text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                节点数
+              </p>
+              <div className="mt-2 font-mono text-4xl font-black tabular-nums text-[var(--text-primary)]">
+                {task.nodeCount ?? 0}
+              </div>
             </div>
-            <div className="bg-[var(--bg-card)] px-5 py-5 font-mono text-3xl font-black tabular-nums text-[var(--brand)]">
-              {(task.vectorCount ?? 0).toLocaleString()}
+            <div className="bg-[var(--bg-card)] px-5 py-5">
+              <p className="font-sans text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                向量数
+              </p>
+              <div className="mt-2 font-mono text-4xl font-black tabular-nums text-[var(--brand)]">
+                {(task.vectorCount ?? 0).toLocaleString()}
+              </div>
             </div>
             <div className="bg-[var(--bg-card)] px-5 py-5">
               <div className="flex flex-wrap gap-3">

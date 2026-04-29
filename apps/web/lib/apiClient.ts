@@ -1,5 +1,5 @@
 type JsonBody = BodyInit | Record<string, unknown> | unknown[] | null | undefined;
-import { clearSessionToken, readSessionToken } from "./session";
+import { clearSessionToken, readSessionToken, readSessionUser } from "./session";
 
 type ApiErrorPayload = {
   message?: string;
@@ -76,6 +76,14 @@ export const apiClient = {
 
     if (token) {
       headers.set("Authorization", `Bearer ${token}`);
+    }
+
+    const sessionUser = readSessionUser();
+    if (sessionUser?.tenantId) {
+      headers.set("X-OpenViking-Account", sessionUser.tenantId);
+    }
+    if (sessionUser?.id) {
+      headers.set("X-OpenViking-User", sessionUser.id);
     }
 
     const config: RequestInit = {

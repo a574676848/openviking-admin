@@ -81,8 +81,7 @@ POST /api/v1/import-tasks
   "integrationId": "integration_uuid",
   "kbId": "knowledge_base_uuid",
   "sourceType": "url",
-  "sourceUrl": "https://xxx.feishu.cn/docx/xxxxx",
-  "targetUri": "viking://resources/tenants/acme/kb/uuid/docs/product"
+  "sourceUrl": "https://xxx.feishu.cn/docx/xxxxx"
 }
 ```
 
@@ -112,8 +111,7 @@ POST /api/v1/import-tasks
   "integrationId": "integration_uuid",
   "kbId": "knowledge_base_uuid",
   "sourceType": "url",
-  "sourceUrl": "https://alidocs.dingtalk.com/i/nodes/xxxxx",
-  "targetUri": "viking://resources/tenants/acme/kb/uuid/docs/product"
+  "sourceUrl": "https://alidocs.dingtalk.com/i/nodes/xxxxx"
 }
 ```
 
@@ -138,8 +136,7 @@ POST /api/v1/import-tasks
   "integrationId": "integration_uuid",
   "kbId": "knowledge_base_uuid",
   "sourceType": "git",
-  "sourceUrl": "https://github.com/org/repo",
-  "targetUri": "viking://resources/tenants/acme/kb/uuid/docs/code"
+  "sourceUrl": "https://github.com/org/repo"
 }
 ```
 
@@ -156,6 +153,14 @@ POST /api/v1/import-tasks
 3. 解析文件内容，按文件分段
 4. 调用 OV 引擎注入文档
 5. 清理临时目录
+
+### 目标路径规则
+
+- 控制台创建导入任务时不再要求手工填写 `targetUri`
+- 服务端会基于知识库的 `vikingUri` 自动派生目标路径
+- 当前默认规则为 `viking://resources/{tenantId}/{kbId}/imports/{sourceType}/`
+- 如果知识库下已有知识树节点，控制台会额外提供“导入目标节点”选择；选中节点后会直接使用该节点的 `vikingUri` 作为导入目标
+- 服务端会严格校验显式 `targetUri`：只允许当前知识库根目录或当前知识库下已有节点的 `vikingUri`，禁止写入其他租户的 OV 路径
 
 ---
 
@@ -211,6 +216,8 @@ pending → running → done
 
 - **轮询间隔**: 定时检查 `pending` 状态的任务
 - **并发处理**: 同时处理多个任务
+- **租户路由**: Worker 会按活跃租户逐个扫描任务；`SMALL` 读取公共库，`MEDIUM` 设置租户 schema，`LARGE` 连接独立库
+- **集成凭证**: 处理飞书、钉钉、Git 等任务时，从任务所属租户的数据域读取并解密集成凭证
 - **错误处理**: 任务失败时记录 `errorMsg`，状态设为 `failed`
 - **模块销毁时**: Worker 停止
 

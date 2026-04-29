@@ -75,6 +75,7 @@ describe('AuthService', () => {
       expect(result.accessToken).toContain('"tokenType":"access_token"');
       expect(result.refreshToken).toContain('"tokenType":"refresh_token"');
       expect(result.user.role).toBe('super_admin');
+      expect(result.user.hasCustomOvConfig).toBe(false);
       expect(mockUserRepo.findByUsername).toHaveBeenCalledWith('admin', null);
     });
 
@@ -98,6 +99,13 @@ describe('AuthService', () => {
         id: 'tenant-1',
         tenantId: 'acme',
       } as never);
+      mockTenantRepo.findById.mockResolvedValue({
+        id: 'tenant-1',
+        tenantId: 'acme',
+        ovConfig: {
+          baseUrl: 'http://tenant-ov.local',
+        },
+      } as never);
       mockUserRepo.findByUsername
         .mockResolvedValueOnce(tenantUser as never)
         .mockResolvedValueOnce(superAdmin as never);
@@ -110,6 +118,7 @@ describe('AuthService', () => {
 
       expect(result.user.id).toBe('tenant-user-1');
       expect(result.user.role).toBe('tenant_admin');
+      expect(result.user.hasCustomOvConfig).toBe(true);
       expect(mockUserRepo.findByUsername).toHaveBeenNthCalledWith(
         1,
         'admin',
@@ -119,6 +128,55 @@ describe('AuthService', () => {
         2,
         'admin',
         null,
+      );
+    });
+
+    it('超管带租户编码登录时应签发租户视角 token', async () => {
+      const superAdmin = {
+        id: 'platform-admin-1',
+        username: 'admin',
+        passwordHash: await bcrypt.hash('Admin@2026', 10),
+        role: SystemRoles.SUPER_ADMIN,
+        tenantId: null,
+      };
+
+      mockTenantRepo.findByTenantId.mockResolvedValue({
+        id: 'tenant-1',
+        tenantId: 'test3',
+      } as never);
+      mockTenantRepo.findById.mockResolvedValue({
+        id: 'tenant-1',
+        tenantId: 'test3',
+        ovConfig: {
+          baseUrl: 'http://tenant-ov.local',
+        },
+      } as never);
+      mockUserRepo.findByUsername
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(superAdmin as never);
+
+      const result = await service.login({
+        username: 'admin',
+        password: 'Admin@2026',
+        tenantCode: 'test3',
+      });
+      const accessPayload = JSON.parse(result.accessToken);
+
+      expect(accessPayload).toEqual(
+        expect.objectContaining({
+          role: SystemRoles.TENANT_ADMIN,
+          tenantId: 'tenant-1',
+          scope: 'tenant',
+          isAdminSwitch: true,
+        }),
+      );
+      expect(result.user).toEqual(
+        expect.objectContaining({
+          id: 'platform-admin-1',
+          role: SystemRoles.TENANT_ADMIN,
+          tenantId: 'tenant-1',
+          hasCustomOvConfig: true,
+        }),
       );
     });
   });

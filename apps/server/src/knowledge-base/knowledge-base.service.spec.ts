@@ -9,9 +9,11 @@ describe('KnowledgeBaseService', () => {
     create: jest.fn(),
     save: jest.fn(),
     delete: jest.fn(),
+    createWithUri: jest.fn(),
   };
   const tenantService = {
     findOne: jest.fn(),
+    findOneByIdOrTenantId: jest.fn(),
   };
   const service = new KnowledgeBaseService(
     kbRepo as never,
@@ -46,5 +48,35 @@ describe('KnowledgeBaseService', () => {
       NotFoundException,
     );
     expect(kbRepo.delete).not.toHaveBeenCalled();
+  });
+
+  it('创建知识库时应支持用业务 tenantId 解析租户', async () => {
+    tenantService.findOneByIdOrTenantId.mockResolvedValue({
+      id: 'tenant-1',
+      tenantId: 'mem',
+      quota: { maxDocs: 10 },
+    });
+    kbRepo.count.mockResolvedValue(0);
+    kbRepo.createWithUri.mockResolvedValue({
+      id: 'kb-1',
+      tenantId: 'mem',
+      name: '记忆',
+    });
+
+    const result = await service.create({
+      name: '记忆',
+      description: '',
+      tenantId: 'mem',
+      vikingUri: 'viking://resources/mem/',
+    });
+
+    expect(tenantService.findOneByIdOrTenantId).toHaveBeenCalledWith('mem');
+    expect(kbRepo.count).toHaveBeenCalledWith({ where: { tenantId: 'mem' } });
+    expect(kbRepo.createWithUri).toHaveBeenCalledWith(
+      expect.objectContaining({ tenantId: 'mem', name: '记忆' }),
+    );
+    expect(result).toEqual(
+      expect.objectContaining({ id: 'kb-1', tenantId: 'mem' }),
+    );
   });
 });

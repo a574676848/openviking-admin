@@ -10,7 +10,7 @@ OpenViking Admin 将用户登录态、能力调用凭证和机器凭证分层管
 | JWT refresh token | `/api/v1/auth/login`、`/api/v1/auth/sso/exchange` | Web、CLI | 仅用于 `/api/v1/auth/refresh`，不直接调用 capability |
 | Capability access token | `/api/v1/auth/token/exchange` | HTTP、Skill、服务集成 | 面向能力调用的短中期 token |
 | Session key | `/api/v1/auth/session/exchange` | MCP、短会话 Agent | 更短生命周期，适合会话型连接 |
-| API key | `/api/v1/auth/client-credentials` | CLI、MCP、自动化任务 | 可吊销机器凭证，适合长期配置 |
+| API key | `/api/v1/capability/keys` 或 `/api/v1/auth/client-credentials` | CLI、MCP、自动化任务 | 可吊销机器凭证，适合长期配置 |
 
 ## 推荐链路
 
@@ -61,25 +61,48 @@ Agent 运行环境
 
 ### GET /api/v1/auth/credential-options
 
-返回当前用户可用的换证方式、推荐入口和默认 TTL。
+返回当前用户可用的换证方式、推荐入口、默认 TTL 以及允许的有效期选项。
 
 ### POST /api/v1/auth/token/exchange
 
-需要 JWT。签发 capability access token。
+需要 JWT。签发 capability access token，可通过 `ttlSeconds` 从服务端给出的预设列表中选择有效期。
 
 ### POST /api/v1/auth/session/exchange
 
-需要 JWT。签发短期 session key。
+需要 JWT。签发短期 session key，可通过 `ttlSeconds` 从服务端给出的预设列表中选择有效期。
 
-### POST /api/v1/auth/client-credentials
+### POST /api/v1/capability/keys
 
-需要 JWT。签发可吊销 API key。
+需要 JWT。凭证中心为当前租户内指定用户签发可吊销 API key，可通过 `ttlSeconds` 选择 7 天、30 天、90 天、180 天或长期有效。
 
 请求体：
 
 ```json
 {
-  "name": "ci-bot"
+  "userId": "user-id",
+  "name": "ci-bot",
+  "ttlSeconds": 2592000
+}
+```
+
+### GET /api/v1/capability/keys
+
+需要 JWT。返回当前租户内全部 API key，凭证会携带绑定用户 ID。
+
+### DELETE /api/v1/capability/keys/:id
+
+需要 JWT。吊销当前租户内指定 API key。
+
+### POST /api/v1/auth/client-credentials
+
+需要 JWT。为当前登录用户签发可吊销 API key，可通过 `ttlSeconds` 选择 7 天、30 天、90 天、180 天或长期有效。
+
+请求体：
+
+```json
+{
+  "name": "ci-bot",
+  "ttlSeconds": 2592000
 }
 ```
 
@@ -89,9 +112,9 @@ Agent 运行环境
 |------|------|------|
 | JWT access token | 2 小时 | 自动刷新，不长期持久化到不可信环境 |
 | JWT refresh token | 7 天 | 只存在浏览器安全存储或 CLI profile |
-| Capability access token | 2 小时 | 给 HTTP/Skill 能力调用使用 |
-| Session key | 30 分钟 | 给短会话 MCP 或 Agent 使用 |
-| API key | 长期 | 必须可吊销、可审计、定期轮换 |
+| Capability access token | 2 小时 | 可选 30 分钟、1 小时、2 小时、8 小时、24 小时，默认 2 小时 |
+| Session key | 30 分钟 | 可选 15 分钟、30 分钟、1 小时、8 小时，默认 30 分钟 |
+| API key | 30 天 | 可选 7 天、30 天、90 天、180 天、长期有效，默认 30 天 |
 
 ## 权限边界
 
@@ -100,6 +123,7 @@ Agent 运行环境
 - 高风险 capability 通过 `minimumRole` 声明最低角色。
 - 访问租户范围外 URI 时，服务端返回显式拒绝。
 - API key 与用户和租户绑定，不能跨租户使用。
+- 凭证中心的 API key 列表、创建和吊销接口使用 `/api/v1/capability/keys`，MCP 路径仅保留 SSE 与 JSON-RPC 协议入口。
 
 ## 客户端存储建议
 

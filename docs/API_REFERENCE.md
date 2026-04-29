@@ -64,7 +64,7 @@
 
 ### POST /api/v1/auth/login
 
-本地账号登录。
+本地账号登录。`super_admin` 带 `tenantCode` 登录时会签发租户视角 token，后续控制台请求按该租户的隔离级别路由；不带 `tenantCode` 时保持平台视角。
 
 请求体：
 
@@ -89,7 +89,8 @@
       "id": "uuid",
       "username": "admin",
       "role": "tenant_admin",
-      "tenantId": "uuid"
+      "tenantId": "uuid",
+      "hasCustomOvConfig": true
     }
   },
   "traceId": "uuid",
@@ -134,13 +135,39 @@ SSO Provider 回调入口。认证成功后重定向到前端并携带一次性 
 
 返回当前用户、租户和角色上下文。
 
+### GET /api/v1/auth/me
+
+返回当前登录用户的会话上下文。租户用户会额外返回 `hasCustomOvConfig`，用于前端判断是否展示依赖租户自定义 OV 引擎的入口。
+
+```json
+{
+  "data": {
+    "id": "uuid",
+    "username": "tenant.admin",
+    "role": "tenant_admin",
+    "tenantId": "uuid",
+    "hasCustomOvConfig": true
+  },
+  "traceId": "uuid",
+  "error": null
+}
+```
+
 ### GET /api/v1/auth/credential-options
 
-返回当前用户可用的换证方式和推荐 TTL。需要 JWT。
+返回当前用户可用的换证方式、推荐 TTL 和可选有效期列表。需要 JWT。
 
 ### POST /api/v1/auth/token/exchange
 
 将 JWT 登录态交换为 capability access token。
+
+请求体：
+
+```json
+{
+  "ttlSeconds": 3600
+}
+```
 
 响应：
 
@@ -164,6 +191,14 @@ SSO Provider 回调入口。认证成功后重定向到前端并携带一次性 
 
 将 JWT 登录态交换为短期 session key，常用于 MCP 或短会话 Agent。
 
+请求体：
+
+```json
+{
+  "ttlSeconds": 1800
+}
+```
+
 ### POST /api/v1/auth/client-credentials
 
 签发可吊销 API key，适合 CLI、MCP 和自动化任务。
@@ -172,7 +207,8 @@ SSO Provider 回调入口。认证成功后重定向到前端并携带一次性 
 
 ```json
 {
-  "name": "ci-bot"
+  "name": "ci-bot",
+  "ttlSeconds": 2592000
 }
 ```
 
@@ -183,7 +219,9 @@ SSO Provider 回调入口。认证成功后重定向到前端并携带一次性 
   "data": {
     "credentialType": "api_key",
     "apiKey": "ov-sk-...",
-    "name": "ci-bot"
+    "name": "ci-bot",
+    "expiresInSeconds": 2592000,
+    "expiresAt": "2026-05-28T00:00:00.000Z"
   },
   "traceId": "uuid",
   "error": null
@@ -357,17 +395,27 @@ SSO Provider 回调入口。认证成功后重定向到前端并携带一次性 
 - `GET /api/v1/mcp/sse?key=<apiKey>`
 - `GET /api/v1/mcp/sse?sessionKey=<session-key>`
 
-### POST /api/v1/mcp/keys
+### POST /api/v1/capability/keys
 
-为当前登录用户创建 capability API key。需要 JWT。
+为当前租户内指定用户创建 capability API key。需要 JWT。
 
-### GET /api/v1/mcp/keys
+请求体：
 
-查询当前用户签发过的 capability API key。需要 JWT。
+```json
+{
+  "userId": "user-id",
+  "name": "ci-bot",
+  "ttlSeconds": 2592000
+}
+```
 
-### DELETE /api/v1/mcp/keys/:id
+### GET /api/v1/capability/keys
 
-删除当前用户签发的指定 capability API key。需要 JWT。
+查询当前租户下全部 capability API key。需要 JWT。
+
+### DELETE /api/v1/capability/keys/:id
+
+删除当前租户下指定 capability API key。需要 JWT。
 
 ### POST /api/v1/mcp/message
 
@@ -491,6 +539,10 @@ MCP JSON-RPC 消息接口。
 | `dingtalk` | 钉钉知识库            |
 | `git`      | GitHub 或 GitLab 仓库 |
 
+补充说明：
+- `POST /api/v1/import-tasks` 至少需要 `kbId`、`sourceType` 与来源地址（`sourceUrl` 或 `sourceUrls`）
+- 控制台默认不再传 `targetUri`，服务端会按知识库 `vikingUri` 自动生成导入目标路径
+
 ## 搜索接口
 
 保留给控制台和历史搜索页面使用。Capability 搜索入口见 `/api/v1/knowledge/search`。
@@ -499,10 +551,14 @@ MCP JSON-RPC 消息接口。
 | ------ | ---------------------------------- | ------------ |
 | `POST` | `/api/v1/search/find`              | 语义检索     |
 | `POST` | `/api/v1/search/grep`              | 文本匹配     |
-| `GET`  | `/api/v1/search/analysis`          | 检索分析     |
+| `GET`  | `/api/v1/search/analysis`          | 无答案基础分析 |
 | `GET`  | `/api/v1/search/stats-deep`        | 深度检索统计 |
 | `GET`  | `/api/v1/search/logs`              | 最近检索日志 |
 | `POST` | `/api/v1/search/logs/:id/feedback` | 提交检索反馈 |
+
+其中：
+- `/api/v1/search/analysis` 返回 `total` 与 `noAnswerLogs`，用于缺口样本与补录闭环。
+- `/api/v1/search/stats-deep` 返回命中率、高频问题、趋势等聚合统计。
 
 ## 系统接口
 
@@ -518,7 +574,9 @@ MCP JSON-RPC 消息接口。
 | `GET`  | `/api/v1/system/dashboard` | 控制台仪表盘             |
 | `POST` | `/api/v1/system/reindex`   | 触发重新索引             |
 
-`/api/v1/system/dashboard` 在租户视角返回当前租户数据；在平台视角返回全平台数据，并按活跃租户解析有效 OV 配置。租户未配置 `ovConfig` 时使用 `DEFAULT_OV_CONFIG` 默认配置，平台视角会对相同 OV 连接去重后聚合健康状态和队列数据，并额外返回 `tenantCount`。
+租户视角只有在当前租户已启用自定义 OV 配置时，才允许访问 `/api/v1/system/health`、`/api/v1/system/stats` 与 `/api/v1/system/queue`；未启用时接口会直接拒绝，用于拦截手工访问或直接敲 URL 的绕过路径。
+
+`/api/v1/system/dashboard` 在租户视角返回当前租户数据；在平台视角返回全平台数据，并按活跃租户解析有效 OV 配置。租户未配置 `ovConfig` 时使用 `DEFAULT_OV_CONFIG` 默认配置，平台视角会对相同 OV 连接去重后聚合健康状态和队列数据，并额外返回 `tenantCount`、`platformKbCount`、`tenantSearchTop`、`tenantKnowledgeBaseTop`。其中 `platformKbCount` 与 `tenantKnowledgeBaseTop` 会按租户隔离级别逐个统计，覆盖 `SMALL`/`MEDIUM`/`LARGE` 三种知识库存储路径。
 
 ## 配置接口
 
@@ -526,6 +584,7 @@ MCP JSON-RPC 消息接口。
 | ------- | ------------------ | ------------------------------------ |
 | `GET`   | `/api/v1/settings` | 获取系统配置，需要 JWT               |
 | `PATCH` | `/api/v1/settings` | 批量更新系统配置，需要 `super_admin` |
+| `POST`  | `/api/v1/settings/test-connection` | 测试 OV 引擎或 rerank 连接，需要 `super_admin` |
 
 ## 审计接口
 

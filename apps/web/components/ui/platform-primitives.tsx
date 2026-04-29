@@ -243,19 +243,16 @@ export function PlatformInput({
   );
 }
 
+import { ConsoleSelect } from "../console/forms";
+
 export function PlatformSelect({
   className,
   ...props
 }: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
-    <select
-      className={cx(
-        "ov-input bg-[var(--bg-input)] px-3 py-2 font-sans text-sm rounded-[var(--radius-pill)]",
-        BASE_FOCUS_RING,
-        "focus-visible:ring-[var(--brand)] focus-visible:ring-offset-[var(--bg-card)]",
-        className,
-      )}
-      {...props}
+    <ConsoleSelect
+      {...props as any}
+      className={className}
     />
   );
 }

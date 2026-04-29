@@ -8,6 +8,7 @@ export interface IKnowledgeNodeRepository {
   find(options: RepositoryFindQuery<KnowledgeNodeModel>): Promise<KnowledgeNodeModel[]>;
   findOne(options: RepositoryFindOneQuery<KnowledgeNodeModel>): Promise<KnowledgeNodeModel | null>;
   save(node: Partial<KnowledgeNodeModel>): Promise<KnowledgeNodeModel>;
+  createWithGeneratedUri(node: Partial<KnowledgeNodeModel>): Promise<KnowledgeNodeModel>;
   remove(node: KnowledgeNodeModel): Promise<KnowledgeNodeModel>;
   findAllowedUris(
     tenantId: string,

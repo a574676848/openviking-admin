@@ -39,3 +39,5 @@ export class KnowledgeBase {
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 }
+
+export const KNOWLEDGE_BASE_TABLE = 'knowledge_bases';

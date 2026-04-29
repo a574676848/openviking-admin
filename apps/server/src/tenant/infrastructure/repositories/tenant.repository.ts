@@ -15,6 +15,9 @@ interface TenantRequest {
   tenantDataSource?: DataSource;
 }
 
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 @Injectable({ scope: Scope.REQUEST })
 export class TenantRepository implements ITenantRepository {
   constructor(
@@ -24,12 +27,7 @@ export class TenantRepository implements ITenantRepository {
   ) {}
 
   private get repo(): Repository<Tenant> {
-    if (this.request?.tenantQueryRunner) {
-      return this.request.tenantQueryRunner.manager.getRepository(Tenant);
-    }
-    if (this.request?.tenantDataSource) {
-      return this.request.tenantDataSource.getRepository(Tenant);
-    }
+    // Tenant 属于控制平面实体，始终存放在公共库，不能随租户业务库切换。
     return this.defaultRepo;
   }
 
@@ -75,6 +73,9 @@ export class TenantRepository implements ITenantRepository {
   }
 
   async findById(id: string): Promise<TenantModel | null> {
+    if (!UUID_PATTERN.test(id)) {
+      return null;
+    }
     const item = await this.repo.findOne({ where: { id } });
     return item ? this.toModel(item) : null;
   }

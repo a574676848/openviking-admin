@@ -8,9 +8,8 @@ import { apiClient } from "@/lib/apiClient";
 import { useConfirm } from "@/components/ui/ConfirmProvider";
 import {
   ConsoleButton,
-  ConsoleMetricCard,
   ConsolePageHeader,
-  ConsoleStatsGrid,
+  ConsoleSurfaceCard,
 } from "@/components/console/primitives";
 import { DocumentsFiltersPanel, DocumentsTasksTable } from "./documents-sections";
 import type { ImportTask } from "./documents.types";
@@ -183,54 +182,90 @@ export default function DocumentsPage() {
   }
 
   return (
-    <div className="flex min-h-full flex-col gap-8">
-      <ConsolePageHeader
-        title="文档处理中心"
-        subtitle="统一查看导入任务、同步状态与知识树去向"
-        actions={
-          <Link href="/console/documents/import">
-            <ConsoleButton type="button">
-              <Plus size={14} strokeWidth={2.6} />
-              新建导入任务
-            </ConsoleButton>
-          </Link>
-        }
-      />
+    <div className="flex min-h-full flex-col gap-1">
+      {/* Bento Row 1: Header (Full Width) */}
+      <ConsoleSurfaceCard>
+        <ConsolePageHeader
+          title="文档处理中心"
+          subtitle="统一查看导入任务、同步状态与知识树去向"
+          className="border-none pb-0"
+          actions={
+            <Link href="/console/documents/import">
+              <ConsoleButton type="button">
+                <Plus size={14} strokeWidth={2.6} />
+                新建导入任务
+              </ConsoleButton>
+            </Link>
+          }
+        />
+      </ConsoleSurfaceCard>
 
-      <ConsoleStatsGrid className="lg:grid-cols-4">
-        <ConsoleMetricCard label="全部任务" value={tasks.length.toLocaleString()} />
-        <ConsoleMetricCard label="处理中" value={stats.running.toLocaleString()} tone="warning" />
-        <ConsoleMetricCard label="失败任务" value={stats.failed.toLocaleString()} tone="danger" />
-        <ConsoleMetricCard label="向量数" value={stats.vectors.toLocaleString()} tone="brand" />
-      </ConsoleStatsGrid>
+      {/* Bento Row 2: Core Metrics Dashboard (Full Width) */}
+      <div className="grid grid-cols-2 gap-1 lg:grid-cols-4">
+        <ConsoleSurfaceCard className="flex flex-col justify-between">
+          <p className="font-sans text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+            全部任务
+          </p>
+          <div className="mt-4 font-mono text-5xl font-black tabular-nums text-[var(--text-primary)]">
+            {tasks.length.toLocaleString()}
+          </div>
+        </ConsoleSurfaceCard>
+        <ConsoleSurfaceCard className="flex flex-col justify-between" tone="elevated">
+          <p className="font-sans text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+            处理中
+          </p>
+          <div className="mt-4 font-mono text-5xl font-black tabular-nums text-[var(--warning)]">
+            {stats.running.toLocaleString()}
+          </div>
+        </ConsoleSurfaceCard>
+        <ConsoleSurfaceCard className="flex flex-col justify-between">
+          <p className="font-sans text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+            失败任务
+          </p>
+          <div className="mt-4 font-mono text-5xl font-black tabular-nums text-[var(--danger)]">
+            {stats.failed.toLocaleString()}
+          </div>
+        </ConsoleSurfaceCard>
+        <ConsoleSurfaceCard className="flex flex-col justify-between">
+          <p className="font-sans text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+            累计向量
+          </p>
+          <div className="mt-4 font-mono text-5xl font-black tabular-nums text-[var(--brand)]">
+            {stats.vectors.toLocaleString()}
+          </div>
+        </ConsoleSurfaceCard>
+      </div>
 
+      {/* Bento Row 3: Filters & Actions (Full Width) */}
       <DocumentsFiltersPanel
         filter={filter}
         searchQuery={searchQuery}
         selectedCount={selectedIds.length}
-        stats={{ done: stats.done, pending: stats.pending }}
         onFilterChange={setFilter}
         onSearchChange={setSearchQuery}
         onBulkAction={(action) => void handleBulkAction(action)}
       />
 
-      <DocumentsTasksTable
-        tasks={filteredTasks}
-        selectedIds={selectedIds}
-        actingIds={actingIds}
-        loadError={loadError}
-        loading={loading}
-        onReload={() => void fetchTasks()}
-        onSelectAll={(checked) => setSelectedIds(checked ? filteredTasks.map((task) => task.id) : [])}
-        onSelectOne={(taskId, checked) =>
-          setSelectedIds((current) =>
-            checked ? [...current, taskId] : current.filter((item) => item !== taskId),
-          )
-        }
-        onSync={(id) => void handleSync(id)}
-        onRetry={(id) => void handleRetry(id)}
-        onCancel={(id) => void handleCancel(id)}
-      />
+      {/* Bento Row 4: Main Data Table */}
+      <div className="mt-0">
+        <DocumentsTasksTable
+          tasks={filteredTasks}
+          selectedIds={selectedIds}
+          actingIds={actingIds}
+          loadError={loadError}
+          loading={loading}
+          onReload={() => void fetchTasks()}
+          onSelectAll={(checked) => setSelectedIds(checked ? filteredTasks.map((t) => t.id) : [])}
+          onSelectOne={(taskId, checked) =>
+            setSelectedIds((current) =>
+              checked ? [...current, taskId] : current.filter((item) => item !== taskId),
+            )
+          }
+          onSync={(id) => void handleSync(id)}
+          onRetry={(id) => void handleRetry(id)}
+          onCancel={(id) => void handleCancel(id)}
+        />
+      </div>
     </div>
   );
 }

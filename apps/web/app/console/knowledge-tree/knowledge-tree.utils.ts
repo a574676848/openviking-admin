@@ -1,4 +1,4 @@
-import type { KnowledgeAcl, KnowledgeNode, TreeNode } from "./knowledge-tree.types";
+import type { KnowledgeAcl, KnowledgeNode, TenantUserOption, TreeNode } from "./knowledge-tree.types";
 
 export const EMPTY_ACL: KnowledgeAcl = { isPublic: true, roles: [], users: [] };
 export const ACL_ROLES = ["tenant_admin", "tenant_operator", "tenant_viewer"];
@@ -33,22 +33,22 @@ export function collectDescendantIds(node: TreeNode): string[] {
   return node.children.flatMap((child) => [child.id, ...collectDescendantIds(child)]);
 }
 
-export function buildPermissionPreview(acl: KnowledgeAcl) {
+export function buildPermissionPreview(acl: KnowledgeAcl, tenantUsers: TenantUserOption[] = []) {
   if (acl.isPublic) {
     return ["当前节点对租户内成员公开可见。", "检索链路不会额外收紧该节点的可见范围。"];
   }
 
+  const tenantUserMap = new Map(tenantUsers.map((user) => [user.id, user.username]));
   const lines = ["当前节点为私有受控资源。"];
   lines.push(
     acl.roles.length > 0
       ? `授权角色：${acl.roles.map(roleLabel).join(" / ")}`
       : "尚未选择授权角色，当前配置可能导致没有角色可见。",
   );
-  lines.push(
-    acl.users.length > 0
-      ? `额外授权用户：${acl.users.join(" / ")}`
-      : "未配置额外用户白名单。",
-  );
+  if (acl.users.length > 0) {
+    const userLabels = acl.users.map((userId) => tenantUserMap.get(userId) ?? userId);
+    lines.push(`额外授权用户：${userLabels.join(" / ")}`);
+  }
   return lines;
 }
 

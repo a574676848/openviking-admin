@@ -26,6 +26,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     role: string;
     tenantId: string | null;
     scope: string;
+    isAdminSwitch?: boolean;
   }) {
     return {
       id: payload.sub,
@@ -33,6 +34,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       role: payload.role,
       tenantId: payload.tenantId,
       scope: payload.scope,
+      isAdminSwitch: payload.isAdminSwitch,
     };
   }
 }

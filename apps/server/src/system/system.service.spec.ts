@@ -1,12 +1,21 @@
 import { SystemService } from './system.service';
+import { TenantIsolationLevel } from '../common/constants/system.enum';
 
 describe('SystemService', () => {
+  const defaultDataSource = {
+    getRepository: jest.fn(),
+    createQueryBuilder: jest.fn(),
+    createQueryRunner: jest.fn(),
+  };
   const settings = {
     resolveOVConfig: jest.fn(),
   };
   const ovClient = {
     getHealth: jest.fn(),
     request: jest.fn(),
+  };
+  const dynamicDS = {
+    getTenantDataSource: jest.fn(),
   };
   const taskRepo = {
     count: jest.fn(),
@@ -20,61 +29,85 @@ describe('SystemService', () => {
   };
   const tenantRepo = {
     findAll: jest.fn(),
+    findById: jest.fn(),
+    findByTenantId: jest.fn(),
   };
 
   let service: SystemService;
+  let smallKnowledgeBaseRepo: { count: jest.Mock };
+  let searchLeaderboardQuery: {
+    from: jest.Mock;
+    select: jest.Mock;
+    addSelect: jest.Mock;
+    where: jest.Mock;
+    andWhere: jest.Mock;
+    groupBy: jest.Mock;
+    orderBy: jest.Mock;
+    limit: jest.Mock;
+    getRawMany: jest.Mock;
+  };
+  let mediumQueryRunner: {
+    connect: jest.Mock;
+    query: jest.Mock;
+    release: jest.Mock;
+  };
 
   beforeEach(() => {
     jest.clearAllMocks();
     settings.resolveOVConfig.mockResolvedValue({
-      baseUrl: 'http://ov.default',
-      apiKey: 'default-key',
+      baseUrl: 'http://ov.local',
+      apiKey: '',
       account: 'default',
     });
-    ovClient.getHealth.mockResolvedValue({ status: 'ok', healthy: true, version: '0.3.9' });
-    ovClient.request.mockImplementation(async (_conn: unknown, path: string) => {
-      if (path === '/api/v1/observer/queue') {
-        return {
-          status: 'ok',
-          result: {
-            status: [
-              '+----------------+---------+-------------+',
-              '|     Queue      | Pending | In Progress |',
-              '+----------------+---------+-------------+',
-              '|   Embedding    |    0    |      0      |',
-              '|    Semantic    |    1    |      0      |',
-              '| Semantic-Nodes |    2    |      0      |',
-              '|     TOTAL      |    3    |      0      |',
-              '+----------------+---------+-------------+',
-            ].join('\n'),
-          },
-        };
-      }
-      if (path === '/api/v1/observer/vikingdb') {
-        return {
-          status: 'ok',
-          result: {
-            status: [
-              '+------------+-------------+--------------+--------+',
-              '| Collection | Index Count | Vector Count | Status |',
-              '+------------+-------------+--------------+--------+',
-              '|  context   |      1      |     4032     |   OK   |',
-              '|   TOTAL    |      1      |     4032     |        |',
-              '+------------+-------------+--------------+--------+',
-            ].join('\n'),
-          },
-        };
-      }
-      return { status: 'ok', result: {} };
+    ovClient.getHealth.mockResolvedValue({ version: '1.0.0' });
+    ovClient.request.mockResolvedValue({
+      result: {
+        status: '| Queue | Pending |\n| ingest | 1 |',
+      },
     });
-    taskRepo.count.mockResolvedValue(3);
+    taskRepo.count.mockResolvedValue(0);
     taskRepo.find.mockResolvedValue([]);
-    kbRepo.count.mockResolvedValue(2);
-    logRepo.count.mockResolvedValue(10);
+    kbRepo.count.mockResolvedValue(0);
+    logRepo.count.mockResolvedValue(0);
     tenantRepo.findAll.mockResolvedValue([]);
+    tenantRepo.findById.mockResolvedValue(null);
+    tenantRepo.findByTenantId.mockResolvedValue(null);
+    smallKnowledgeBaseRepo = {
+      count: jest.fn().mockResolvedValue(0),
+    };
+    searchLeaderboardQuery = {
+      from: jest.fn().mockReturnThis(),
+      select: jest.fn().mockReturnThis(),
+      addSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      groupBy: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      getRawMany: jest.fn().mockResolvedValue([]),
+    };
+    mediumQueryRunner = {
+      connect: jest.fn().mockResolvedValue(undefined),
+      query: jest
+        .fn()
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce([{ count: 0 }]),
+      release: jest.fn().mockResolvedValue(undefined),
+    };
+    defaultDataSource.getRepository.mockReturnValue(smallKnowledgeBaseRepo);
+    defaultDataSource.createQueryBuilder.mockReturnValue(searchLeaderboardQuery);
+    defaultDataSource.createQueryRunner.mockReturnValue(mediumQueryRunner);
+    dynamicDS.getTenantDataSource.mockResolvedValue({
+      getRepository: jest.fn().mockReturnValue({
+        count: jest.fn().mockResolvedValue(0),
+      }),
+    });
+
     service = new SystemService(
+      defaultDataSource as never,
       settings as never,
       ovClient as never,
+      dynamicDS as never,
       taskRepo as never,
       kbRepo as never,
       logRepo as never,
@@ -82,85 +115,84 @@ describe('SystemService', () => {
     );
   });
 
-  it('租户看板应使用租户有效 OV 配置', async () => {
-    await service.getDashboardStats('tenant-1');
+  it('tenantScope 传业务租户编码时应回退按 tenantId 查询租户', async () => {
+    tenantRepo.findByTenantId.mockResolvedValue({
+      id: 'tenant-1',
+      tenantId: 'mem',
+      quota: { maxDocs: 10 },
+      status: 'active',
+    });
 
-    expect(settings.resolveOVConfig).toHaveBeenCalledWith('tenant-1');
-    expect(ovClient.request).toHaveBeenCalledWith(
+    const result = await service.getDashboardStats('mem');
+
+    expect(tenantRepo.findById).toHaveBeenCalledWith('mem');
+    expect(tenantRepo.findByTenantId).toHaveBeenCalledWith('mem');
+    expect(result).toEqual(
       expect.objectContaining({
-        baseUrl: 'http://ov.default',
-        apiKey: 'default-key',
+        tenantIdentifier: 'mem',
+        quota: { maxDocs: 10 },
       }),
-      '/api/v1/observer/queue',
     );
   });
 
-  it('平台看板应按活跃租户配置去重聚合 OV 数据', async () => {
+  it('平台视角应聚合真实知识库总数并返回两个租户 Top5', async () => {
     tenantRepo.findAll.mockResolvedValue([
-      { id: 'tenant-1', status: 'active' },
-      { id: 'tenant-2', status: 'active' },
-      { id: 'tenant-disabled', status: 'disabled' },
+      {
+        id: 'tenant-small-id',
+        tenantId: 'tenant-small',
+        displayName: '小租户',
+        status: 'active',
+        isolationLevel: TenantIsolationLevel.SMALL,
+        dbConfig: null,
+      },
+      {
+        id: 'tenant-medium-id',
+        tenantId: 'tenant-medium',
+        displayName: '中租户',
+        status: 'active',
+        isolationLevel: TenantIsolationLevel.MEDIUM,
+        dbConfig: null,
+      },
+      {
+        id: 'tenant-large-id',
+        tenantId: 'tenant-large',
+        displayName: '大租户',
+        status: 'active',
+        isolationLevel: TenantIsolationLevel.LARGE,
+        dbConfig: { database: 'tenant_large' },
+      },
     ]);
-    settings.resolveOVConfig.mockImplementation(async (tenantId: string) => ({
-      baseUrl:
-        tenantId === 'tenant-2' ? 'http://ov.tenant-2' : 'http://ov.shared',
-      apiKey: tenantId === 'tenant-2' ? 'tenant-2-key' : 'shared-key',
-      account: 'default',
-    }));
-    // 按 path 分发 mock，避免 Promise.allSettled 并发导致的顺序问题
-    ovClient.request.mockImplementation(async (_conn: { baseUrl: string }, path: string) => {
-      if (path === '/api/v1/observer/queue') {
-        const queueData = _conn.baseUrl === 'http://ov.tenant-2'
-          ? { Embedding: 3, Semantic: 0, 'Semantic-Nodes': 0 }
-          : { Embedding: 2, Semantic: 1, 'Semantic-Nodes': 0 };
-        return {
-          status: 'ok',
-          result: {
-            status: [
-              '+----------------+---------+-------------+',
-              '|     Queue      | Pending | In Progress |',
-              '+----------------+---------+-------------+',
-              `|   Embedding    |    ${queueData.Embedding}    |      0      |`,
-              `|    Semantic    |    ${queueData.Semantic}    |      0      |`,
-              `| Semantic-Nodes |    ${queueData['Semantic-Nodes']}    |      0      |`,
-              '|     TOTAL      |    3    |      0      |',
-              '+----------------+---------+-------------+',
-            ].join('\n'),
-          },
-        };
-      }
-      return {
-        status: 'ok',
-        result: {
-          status: [
-            '+------------+-------------+--------------+--------+',
-            '| Collection | Index Count | Vector Count | Status |',
-            '+------------+-------------+--------------+--------+',
-            '|  context   |      1      |     4032     |   OK   |',
-            '|   TOTAL    |      1      |     4032     |        |',
-            '+------------+-------------+--------------+--------+',
-          ].join('\n'),
-        },
-      };
+    smallKnowledgeBaseRepo.count.mockResolvedValue(2);
+    mediumQueryRunner.query = jest
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce([{ count: 3 }]);
+    defaultDataSource.createQueryRunner.mockReturnValue(mediumQueryRunner);
+    dynamicDS.getTenantDataSource.mockResolvedValue({
+      getRepository: jest.fn().mockReturnValue({
+        count: jest.fn().mockResolvedValue(5),
+      }),
     });
+    searchLeaderboardQuery.getRawMany.mockResolvedValue([
+      { tenantId: 'tenant-large', count: '12' },
+      { tenantId: 'tenant-medium', count: '7' },
+      { tenantId: 'tenant-small', count: '4' },
+    ]);
 
-    const stats = await service.getDashboardStats(null);
+    const result = await service.getDashboardStats(null);
 
-    expect(stats.tenantCount).toBe(2);
-    expect(settings.resolveOVConfig).toHaveBeenCalledTimes(2);
-    expect(ovClient.getHealth).toHaveBeenCalledTimes(2);
-    expect(stats.health).toEqual({
-      ok: true,
-      message: 'OpenViking 配置 2/2 可用',
-    });
-    expect(stats.queue).toEqual({ Embedding: 5, Semantic: 1, 'Semantic-Nodes': 0 });
-  });
-
-  it('平台看板无租户时应保留默认 OV 检查但租户数为 0', async () => {
-    const stats = await service.getDashboardStats(null);
-
-    expect(stats.tenantCount).toBe(0);
-    expect(settings.resolveOVConfig).toHaveBeenCalledWith(null);
-    expect(ovClient.getHealth).toHaveBeenCalledWith('http://ov.default');
+    expect(result.kbCount).toBe(10);
+    expect(result.platformKbCount).toBe(10);
+    expect(result.tenantCount).toBe(3);
+    expect(result.tenantKnowledgeBaseTop).toEqual([
+      { tenantId: 'tenant-large', tenantName: '大租户', value: 5 },
+      { tenantId: 'tenant-medium', tenantName: '中租户', value: 3 },
+      { tenantId: 'tenant-small', tenantName: '小租户', value: 2 },
+    ]);
+    expect(result.tenantSearchTop).toEqual([
+      { tenantId: 'tenant-large', tenantName: '大租户', value: 12 },
+      { tenantId: 'tenant-medium', tenantName: '中租户', value: 7 },
+      { tenantId: 'tenant-small', tenantName: '小租户', value: 4 },
+    ]);
   });
 });

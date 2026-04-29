@@ -93,19 +93,41 @@ export class SearchController {
   }
 
   private toTraceMeta(req: AuthenticatedRequest): OVRequestMeta | undefined {
-    const traceId = req.headers['x-trace-id'];
-    const requestId = req.headers['x-request-id'];
+    const traceId = this.readHeader(req.headers['x-trace-id']);
+    const requestId = this.readHeader(req.headers['x-request-id']);
+    const account =
+      this.readHeader(req.headers['x-openviking-account']) ??
+      req.tenantScope ??
+      req.user?.tenantId ??
+      undefined;
+    const user =
+      this.readHeader(req.headers['x-openviking-user']) ??
+      req.user?.id;
 
     if (
-      typeof traceId !== 'string' &&
-      typeof requestId !== 'string'
+      !traceId &&
+      !requestId &&
+      !account &&
+      !user
     ) {
       return undefined;
     }
 
     return {
-      traceId: typeof traceId === 'string' ? traceId : undefined,
-      requestId: typeof requestId === 'string' ? requestId : undefined,
+      traceId,
+      requestId,
+      account,
+      user,
     };
+  }
+
+  private readHeader(value: string | string[] | undefined): string | undefined {
+    if (Array.isArray(value)) {
+      return value.find((item) => item.trim().length > 0);
+    }
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value;
+    }
+    return undefined;
   }
 }

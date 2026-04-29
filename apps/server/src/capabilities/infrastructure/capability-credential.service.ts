@@ -1,5 +1,6 @@
 import { randomBytes } from 'crypto';
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -9,6 +10,7 @@ import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Tenant } from '../../tenant/entities/tenant.entity';
+import { User } from '../../users/entities/user.entity';
 import { SystemConfig } from '../../settings/entities/system-config.entity';
 import { CapabilityKey } from '../entities/capability-key.entity';
 import { EncryptionService } from '../../common/encryption.service';
@@ -18,6 +20,7 @@ import {
   OVConfigProfile,
   Principal,
 } from '../domain/capability.types';
+import { resolveCredentialTtlSeconds } from '../domain/credential-ttl.policy';
 
 interface JwtLikePayload {
   sub?: string;
@@ -35,6 +38,8 @@ export class CapabilityCredentialService {
     private readonly keyRepo: Repository<CapabilityKey>,
     @InjectRepository(Tenant)
     private readonly tenantRepo: Repository<Tenant>,
+    @InjectRepository(User)
+    private readonly userRepo: Repository<User>,
     @InjectRepository(SystemConfig)
     private readonly configRepo: Repository<SystemConfig>,
     private readonly encryptionService: EncryptionService,
@@ -48,6 +53,10 @@ export class CapabilityCredentialService {
     const keyRecord = await this.keyRepo.findOne({ where: { apiKey } });
     if (!keyRecord) {
       throw new UnauthorizedException('无效的 capability apiKey');
+    }
+
+    if (keyRecord.expiresAt && keyRecord.expiresAt.getTime() <= Date.now()) {
+      throw new UnauthorizedException('capability apiKey 已过期');
     }
 
     await this.keyRepo.update(keyRecord.id, { lastUsedAt: new Date() });
@@ -127,10 +136,34 @@ export class CapabilityCredentialService {
     };
   }
 
-  async createApiKey(userId: string, tenantId: string, name: string) {
+  async createApiKey(
+    userId: string,
+    tenantId: string,
+    name: string,
+    ttlSeconds?: number | null,
+  ) {
+    const user = await this.userRepo.findOne({ where: { id: userId, tenantId } });
+    if (!user || !user.active) {
+      throw new NotFoundException('用户不存在或不可用');
+    }
+
     const count = await this.keyRepo.count({ where: { userId } });
     if (count >= 10) {
       throw new ForbiddenException('每个用户最多创建 10 个 capability key');
+    }
+
+    let expiresAt: Date | null = null;
+    try {
+      const resolvedTtlSeconds = resolveCredentialTtlSeconds(
+        'api_key',
+        ttlSeconds,
+      );
+      expiresAt =
+        resolvedTtlSeconds === null
+          ? null
+          : new Date(Date.now() + resolvedTtlSeconds * 1000);
+    } catch {
+      throw new BadRequestException('不支持的 API Key 有效期');
     }
 
     const apiKey = `ov-sk-${randomBytes(24).toString('base64url')}`;
@@ -139,20 +172,21 @@ export class CapabilityCredentialService {
       apiKey,
       userId,
       tenantId,
+      expiresAt,
     });
 
     return this.keyRepo.save(entity);
   }
 
-  async getKeysByUser(userId: string) {
+  async getKeysByTenant(tenantId: string) {
     return this.keyRepo.find({
-      where: { userId },
+      where: { tenantId },
       order: { createdAt: 'DESC' },
     });
   }
 
-  async deleteKey(id: string, userId: string) {
-    const key = await this.keyRepo.findOne({ where: { id, userId } });
+  async deleteKey(id: string, tenantId: string) {
+    const key = await this.keyRepo.findOne({ where: { id, tenantId } });
     if (!key) {
       throw new NotFoundException('Capability Key 不存在或无权操作');
     }

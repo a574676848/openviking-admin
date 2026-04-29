@@ -95,7 +95,7 @@ export class KnowledgeTreeController {
   ) {
     const moved = await this.treeService.update(
       id,
-      { parentId: body.parentId ?? undefined, sortOrder: body.sortOrder },
+      { parentId: body.parentId, sortOrder: body.sortOrder },
       req.tenantScope,
     );
     await this.auditService.log({

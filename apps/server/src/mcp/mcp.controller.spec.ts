@@ -1,11 +1,6 @@
 import { McpController } from './mcp.controller';
-import type { AuthenticatedRequest } from '../common/authenticated-request.interface';
 
-describe('McpController audit', () => {
-  const mcpService = {
-    createCapabilityKey: jest.fn(),
-    deleteCapabilityKey: jest.fn(),
-  };
+describe('McpController', () => {
   const mcpProtocolService = {
     createSessionConnection: jest.fn(),
     handleMessage: jest.fn(),
@@ -13,52 +8,30 @@ describe('McpController audit', () => {
   const mcpSseService = {
     createEventStream: jest.fn(),
   };
-  const auditService = {
-    log: jest.fn(),
-  };
   const controller = new McpController(
-    mcpService as never,
     mcpProtocolService as never,
     mcpSseService as never,
-    auditService as never,
   );
-  const req = {
-    user: { id: 'user-1', username: 'alice', tenantId: 'tenant-alpha' },
-    headers: { 'x-request-id': 'request-1' },
-    ip: '127.0.0.1',
-  } as unknown as AuthenticatedRequest;
 
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  it('创建 capability key 后应写入审计日志', async () => {
-    mcpService.createCapabilityKey.mockResolvedValue({
-      id: 'key-1',
-      name: 'CLI Key',
-    });
+  it('MCP message 入口应透传协议请求', async () => {
+    const body = { jsonrpc: '2.0', id: 1, method: 'tools/list' } as never;
+    mcpProtocolService.handleMessage.mockResolvedValue({ ok: true });
 
-    await controller.createMyCapabilityKey(req, { name: 'CLI Key' });
-
-    expect(auditService.log).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: 'create_capability_key',
-        target: 'key-1',
-        tenantId: 'tenant-alpha',
-      }),
-    );
-  });
-
-  it('删除 capability key 后应写入审计日志', async () => {
-    mcpService.deleteCapabilityKey.mockResolvedValue({ success: true });
-
-    await controller.deleteMyCapabilityKey(req, 'key-1');
-
-    expect(auditService.log).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: 'delete_capability_key',
-        target: 'key-1',
-      }),
+    await expect(
+      controller.handleMessage('session-1', 'token-1', 'api-key', undefined, body),
+    ).resolves.toEqual({ ok: true });
+    expect(mcpProtocolService.handleMessage).toHaveBeenCalledWith(
+      {
+        sessionId: 'session-1',
+        sessionToken: 'token-1',
+        key: 'api-key',
+        sessionKey: undefined,
+      },
+      body,
     );
   });
 });

@@ -56,12 +56,21 @@ describe("Platform DashboardPage", () => {
     getMock
       .mockResolvedValueOnce({
         kbCount: 8,
+        platformKbCount: 12,
         taskCount: 1240,
         searchCount: 50,
         zeroCount: 5,
         failedTasks: 1,
         runningTasks: 2,
         tenantCount: 3,
+        tenantSearchTop: [
+          { tenantId: "tenant-a", tenantName: "租户甲", value: 18 },
+          { tenantId: "tenant-b", tenantName: "租户乙", value: 12 },
+        ],
+        tenantKnowledgeBaseTop: [
+          { tenantId: "tenant-a", tenantName: "租户甲", value: 6 },
+          { tenantId: "tenant-b", tenantName: "租户乙", value: 4 },
+        ],
         recentTasks: [
           {
             targetUri: "https://docs.openviking.dev/runbook",
@@ -85,6 +94,11 @@ describe("Platform DashboardPage", () => {
     expect(container.textContent).toContain("导入任务");
     expect(container.textContent).toContain("活跃租户");
     expect(container.textContent).toContain("全局命中率");
+    expect(container.textContent).toContain("平台知识库总数");
+    expect(container.textContent).toContain("刷新");
+    expect(container.textContent).toContain("租户检索排行 Top 5");
+    expect(container.textContent).toContain("租户知识库排行 Top 5");
+    expect(container.textContent).toContain("租户甲");
     expect(container.textContent).toContain("系统采样流");
     expect(container.textContent).toContain("系统守望者");
     expect(container.textContent).toContain(
@@ -92,5 +106,54 @@ describe("Platform DashboardPage", () => {
     );
     expect(container.textContent).toContain("webdav");
     expect(container.textContent).toContain("核心在线");
+  });
+
+  it("点击刷新按钮后应重新请求平台总览数据", async () => {
+    getMock
+      .mockResolvedValueOnce({
+        kbCount: 8,
+        platformKbCount: 12,
+        taskCount: 1240,
+        searchCount: 50,
+        zeroCount: 5,
+        failedTasks: 1,
+        runningTasks: 2,
+        tenantCount: 3,
+        tenantSearchTop: [],
+        tenantKnowledgeBaseTop: [],
+        recentTasks: [],
+        health: { ok: true, message: "ok" },
+        queue: null,
+      })
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        kbCount: 9,
+        platformKbCount: 13,
+        taskCount: 1300,
+        searchCount: 60,
+        zeroCount: 6,
+        failedTasks: 1,
+        runningTasks: 3,
+        tenantCount: 4,
+        tenantSearchTop: [],
+        tenantKnowledgeBaseTop: [],
+        recentTasks: [],
+        health: { ok: true, message: "ok" },
+        queue: null,
+      })
+      .mockResolvedValueOnce(null);
+
+    await renderPage();
+
+    const refreshButton = container.querySelector("button");
+    expect(refreshButton?.textContent).toContain("刷新");
+
+    await act(async () => {
+      refreshButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(getMock).toHaveBeenCalledTimes(4);
+    expect(getMock.mock.calls[2]?.[0]).toBe("/system/dashboard");
   });
 });

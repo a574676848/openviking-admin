@@ -107,9 +107,9 @@ export function ConsoleTableShell({
           : children;
 
   return (
-    <ConsolePanel className={cx("overflow-hidden", className)}>
-      <div className={cx("border-b-[3px] border-[var(--border)] bg-[var(--bg-elevated)]", headerClassName)}>{columns}</div>
-      <div className={cx("grid grid-cols-1 gap-px bg-[var(--border)]", rowsClassName)}>
+    <ConsolePanel className={cx("flex flex-col overflow-hidden", className)}>
+      <div className={cx("shrink-0 border-b-[3px] border-[var(--border)] bg-[var(--bg-elevated)]", headerClassName)}>{columns}</div>
+      <div className={cx("grid min-h-0 flex-1 grid-cols-1 gap-px bg-[var(--border)]", rowsClassName)}>
         {body}
       </div>
     </ConsolePanel>
@@ -129,6 +129,8 @@ export interface ConsoleListRowBadge {
 export interface ConsoleListRowMetric {
   value: ReactNode;
   className?: string;
+  /** 自定义渲染函数，替代默认的大号数字样式 */
+  render?: (value: ReactNode) => ReactNode;
 }
 
 export function ConsoleListRow({
@@ -218,11 +220,14 @@ export function ConsoleListRow({
         <div
           key={i}
           className={cx(
-            "bg-[var(--bg-card)] px-5 py-5 font-sans text-3xl font-bold tabular-nums text-[var(--text-primary)]",
+            "bg-[var(--bg-card)] px-5 py-5",
+            metric.render
+              ? ""
+              : "font-sans text-3xl font-bold tabular-nums text-[var(--text-primary)]",
             metric.className,
           )}
         >
-          {metric.value}
+          {metric.render ? metric.render(metric.value) : metric.value}
         </div>
       ))}
 

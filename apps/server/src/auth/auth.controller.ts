@@ -99,11 +99,6 @@ export class AuthController {
     if (!user) {
       throw new UnauthorizedException('用户不存在');
     }
-    return {
-      id: user.id,
-      username: user.username,
-      role: user.role,
-      tenantId: user.tenantId,
-    };
+    return this.authService.buildSessionUserForAuthContext(user, req.user);
   }
 }

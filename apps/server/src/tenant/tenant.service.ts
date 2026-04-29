@@ -54,6 +54,14 @@ export class TenantService {
     return t;
   }
 
+  async findOneByIdOrTenantId(identifier: string) {
+    const tenant =
+      (await this.repo.findById(identifier)) ??
+      (await this.repo.findByTenantId(identifier));
+    if (!tenant) throw new NotFoundException(`租户 ID ${identifier} 不存在`);
+    return tenant;
+  }
+
   async create(dto: CreateTenantDto, adminContext?: AdminContext) {
     const exists = await this.repo.findByTenantId(dto.tenantId);
     if (exists)

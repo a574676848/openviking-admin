@@ -29,8 +29,10 @@ export class KnowledgeBaseService {
   }
 
   async create(dto: CreateKnowledgeBaseDto & { tenantId: string }) {
-    const tenant = await this.tenantService.findOne(dto.tenantId);
-    const currentCount = await this.kbRepo.count({ where: { tenantId: dto.tenantId } });
+    const tenant = await this.tenantService.findOneByIdOrTenantId(dto.tenantId);
+    const currentCount = await this.kbRepo.count({
+      where: { tenantId: tenant.tenantId },
+    });
 
     const maxDocs =
       (tenant.quota as Record<string, number> | undefined)?.maxDocs || 0;
@@ -40,8 +42,11 @@ export class KnowledgeBaseService {
       );
     }
 
-    const kb = this.kbRepo.create(dto);
-    return this.kbRepo.save(kb);
+    const tenantIdentifier = tenant.tenantId;
+    return this.kbRepo.createWithUri({
+      ...dto,
+      tenantId: tenantIdentifier,
+    });
   }
 
   async update(

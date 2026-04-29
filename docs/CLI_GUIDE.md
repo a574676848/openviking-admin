@@ -126,6 +126,7 @@ ova auth credential-options
 ```bash
 ova auth token-exchange --output json
 ova auth token-exchange --save
+ova auth token-exchange --ttl-seconds 3600 --output json
 ```
 
 签发短期 session key：
@@ -133,6 +134,7 @@ ova auth token-exchange --save
 ```bash
 ova auth session-exchange --output json
 ova auth session-exchange --save
+ova auth session-exchange --ttl-seconds 1800 --output json
 ```
 
 签发 API key：
@@ -140,6 +142,7 @@ ova auth session-exchange --save
 ```bash
 ova auth client-credentials --name ci-bot --output json
 ova auth client-credentials --name ci-bot --save
+ova auth client-credentials --name ci-bot --ttl-seconds 2592000 --output json
 ```
 
 默认行为：

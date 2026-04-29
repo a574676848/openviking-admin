@@ -8,6 +8,8 @@ import { SettingsModule } from '../settings/settings.module';
 import { TenantModule } from '../tenant/tenant.module';
 import { CommonModule } from '../common/common.module';
 import { AuditModule } from '../audit/audit.module';
+import { KnowledgeBaseModule } from '../knowledge-base/knowledge-base.module';
+import { KnowledgeTreeModule } from '../knowledge-tree/knowledge-tree.module';
 import { FeishuIntegrator } from './strategies/feishu.integrator';
 import { DingTalkIntegrator } from './strategies/dingtalk.integrator';
 import { GitIntegrator } from './strategies/git.integrator';
@@ -21,6 +23,8 @@ import { TypeOrmImportTaskRepository } from './infrastructure/repositories/impor
     TenantModule,
     CommonModule,
     AuditModule,
+    KnowledgeBaseModule,
+    KnowledgeTreeModule,
   ],
   controllers: [ImportTaskController],
   providers: [

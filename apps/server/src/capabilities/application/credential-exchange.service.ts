@@ -2,6 +2,15 @@ import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Principal } from '../domain/capability.types';
 import { CapabilityObservabilityService } from './capability-observability.service';
+import { resolveCredentialTtlSeconds } from '../domain/credential-ttl.policy';
+
+function ensureNumericTtl(ttlSeconds: number | null): number {
+  if (ttlSeconds === null) {
+    throw new Error('JWT 凭证不支持长期有效');
+  }
+
+  return ttlSeconds;
+}
 
 @Injectable()
 export class CredentialExchangeService {
@@ -10,8 +19,15 @@ export class CredentialExchangeService {
     private readonly capabilityObservabilityService: CapabilityObservabilityService,
   ) {}
 
-  async exchangeAccessToken(principal: Principal, traceId: string, requestId: string) {
-    const expiresInSeconds = 2 * 60 * 60;
+  async exchangeAccessToken(
+    principal: Principal,
+    traceId: string,
+    requestId: string,
+    ttlSeconds?: number | null,
+  ) {
+    const expiresInSeconds = ensureNumericTtl(
+      resolveCredentialTtlSeconds('capability_access_token', ttlSeconds),
+    );
     const accessToken = this.jwtService.sign(
       {
         sub: principal.userId,
@@ -40,8 +56,15 @@ export class CredentialExchangeService {
     };
   }
 
-  async exchangeSessionKey(principal: Principal, traceId: string, requestId: string) {
-    const expiresInSeconds = 30 * 60;
+  async exchangeSessionKey(
+    principal: Principal,
+    traceId: string,
+    requestId: string,
+    ttlSeconds?: number | null,
+  ) {
+    const expiresInSeconds = ensureNumericTtl(
+      resolveCredentialTtlSeconds('session_key', ttlSeconds),
+    );
     const sessionKey = this.jwtService.sign(
       {
         sub: principal.userId,

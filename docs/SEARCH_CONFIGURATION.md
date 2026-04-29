@@ -156,13 +156,18 @@ UPDATE system_configs SET value = 'false' WHERE key = 'search.rerank_enabled';
 - 命中率 (有结果的比例)
 - 平均延迟
 - 平均分数
+- 高频问题聚合
+- 按日趋势
 
 ### 无答案洞察
 
 通过 `GET /api/v1/search/analysis` 获取：
+- 总检索次数
 - 零结果查询列表 (长尾请求)
-- 高频无答案查询 (需补充知识)
-- 用户反馈为 `unhelpful` 的查询
+
+说明：
+- `search/analysis` 提供无答案洞察页的基础数据，只保证返回 `total` 与 `noAnswerLogs`。
+- `search/stats-deep` 提供命中率、高频问题与趋势图所需的聚合统计；前端若需要完整分析看板，应同时读取这两个接口。
 
 ### 反馈机制
 
