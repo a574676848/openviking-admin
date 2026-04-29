@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { SystemController } from './system.controller';
 import { PublicHealthController } from './public-health.controller';
 import { SystemService } from './system.service';
+import { DashboardImportTaskStatsService } from './dashboard-import-task-stats.service';
 import { SettingsModule } from '../settings/settings.module';
 import { ImportTaskModule } from '../import-task/import-task.module';
 import { KnowledgeBaseModule } from '../knowledge-base/knowledge-base.module';
@@ -17,6 +18,6 @@ import { CommonModule } from '../common/common.module';
     CommonModule,
   ],
   controllers: [SystemController, PublicHealthController],
-  providers: [SystemService],
+  providers: [SystemService, DashboardImportTaskStatsService],
 })
 export class SystemModule {}

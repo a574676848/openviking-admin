@@ -6,7 +6,12 @@ import { FileUp, Globe, Layers, Share2, Terminal, X } from "lucide-react";
 import { VikingWatcher } from "@/components/watcher";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/apiClient";
-import { ConsoleButton, ConsoleSelectionCard, ConsoleSurfaceCard, ConsoleSelect } from "@/components/console/primitives";
+import {
+  ConsoleButton,
+  ConsoleSelectionCard,
+  ConsoleSurfaceCard,
+  ConsoleSelect,
+} from "@/components/console/primitives";
 
 type SourceType = "git" | "local" | "url" | "enterprise";
 type Integration = { id: string; name: string; type: string };
@@ -22,14 +27,17 @@ const sourceOptions = [
     color: "var(--brand)",
     supportsBatchUrls: true,
     sourceListLabel: "仓库地址列表",
-    sourceListPlaceholder: "https://github.com/org/repo1.git\nhttps://github.com/org/repo2.git",
+    sourceListPlaceholder:
+      "https://github.com/org/repo1.git\nhttps://github.com/org/repo2.git",
     supportsSubType: false,
     requiresIntegration: false,
     credentialLabel: "集成凭证",
     credentialEmptyLabel: "公开库 (无需凭证)",
     resolveSourceType: () => "git",
     filterIntegrations: (integrations: Integration[]) =>
-      integrations.filter((integration) => ["github", "gitlab"].includes(integration.type)),
+      integrations.filter((integration) =>
+        ["github", "gitlab"].includes(integration.type),
+      ),
   },
   {
     id: "enterprise" as const,
@@ -39,7 +47,8 @@ const sourceOptions = [
     color: "#FF5733",
     supportsBatchUrls: true,
     sourceListLabel: "文档地址列表",
-    sourceListPlaceholder: "https://docs.example.com/page1\nhttps://docs.example.com/page2",
+    sourceListPlaceholder:
+      "https://docs.example.com/page1\nhttps://docs.example.com/page2",
     supportsSubType: true,
     requiresIntegration: true,
     credentialLabel: "集成凭证",
@@ -52,7 +61,7 @@ const sourceOptions = [
     id: "local" as const,
     label: "本地上传",
     icon: FileUp,
-    desc: "支持 PDF / MD / Word 格式",
+    desc: "支持 PDF / MD / Word / ZIP",
     color: "var(--warning)",
     supportsBatchUrls: false,
     sourceListLabel: "",
@@ -72,7 +81,8 @@ const sourceOptions = [
     color: "var(--success)",
     supportsBatchUrls: true,
     sourceListLabel: "网页地址列表",
-    sourceListPlaceholder: "https://docs.example.com/page1\nhttps://docs.example.com/page2",
+    sourceListPlaceholder:
+      "https://docs.example.com/page1\nhttps://docs.example.com/page2",
     supportsSubType: false,
     requiresIntegration: false,
     credentialLabel: "",
@@ -110,7 +120,9 @@ export default function IngestionPage() {
       return;
     }
     void apiClient
-      .get<KnowledgeNode[]>(`/knowledge-tree?kbId=${encodeURIComponent(form.kbId)}`)
+      .get<KnowledgeNode[]>(
+        `/knowledge-tree?kbId=${encodeURIComponent(form.kbId)}`,
+      )
       .then((items) => {
         const nextNodes = items.filter((item) => Boolean(item.vikingUri));
         setNodes(nextNodes);
@@ -118,7 +130,9 @@ export default function IngestionPage() {
           if (!prev.targetNodeUri) {
             return prev;
           }
-          const stillExists = nextNodes.some((item) => item.vikingUri === prev.targetNodeUri);
+          const stillExists = nextNodes.some(
+            (item) => item.vikingUri === prev.targetNodeUri,
+          );
           return stillExists ? prev : { ...prev, targetNodeUri: "" };
         });
       })
@@ -134,15 +148,22 @@ export default function IngestionPage() {
         .split("\n")
         .map((url) => url.trim())
         .filter((url) => url.length > 0),
-    [form.rawSourceUrls]
+    [form.rawSourceUrls],
   );
 
   const selectedSource =
-    sourceOptions.find((option) => option.id === activeSource) ?? sourceOptions[0];
-  const filteredIntegrations = selectedSource.filterIntegrations(integrations, form.subType);
+    sourceOptions.find((option) => option.id === activeSource) ??
+    sourceOptions[0];
+  const filteredIntegrations = selectedSource.filterIntegrations(
+    integrations,
+    form.subType,
+  );
   const suggestedTopic = searchParams.get("q") ?? "";
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const hasLocalInput =
+    activeSource !== "local" ||
+    selectedFiles.length > 0;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -151,14 +172,11 @@ export default function IngestionPage() {
       return;
     }
 
-    if (activeSource === "local" && selectedFiles.length === 0) {
-      toast.error("请先上传文件");
-      return;
-    }
-
     if (activeSource === "local") {
-      toast.error("当前版本暂不支持本地上传导入任务");
-      return;
+      if (selectedFiles.length === 0) {
+        toast.error("请先上传文件");
+        return;
+      }
     }
 
     if (selectedSource.supportsBatchUrls && urls.length === 0) {
@@ -173,18 +191,33 @@ export default function IngestionPage() {
 
     setLoading(true);
     try {
-      await apiClient.post("/import-tasks", {
-        kbId: form.kbId,
-        sourceUrl: urls[0],
-        sourceUrls: urls.length > 0 ? urls : ["local://upload"],
-        integrationId: form.integrationId || undefined,
-        targetUri: form.targetNodeUri || undefined,
-        sourceType: selectedSource.resolveSourceType(form.subType),
-      });
-      toast.success(`任务创建成功：已启动 ${Math.max(1, urls.length)} 个处理进程`);
+      if (activeSource === "local") {
+        const body = new FormData();
+        body.set("kbId", form.kbId);
+        if (form.targetNodeUri) {
+          body.set("targetUri", form.targetNodeUri);
+        }
+        selectedFiles.forEach((file) => body.append("files", file));
+        await apiClient.post("/import-tasks/local-upload", body);
+        toast.success(
+          `任务创建成功：已启动 ${selectedFiles.length} 个处理进程`,
+        );
+      } else {
+        await apiClient.post("/import-tasks", {
+          kbId: form.kbId,
+          sourceUrl: urls[0],
+          sourceUrls: urls,
+          integrationId: form.integrationId || undefined,
+          targetUri: form.targetNodeUri || undefined,
+          sourceType: selectedSource.resolveSourceType(form.subType),
+        });
+        toast.success(`任务创建成功：已启动 ${urls.length} 个处理进程`);
+      }
       router.push("/console/documents");
     } catch (err) {
-      toast.error(`处理失败：${err instanceof Error ? err.message : "未知错误"}`);
+      toast.error(
+        `处理失败：${err instanceof Error ? err.message : "未知错误"}`,
+      );
     } finally {
       setLoading(false);
     }
@@ -227,13 +260,17 @@ export default function IngestionPage() {
             >
               <div
                 className={`flex h-10 w-10 items-center justify-center rounded-lg border border-[var(--border)] transition-all ${
-                  activeSource === source.id ? "bg-white/20" : "bg-[var(--bg-elevated)]"
+                  activeSource === source.id
+                    ? "bg-white/20"
+                    : "bg-[var(--bg-elevated)]"
                 }`}
               >
                 <source.icon
                   size={20}
                   strokeWidth={2.4}
-                  style={{ color: activeSource === source.id ? "#FFF" : source.color }}
+                  style={{
+                    color: activeSource === source.id ? "#FFF" : source.color,
+                  }}
                 />
               </div>
               <div className="text-left">
@@ -242,7 +279,9 @@ export default function IngestionPage() {
                 </span>
                 <span
                   className={`block font-sans text-[10px] font-medium uppercase tracking-wider ${
-                    activeSource === source.id ? "text-white/70" : "text-[var(--text-muted)]"
+                    activeSource === source.id
+                      ? "text-white/70"
+                      : "text-[var(--text-muted)]"
                   }`}
                 >
                   {source.desc}
@@ -255,13 +294,15 @@ export default function IngestionPage() {
         {/* Configuration Bento Column */}
         <ConsoleSurfaceCard className="lg:col-span-8">
           <div className="flex items-center gap-2 border-b border-[var(--border)] pb-4 font-sans text-[11px] font-bold uppercase tracking-widest text-[var(--text-muted)]">
-            <Terminal size={14} strokeWidth={2.6} /> 导入配置参数 / CONFIG_PIPELINE
+            <Terminal size={14} strokeWidth={2.6} /> 导入配置参数 /
+            CONFIG_PIPELINE
           </div>
 
           <form onSubmit={handleSubmit} className="mt-8 space-y-8">
             {suggestedTopic ? (
               <div className="rounded-xl border border-[var(--warning)] bg-[var(--warning)]/5 px-4 py-3 font-sans text-xs font-bold text-[var(--warning)]">
-                提示：建议将此资源映射至主题 <span className="underline">{suggestedTopic}</span>
+                提示：建议将此资源映射至主题{" "}
+                <span className="underline">{suggestedTopic}</span>
               </div>
             ) : null}
 
@@ -289,7 +330,9 @@ export default function IngestionPage() {
                 </label>
                 <ConsoleSelect
                   value={form.targetNodeUri}
-                  onChange={(e) => setForm({ ...form, targetNodeUri: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, targetNodeUri: e.target.value })
+                  }
                   placeholder="知识库根目录（默认）"
                 >
                   <option value="">知识库根目录（默认）</option>
@@ -310,18 +353,21 @@ export default function IngestionPage() {
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <label className="block font-sans text-[11px] font-bold uppercase tracking-widest text-[var(--text-muted)]">
-                    {nodes.length > 0 ? "03." : "02."} {selectedSource.sourceListLabel}
+                    {nodes.length > 0 ? "03." : "02."}{" "}
+                    {selectedSource.sourceListLabel}
                   </label>
-                  <span className="font-mono text-[9px] font-black text-[var(--text-muted)]">
+                  <span className="font-sans text-[9px] font-black text-[var(--text-muted)]">
                     COUNT: {urls.length} / 支持换行批量录入
                   </span>
                 </div>
                 <textarea
                   rows={4}
                   value={form.rawSourceUrls}
-                  onChange={(e) => setForm({ ...form, rawSourceUrls: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, rawSourceUrls: e.target.value })
+                  }
                   placeholder={selectedSource.sourceListPlaceholder}
-                  className="w-full resize-none rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] px-4 py-4 font-mono text-xs font-bold outline-none focus:border-[var(--brand)]"
+                  className="w-full resize-none rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] px-4 py-4 font-sans text-xs font-bold outline-none focus:border-[var(--brand)]"
                 />
               </div>
             )}
@@ -348,22 +394,29 @@ export default function IngestionPage() {
                   <input
                     type="file"
                     multiple
+                    accept=".pdf,.md,.markdown,.doc,.docx,.txt,.zip"
                     className="absolute inset-0 cursor-pointer opacity-0"
                     onChange={(e) => {
-                      const files = e.target.files ? Array.from(e.target.files) : [];
+                      const files = e.target.files
+                        ? Array.from(e.target.files)
+                        : [];
                       setSelectedFiles((prev) => [...prev, ...files]);
                     }}
                   />
                   <FileUp
                     size={32}
                     strokeWidth={1.5}
-                    className={isDragging ? "text-[var(--brand)]" : "text-[var(--text-muted)]"}
+                    className={
+                      isDragging
+                        ? "text-[var(--brand)]"
+                        : "text-[var(--text-muted)]"
+                    }
                   />
                   <p className="mt-4 font-sans text-xs font-bold text-[var(--text-primary)]">
                     点击或将文件拖拽至此处上传
                   </p>
                   <p className="mt-2 font-sans text-[10px] text-[var(--text-muted)]">
-                    支持 PDF, Markdown, Word 等格式
+                    支持 PDF、Markdown、Word、TXT、ZIP
                   </p>
                 </div>
 
@@ -374,11 +427,15 @@ export default function IngestionPage() {
                         key={i}
                         className="flex items-center justify-between rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-4 py-2"
                       >
-                        <span className="font-mono text-[10px] font-bold">{file.name}</span>
+                        <span className="font-sans text-[10px] font-bold">
+                          {file.name}
+                        </span>
                         <button
                           type="button"
                           onClick={() =>
-                            setSelectedFiles((prev) => prev.filter((_, idx) => idx !== i))
+                            setSelectedFiles((prev) =>
+                              prev.filter((_, idx) => idx !== i),
+                            )
                           }
                           className="text-[var(--text-muted)] hover:text-[var(--danger)]"
                         >
@@ -388,6 +445,7 @@ export default function IngestionPage() {
                     ))}
                   </div>
                 )}
+
               </div>
             )}
 
@@ -409,7 +467,9 @@ export default function IngestionPage() {
                           : "border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-primary)] hover:border-[var(--text-muted)]"
                       }`}
                     >
-                      {platform === "feishu" ? "飞书 / Lark" : "钉钉 / DingTalk"}
+                      {platform === "feishu"
+                        ? "飞书 / Lark"
+                        : "钉钉 / DingTalk"}
                     </button>
                   ))}
                 </div>
@@ -420,13 +480,18 @@ export default function IngestionPage() {
             {selectedSource.credentialLabel && (
               <div className="space-y-3">
                 <label className="block font-sans text-[11px] font-bold uppercase tracking-widest text-[var(--text-muted)]">
-                  {nodes.length > 0 ? "05." : "04."} {selectedSource.credentialLabel}
+                  {nodes.length > 0 ? "05." : "04."}{" "}
+                  {selectedSource.credentialLabel}
                 </label>
                 <ConsoleSelect
                   value={form.integrationId}
-                  onChange={(e) => setForm({ ...form, integrationId: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, integrationId: e.target.value })
+                  }
                 >
-                  <option value="">-- {selectedSource.credentialEmptyLabel} --</option>
+                  <option value="">
+                    -- {selectedSource.credentialEmptyLabel} --
+                  </option>
                   {filteredIntegrations.map((integration) => (
                     <option key={integration.id} value={integration.id}>
                       {integration.name}
@@ -438,16 +503,25 @@ export default function IngestionPage() {
 
             {/* Action Bar */}
             <div className="flex items-center justify-between border-t border-[var(--border)] pt-8">
-              <div className="font-mono text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">
-                DEPLOY_MODE: <span className="text-[var(--brand)]">ASYNC_PIPELINE</span>
+              <div className="font-sans text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">
+                DEPLOY_MODE:{" "}
+                <span className="text-[var(--brand)]">ASYNC_PIPELINE</span>
               </div>
               <ConsoleButton
                 type="submit"
                 tone="dark"
-                disabled={loading || (selectedSource.supportsBatchUrls && urls.length === 0)}
+                disabled={
+                  loading ||
+                  (selectedSource.supportsBatchUrls && urls.length === 0) ||
+                  !hasLocalInput
+                }
                 className="h-14 px-10 font-sans tracking-[0.2em]"
               >
-                <Layers size={18} strokeWidth={2.6} className={loading ? "animate-spin" : ""} />
+                <Layers
+                  size={18}
+                  strokeWidth={2.6}
+                  className={loading ? "animate-spin" : ""}
+                />
                 {loading ? "正在调度处理..." : "执行导入任务"}
               </ConsoleButton>
             </div>

@@ -17,6 +17,15 @@ ova knowledge search --query "多租户隔离" --limit 5 --output json
 ova knowledge grep --pattern "tenant_scope" --uri "viking://acme/wiki"
 ova resources list --uri "viking://acme"
 ova resources tree --uri "viking://acme" --depth 2 --output json
+ova kb list --output json
+ova kb detail --id <kbId> --output json
+ova tree list --kb <kbId> --output json
+ova tree detail --id <nodeId> --output json
+ova documents import "https://example.com/product.pdf" --kb <kbId> --type url --output json
+ova documents import status --task <taskId> --watch --output json
+ova documents import list --output json
+ova documents import cancel --task <taskId> --output json
+ova documents import retry --task <taskId> --output json
 ```
 
 ## HTTP 回退调用
@@ -45,6 +54,36 @@ curl "http://localhost:6001/api/v1/resources?uri=viking%3A%2F%2Facme" \
 
 curl "http://localhost:6001/api/v1/resources/tree?uri=viking%3A%2F%2Facme&depth=2" \
   -H "Authorization: Bearer <capability-access-token>"
+
+curl "http://localhost:6001/api/v1/knowledge-bases?limit=20" \
+  -H "Authorization: Bearer <capability-access-token>"
+
+curl "http://localhost:6001/api/v1/knowledge-bases/:id/tree" \
+  -H "Authorization: Bearer <capability-access-token>"
+
+curl -X POST "http://localhost:6001/api/v1/import-tasks/documents" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <capability-access-token>" \
+  -d '{
+    "sourceType": "url",
+    "knowledgeBaseId": "<kbId>",
+    "sourceUrl": "https://example.com/product.pdf"
+  }'
+
+curl "http://localhost:6001/api/v1/import-tasks?limit=20" \
+  -H "Authorization: Bearer <capability-access-token>"
+
+curl "http://localhost:6001/api/v1/import-tasks/:id" \
+  -H "Authorization: Bearer <capability-access-token>"
+
+curl -X POST "http://localhost:6001/api/v1/import-tasks/:id/cancel" \
+  -H "Authorization: Bearer <capability-access-token>"
+
+curl -X POST "http://localhost:6001/api/v1/import-tasks/:id/retry" \
+  -H "Authorization: Bearer <capability-access-token>"
+
+curl "http://localhost:6001/api/v1/import-tasks/:id/events" \
+  -H "Authorization: Bearer <capability-access-token>"
 ```
 
 ## 当前 capability 映射
@@ -55,3 +94,13 @@ curl "http://localhost:6001/api/v1/resources/tree?uri=viking%3A%2F%2Facme&depth=
 | `knowledge.grep` | `ova knowledge grep` | `POST /api/v1/knowledge/grep` |
 | `resources.list` | `ova resources list` | `GET /api/v1/resources` |
 | `resources.tree` | `ova resources tree` | `GET /api/v1/resources/tree` |
+| `knowledgeBases.list` | `ova kb list` | `GET /api/v1/knowledge-bases` |
+| `knowledgeBases.detail` | `ova kb detail` | `GET /api/v1/knowledge-bases/:id` |
+| `knowledgeTree.list` | `ova tree list` | `GET /api/v1/knowledge-bases/:id/tree` |
+| `knowledgeTree.detail` | `ova tree detail` | `GET /api/v1/knowledge-tree/:id` |
+| `documents.import.create` | `ova documents import` | `POST /api/v1/import-tasks/documents` |
+| `documents.import.status` | `ova documents import status` | `GET /api/v1/import-tasks/:id` |
+| `documents.import.list` | `ova documents import list` | `GET /api/v1/import-tasks` |
+| `documents.import.cancel` | `ova documents import cancel` | `POST /api/v1/import-tasks/:id/cancel` |
+| `documents.import.retry` | `ova documents import retry` | `POST /api/v1/import-tasks/:id/retry` |
+| `documents.import.events` | `ova documents import status --watch` | `GET /api/v1/import-tasks/:id/events` |

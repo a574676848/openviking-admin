@@ -337,7 +337,7 @@ export default function KnowledgeTreePage() {
           >
             图谱视图
           </button>
-          <div className="rounded-[var(--radius-pill)] border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-card)] px-4 py-3 font-mono text-[10px] font-black uppercase tracking-widest shadow-[var(--shadow-base)]">
+          <div className="rounded-[var(--radius-pill)] border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-card)] px-4 py-3 font-sans text-[10px] font-black uppercase tracking-widest shadow-[var(--shadow-base)]">
             {loading ? "同步中" : `节点 ${nodes.length}`}
           </div>
           <button

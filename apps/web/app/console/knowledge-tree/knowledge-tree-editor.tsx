@@ -54,7 +54,7 @@ function TenantUserPicker({
 
   return (
     <div className="space-y-3 pt-1">
-      <label className="block font-mono text-[8px] font-black uppercase text-[var(--text-secondary)]">额外授权用户</label>
+      <label className="block font-sans text-[8px] font-black uppercase text-[var(--text-secondary)]">额外授权用户</label>
 
       <div className="rounded-[var(--radius-base)] border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-card)] p-3">
         <div className="relative">
@@ -63,7 +63,7 @@ function TenantUserPicker({
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="搜索租户内用户"
-            className="w-full rounded-[var(--radius-pill)] border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-elevated)] py-2.5 pl-9 pr-3 font-mono text-[11px] font-bold text-[var(--text-primary)] outline-none transition-all placeholder:text-[var(--text-muted)] focus:border-[var(--brand)]"
+            className="w-full rounded-[var(--radius-pill)] border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-elevated)] py-2.5 pl-9 pr-3 font-sans text-[11px] font-bold text-[var(--text-primary)] outline-none transition-all placeholder:text-[var(--text-muted)] focus:border-[var(--brand)]"
           />
         </div>
 
@@ -72,7 +72,7 @@ function TenantUserPicker({
             {selectedUsers.map((user) => (
               <span
                 key={user.id}
-                className="inline-flex items-center gap-2 rounded-[var(--radius-pill)] border-[var(--border-width)] border-[var(--border)] bg-[var(--brand-muted)] px-3 py-1.5 font-mono text-[10px] font-black text-[var(--text-primary)]"
+                className="inline-flex items-center gap-2 rounded-[var(--radius-pill)] border-[var(--border-width)] border-[var(--border)] bg-[var(--brand-muted)] px-3 py-1.5 font-sans text-[10px] font-black text-[var(--text-primary)]"
               >
                 <UserRound size={12} strokeWidth={2.2} />
                 <span>{user.username}</span>
@@ -92,15 +92,15 @@ function TenantUserPicker({
 
         <div className="mt-3 max-h-52 overflow-y-auto rounded-[var(--radius-base)] border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-elevated)]">
           {loading ? (
-            <div className="px-4 py-4 font-mono text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">
+            <div className="px-4 py-4 font-sans text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">
               正在加载租户用户...
             </div>
           ) : error ? (
-            <div className="px-4 py-4 font-mono text-[10px] font-black uppercase tracking-[0.14em] text-[var(--danger)]">
+            <div className="px-4 py-4 font-sans text-[10px] font-black uppercase tracking-[0.14em] text-[var(--danger)]">
               {error}
             </div>
           ) : filteredUsers.length === 0 ? (
-            <div className="px-4 py-4 font-mono text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">
+            <div className="px-4 py-4 font-sans text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">
               {normalizedQuery ? "未找到匹配用户" : "暂无可选用户"}
             </div>
           ) : (
@@ -114,11 +114,11 @@ function TenantUserPicker({
                 >
                   <div className="min-w-0">
                     <div className="truncate font-sans text-sm font-black text-[var(--text-primary)]">{user.username}</div>
-                    <div className="mt-1 truncate font-mono text-[10px] font-black uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                    <div className="mt-1 truncate font-sans text-[10px] font-black uppercase tracking-[0.12em] text-[var(--text-muted)]">
                       {user.id}
                     </div>
                   </div>
-                  <div className="shrink-0 font-mono text-[10px] font-black uppercase tracking-[0.12em] text-[var(--text-secondary)]">
+                  <div className="shrink-0 font-sans text-[10px] font-black uppercase tracking-[0.12em] text-[var(--text-secondary)]">
                     {roleLabel(user.role)}
                   </div>
                 </button>
@@ -157,7 +157,7 @@ export function KnowledgeTreeEditor({
             type="button"
             onClick={() => onEditAclChange({ ...editAcl, isPublic: true })}
             active={editAcl.isPublic}
-            className={`min-h-[52px] w-full justify-center border-[var(--border-width)] py-3 text-center font-mono text-[10px] font-black uppercase tracking-[0.16em] shadow-none ${
+            className={`min-h-[52px] w-full justify-center border-[var(--border-width)] py-3 text-center font-sans text-[10px] font-black uppercase tracking-[0.16em] shadow-none ${
               editAcl.isPublic
                 ? "border-[var(--border)] bg-[var(--brand-muted)] text-[var(--text-primary)] shadow-[var(--shadow-base)]"
                 : "bg-[var(--bg-card)] text-[var(--text-primary)] hover:border-[var(--border)] hover:bg-[var(--bg-elevated)]"
@@ -169,7 +169,7 @@ export function KnowledgeTreeEditor({
             type="button"
             onClick={() => onEditAclChange({ ...editAcl, isPublic: false })}
             active={!editAcl.isPublic}
-            className={`min-h-[52px] w-full justify-center border-[var(--border-width)] py-3 text-center font-mono text-[10px] font-black uppercase tracking-[0.16em] shadow-none ${
+            className={`min-h-[52px] w-full justify-center border-[var(--border-width)] py-3 text-center font-sans text-[10px] font-black uppercase tracking-[0.16em] shadow-none ${
               !editAcl.isPublic
                 ? "border-[var(--border)] bg-[var(--brand-muted)] text-[var(--text-primary)] shadow-[var(--shadow-base)]"
                 : "bg-[var(--bg-card)] text-[var(--text-primary)] hover:border-[var(--border)] hover:bg-[var(--bg-elevated)]"
@@ -180,7 +180,7 @@ export function KnowledgeTreeEditor({
       </div>
         {!editAcl.isPublic && (
           <div className="mt-4 w-full space-y-3 rounded-[var(--radius-base)] border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-elevated)] p-4">
-            <label className="block font-mono text-[8px] font-black uppercase text-[var(--text-secondary)]">授权角色</label>
+            <label className="block font-sans text-[8px] font-black uppercase text-[var(--text-secondary)]">授权角色</label>
             <div className="grid w-full grid-cols-3 gap-3">
               {ACL_ROLES.map((role) => (
                 <label
@@ -198,7 +198,7 @@ export function KnowledgeTreeEditor({
                     }}
                     className="h-5 w-5 appearance-none border-2 border-[var(--border)] checked:bg-[var(--brand)]"
                   />
-                  <span className="font-mono text-xs font-black uppercase tracking-[0.12em] text-[var(--text-primary)]">{roleLabel(role)}</span>
+                  <span className="font-sans text-xs font-black uppercase tracking-[0.12em] text-[var(--text-primary)]">{roleLabel(role)}</span>
                 </label>
               ))}
             </div>

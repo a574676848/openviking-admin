@@ -80,7 +80,7 @@ pnpm install
 **解决**:
 - 检查集成配置中 `appId` / `appSecret` 是否正确
 - 确认回调 URL 与 SSO Provider 中配置一致
-- 飞书 Provider 当前 `app_access_token` 为 mock，生产环境需实现完整获取流程
+- 确认对应租户下存在已启用的 SSO 集成配置
 
 ### 7. SSO 登录后用户不存在
 
@@ -152,7 +152,26 @@ cat apps/server/.env | grep OV_
 - TaskWorker 在模块初始化时启动，定时轮询 `pending` 任务
 - 确认 OV 引擎 `/api/v1/resources` 端点可访问
 
-### 13. Rerank 超时
+### 13. 平台文档导入返回 422: `extra_forbidden`
+
+**原因**: OpenViking 资源接口只接受 `path` 或 `temp_file_id` 等标准字段。如果旧 Worker 将飞书、钉钉 Token 或 `config` 透传给 `/api/v1/resources`，OpenViking 会拒绝未知字段。
+
+**解决**:
+- 确认 Worker 使用 Admin 侧平台文档解析流程
+- 飞书文档应先读取 `raw_content`，再通过 `/api/v1/resources/temp_upload` 注入
+- 钉钉文档应通过应用 Token、`operatorId` 和文档块接口读取内容，再通过 `temp_upload` 注入
+- 网页 URL 不需要 `temp_upload`，直接由 OpenViking 原生 URL 抓取能力处理
+
+### 14. 平台文档导入后节点或向量数量暂时为 0
+
+**原因**: 平台文档使用 `wait=false` 注入，OpenViking 接收资源后会继续在后台处理语义化队列。
+
+**解决**:
+- 等待 OpenViking 后台队列处理完成
+- 调用 `GET /api/v1/import-tasks/:id/sync` 同步最新 `nodeCount` 和 `vectorCount`
+- 如需排查资源是否已落盘，优先检查 `/api/v1/fs/tree?uri=<targetUri>`
+
+### 15. Rerank 超时
 
 **原因**: Rerank 服务响应慢或未配置。
 
@@ -166,7 +185,7 @@ cat apps/server/.env | grep OV_
 
 ## 前端问题
 
-### 14. 前端页面空白
+### 16. 前端页面空白
 
 **原因**: 后端 API 不可达或构建产物问题。
 
@@ -175,7 +194,7 @@ cat apps/server/.env | grep OV_
 - 确认 `apps/web/.env.local` 中 `BACKEND_URL` 指向正确的后端地址
 - 开发模式下 `next.config.ts` 的 rewrite 代理自动转发 `/api/v1/*` 到后端
 
-### 15. 主题切换不生效
+### 17. 主题切换不生效
 
 **原因**: `next-themes` 配置问题或 localStorage 缓存。
 
@@ -187,7 +206,7 @@ cat apps/server/.env | grep OV_
 
 ## MCP 问题
 
-### 16. MCP SSE 连接断开
+### 18. MCP SSE 连接断开
 
 **原因**: 网络不稳定或反向代理未配置 SSE 支持。
 
@@ -196,7 +215,7 @@ cat apps/server/.env | grep OV_
 - 检查 API key 或 session key 是否有效
 - 确认 Capability Key 未过期且未被删除
 
-### 17. MCP 工具调用返回空结果
+### 19. MCP 工具调用返回空结果
 
 **原因**: 租户 Scope 未正确注入或知识库为空。
 

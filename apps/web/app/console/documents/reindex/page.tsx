@@ -84,13 +84,13 @@ export default function ReindexPage() {
             width: '100%', padding: '0.6rem 0.75rem', marginBottom: '1.5rem',
             background: 'var(--bg-input)', border: '1px solid var(--border)',
             borderRadius: '6px', color: 'var(--text-primary)', fontSize: '0.875rem',
-            boxSizing: 'border-box', fontFamily: 'monospace',
+            boxSizing: 'border-box', fontFamily: 'var(--font-stack-sans)',
           }}
         />
 
         {/* 当前选中 */}
         {uri && (
-          <div style={{ background: 'var(--bg-elevated)', borderRadius: '6px', padding: '0.75rem 1rem', marginBottom: '1.25rem', fontFamily: 'monospace', fontSize: '0.85rem', color: 'var(--brand)' }}>
+          <div style={{ background: 'var(--bg-elevated)', borderRadius: '6px', padding: '0.75rem 1rem', marginBottom: '1.25rem', fontFamily: 'var(--font-stack-sans)', fontSize: '0.85rem', color: 'var(--brand)' }}>
             目标：{uri}
           </div>
         )}

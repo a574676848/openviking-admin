@@ -12,7 +12,14 @@ import {
   ConsoleSurfaceCard,
 } from "@/components/console/primitives";
 import { DocumentsFiltersPanel, DocumentsTasksTable } from "./documents-sections";
-import type { ImportTask } from "./documents.types";
+import {
+  canCancelDocumentTask,
+  canRetryDocumentTask,
+  canSyncDocumentTask,
+  type ImportTask,
+} from "./documents.types";
+
+type TaskAction = "sync" | "retry" | "cancel";
 
 export default function DocumentsPage() {
   const confirm = useConfirm();
@@ -23,6 +30,7 @@ export default function DocumentsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [actingIds, setActingIds] = useState<string[]>([]);
+  const [refreshInterval, setRefreshInterval] = useState<number>(0);
 
   const fetchTasks = useCallback(async () => {
     setLoadError("");
@@ -39,11 +47,15 @@ export default function DocumentsPage() {
 
   useEffect(() => {
     void fetchTasks();
-    const timer = window.setInterval(fetchTasks, 10000);
+  }, [fetchTasks]);
+
+  useEffect(() => {
+    if (refreshInterval <= 0) return;
+    const timer = window.setInterval(fetchTasks, refreshInterval * 1000);
     return () => {
       window.clearInterval(timer);
     };
-  }, [fetchTasks]);
+  }, [fetchTasks, refreshInterval]);
 
   const filteredTasks = useMemo(() => {
     const keyword = searchQuery.trim().toLowerCase();
@@ -127,15 +139,15 @@ export default function DocumentsPage() {
     });
   }
 
-  async function handleBulkAction(action: "sync" | "retry" | "cancel") {
+  async function handleBulkAction(action: TaskAction) {
     const actionableTasks = selectedTasks.filter((task) => {
-      if (action === "retry") return ["failed", "cancelled"].includes(task.status);
-      if (action === "cancel") return task.status === "pending";
-      return true;
+      if (action === "retry") return canRetryDocumentTask(task);
+      if (action === "cancel") return canCancelDocumentTask(task);
+      return canSyncDocumentTask(task);
     });
 
     if (actionableTasks.length === 0) {
-      toast.error(action === "retry" ? "所选任务中没有可重试项" : action === "cancel" ? "所选任务中没有可取消项" : "请先选择任务");
+      toast.error(action === "retry" ? "所选任务中没有可重试项" : action === "cancel" ? "所选任务中没有可取消项" : "所选任务中没有可同步项");
       return;
     }
 
@@ -206,7 +218,7 @@ export default function DocumentsPage() {
           <p className="font-sans text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
             全部任务
           </p>
-          <div className="mt-4 font-mono text-5xl font-black tabular-nums text-[var(--text-primary)]">
+          <div className="mt-4 font-sans text-5xl font-black tabular-nums text-[var(--text-primary)]">
             {tasks.length.toLocaleString()}
           </div>
         </ConsoleSurfaceCard>
@@ -214,7 +226,7 @@ export default function DocumentsPage() {
           <p className="font-sans text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
             处理中
           </p>
-          <div className="mt-4 font-mono text-5xl font-black tabular-nums text-[var(--warning)]">
+          <div className="mt-4 font-sans text-5xl font-black tabular-nums text-[var(--warning)]">
             {stats.running.toLocaleString()}
           </div>
         </ConsoleSurfaceCard>
@@ -222,7 +234,7 @@ export default function DocumentsPage() {
           <p className="font-sans text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
             失败任务
           </p>
-          <div className="mt-4 font-mono text-5xl font-black tabular-nums text-[var(--danger)]">
+          <div className="mt-4 font-sans text-5xl font-black tabular-nums text-[var(--danger)]">
             {stats.failed.toLocaleString()}
           </div>
         </ConsoleSurfaceCard>
@@ -230,7 +242,7 @@ export default function DocumentsPage() {
           <p className="font-sans text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
             累计向量
           </p>
-          <div className="mt-4 font-mono text-5xl font-black tabular-nums text-[var(--brand)]">
+          <div className="mt-4 font-sans text-5xl font-black tabular-nums text-[var(--brand)]">
             {stats.vectors.toLocaleString()}
           </div>
         </ConsoleSurfaceCard>
@@ -241,9 +253,12 @@ export default function DocumentsPage() {
         filter={filter}
         searchQuery={searchQuery}
         selectedCount={selectedIds.length}
+        stats={{ done: stats.done, pending: stats.pending }}
+        refreshInterval={refreshInterval}
         onFilterChange={setFilter}
         onSearchChange={setSearchQuery}
         onBulkAction={(action) => void handleBulkAction(action)}
+        onRefreshIntervalChange={setRefreshInterval}
       />
 
       {/* Bento Row 4: Main Data Table */}
@@ -254,6 +269,7 @@ export default function DocumentsPage() {
           actingIds={actingIds}
           loadError={loadError}
           loading={loading}
+          refreshInterval={refreshInterval}
           onReload={() => void fetchTasks()}
           onSelectAll={(checked) => setSelectedIds(checked ? filteredTasks.map((t) => t.id) : [])}
           onSelectOne={(taskId, checked) =>

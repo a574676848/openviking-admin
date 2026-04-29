@@ -69,7 +69,7 @@ export const TerminalOverlay: React.FC = () => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[9999] bg-black/90 font-mono text-green-500 p-8 overflow-y-auto" onClick={() => inputRef.current?.focus()}>
+    <div className="fixed inset-0 z-[9999] bg-black/90 font-sans text-green-500 p-8 overflow-y-auto" onClick={() => inputRef.current?.focus()}>
       <div className="absolute inset-0 pointer-events-none opacity-10" style={{ backgroundImage: "linear-gradient(rgba(0, 255, 0, 0.2) 1px, transparent 1px)", backgroundSize: "100% 4px" }} />
       <div className="max-w-4xl mx-auto relative z-10">
         {history.map((h, i) => (
@@ -84,7 +84,7 @@ export const TerminalOverlay: React.FC = () => {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            className="flex-1 bg-transparent border-none outline-none text-green-500 font-mono"
+            className="flex-1 bg-transparent border-none outline-none text-green-500 font-sans"
             autoFocus
           />
         </form>

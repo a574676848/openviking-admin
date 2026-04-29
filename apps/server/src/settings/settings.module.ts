@@ -6,6 +6,7 @@ import { SettingsService } from './settings.service';
 import { SettingsController } from './settings.controller';
 import { OVClientService } from '../common/ov-client.service';
 import { EncryptionService } from '../common/encryption.service';
+import { OvConfigResolverService } from './ov-config-resolver.service';
 
 import { ISystemConfigRepository } from './domain/repositories/system-config.repository.interface';
 import { SystemConfigRepositoryImpl } from './infrastructure/repositories/system-config.repository.impl';
@@ -14,6 +15,7 @@ import { SystemConfigRepositoryImpl } from './infrastructure/repositories/system
   imports: [TypeOrmModule.forFeature([SystemConfig, Tenant])],
   providers: [
     SettingsService,
+    OvConfigResolverService,
     OVClientService,
     EncryptionService,
     {
@@ -22,6 +24,11 @@ import { SystemConfigRepositoryImpl } from './infrastructure/repositories/system
     },
   ],
   controllers: [SettingsController],
-  exports: [SettingsService, OVClientService, EncryptionService],
+  exports: [
+    SettingsService,
+    OvConfigResolverService,
+    OVClientService,
+    EncryptionService,
+  ],
 })
 export class SettingsModule {}

@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Headers,
+  Param,
   Post,
   Query,
   Req,
@@ -117,6 +118,194 @@ export class CapabilitiesController {
     return this.executeCapability(
       'resources.tree',
       query,
+      this.resolveClientType('http'),
+      req,
+      res,
+      capabilityKey,
+      authorization,
+    );
+  }
+
+  @Get('knowledge-bases')
+  async listKnowledgeBases(
+    @Headers('x-capability-key') capabilityKey: string | undefined,
+    @Headers('authorization') authorization: string | undefined,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.executeCapability(
+      'knowledgeBases.list',
+      {},
+      this.resolveClientType('http'),
+      req,
+      res,
+      capabilityKey,
+      authorization,
+    );
+  }
+
+  @Get('knowledge-bases/:id')
+  async getKnowledgeBaseDetail(
+    @Param('id') id: string,
+    @Headers('x-capability-key') capabilityKey: string | undefined,
+    @Headers('authorization') authorization: string | undefined,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.executeCapability(
+      'knowledgeBases.detail',
+      { id },
+      this.resolveClientType('http'),
+      req,
+      res,
+      capabilityKey,
+      authorization,
+    );
+  }
+
+  @Get('knowledge-bases/:id/tree')
+  async listKnowledgeTree(
+    @Param('id') id: string,
+    @Headers('x-capability-key') capabilityKey: string | undefined,
+    @Headers('authorization') authorization: string | undefined,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.executeCapability(
+      'knowledgeTree.list',
+      { kbId: id },
+      this.resolveClientType('http'),
+      req,
+      res,
+      capabilityKey,
+      authorization,
+    );
+  }
+
+  @Get('knowledge-tree/:id')
+  async getKnowledgeTreeDetail(
+    @Param('id') id: string,
+    @Headers('x-capability-key') capabilityKey: string | undefined,
+    @Headers('authorization') authorization: string | undefined,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.executeCapability(
+      'knowledgeTree.detail',
+      { id },
+      this.resolveClientType('http'),
+      req,
+      res,
+      capabilityKey,
+      authorization,
+    );
+  }
+
+  @Post('import-tasks/documents')
+  async createDocumentImport(
+    @Body() body: Record<string, unknown>,
+    @Headers('x-capability-key') capabilityKey: string | undefined,
+    @Headers('authorization') authorization: string | undefined,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.executeCapability(
+      'documents.import.create',
+      body,
+      this.resolveClientType('http'),
+      req,
+      res,
+      capabilityKey,
+      authorization,
+    );
+  }
+
+  @Get('import-tasks/:id')
+  async getDocumentImportStatus(
+    @Param('id') id: string,
+    @Headers('x-capability-key') capabilityKey: string | undefined,
+    @Headers('authorization') authorization: string | undefined,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.executeCapability(
+      'documents.import.status',
+      { taskId: id },
+      this.resolveClientType('http'),
+      req,
+      res,
+      capabilityKey,
+      authorization,
+    );
+  }
+
+  @Get('import-tasks')
+  async listDocumentImports(
+    @Headers('x-capability-key') capabilityKey: string | undefined,
+    @Headers('authorization') authorization: string | undefined,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.executeCapability(
+      'documents.import.list',
+      {},
+      this.resolveClientType('http'),
+      req,
+      res,
+      capabilityKey,
+      authorization,
+    );
+  }
+
+  @Post('import-tasks/:id/cancel')
+  async cancelDocumentImport(
+    @Param('id') id: string,
+    @Headers('x-capability-key') capabilityKey: string | undefined,
+    @Headers('authorization') authorization: string | undefined,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.executeCapability(
+      'documents.import.cancel',
+      { taskId: id },
+      this.resolveClientType('http'),
+      req,
+      res,
+      capabilityKey,
+      authorization,
+    );
+  }
+
+  @Post('import-tasks/:id/retry')
+  async retryDocumentImport(
+    @Param('id') id: string,
+    @Headers('x-capability-key') capabilityKey: string | undefined,
+    @Headers('authorization') authorization: string | undefined,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.executeCapability(
+      'documents.import.retry',
+      { taskId: id },
+      this.resolveClientType('http'),
+      req,
+      res,
+      capabilityKey,
+      authorization,
+    );
+  }
+
+  @Get('import-tasks/:id/events')
+  async watchDocumentImportEvents(
+    @Param('id') id: string,
+    @Headers('x-capability-key') capabilityKey: string | undefined,
+    @Headers('authorization') authorization: string | undefined,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.executeCapability(
+      'documents.import.events',
+      { taskId: id },
       this.resolveClientType('http'),
       req,
       res,

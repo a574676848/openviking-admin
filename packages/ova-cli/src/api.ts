@@ -97,9 +97,7 @@ export async function callApi(
     const { stateFile, profileName, profile } = readProfile(store, options);
     const nextProfile = await ensureAccessToken(profileName, profile, stateFile, store);
     const headers = new Headers(init.headers ?? {});
-    if (nextProfile.accessToken && !headers.has('Authorization')) {
-        headers.set('Authorization', `Bearer ${nextProfile.accessToken}`);
-    }
+    applyProfileCredential(headers, nextProfile);
     if (!headers.has('Content-Type') && init.body) {
         headers.set('Content-Type', 'application/json');
     }
@@ -113,7 +111,7 @@ export async function callApi(
         const refreshedProfile = await refreshAccessToken(profileName, nextProfile, stateFile, store);
         if (refreshedProfile?.accessToken) {
             const retryHeaders = new Headers(init.headers ?? {});
-            retryHeaders.set('Authorization', `Bearer ${refreshedProfile.accessToken}`);
+            applyProfileCredential(retryHeaders, refreshedProfile);
             if (!retryHeaders.has('Content-Type') && init.body) {
                 retryHeaders.set('Content-Type', 'application/json');
             }
@@ -136,4 +134,29 @@ export async function callApi(
     }
 
     return payload;
+}
+
+function applyProfileCredential(headers: Headers, nextProfile: CliProfile) {
+    if (headers.has('Authorization') || headers.has('x-capability-key')) {
+        return;
+    }
+
+    if (nextProfile.accessToken && !isExpired(nextProfile.accessTokenExpiresAt)) {
+        headers.set('Authorization', `Bearer ${nextProfile.accessToken}`);
+        return;
+    }
+
+    if (nextProfile.capabilityAccessToken && !isExpired(nextProfile.capabilityAccessTokenExpiresAt)) {
+        headers.set('Authorization', `Bearer ${nextProfile.capabilityAccessToken}`);
+        return;
+    }
+
+    if (nextProfile.sessionKey && !isExpired(nextProfile.sessionKeyExpiresAt)) {
+        headers.set('Authorization', `Bearer ${nextProfile.sessionKey}`);
+        return;
+    }
+
+    if (nextProfile.apiKey) {
+        headers.set('x-capability-key', nextProfile.apiKey);
+    }
 }

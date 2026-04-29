@@ -70,7 +70,7 @@ export class KnowledgeNodeRepositoryImpl implements IKnowledgeNodeRepository {
     kbId: string;
     id: string;
   }): string {
-    return `${KnowledgeNodeRepositoryImpl.RESOURCE_URI_PREFIX}/${node.tenantId}/${node.kbId}/${node.id}/`;
+    return `${KnowledgeNodeRepositoryImpl.RESOURCE_URI_PREFIX}/tenants/${node.tenantId}/${node.kbId}/${node.id}/`;
   }
 
   private async createTransactionalQueryRunner(): Promise<{

@@ -21,6 +21,16 @@
 | `knowledge.grep` | 在租户知识域内执行文本匹配 | `POST /api/v1/knowledge/grep` | `ova knowledge grep` | `knowledge.grep` | `tenant_viewer` |
 | `resources.list` | 列出租户授权范围内的资源 | `GET /api/v1/resources` | `ova resources list` | `resources.list` | `tenant_operator` |
 | `resources.tree` | 获取租户资源树 | `GET /api/v1/resources/tree` | `ova resources tree` | `resources.tree` | `tenant_operator` |
+| `knowledgeBases.list` | 列出当前租户可导入的知识库 | `GET /api/v1/knowledge-bases` | `ova kb list` | `knowledgeBases.list` | `tenant_viewer` |
+| `knowledgeBases.detail` | 查看知识库详情与导入根路径 | `GET /api/v1/knowledge-bases/:id` | `ova kb detail` | `knowledgeBases.detail` | `tenant_viewer` |
+| `knowledgeTree.list` | 列出知识库下可作为导入目标的节点 | `GET /api/v1/knowledge-bases/:id/tree` | `ova tree list` | `knowledgeTree.list` | `tenant_viewer` |
+| `knowledgeTree.detail` | 查看知识树节点详情与导入路径 | `GET /api/v1/knowledge-tree/:id` | `ova tree detail` | `knowledgeTree.detail` | `tenant_viewer` |
+| `documents.import.create` | 创建本地、URL 或 manifest 文档导入任务 | `POST /api/v1/import-tasks/documents` | `ova documents import` | `documents.import.create` | `tenant_operator` |
+| `documents.import.status` | 查看文档导入任务进度 | `GET /api/v1/import-tasks/:id` | `ova documents import status` | `documents.import.status` | `tenant_viewer` |
+| `documents.import.list` | 列出当前租户文档导入任务 | `GET /api/v1/import-tasks` | `ova documents import list` | `documents.import.list` | `tenant_viewer` |
+| `documents.import.cancel` | 取消排队中的文档导入任务 | `POST /api/v1/import-tasks/:id/cancel` | `ova documents import cancel` | `documents.import.cancel` | `tenant_operator` |
+| `documents.import.retry` | 重试失败或已取消的文档导入任务 | `POST /api/v1/import-tasks/:id/retry` | `ova documents import retry` | `documents.import.retry` | `tenant_operator` |
+| `documents.import.events` | 查看文档导入任务进度事件快照 | `GET /api/v1/import-tasks/:id/events` | `ova documents import status --watch` | `documents.import.events` | `tenant_viewer` |
 
 ## 能力契约
 
@@ -86,6 +96,9 @@ Capability 调用最终都会解析为统一 `Principal`。
 
 - `knowledge.*` 最低角色为 `tenant_viewer`，只允许在租户内检索。
 - `resources.*` 最低角色为 `tenant_operator`，避免低权限用户枚举资源结构。
+- `knowledgeBases.*` 与 `knowledgeTree.*` 是文档导入前置选择能力，只开放只读查询，不承担知识空间管理职责。
+- `documents.import.status`、`documents.import.list` 与 `documents.import.events` 对 `tenant_viewer` 开放；创建、取消和重试导入任务需要 `tenant_operator`。
+- `documents.import.create` capability 只支持 `local`、`url`、`manifest` 三类来源；飞书、钉钉、Git 等需要集成凭证的来源走导入任务 API 或控制台集成流程。WebDAV 仍用于外部客户端访问知识资源，不作为导入来源。
 - Adapter 不允许覆盖能力契约中的 `minimumRole`。
 - 租户外 URI 必须显式拒绝，不做静默收敛后继续执行。
 - 下游 OpenViking 访问范围必须由服务端租户 scope 推导，不能直接信任客户端传入 URI。

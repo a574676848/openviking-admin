@@ -9,10 +9,12 @@ export function parseOptions(argv: string[]): ParsedArgs {
     const command = maybeCommand?.startsWith('--') ? undefined : maybeCommand;
     const rest = command ? restArgs : ([maybeCommand, ...restArgs].filter(Boolean) as string[]);
     const options: Record<string, string | boolean> = {};
+    const positional: string[] = [];
 
     for (let index = 0; index < rest.length; index += 1) {
         const current = rest[index];
         if (!current.startsWith('--')) {
+            positional.push(current);
             continue;
         }
 
@@ -25,6 +27,13 @@ export function parseOptions(argv: string[]): ParsedArgs {
 
         options[key] = next;
         index += 1;
+    }
+
+    if (positional[0]) {
+        options._ = positional[0];
+    }
+    if (positional[1]) {
+        options.value = positional[1];
     }
 
     return {

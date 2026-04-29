@@ -271,7 +271,7 @@ export default function SettingsPage() {
       {loading ? (
         <PlatformPanel className="flex flex-col items-center justify-center p-12">
            <div className="w-12 h-12 border-4 border-[var(--border)] border-t-[var(--brand)] rounded-full animate-spin mb-4"></div>
-           <div className="font-mono font-bold tracking-widest animate-pulse text-[var(--text-secondary)] uppercase">正在同步配置...</div>
+           <div className="font-sans font-bold tracking-widest animate-pulse text-[var(--text-secondary)] uppercase">正在同步配置...</div>
         </PlatformPanel>
       ) : loadError ? (
         <PlatformStatusPanel
@@ -440,7 +440,7 @@ export default function SettingsPage() {
                leading={
                  <div className="flex items-center gap-3">
                    <AlertTriangle size={20} className="text-[var(--warning)]" />
-                   <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)]">
+                   <span className="font-sans text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)]">
                      注意：保存后会立即作用到所有租户节点。
                    </span>
                  </div>
@@ -448,7 +448,7 @@ export default function SettingsPage() {
                trailing={
                  <>
                    {saved && (
-                     <span className="flex items-center font-mono text-[10px] font-bold uppercase tracking-widest text-[var(--success)] animate-pulse">
+                     <span className="flex items-center font-sans text-[10px] font-bold uppercase tracking-widest text-[var(--success)] animate-pulse">
                        <ShieldCheck size={14} className="mr-1" /> 配置已保存
                      </span>
                    )}

@@ -28,6 +28,7 @@ const CUSTOM_OV_CONFIG_FIELDS: Array<keyof TenantOvConfig> = [
   'baseUrl',
   'apiKey',
   'account',
+  'user',
   'rerankEndpoint',
   'rerankApiKey',
   'rerankModel',
@@ -35,13 +36,23 @@ const CUSTOM_OV_CONFIG_FIELDS: Array<keyof TenantOvConfig> = [
 
 /** 解析 OV 文本表格为结构化行数据 */
 function parseOVTable(tableStr: string): Array<Record<string, string>> {
-  const lines = tableStr.split('\n').filter(l => l.trim() && !l.trim().startsWith('+'));
+  const lines = tableStr
+    .split('\n')
+    .filter((l) => l.trim() && !l.trim().startsWith('+'));
   if (lines.length < 2) return [];
-  const headers = lines[0].split('|').map(h => h.trim()).filter(Boolean);
-  return lines.slice(1).map(line => {
-    const cells = line.split('|').map(c => c.trim()).filter(Boolean);
+  const headers = lines[0]
+    .split('|')
+    .map((h) => h.trim())
+    .filter(Boolean);
+  return lines.slice(1).map((line) => {
+    const cells = line
+      .split('|')
+      .map((c) => c.trim())
+      .filter(Boolean);
     const row: Record<string, string> = {};
-    headers.forEach((h, i) => { row[h] = cells[i] ?? ''; });
+    headers.forEach((h, i) => {
+      row[h] = cells[i] ?? '';
+    });
     return row;
   });
 }
@@ -66,8 +77,8 @@ function parseVikingDBTable(tableStr: string): {
   total: Record<string, string>;
 } {
   const rows = parseOVTable(tableStr);
-  const collections = rows.filter(r => r['Collection']?.trim() !== 'TOTAL');
-  const total = rows.find(r => r['Collection']?.trim() === 'TOTAL') || {};
+  const collections = rows.filter((r) => r['Collection']?.trim() !== 'TOTAL');
+  const total = rows.find((r) => r['Collection']?.trim() === 'TOTAL') || {};
   return { collections, total };
 }
 
@@ -96,7 +107,9 @@ export class SystemController {
       (await this.tenantRepo.findById(tenantScope));
     const hasCustomOvConfig = CUSTOM_OV_CONFIG_FIELDS.some((field) => {
       const value = tenant?.ovConfig?.[field];
-      return typeof value === 'string' ? value.trim().length > 0 : Boolean(value);
+      return typeof value === 'string'
+        ? value.trim().length > 0
+        : Boolean(value);
     });
 
     if (!hasCustomOvConfig) {
@@ -152,18 +165,29 @@ export class SystemController {
       this.ovClient.request(conn, '/api/v1/observer/vikingdb'),
     ]);
 
-    const queueRaw = results[0].status === 'fulfilled' ? (results[0].value as Record<string, unknown>) : null;
-    const vikingdbRaw = results[1].status === 'fulfilled' ? (results[1].value as Record<string, unknown>) : null;
+    const queueRaw =
+      results[0].status === 'fulfilled'
+        ? (results[0].value as Record<string, unknown>)
+        : null;
+    const vikingdbRaw =
+      results[1].status === 'fulfilled'
+        ? (results[1].value as Record<string, unknown>)
+        : null;
 
     // 解析队列文本表格
     const queue =
       queueRaw && (queueRaw.result as Record<string, unknown>)?.status
-        ? parseQueueTable((queueRaw.result as Record<string, unknown>).status as string)
+        ? parseQueueTable(
+            (queueRaw.result as Record<string, unknown>).status as string,
+          )
         : null;
 
     // 解析 VikingDB 文本表格
     let vikingdb = null;
-    if (vikingdbRaw && (vikingdbRaw.result as Record<string, unknown>)?.status) {
+    if (
+      vikingdbRaw &&
+      (vikingdbRaw.result as Record<string, unknown>)?.status
+    ) {
       const parsed = parseVikingDBTable(
         (vikingdbRaw.result as Record<string, unknown>).status as string,
       );

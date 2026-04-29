@@ -56,22 +56,35 @@ describe('TaskWorkerService', () => {
   function createService(options: {
     defaultDataSource: Record<string, unknown>;
     dynamicDS?: Record<string, unknown>;
-    settings?: Record<string, unknown>;
+    ovConfigResolver?: Record<string, unknown>;
     encryption?: Record<string, unknown>;
     ovClient?: Record<string, unknown>;
     feishu?: Record<string, unknown>;
     dingtalk?: Record<string, unknown>;
     git?: Record<string, unknown>;
+    localImportStorage?: Record<string, unknown>;
   }) {
     return new TaskWorkerService(
       options.defaultDataSource as never,
       (options.dynamicDS ?? { getTenantDataSource: jest.fn() }) as never,
-      (options.settings ?? { resolveOVConfig: jest.fn() }) as never,
+      (options.ovConfigResolver ?? { resolve: jest.fn() }) as never,
       (options.encryption ?? { decrypt: jest.fn((value) => value) }) as never,
-      (options.ovClient ?? { request: jest.fn() }) as never,
-      (options.feishu ?? { supports: jest.fn(), resolveConfig: jest.fn() }) as never,
+      (options.ovClient ?? {
+        request: jest.fn(),
+        uploadTempFile: jest.fn(),
+      }) as never,
+      (options.feishu ?? {
+        supports: jest.fn(),
+        resolveConfig: jest.fn(),
+      }) as never,
       (options.dingtalk ?? { supports: jest.fn() }) as never,
       (options.git ?? { supports: jest.fn() }) as never,
+      (options.localImportStorage ?? {
+        readBySourceUrl: jest.fn(),
+        shouldCleanupAfterDone: jest.fn(() => false),
+        isManagedFileUrl: jest.fn(() => false),
+        deleteBySourceUrl: jest.fn(),
+      }) as never,
     );
   }
 
@@ -86,7 +99,9 @@ describe('TaskWorkerService', () => {
       database: 'tenant_large_a',
     });
     const tenantRepo = {
-      find: jest.fn().mockResolvedValue([smallTenant, mediumTenant, largeTenant]),
+      find: jest
+        .fn()
+        .mockResolvedValue([smallTenant, mediumTenant, largeTenant]),
     };
     const publicTaskRepo = {
       find: jest.fn().mockResolvedValue([createTask('small-task', 'small-a')]),
@@ -204,11 +219,12 @@ describe('TaskWorkerService', () => {
     const dynamicDS = {
       getTenantDataSource: jest.fn().mockResolvedValue(largeDataSource),
     };
-    const settings = {
-      resolveOVConfig: jest.fn().mockResolvedValue({
+    const ovConfigResolver = {
+      resolve: jest.fn().mockResolvedValue({
         baseUrl: 'http://ov.local',
         apiKey: 'ov-key',
         account: 'large-a',
+        user: 'worker-user',
       }),
     };
     const encryption = {
@@ -216,18 +232,24 @@ describe('TaskWorkerService', () => {
     };
     const ovClient = {
       request: jest.fn().mockResolvedValue({ ok: true }),
+      uploadTempFile: jest.fn().mockResolvedValue({
+        result: { temp_file_id: 'platform_feishu.md' },
+      }),
     };
     const feishu = {
       supports: jest.fn((type) => type === IntegrationType.FEISHU),
       resolveConfig: jest.fn().mockResolvedValue({
-        path: 'feishu://resolved',
-        config: { appSecret: 'plain-encrypted-secret' },
+        tempFile: {
+          fileName: '飞书文档.md',
+          buffer: Buffer.from('飞书正文'),
+          mimeType: 'text/markdown;charset=utf-8',
+        },
       }),
     };
     const service = createService({
       defaultDataSource,
       dynamicDS,
-      settings,
+      ovConfigResolver,
       encryption,
       ovClient,
       feishu,
@@ -246,6 +268,9 @@ describe('TaskWorkerService', () => {
     expect(integrationRepo.findOne).toHaveBeenCalledWith({
       where: { id: 'integration-1', tenantId: 'large-a' },
     });
+    expect(tenantRepo.findOne).toHaveBeenCalledWith({
+      where: [{ tenantId: 'large-a' }],
+    });
     expect(feishu.resolveConfig).toHaveBeenCalledWith(
       expect.objectContaining({
         credentials: { appSecret: 'plain-encrypted-secret' },
@@ -257,13 +282,547 @@ describe('TaskWorkerService', () => {
       '/api/v1/resources',
       'POST',
       expect.objectContaining({
-        path: 'feishu://resolved',
-        config: { appSecret: 'plain-encrypted-secret' },
+        temp_file_id: 'platform_feishu.md',
+        to: 'viking://resources/tenants/large-a/kb-1/imports/feishu/',
+        wait: false,
       }),
+      { user: 'worker-user' },
+    );
+    expect(ovClient.request).toHaveBeenCalledWith(
+      expect.objectContaining({ account: 'large-a' }),
+      '/api/v1/resources',
+      'POST',
+      expect.not.objectContaining({
+        path: expect.anything(),
+        config: expect.anything(),
+        appSecret: expect.anything(),
+      }),
+      { user: 'worker-user' },
+    );
+    expect(ovClient.uploadTempFile).toHaveBeenCalledWith(
+      expect.objectContaining({ account: 'large-a' }),
+      '/api/v1/resources/temp_upload',
+      {
+        fileName: '飞书文档.md',
+        buffer: expect.any(Buffer),
+        mimeType: 'text/markdown;charset=utf-8',
+      },
+      { user: 'worker-user' },
+      { serviceLabel: 'OpenViking Resources' },
     );
     expect(taskRepo.update).toHaveBeenNthCalledWith(2, 'large-task', {
       status: TaskStatus.DONE,
       updatedAt: expect.any(Date),
     });
+  });
+
+  it('本地上传任务成功后应按配置清理托管文件', async () => {
+    const tenant = createTenant('small-a', TenantIsolationLevel.SMALL);
+    const task = {
+      ...createTask('local-task', 'small-a'),
+      integrationId: '',
+      sourceType: 'local',
+      sourceUrl: 'file:///data/openviking/imports/manual.md',
+      targetUri: 'viking://resources/small-a/kb-1/imports/local/',
+    } as ImportTaskModel;
+    const tenantRepo = {
+      findOne: jest.fn().mockResolvedValue(tenant),
+    };
+    const taskRepo = {
+      update: jest.fn(),
+    };
+    const defaultDataSource = {
+      getRepository: jest.fn((entity) => {
+        if (entity === Tenant) return tenantRepo;
+        if (entity === ImportTask) return taskRepo;
+        return {};
+      }),
+    };
+    const ovConfigResolver = {
+      resolve: jest.fn().mockResolvedValue({
+        baseUrl: 'http://ov.local',
+        apiKey: 'ov-key',
+        account: 'small-a',
+        user: 'worker-user',
+      }),
+    };
+    const ovClient = {
+      request: jest
+        .fn()
+        .mockResolvedValueOnce({ ok: true })
+        .mockResolvedValueOnce({
+          result: { children_count: 1, descendant_count: 2 },
+        })
+        .mockResolvedValueOnce({ result: { count: 5 } }),
+      uploadTempFile: jest.fn().mockResolvedValue({
+        result: { temp_file_id: 'upload_manual.md' },
+      }),
+    };
+    const localImportStorage = {
+      readBySourceUrl: jest.fn().mockResolvedValue({
+        fileName: 'manual.md',
+        buffer: Buffer.from('manual'),
+        mimeType: null,
+      }),
+      shouldCleanupAfterDone: jest.fn(() => true),
+      isManagedFileUrl: jest.fn(() => true),
+      deleteBySourceUrl: jest.fn(),
+    };
+    const service = createService({
+      defaultDataSource,
+      ovConfigResolver,
+      ovClient,
+      localImportStorage,
+    });
+
+    await (
+      service as unknown as {
+        processTask(task: ImportTaskModel): Promise<void>;
+      }
+    ).processTask(task);
+
+    expect(localImportStorage.readBySourceUrl).toHaveBeenCalledWith(
+      'file:///data/openviking/imports/manual.md',
+    );
+    expect(ovClient.uploadTempFile).toHaveBeenCalledWith(
+      expect.objectContaining({ account: 'small-a' }),
+      '/api/v1/resources/temp_upload',
+      {
+        fileName: 'manual.md',
+        buffer: expect.any(Buffer),
+        mimeType: null,
+      },
+      { user: 'worker-user' },
+      { serviceLabel: 'OpenViking Resources' },
+    );
+    expect(ovClient.request).toHaveBeenCalledWith(
+      expect.objectContaining({ account: 'small-a' }),
+      '/api/v1/resources',
+      'POST',
+      {
+        temp_file_id: 'upload_manual.md',
+        to: 'viking://resources/tenants/small-a/kb-1/imports/local/',
+        reason: 'Queue Task: local-task',
+        wait: true,
+      },
+      { user: 'worker-user' },
+    );
+    expect(ovClient.request).toHaveBeenCalledWith(
+      expect.objectContaining({ account: 'small-a' }),
+      expect.stringContaining('/api/v1/fs/stat'),
+      'GET',
+      undefined,
+      { user: 'worker-user' },
+    );
+    expect(ovClient.request).toHaveBeenCalledWith(
+      expect.objectContaining({ account: 'small-a' }),
+      expect.stringContaining('/api/v1/debug/vector/count'),
+      'GET',
+      undefined,
+      { user: 'worker-user' },
+    );
+    expect(taskRepo.update).toHaveBeenNthCalledWith(2, 'local-task', {
+      status: TaskStatus.DONE,
+      nodeCount: 3,
+      vectorCount: 5,
+      updatedAt: expect.any(Date),
+    });
+    expect(localImportStorage.deleteBySourceUrl).toHaveBeenCalledWith(
+      'file:///data/openviking/imports/manual.md',
+    );
+  });
+
+  it('OpenViking 返回业务失败时应标记任务失败', async () => {
+    const tenant = createTenant('test3', TenantIsolationLevel.SMALL);
+    const task = {
+      ...createTask('failed-inject-task', 'test3'),
+      integrationId: '',
+      sourceType: 'url',
+      sourceUrl: 'https://docs.example.com/page',
+      targetUri: 'viking://resources/tenants/test3/kb-1/imports/url/',
+    } as ImportTaskModel;
+    const tenantRepo = {
+      findOne: jest.fn().mockResolvedValue(tenant),
+    };
+    const taskRepo = {
+      update: jest.fn(),
+    };
+    const defaultDataSource = {
+      getRepository: jest.fn((entity) => {
+        if (entity === Tenant) return tenantRepo;
+        if (entity === ImportTask) return taskRepo;
+        return {};
+      }),
+    };
+    const ovConfigResolver = {
+      resolve: jest.fn().mockResolvedValue({
+        baseUrl: 'http://ov.local',
+        apiKey: 'ov-key',
+        account: 'test3',
+        user: 'worker-user',
+      }),
+    };
+    const ovClient = {
+      request: jest.fn().mockResolvedValue({
+        result: { status: 'error', errors: ['Parse error: git clone failed'] },
+      }),
+    };
+    const service = createService({
+      defaultDataSource,
+      ovConfigResolver,
+      ovClient,
+    });
+
+    await (
+      service as unknown as {
+        processTask(task: ImportTaskModel): Promise<void>;
+      }
+    ).processTask(task);
+
+    expect(taskRepo.update).toHaveBeenNthCalledWith(2, 'failed-inject-task', {
+      status: TaskStatus.FAILED,
+      errorMsg: 'Parse error: git clone failed',
+      updatedAt: expect.any(Date),
+    });
+  });
+
+  it('Git 平台任务不应向 OpenViking 资源接口发送额外 config', async () => {
+    const tenant = createTenant('test3', TenantIsolationLevel.MEDIUM);
+    const task = {
+      ...createTask('git-task', 'test3'),
+      sourceType: 'git',
+      sourceUrl: 'https://git.example.com/org/repo',
+      targetUri: 'viking://resources/tenants/test3/kb-1/imports/git/',
+    } as ImportTaskModel;
+    const tenantRepo = {
+      findOne: jest.fn().mockResolvedValue(tenant),
+    };
+    const taskRepo = {
+      update: jest.fn(),
+    };
+    const integrationRepo = {
+      findOne: jest.fn().mockResolvedValue({
+        id: 'integration-1',
+        tenantId: 'test3',
+        name: 'GitLab',
+        type: IntegrationType.GITLAB,
+        credentials: { token: 'encrypted-token' },
+        config: null,
+        active: true,
+        createdAt: new Date('2026-04-29T00:00:00.000Z'),
+        updatedAt: new Date('2026-04-29T00:00:00.000Z'),
+      }),
+    };
+    const queryRunner = {
+      isReleased: false,
+      connect: jest.fn(),
+      query: jest.fn(),
+      release: jest.fn(),
+      manager: {
+        getRepository: jest.fn((entity) =>
+          entity === ImportTask ? taskRepo : integrationRepo,
+        ),
+      },
+    };
+    const defaultDataSource = {
+      getRepository: jest.fn((entity) => {
+        if (entity === Tenant) return tenantRepo;
+        throw new Error('unexpected repository');
+      }),
+      createQueryRunner: jest.fn(() => queryRunner),
+    };
+    const ovConfigResolver = {
+      resolve: jest.fn().mockResolvedValue({
+        baseUrl: 'http://ov.local',
+        apiKey: 'ov-key',
+        account: 'test3',
+        user: 'worker-user',
+      }),
+    };
+    const ovClient = {
+      request: jest.fn()
+        .mockRejectedValueOnce(new Error('clone failed'))
+        .mockResolvedValueOnce({ ok: true }),
+    };
+    const git = {
+      supports: jest.fn((type) => type === IntegrationType.GITLAB),
+      resolveConfig: jest.fn().mockResolvedValue({
+        path: 'https://plain-token@git.example.com/org/repo',
+        fallbackPaths: ['http://oauth2:plain-token@git.example.com/org/repo'],
+      }),
+    };
+    const service = createService({
+      defaultDataSource,
+      ovConfigResolver,
+      ovClient,
+      git,
+    });
+
+    await (
+      service as unknown as {
+        processTask(task: ImportTaskModel): Promise<void>;
+      }
+    ).processTask(task);
+
+    expect(ovClient.request).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ account: 'test3' }),
+      '/api/v1/resources',
+      'POST',
+      expect.objectContaining({
+        path: 'https://plain-token@git.example.com/org/repo',
+        to: 'viking://resources/tenants/test3/kb-1/imports/git/',
+      }),
+      { user: 'worker-user' },
+    );
+    expect(ovClient.request).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ account: 'test3' }),
+      '/api/v1/resources',
+      'POST',
+      expect.objectContaining({
+        path: 'http://oauth2:plain-token@git.example.com/org/repo',
+        to: 'viking://resources/tenants/test3/kb-1/imports/git/',
+      }),
+      { user: 'worker-user' },
+    );
+    const resourceInjectCalls = ovClient.request.mock.calls.filter(
+      ([, path, method]) => path === '/api/v1/resources' && method === 'POST',
+    );
+    expect(resourceInjectCalls).toHaveLength(2);
+    expect(ovClient.request).toHaveBeenCalledWith(
+      expect.objectContaining({ account: 'test3' }),
+      '/api/v1/resources',
+      'POST',
+      expect.not.objectContaining({ fallback_paths: expect.anything() }),
+      { user: 'worker-user' },
+    );
+    expect(ovClient.request).toHaveBeenCalledWith(
+      expect.objectContaining({ account: 'test3' }),
+      '/api/v1/resources',
+      'POST',
+      expect.not.objectContaining({ config: expect.anything() }),
+      { user: 'worker-user' },
+    );
+  });
+
+  it('OpenViking 返回注入失败时应继续尝试 Git fallback path', async () => {
+    const tenant = createTenant('test3', TenantIsolationLevel.MEDIUM);
+    const task = {
+      ...createTask('git-fallback-task', 'test3'),
+      sourceType: 'git',
+      sourceUrl: 'https://git.exexm.com/epaas-product/exe-cloud-business-center',
+      targetUri: 'viking://resources/tenants/test3/kb-1/imports/git/',
+    } as ImportTaskModel;
+    const tenantRepo = {
+      findOne: jest.fn().mockResolvedValue(tenant),
+    };
+    const taskRepo = {
+      update: jest.fn(),
+    };
+    const integrationRepo = {
+      findOne: jest.fn().mockResolvedValue({
+        id: 'integration-1',
+        tenantId: 'test3',
+        name: 'GitLab',
+        type: IntegrationType.GITLAB,
+        credentials: { token: 'encrypted-token' },
+        config: null,
+        active: true,
+        createdAt: new Date('2026-04-29T00:00:00.000Z'),
+        updatedAt: new Date('2026-04-29T00:00:00.000Z'),
+      }),
+    };
+    const queryRunner = {
+      isReleased: false,
+      connect: jest.fn(),
+      query: jest.fn(),
+      release: jest.fn(),
+      manager: {
+        getRepository: jest.fn((entity) =>
+          entity === ImportTask ? taskRepo : integrationRepo,
+        ),
+      },
+    };
+    const defaultDataSource = {
+      getRepository: jest.fn((entity) => {
+        if (entity === Tenant) return tenantRepo;
+        throw new Error('unexpected repository');
+      }),
+      createQueryRunner: jest.fn(() => queryRunner),
+    };
+    const ovConfigResolver = {
+      resolve: jest.fn().mockResolvedValue({
+        baseUrl: 'http://ov.local',
+        apiKey: 'ov-key',
+        account: 'test3',
+        user: 'worker-user',
+      }),
+    };
+    const ovClient = {
+      request: jest.fn()
+        .mockResolvedValueOnce({
+          result: {
+            status: 'error',
+            errors: ['Parse error: Git command failed'],
+          },
+        })
+        .mockResolvedValueOnce({ ok: true }),
+    };
+    const git = {
+      supports: jest.fn((type) => type === IntegrationType.GITLAB),
+      resolveConfig: jest.fn().mockResolvedValue({
+        path: 'https://plain-token@git.exexm.com/epaas-product/exe-cloud-business-center',
+        fallbackPaths: [
+          'http://oauth2:plain-token@git.exexm.com/epaas-product/exe-cloud-business-center',
+        ],
+      }),
+    };
+    const service = createService({
+      defaultDataSource,
+      ovConfigResolver,
+      ovClient,
+      git,
+    });
+
+    await (
+      service as unknown as {
+        processTask(task: ImportTaskModel): Promise<void>;
+      }
+    ).processTask(task);
+
+    expect(ovClient.request).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ account: 'test3' }),
+      '/api/v1/resources',
+      'POST',
+      expect.objectContaining({
+        path: 'https://plain-token@git.exexm.com/epaas-product/exe-cloud-business-center',
+      }),
+      { user: 'worker-user' },
+    );
+    expect(ovClient.request).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ account: 'test3' }),
+      '/api/v1/resources',
+      'POST',
+      expect.objectContaining({
+        path: 'http://oauth2:plain-token@git.exexm.com/epaas-product/exe-cloud-business-center',
+      }),
+      { user: 'worker-user' },
+    );
+  });
+
+  it('网页提取任务应直接把 URL 注入 OpenViking 资源接口', async () => {
+    const tenant = createTenant('small-a', TenantIsolationLevel.SMALL);
+    const task = {
+      ...createTask('url-task', 'small-a'),
+      integrationId: '',
+      sourceType: 'url',
+      sourceUrl: 'https://docs.example.com/page',
+      targetUri: 'viking://resources/small-a/kb-1/imports/url/',
+    } as ImportTaskModel;
+    const tenantRepo = {
+      findOne: jest.fn().mockResolvedValue(tenant),
+    };
+    const taskRepo = {
+      update: jest.fn(),
+    };
+    const defaultDataSource = {
+      getRepository: jest.fn((entity) => {
+        if (entity === Tenant) return tenantRepo;
+        if (entity === ImportTask) return taskRepo;
+        return {};
+      }),
+    };
+    const ovConfigResolver = {
+      resolve: jest.fn().mockResolvedValue({
+        baseUrl: 'http://ov.local',
+        apiKey: 'ov-key',
+        account: 'small-a',
+        user: 'worker-user',
+      }),
+    };
+    const ovClient = {
+      request: jest.fn().mockResolvedValue({ ok: true }),
+    };
+    const service = createService({
+      defaultDataSource,
+      ovConfigResolver,
+      ovClient,
+    });
+
+    await (
+      service as unknown as {
+        processTask(task: ImportTaskModel): Promise<void>;
+      }
+    ).processTask(task);
+
+    expect(ovClient.request).toHaveBeenCalledWith(
+      expect.objectContaining({ account: 'small-a' }),
+      '/api/v1/resources',
+      'POST',
+      expect.objectContaining({
+        path: 'https://docs.example.com/page',
+        to: 'viking://resources/tenants/small-a/kb-1/imports/url/',
+      }),
+      { user: 'worker-user' },
+    );
+  });
+
+  it('已是引擎租户命名空间的 targetUri 不应重复追加 tenants 前缀', async () => {
+    const tenant = createTenant('test3', TenantIsolationLevel.SMALL);
+    const task = {
+      ...createTask('tenant-uri-task', 'test3'),
+      integrationId: '',
+      sourceType: 'url',
+      sourceUrl: 'https://docs.example.com/page',
+      targetUri: 'viking://resources/tenants/test3/kb-1/imports/url/',
+    } as ImportTaskModel;
+    const tenantRepo = {
+      findOne: jest.fn().mockResolvedValue(tenant),
+    };
+    const taskRepo = {
+      update: jest.fn(),
+    };
+    const defaultDataSource = {
+      getRepository: jest.fn((entity) => {
+        if (entity === Tenant) return tenantRepo;
+        if (entity === ImportTask) return taskRepo;
+        return {};
+      }),
+    };
+    const ovConfigResolver = {
+      resolve: jest.fn().mockResolvedValue({
+        baseUrl: 'http://ov.local',
+        apiKey: 'ov-key',
+        account: 'test3',
+        user: 'worker-user',
+      }),
+    };
+    const ovClient = {
+      request: jest.fn().mockResolvedValue({ ok: true }),
+    };
+    const service = createService({
+      defaultDataSource,
+      ovConfigResolver,
+      ovClient,
+    });
+
+    await (
+      service as unknown as {
+        processTask(task: ImportTaskModel): Promise<void>;
+      }
+    ).processTask(task);
+
+    expect(ovClient.request).toHaveBeenCalledWith(
+      expect.objectContaining({ account: 'test3' }),
+      '/api/v1/resources',
+      'POST',
+      expect.objectContaining({
+        to: 'viking://resources/tenants/test3/kb-1/imports/url/',
+      }),
+      { user: 'worker-user' },
+    );
   });
 });

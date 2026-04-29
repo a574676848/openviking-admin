@@ -285,7 +285,7 @@ export function ConsoleInspectorStack({
                 className={cx(
                   "mt-3 break-all",
                   field.mono
-                    ? "font-mono text-xs font-bold"
+                    ? "font-sans text-xs font-bold"
                     : "font-sans text-3xl font-black",
                   field.tone ? toneMap[field.tone] : "text-[var(--text-primary)]",
                 )}

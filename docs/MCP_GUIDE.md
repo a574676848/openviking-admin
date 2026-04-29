@@ -16,6 +16,16 @@ MCP 是协议入口，不是独立业务层。MCP 暴露的工具来自统一 ca
 | `knowledge.grep` | `knowledge.grep` | 在租户知识域内执行文本匹配 |
 | `resources.list` | `resources.list` | 列出租户授权范围内的资源 |
 | `resources.tree` | `resources.tree` | 获取租户资源树 |
+| `knowledgeBases.list` | `knowledgeBases.list` | 列出当前租户可导入的知识库 |
+| `knowledgeBases.detail` | `knowledgeBases.detail` | 查看知识库详情与导入根路径 |
+| `knowledgeTree.list` | `knowledgeTree.list` | 列出知识库下可导入节点 |
+| `knowledgeTree.detail` | `knowledgeTree.detail` | 查看知识树节点详情与导入路径 |
+| `documents.import.create` | `documents.import.create` | 创建本地、URL 或 manifest 文档导入任务 |
+| `documents.import.status` | `documents.import.status` | 查看文档导入任务进度 |
+| `documents.import.list` | `documents.import.list` | 列出当前租户文档导入任务 |
+| `documents.import.cancel` | `documents.import.cancel` | 取消排队中的文档导入任务 |
+| `documents.import.retry` | `documents.import.retry` | 重试失败或已取消的文档导入任务 |
+| `documents.import.events` | `documents.import.events` | 查看文档导入任务进度事件快照 |
 
 ## 获取凭证
 

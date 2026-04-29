@@ -52,14 +52,14 @@ export default function NewKnowledgeBasePage() {
       {/* ─── Header ─── */}
       <div className="flex flex-col md:flex-row gap-6 justify-between items-start md:items-end border-b-[var(--border-width)] border-[var(--border)] pb-6 mb-8">
         <div>
-           <Link href="/console/knowledge-bases" className="inline-flex items-center text-xs font-mono font-bold tracking-widest text-[var(--text-muted)] hover:text-[var(--brand)] mb-4 uppercase transition-colors">
+           <Link href="/console/knowledge-bases" className="inline-flex items-center text-xs font-sans font-bold tracking-widest text-[var(--text-muted)] hover:text-[var(--brand)] mb-4 uppercase transition-colors">
              <ArrowLeft size={14} className="mr-2" strokeWidth={2} /> 返回知识库列表
            </Link>
            <h1 className="text-4xl md:text-5xl font-black font-sans tracking-tighter uppercase mb-2 text-[var(--text-primary)] flex items-center">
              <Terminal size={40} strokeWidth={2} className="mr-4 text-[var(--text-primary)]" />
              新建知识库
            </h1>
-           <p className="font-bold font-mono tracking-widest text-[var(--text-secondary)] uppercase text-xs">
+           <p className="font-bold font-sans tracking-widest text-[var(--text-secondary)] uppercase text-xs">
              {"// 创建新的向量知识库节点"}
            </p>
         </div>
@@ -74,7 +74,7 @@ export default function NewKnowledgeBasePage() {
 
           <div className="relative z-10 space-y-8">
             <div className="space-y-2">
-              <label className="block text-xs font-mono font-black text-[var(--text-primary)] uppercase tracking-widest flex items-center">
+              <label className="block text-xs font-sans font-black text-[var(--text-primary)] uppercase tracking-widest flex items-center">
                 <span className="w-2 h-2 bg-[var(--brand)] inline-block mr-2" /> 知识库名称 <span className="text-[var(--danger)] ml-1">*</span>
               </label>
               <input
@@ -83,12 +83,12 @@ export default function NewKnowledgeBasePage() {
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 required
                 placeholder="例如：产品说明书与开发规范"
-                className="ov-input px-4 py-3 font-sans text-base font-bold placeholder:font-normal placeholder:font-mono placeholder:text-xs"
+                className="ov-input px-4 py-3 font-sans text-base font-bold placeholder:font-normal placeholder:font-sans placeholder:text-xs"
               />
             </div>
 
             <div className="space-y-2">
-              <label className="block text-xs font-mono font-black text-[var(--text-primary)] uppercase tracking-widest flex items-center">
+              <label className="block text-xs font-sans font-black text-[var(--text-primary)] uppercase tracking-widest flex items-center">
                 <span className="w-2 h-2 bg-[var(--text-secondary)] inline-block mr-2" /> 详细描述
               </label>
               <textarea
@@ -96,27 +96,27 @@ export default function NewKnowledgeBasePage() {
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
                 placeholder="输入关于此知识库的功能边界与数据来源说明..."
                 rows={3}
-                className="ov-input px-4 py-3 font-mono text-sm resize-none"
+                className="ov-input px-4 py-3 font-sans text-sm resize-none"
               />
             </div>
 
             <div className="space-y-2">
-              <label className="block text-xs font-mono font-black text-[var(--text-primary)] uppercase tracking-widest flex items-center">
+              <label className="block text-xs font-sans font-black text-[var(--text-primary)] uppercase tracking-widest flex items-center">
                 <span className="w-2 h-2 bg-[var(--info)] inline-block mr-2" /> 集群拓扑定位
               </label>
               <input
                 type="text"
                 value={form.vikingUri}
                 readOnly
-                className="ov-input px-4 py-3 font-mono text-sm opacity-60 cursor-not-allowed"
+                className="ov-input px-4 py-3 font-sans text-sm opacity-60 cursor-not-allowed"
               />
-              <p className="text-[10px] font-mono text-[var(--text-muted)] tracking-widest uppercase">
+              <p className="text-[10px] font-sans text-[var(--text-muted)] tracking-widest uppercase">
                 {"// 系统自动分配，基于当前租户空间生成"}
               </p>
             </div>
 
             {error && (
-              <div className="flex items-start gap-3 p-4 border-[var(--border-width)] border-[var(--danger)] bg-[var(--danger)]/10 text-[var(--danger)] font-mono text-xs font-bold uppercase tracking-widest shadow-[var(--shadow-hover)] relative z-20">
+              <div className="flex items-start gap-3 p-4 border-[var(--border-width)] border-[var(--danger)] bg-[var(--danger)]/10 text-[var(--danger)] font-sans text-xs font-bold uppercase tracking-widest shadow-[var(--shadow-hover)] relative z-20">
                 <AlertTriangle size={16} strokeWidth={2} className="shrink-0 mt-0.5" />
                 <span>[错误] {error}</span>
               </div>

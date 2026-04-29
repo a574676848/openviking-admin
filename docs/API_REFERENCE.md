@@ -339,6 +339,36 @@ SSO Provider 回调入口。认证成功后重定向到前端并携带一次性 
 }
 ```
 
+### 文档导入相关 capability
+
+文档导入能力用于让 HTTP、CLI、MCP 和 Skill 在同一套契约下完成“选择目标知识库/知识树节点、创建导入任务、查看进度”。这些接口仍走 capability 鉴权，响应保持 `{ data, meta, traceId, error }` 信封。
+
+| Capability | Method | Path | 说明 |
+| ---------- | ------ | ---- | ---- |
+| `knowledgeBases.list` | `GET` | `/api/v1/knowledge-bases` | 列出当前租户可导入的知识库 |
+| `knowledgeBases.detail` | `GET` | `/api/v1/knowledge-bases/:id` | 查看知识库详情与导入根路径 |
+| `knowledgeTree.list` | `GET` | `/api/v1/knowledge-bases/:id/tree` | 列出知识库下可导入节点 |
+| `knowledgeTree.detail` | `GET` | `/api/v1/knowledge-tree/:id` | 查看知识树节点详情与导入路径 |
+| `documents.import.create` | `POST` | `/api/v1/import-tasks/documents` | 创建文档导入任务 |
+| `documents.import.status` | `GET` | `/api/v1/import-tasks/:id` | 查看导入进度 |
+| `documents.import.list` | `GET` | `/api/v1/import-tasks` | 列出导入任务 |
+| `documents.import.cancel` | `POST` | `/api/v1/import-tasks/:id/cancel` | 取消排队中的导入任务 |
+| `documents.import.retry` | `POST` | `/api/v1/import-tasks/:id/retry` | 重试失败或已取消任务 |
+| `documents.import.events` | `GET` | `/api/v1/import-tasks/:id/events` | 查看进度事件快照 |
+
+创建导入任务请求体：
+
+```json
+{
+  "sourceType": "url",
+  "knowledgeBaseId": "knowledge_base_uuid",
+  "parentNodeId": "knowledge_node_uuid",
+  "sourceUrl": "https://example.com/product.pdf"
+}
+```
+
+Capability 与 CLI 导入入口的 `sourceType` 支持 `local`、`url`、`manifest`。飞书、钉钉、Git 等需要集成凭证的来源走导入任务 API 或控制台集成流程，并提供 `integrationId`。`parentNodeId` 可省略，省略时导入到知识库根路径。
+
 ## 可观测性接口
 
 ### GET /api/v1/observability/capabilities
@@ -490,13 +520,14 @@ MCP JSON-RPC 消息接口。
 
 需要 JWT 和租户上下文。
 
-| Method   | Path                          | 说明               |
-| -------- | ----------------------------- | ------------------ |
-| `GET`    | `/api/v1/knowledge-bases`     | 获取当前租户知识库 |
-| `GET`    | `/api/v1/knowledge-bases/:id` | 获取知识库详情     |
-| `POST`   | `/api/v1/knowledge-bases`     | 创建知识库         |
-| `PATCH`  | `/api/v1/knowledge-bases/:id` | 更新知识库         |
-| `DELETE` | `/api/v1/knowledge-bases/:id` | 删除知识库         |
+| Method   | Path                                  | 说明                       |
+| -------- | ------------------------------------- | -------------------------- |
+| `GET`    | `/api/v1/knowledge-bases`             | 获取当前租户知识库         |
+| `GET`    | `/api/v1/knowledge-bases/:id`         | 获取知识库详情             |
+| `GET`    | `/api/v1/knowledge-bases/:id/tree`    | 获取指定知识库下的知识树   |
+| `POST`   | `/api/v1/knowledge-bases`             | 创建知识库                 |
+| `PATCH`  | `/api/v1/knowledge-bases/:id`         | 更新知识库                 |
+| `DELETE` | `/api/v1/knowledge-bases/:id`         | 删除知识库                 |
 
 ## 知识树接口
 
@@ -506,6 +537,7 @@ MCP JSON-RPC 消息接口。
 | -------- | --------------------------------- | -------------- |
 | `GET`    | `/api/v1/knowledge-tree`          | 获取知识树节点 |
 | `GET`    | `/api/v1/knowledge-tree/graph`    | 获取知识图谱   |
+| `GET`    | `/api/v1/knowledge-tree/:id`      | 获取知识节点详情 |
 | `POST`   | `/api/v1/knowledge-tree`          | 创建知识节点   |
 | `PATCH`  | `/api/v1/knowledge-tree/:id`      | 更新知识节点   |
 | `DELETE` | `/api/v1/knowledge-tree/:id`      | 删除知识节点   |
@@ -522,26 +554,39 @@ MCP JSON-RPC 消息接口。
 
 需要 JWT 和租户上下文。
 
-| Method | Path                              | 说明                       |
-| ------ | --------------------------------- | -------------------------- |
-| `GET`  | `/api/v1/import-tasks`            | 获取导入任务列表           |
-| `GET`  | `/api/v1/import-tasks/:id`        | 获取任务详情               |
-| `POST` | `/api/v1/import-tasks`            | 创建导入任务               |
-| `GET`  | `/api/v1/import-tasks/:id/sync`   | 同步任务执行结果           |
-| `POST` | `/api/v1/import-tasks/:id/retry`  | 重试失败或已取消的导入任务 |
-| `POST` | `/api/v1/import-tasks/:id/cancel` | 取消正在执行的导入任务     |
+| Method | Path                                  | 说明                       |
+| ------ | ------------------------------------- | -------------------------- |
+| `GET`  | `/api/v1/import-tasks`                | 获取导入任务列表           |
+| `GET`  | `/api/v1/import-tasks/:id`            | 获取任务详情               |
+| `POST` | `/api/v1/import-tasks`                | 创建导入任务               |
+| `POST` | `/api/v1/import-tasks/documents`      | 创建文档导入任务并返回进度入口 |
+| `POST` | `/api/v1/import-tasks/local-upload`   | 上传本地文件并创建导入任务 |
+| `GET`  | `/api/v1/import-tasks/:id/events`     | 查看任务进度事件快照       |
+| `GET`  | `/api/v1/import-tasks/:id/sync`       | 同步任务执行结果           |
+| `POST` | `/api/v1/import-tasks/:id/retry`      | 重试失败或已取消的导入任务 |
+| `POST` | `/api/v1/import-tasks/:id/cancel`     | 取消排队中的导入任务       |
 
 导入来源：
 
-| sourceType | 说明                  |
-| ---------- | --------------------- |
-| `feishu`   | 飞书文档              |
-| `dingtalk` | 钉钉知识库            |
-| `git`      | GitHub 或 GitLab 仓库 |
+| sourceType | 说明                           |
+| ---------- | ------------------------------ |
+| `feishu`   | 飞书文档                       |
+| `dingtalk` | 钉钉文档                       |
+| `git`      | GitHub 或 GitLab 仓库          |
+| `url`      | 公开网页或 Wiki 页面           |
+| `manifest` | 批量导入清单                   |
+| `local`    | 通过受控上传目录暂存的本地文件 |
 
 补充说明：
+
 - `POST /api/v1/import-tasks` 至少需要 `kbId`、`sourceType` 与来源地址（`sourceUrl` 或 `sourceUrls`）
+- `sourceType=feishu` / `sourceType=dingtalk` 必须提供 `integrationId`，Worker 会在 Admin 侧读取平台文档内容后通过 OpenViking `temp_upload` 注入
+- `sourceType=git` 建议提供 `integrationId`，用于读取平台凭证、分支和路径配置
+- `sourceType=local` 只能由 `/api/v1/import-tasks/local-upload` 生成，不能直接提交任意 `file://` 路径
+- `/api/v1/import-tasks/local-upload` 使用 `multipart/form-data`，字段为 `kbId`、可选 `targetUri`，以及 `files`
 - 控制台默认不再传 `targetUri`，服务端会按知识库 `vikingUri` 自动生成导入目标路径
+- OpenViking 资源接口只接收 `path` 或 `temp_file_id`；平台 Token 不会作为 `config` 透传给 OpenViking
+- WebDAV 不作为导入来源；外部客户端访问知识资源请使用 WebDAV 配置页或资源 capability
 
 ## 搜索接口
 

@@ -17,6 +17,9 @@ describe('CapabilityCatalogService', () => {
         expect.objectContaining({ id: 'knowledge.grep' }),
         expect.objectContaining({ id: 'resources.list' }),
         expect.objectContaining({ id: 'resources.tree' }),
+        expect.objectContaining({ id: 'knowledgeBases.list' }),
+        expect.objectContaining({ id: 'knowledgeTree.list' }),
+        expect.objectContaining({ id: 'documents.import.create' }),
       ]),
     );
   });
@@ -76,32 +79,122 @@ describe('CapabilityCatalogService', () => {
           CapabilitiesController.prototype.treeResources,
         ),
       },
+      'knowledgeBases.list': {
+        path: Reflect.getMetadata(
+          PATH_METADATA,
+          CapabilitiesController.prototype.listKnowledgeBases,
+        ),
+        method: Reflect.getMetadata(
+          METHOD_METADATA,
+          CapabilitiesController.prototype.listKnowledgeBases,
+        ),
+      },
+      'knowledgeBases.detail': {
+        path: Reflect.getMetadata(
+          PATH_METADATA,
+          CapabilitiesController.prototype.getKnowledgeBaseDetail,
+        ),
+        method: Reflect.getMetadata(
+          METHOD_METADATA,
+          CapabilitiesController.prototype.getKnowledgeBaseDetail,
+        ),
+      },
+      'knowledgeTree.list': {
+        path: Reflect.getMetadata(
+          PATH_METADATA,
+          CapabilitiesController.prototype.listKnowledgeTree,
+        ),
+        method: Reflect.getMetadata(
+          METHOD_METADATA,
+          CapabilitiesController.prototype.listKnowledgeTree,
+        ),
+      },
+      'knowledgeTree.detail': {
+        path: Reflect.getMetadata(
+          PATH_METADATA,
+          CapabilitiesController.prototype.getKnowledgeTreeDetail,
+        ),
+        method: Reflect.getMetadata(
+          METHOD_METADATA,
+          CapabilitiesController.prototype.getKnowledgeTreeDetail,
+        ),
+      },
+      'documents.import.create': {
+        path: Reflect.getMetadata(
+          PATH_METADATA,
+          CapabilitiesController.prototype.createDocumentImport,
+        ),
+        method: Reflect.getMetadata(
+          METHOD_METADATA,
+          CapabilitiesController.prototype.createDocumentImport,
+        ),
+      },
+      'documents.import.status': {
+        path: Reflect.getMetadata(
+          PATH_METADATA,
+          CapabilitiesController.prototype.getDocumentImportStatus,
+        ),
+        method: Reflect.getMetadata(
+          METHOD_METADATA,
+          CapabilitiesController.prototype.getDocumentImportStatus,
+        ),
+      },
+      'documents.import.list': {
+        path: Reflect.getMetadata(
+          PATH_METADATA,
+          CapabilitiesController.prototype.listDocumentImports,
+        ),
+        method: Reflect.getMetadata(
+          METHOD_METADATA,
+          CapabilitiesController.prototype.listDocumentImports,
+        ),
+      },
+      'documents.import.cancel': {
+        path: Reflect.getMetadata(
+          PATH_METADATA,
+          CapabilitiesController.prototype.cancelDocumentImport,
+        ),
+        method: Reflect.getMetadata(
+          METHOD_METADATA,
+          CapabilitiesController.prototype.cancelDocumentImport,
+        ),
+      },
+      'documents.import.retry': {
+        path: Reflect.getMetadata(
+          PATH_METADATA,
+          CapabilitiesController.prototype.retryDocumentImport,
+        ),
+        method: Reflect.getMetadata(
+          METHOD_METADATA,
+          CapabilitiesController.prototype.retryDocumentImport,
+        ),
+      },
+      'documents.import.events': {
+        path: Reflect.getMetadata(
+          PATH_METADATA,
+          CapabilitiesController.prototype.watchDocumentImportEvents,
+        ),
+        method: Reflect.getMetadata(
+          METHOD_METADATA,
+          CapabilitiesController.prototype.watchDocumentImportEvents,
+        ),
+      },
     };
 
     expect(toolNames).toEqual(contracts.map((contract) => contract.id).sort());
 
     for (const contract of contracts) {
-      const [scope, action] = contract.id.split('.');
-      const expectedCliCommand = `ova ${scope} ${action}`;
       const controllerRoute = controllerRoutes[contract.id];
-      const expectedHttpPath =
-        contract.id === 'resources.list'
-          ? '/api/v1/resources'
-          : `/api/v1/${scope}/${action}`;
       const expectedHttpMethod =
-        scope === 'knowledge' ? RequestMethod.POST : RequestMethod.GET;
+        contract.http.method === 'POST' ? RequestMethod.POST : RequestMethod.GET;
 
-      expect(contract.cli.command).toBe(expectedCliCommand);
       expect(controllerRoute).toEqual(
         expect.objectContaining({
           path: contract.http.path.replace('/api/v1/', ''),
           method: expectedHttpMethod,
         }),
       );
-      expect(contract.http.path).toBe(expectedHttpPath);
-      expect(contract.http.method).toBe(
-        expectedHttpMethod === RequestMethod.POST ? 'POST' : 'GET',
-      );
+      expect(contract.cli.command.startsWith('ova ')).toBe(true);
     }
   });
 });

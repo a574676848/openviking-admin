@@ -2,6 +2,18 @@
 
 Skill 是面向 Agent 平台的轻量接入模板。它不定义新协议，也不绕过能力平台；它只负责在 Agent 运行环境中选择最合适的入口调用同一组 capability。
 
+## 项目内置 Skill
+
+仓库提供官方规范的项目 Skill：[`skills/openviking-admin/SKILL.md`](../skills/openviking-admin/SKILL.md)。
+
+该 Skill 面向大模型和 Agent 宿主环境，规定使用项目能力时的入口优先级：
+
+```text
+MCP -> OVA CLI -> 配置指引
+```
+
+它要求先检查并使用 OpenViking MCP 暴露的 capability；如果 MCP 未安装或不可用，再检查 `@openviking-admin/ova-cli`；两者都不可用时，向用户说明如何配置 MCP，或如何安装 `@openviking-admin/ova-cli` 并完成登录配置。
+
 ## 适用场景
 
 - Codex、Claude Skills 或企业自研 Agent 平台需要调用 OpenViking Admin。
@@ -71,6 +83,16 @@ CLI 模式适合有本地 profile 的 Agent 宿主机。Agent 不需要自己管
 - `knowledge.grep`：优先执行 `ova knowledge grep --output json`，不可用时回退到 `POST /api/v1/knowledge/grep`。
 - `resources.list`：优先执行 `ova resources list --output json`，不可用时回退到 `GET /api/v1/resources`。
 - `resources.tree`：优先执行 `ova resources tree --output json`，不可用时回退到 `GET /api/v1/resources/tree`。
+- `knowledgeBases.list`：优先执行 `ova kb list --output json`，不可用时回退到 `GET /api/v1/knowledge-bases`。
+- `knowledgeBases.detail`：优先执行 `ova kb detail --id <kbId> --output json`，不可用时回退到 `GET /api/v1/knowledge-bases/:id`。
+- `knowledgeTree.list`：优先执行 `ova tree list --kb <kbId> --output json`，不可用时回退到 `GET /api/v1/knowledge-bases/:id/tree`。
+- `knowledgeTree.detail`：优先执行 `ova tree detail --id <nodeId> --output json`，不可用时回退到 `GET /api/v1/knowledge-tree/:id`。
+- `documents.import.create`：优先执行 `ova documents import <url> --kb <kbId> --output json`，不可用时回退到 `POST /api/v1/import-tasks/documents`。
+- `documents.import.status`：优先执行 `ova documents import status --task <taskId> --output json`，不可用时回退到 `GET /api/v1/import-tasks/:id`。
+- `documents.import.list`：优先执行 `ova documents import list --output json`，不可用时回退到 `GET /api/v1/import-tasks`。
+- `documents.import.cancel`：优先执行 `ova documents import cancel --task <taskId> --output json`，不可用时回退到 `POST /api/v1/import-tasks/:id/cancel`。
+- `documents.import.retry`：优先执行 `ova documents import retry --task <taskId> --output json`，不可用时回退到 `POST /api/v1/import-tasks/:id/retry`。
+- `documents.import.events`：优先执行 `ova documents import status --watch --task <taskId> --output json`，不可用时回退到 `GET /api/v1/import-tasks/:id/events`。
 
 始终保留响应中的 `traceId`。
 ```

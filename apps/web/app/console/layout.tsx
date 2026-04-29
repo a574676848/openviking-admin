@@ -113,7 +113,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   key={item.id}
                   href={item.href}
                   title={sidebarCollapsed ? item.label : undefined}
-                  className={`group flex items-center font-sans text-[11px] font-bold transition-all mb-1 rounded-[var(--radius-base)] ${
+                  className={`group flex items-center transition-all mb-1 rounded-[var(--radius-base)] ${
                     sidebarCollapsed ? 'justify-center px-2 py-3' : 'gap-3 px-3 py-3'
                   } ${
                     isActive
@@ -121,11 +121,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                       : "border border-transparent bg-transparent text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]"
                   }`}
                 >
-                  {!sidebarCollapsed && <span className="w-7 opacity-50">{item.id}</span>}
+                  {!sidebarCollapsed && <span className="w-7 font-sans text-[11px] font-bold opacity-50">{item.id}</span>}
                   <Icon size={16} strokeWidth={2.4} className={`${isActive ? "text-[var(--brand)]" : ""} shrink-0`} />
-                  {!sidebarCollapsed && <span className="min-w-0 flex-1 truncate">{item.label}</span>}
+                  {!sidebarCollapsed && <span className="min-w-0 flex-1 truncate font-sans text-sm font-bold">{item.label}</span>}
                   {!sidebarCollapsed && (
-                    <span className={`${isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>{">>"}</span>
+                    <span className={`font-sans text-xs ${isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>{">>"}</span>
                   )}
                 </Link>
               );

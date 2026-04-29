@@ -95,28 +95,15 @@ export class SearchController {
   private toTraceMeta(req: AuthenticatedRequest): OVRequestMeta | undefined {
     const traceId = this.readHeader(req.headers['x-trace-id']);
     const requestId = this.readHeader(req.headers['x-request-id']);
-    const account =
-      this.readHeader(req.headers['x-openviking-account']) ??
-      req.tenantScope ??
-      req.user?.tenantId ??
-      undefined;
-    const user =
-      this.readHeader(req.headers['x-openviking-user']) ??
-      req.user?.id;
+    const user = req.user?.id;
 
-    if (
-      !traceId &&
-      !requestId &&
-      !account &&
-      !user
-    ) {
+    if (!traceId && !requestId && !user) {
       return undefined;
     }
 
     return {
       traceId,
       requestId,
-      account,
       user,
     };
   }

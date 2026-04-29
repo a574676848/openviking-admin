@@ -4,7 +4,7 @@ export class CreateImportTaskDto {
   @IsString()
   kbId: string;
 
-  @IsEnum(['git', 'webdav', 'local', 'url', 'feishu', 'dingtalk'])
+  @IsEnum(['git', 'local', 'url', 'manifest', 'feishu', 'dingtalk'])
   sourceType: string;
 
   @IsString()

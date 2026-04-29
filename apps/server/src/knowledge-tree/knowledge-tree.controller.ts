@@ -35,6 +35,11 @@ export class KnowledgeTreeController {
     return this.treeService.getGraphData(kbId, req.tenantScope);
   }
 
+  @Get(':id')
+  findOne(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    return this.treeService.findOne(id, req.tenantScope);
+  }
+
   @Post()
   async create(@Body() dto: CreateNodeDto, @Req() req: AuthenticatedRequest) {
     const created = await this.treeService.create({

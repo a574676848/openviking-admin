@@ -37,6 +37,7 @@ export const CONFIG_KEYS = {
   OV_BASE_URL: 'ov.base_url',
   OV_API_KEY: 'ov.api_key',
   OV_ACCOUNT: 'ov.account',
+  OV_USER: 'ov.user',
   RERANK_ENDPOINT: 'rerank.endpoint',
   RERANK_MODEL: 'rerank.model',
   SEARCH_TOP_K: 'search.top_k',

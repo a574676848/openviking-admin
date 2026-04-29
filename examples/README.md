@@ -28,8 +28,8 @@ ova doctor
 
 | 目录 | 说明 |
 |------|------|
-| `cli` | 使用 `ova` 登录、发现能力、调用搜索、签发 API key 和诊断 |
-| `http` | 使用 curl 登录、换证和调用 capability HTTP 接口 |
+| `cli` | 使用 `ova` 登录、发现能力、调用搜索、选择知识库/知识树、创建文档导入、签发 API key 和诊断 |
+| `http` | 使用 curl 登录、换证、调用 capability HTTP 接口和创建文档导入任务 |
 | `mcp` | MCP 客户端配置和 JSON-RPC 调试请求 |
 | `skill` | Agent Skill 指令模板和接入约束 |
 
@@ -41,4 +41,4 @@ ova doctor
 | CI 或自动化脚本 | `ova auth client-credentials --name <name> --save` |
 | 后端服务集成 | HTTP 登录或 SSO 后调用 `/api/v1/auth/token/exchange` |
 | Claude Desktop / Cursor | API key 或 session key |
-| Agent Skill | 优先 `ova`，不可用时回退 HTTP |
+| Agent Skill | 优先使用项目 MCP；MCP 不可用时使用 `ova`；两者都不可用时按 `skills/openviking-admin` 配置入口 |

@@ -127,7 +127,7 @@ export class TypeOrmKnowledgeBaseRepository implements IKnowledgeBaseRepository 
       const entity = queryRunner.manager.create(KnowledgeBase, this.toEntityInput(data));
       const saved = await queryRunner.manager.save(entity);
 
-      const fullUri = `viking://resources/${data.tenantId}/${saved.id}/`;
+      const fullUri = `viking://resources/tenants/${data.tenantId}/${saved.id}/`;
       await queryRunner.manager.update(KnowledgeBase, saved.id, { vikingUri: fullUri });
 
       if (startedTransaction) {

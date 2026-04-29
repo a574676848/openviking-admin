@@ -172,14 +172,14 @@ function TenantLeaderboardPanel({
                 key={item.tenantId}
                 className={`mx-2.5 my-1.5 flex items-center gap-3 rounded-[var(--radius-base)] border px-3.5 py-3 ${visual.panelClassName}`}
               >
-                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border font-mono text-[11px] font-bold ${visual.badgeClassName}`}>
+                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border font-sans text-[11px] font-bold ${visual.badgeClassName}`}>
                   {index + 1}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-sans text-sm font-bold text-[var(--text-primary)]">
                     {item.tenantName}
                   </div>
-                  <div className="mt-1 font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--text-muted)]">
+                  <div className="mt-1 font-sans text-[10px] uppercase tracking-[0.16em] text-[var(--text-muted)]">
                     {item.tenantId}
                   </div>
                 </div>
@@ -187,7 +187,7 @@ function TenantLeaderboardPanel({
                   <div className="font-sans text-xl font-bold tabular-nums text-[var(--text-primary)]">
                     {item.value.toLocaleString()}
                   </div>
-                  <div className={`mt-0.5 font-mono text-[10px] font-bold uppercase tracking-[0.14em] ${visual.textClassName}`}>
+                  <div className={`mt-0.5 font-sans text-[10px] font-bold uppercase tracking-[0.14em] ${visual.textClassName}`}>
                     Top {index + 1}
                   </div>
                 </div>
@@ -413,7 +413,7 @@ export default function DashboardPage() {
         <div className="divide-y divide-[var(--border)] overflow-y-auto" style={{ maxHeight: "450px" }}>
           {logs.map((log, index) => (
             <div key={`${log.action}-${index}`} className="group flex items-center gap-4 px-6 py-4 transition-colors hover:bg-[var(--bg-elevated)]/50">
-              <div className="w-20 shrink-0 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--text-muted)]">
+              <div className="w-20 shrink-0 font-sans text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--text-muted)]">
                 {log.time}
               </div>
               <div 
@@ -423,12 +423,12 @@ export default function DashboardPage() {
                 <Clock size={12} strokeWidth={2.5} style={{ color: `var(--${log.tone})` }} />
               </div>
               <div className="min-w-0 flex-1">
-                <div className="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--text-secondary)]">
+                <div className="font-sans text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--text-secondary)]">
                   {log.action}
                 </div>
                 <div className="mt-0.5 truncate font-sans text-sm font-bold">{log.target}</div>
               </div>
-              <div className="shrink-0 text-right font-mono text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: `var(--${log.tone})` }}>
+              <div className="shrink-0 text-right font-sans text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: `var(--${log.tone})` }}>
                 {log.status}
               </div>
               <ArrowUpRight size={14} strokeWidth={2} className="shrink-0 text-[var(--text-muted)] opacity-0 transition-opacity group-hover:opacity-100" />

@@ -91,6 +91,7 @@ export class SearchService {
       baseUrl: config.baseUrl || '',
       apiKey: config.apiKey || '',
       account: config.account || 'default',
+      user: config.user || undefined,
     });
     const data = (await this.ovKnowledgeGateway.findKnowledge(
       connection,
@@ -174,6 +175,7 @@ export class SearchService {
         baseUrl: config.baseUrl || '',
         apiKey: config.apiKey || '',
         account: config.account || 'default',
+      user: config.user || undefined,
       }),
       { pattern, uri, caseInsensitive: true },
       meta,

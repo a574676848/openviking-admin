@@ -13,6 +13,7 @@ import {
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { TenantGuard } from '../common/tenant.guard';
 import { KnowledgeBaseService } from './knowledge-base.service';
+import { KnowledgeTreeService } from '../knowledge-tree/knowledge-tree.service';
 import { AuditService } from '../audit/audit.service';
 import { CreateKnowledgeBaseDto } from './dto/create-kb.dto';
 import { UpdateKnowledgeBaseDto } from './dto/update-kb.dto';
@@ -25,6 +26,7 @@ export class KnowledgeBaseController {
 
   constructor(
     private readonly kbService: KnowledgeBaseService,
+    private readonly knowledgeTreeService: KnowledgeTreeService,
     private readonly auditService: AuditService,
   ) {}
 
@@ -36,6 +38,12 @@ export class KnowledgeBaseController {
   @Get(':id')
   async findOne(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     return this.kbService.findOne(id, req.tenantScope);
+  }
+
+  @Get(':id/tree')
+  async findTree(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    await this.kbService.findOne(id, req.tenantScope);
+    return this.knowledgeTreeService.findByKb(id, req.tenantScope);
   }
 
   @Post()

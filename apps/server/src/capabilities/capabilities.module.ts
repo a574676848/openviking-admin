@@ -30,6 +30,10 @@ import {
 } from './infrastructure/capability-rate-limit.store';
 import { InMemoryCapabilityRateLimitStore } from './infrastructure/in-memory-capability-rate-limit.store';
 import { KnowledgeCapabilityGateway } from './infrastructure/knowledge-capability.gateway';
+import { CommonModule } from '../common/common.module';
+import { KnowledgeBaseModule } from '../knowledge-base/knowledge-base.module';
+import { KnowledgeTreeModule } from '../knowledge-tree/knowledge-tree.module';
+import { ImportTaskModule } from '../import-task/import-task.module';
 import { RedisCapabilityRateLimitStore } from './infrastructure/redis-capability-rate-limit.store';
 
 const CAPABILITY_RATE_LIMIT_ENV = {
@@ -53,6 +57,10 @@ const CAPABILITY_RATE_LIMIT_ENV = {
         secret: config.get<string>('JWT_SECRET')!,
       }),
     }),
+    CommonModule,
+    KnowledgeBaseModule,
+    KnowledgeTreeModule,
+    ImportTaskModule,
   ],
   controllers: [
     CapabilitiesController,

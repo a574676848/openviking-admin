@@ -9,7 +9,27 @@ describe('KnowledgeCapabilityGateway', () => {
     listResources: jest.fn(),
     treeResources: jest.fn(),
   };
-  const gateway = new KnowledgeCapabilityGateway(ovKnowledgeGateway as never);
+  const importTaskService = {
+    create: jest.fn(),
+    findOne: jest.fn(),
+    findAll: jest.fn(),
+    cancel: jest.fn(),
+    retry: jest.fn(),
+  };
+  const knowledgeBaseService = {
+    findAll: jest.fn(),
+    findOne: jest.fn(),
+  };
+  const knowledgeTreeService = {
+    findByKb: jest.fn(),
+    findOne: jest.fn(),
+  };
+  const gateway = new KnowledgeCapabilityGateway(
+    ovKnowledgeGateway as never,
+    knowledgeBaseService as never,
+    knowledgeTreeService as never,
+    importTaskService as never,
+  );
 
   const principal: Principal = {
     userId: 'user-1',
@@ -63,6 +83,33 @@ describe('KnowledgeCapabilityGateway', () => {
         traceId: 'trace-1',
         requestId: 'request-1',
       }),
+    );
+  });
+
+  it('should call OV with tenant custom account and user from ovConfig', async () => {
+    ovKnowledgeGateway.findKnowledge.mockResolvedValue({
+      result: { resources: [] },
+    });
+
+    await gateway.search(
+      {
+        ...principal,
+        ovConfig: {
+          ...principal.ovConfig,
+          account: 'tenant-custom-account',
+          user: 'tenant-custom-user',
+        },
+      },
+      { query: '面授课堂', limit: 10 },
+    );
+
+    expect(ovKnowledgeGateway.findKnowledge).toHaveBeenCalledWith(
+      expect.objectContaining({
+        account: 'tenant-custom-account',
+        user: 'tenant-custom-user',
+      }),
+      expect.anything(),
+      undefined,
     );
   });
 });

@@ -23,6 +23,16 @@ describe('CapabilityExecutionService', () => {
     grep: jest.fn(),
     listResources: jest.fn(),
     treeResources: jest.fn(),
+    listKnowledgeBases: jest.fn(),
+    getKnowledgeBaseDetail: jest.fn(),
+    listKnowledgeTree: jest.fn(),
+    getKnowledgeTreeDetail: jest.fn(),
+    createDocumentImport: jest.fn(),
+    getDocumentImportStatus: jest.fn(),
+    listDocumentImports: jest.fn(),
+    cancelDocumentImport: jest.fn(),
+    retryDocumentImport: jest.fn(),
+    watchDocumentImportEvents: jest.fn(),
   } as unknown as KnowledgeCapabilityGateway;
   const rateLimit = {
     assertAllowed: jest.fn(),

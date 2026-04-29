@@ -7,7 +7,7 @@ import { AlertTriangle } from "lucide-react";
 
 export default function NotFound() {
   return (
-    <div className="min-h-screen bg-[var(--bg-base)] flex flex-col items-center justify-center font-mono text-[var(--text-primary)]">
+    <div className="min-h-screen bg-[var(--bg-base)] flex flex-col items-center justify-center font-sans text-[var(--text-primary)]">
       <div className="p-8 border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-card)] shadow-[var(--shadow-base)] flex flex-col items-center gap-6 max-w-md text-center">
         <AlertTriangle size={48} className="text-[var(--danger)]" />
         <ScrambleText text="404_NOT_FOUND" className="text-2xl font-black tracking-widest text-[var(--danger)]" />

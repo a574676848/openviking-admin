@@ -15,6 +15,7 @@ import { DingTalkIntegrator } from './strategies/dingtalk.integrator';
 import { GitIntegrator } from './strategies/git.integrator';
 import { IMPORT_TASK_REPOSITORY } from './domain/repositories/import-task.repository.interface';
 import { TypeOrmImportTaskRepository } from './infrastructure/repositories/import-task.repository';
+import { LocalImportStorageService } from './local-import-storage.service';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { TypeOrmImportTaskRepository } from './infrastructure/repositories/impor
     FeishuIntegrator,
     DingTalkIntegrator,
     GitIntegrator,
+    LocalImportStorageService,
     {
       provide: IMPORT_TASK_REPOSITORY,
       useClass: TypeOrmImportTaskRepository,

@@ -20,6 +20,7 @@
 | `OV_BASE_URL`     | string  | —                                    | 否   | OpenViking 引擎地址，仅在数据库默认 OV 配置缺失时作为回退                                 |
 | `OV_API_KEY`      | string  | —                                    | 否   | OpenViking API 密钥，仅在数据库默认 OV 配置缺失时作为回退                                 |
 | `OV_ACCOUNT`      | string  | `default`                            | 否   | OpenViking 默认账户，仅在数据库默认 OV 配置缺失时作为回退                                 |
+| `OV_USER`         | string  | —                                    | 否   | OpenViking 默认用户标识，使用 root key 调租户资源接口时必须配置                            |
 | `RERANK_ENDPOINT` | string  | —                                    | 否   | 推荐填写完整 Rerank 地址，例如 `http://host:port/v1/rerank`，仅在数据库默认 OV 配置缺失时作为回退 |
 | `RERANK_API_KEY`  | string  | —                                    | 否   | OpenAI 兼容 Rerank Bearer Token，仅在数据库默认 OV 配置缺失时作为回退                     |
 | `RERANK_MODEL`    | string  | —                                    | 否   | Rerank 模型名称，仅在数据库默认 OV 配置缺失时作为回退                                     |
@@ -27,6 +28,8 @@
 | `PORT`            | number  | `6001`                               | 否   | 后端监听端口                                                                              |
 | `NODE_ENV`        | string  | `development`                        | 否   | 运行环境: `development` / `production`                                                    |
 | `DB_SYNCHRONIZE`  | boolean | `false`                              | 否   | 是否允许 TypeORM 自动同步表结构。默认关闭；生产环境若设置为 `true` 会在启动期直接拒绝启动 |
+| `LOCAL_IMPORT_UPLOAD_DIR` | string | `./storage/import-uploads` | 生产必填 | 本地文档上传暂存目录；Admin Worker 会读取该目录下的受控上传文件并转传 OpenViking `temp_upload` |
+| `LOCAL_IMPORT_KEEP_FILES_AFTER_DONE` | boolean | `false` | 否 | 本地导入成功后是否保留暂存文件 |
 
 开发环境启动策略：
 
@@ -60,6 +63,7 @@
 | `ov.base_url`       | string      | 旧版 OpenViking 引擎地址，作为兼容回退   | 默认     |
 | `ov.api_key`        | string      | 旧版 OpenViking API 密钥，作为兼容回退   | 默认     |
 | `ov.account`        | string      | 旧版 OpenViking 账户名，作为兼容回退     | 默认     |
+| `ov.user`           | string      | 旧版 OpenViking 用户标识，作为兼容回退   | 默认     |
 | `rerank.endpoint`   | string      | OpenAI 兼容 Rerank Base URL，作为兼容回退 | 默认     |
 | `rerank.api_key`    | string      | OpenAI 兼容 Rerank Bearer Token，作为兼容回退 | 默认  |
 | `rerank.model`      | string      | Rerank 模型名称，作为兼容回退             | 默认     |
@@ -71,6 +75,7 @@
   "baseUrl": "http://ov-default.internal:1933",
   "apiKey": "default_key",
   "account": "default",
+  "user": "admin",
   "rerankEndpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
   "rerankApiKey": "encrypted_rerank_key",
   "rerankModel": "qwen3-vl-rerank"
@@ -167,7 +172,8 @@
 {
   "credentials": {
     "appId": "ding_app_key",
-    "appSecret": "ding_app_secret"
+    "appSecret": "ding_app_secret",
+    "operatorId": "union_id"
   }
 }
 ```
@@ -202,7 +208,8 @@
 ```json
 {
   "credentials": {
-    "token": "ghp_xxxxxxxx"
+    "token": "ghp_xxxxxxxx",
+    "username": "admin"
   },
   "config": {
     "branch": "main",
@@ -210,6 +217,8 @@
   }
 }
 ```
+
+`username` 主要用于自托管 Git 服务。`github.com` 保持 GitHub token URL；其他 Git host 会额外尝试 GitLab 兼容的同主机 fallback，避免私有服务跳转到 HTTP 或要求账号名时 clone 失败。
 
 > 所有 `credentials` 中的敏感字段（`appSecret`, `clientSecret`, `bindPassword`, `token`, `password`）在存储时使用 AES-256-CBC 加密，返回前端时自动脱敏为 `********`。
 

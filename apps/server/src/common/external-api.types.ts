@@ -6,6 +6,24 @@ export interface DingTalkTokenResponse {
   access_token: string;
 }
 
+export interface DingTalkAppTokenResponse {
+  accessToken?: string;
+  expireIn?: number;
+  code?: string;
+  message?: string;
+}
+
+export interface DingTalkWikiNodeByUrlResponse {
+  node?: {
+    nodeId?: string;
+    uuid?: string;
+    name?: string;
+    url?: string;
+  };
+  code?: string;
+  message?: string;
+}
+
 export interface DingTalkUserResponse {
   errcode: number;
   errmsg: string;
@@ -30,6 +48,25 @@ export interface FeishuAppTokenResponse {
   tenant_access_token: string;
 }
 
+export interface FeishuDocxInfoResponse {
+  code: number;
+  msg: string;
+  data?: {
+    document?: {
+      title?: string;
+      revision_id?: string;
+    };
+  };
+}
+
+export interface FeishuDocxRawContentResponse {
+  code: number;
+  msg: string;
+  data?: {
+    content?: string;
+  };
+}
+
 export interface OidcTokenResponse {
   access_token: string;
   token_type: string;
@@ -41,9 +78,4 @@ export interface OidcUserResponse {
   email?: string;
   name?: string;
   given_name?: string;
-}
-
-export interface PlatformInjectConfig {
-  path: string;
-  config: Record<string, unknown>;
 }

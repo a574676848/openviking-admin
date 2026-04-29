@@ -45,7 +45,7 @@ describe('SearchController audit', () => {
     );
   });
 
-  it('检索请求应把租户头透传给 OpenViking 元信息', async () => {
+  it('检索请求只透传追踪信息与登录用户给 OpenViking 元信息', async () => {
     const findParams = { query: 'WebDAV', topK: 5 } as never;
     const findReq = {
       tenantScope: 'tenant-alpha',
@@ -53,8 +53,8 @@ describe('SearchController audit', () => {
       headers: {
         'x-trace-id': 'trace-1',
         'x-request-id': 'request-1',
-        'x-openviking-account': 'tenant-alpha',
-        'x-openviking-user': 'user-1',
+        'x-openviking-account': 'malicious-account',
+        'x-openviking-user': 'malicious-user',
       },
     } as unknown as AuthenticatedRequest;
 
@@ -67,7 +67,6 @@ describe('SearchController audit', () => {
       {
         traceId: 'trace-1',
         requestId: 'request-1',
-        account: 'tenant-alpha',
         user: 'user-1',
       },
     );

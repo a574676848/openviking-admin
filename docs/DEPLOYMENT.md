@@ -12,12 +12,12 @@
 
 ## 生产前置条件
 
-| 组件 | 要求 |
-|------|------|
-| Node.js / pnpm | 本地构建或非容器部署时需要 |
-| PostgreSQL 14+ | 必须启用 `uuid-ossp` |
-| OpenViking | 必须可访问 `/health` |
-| 反向代理 | 推荐 Nginx / Ingress，负责 TLS 与外网入口 |
+| 组件           | 要求                                      |
+| -------------- | ----------------------------------------- |
+| Node.js / pnpm | 本地构建或非容器部署时需要                |
+| PostgreSQL 14+ | 必须启用 `uuid-ossp`                      |
+| OpenViking     | 必须可访问 `/health`                      |
+| 反向代理       | 推荐 Nginx / Ingress，负责 TLS 与外网入口 |
 
 ## 关键环境变量
 
@@ -36,11 +36,14 @@ ENCRYPTION_KEY=replace_with_random_string_at_least_32_chars
 OV_BASE_URL=https://ov.example.internal
 OV_API_KEY=replace_with_real_ov_api_key
 OV_ACCOUNT=default
+OV_USER=admin
 
 FRONTEND_URL=https://admin.example.com
 PORT=6001
 NODE_ENV=production
 DB_SYNCHRONIZE=false
+LOCAL_IMPORT_UPLOAD_DIR=/data/openviking/import-uploads
+LOCAL_IMPORT_KEEP_FILES_AFTER_DONE=false
 
 CAPABILITY_RATE_LIMIT_STORE_DRIVER=redis
 CAPABILITY_RATE_LIMIT_REDIS_URL=redis://redis:6379/0
@@ -53,6 +56,7 @@ CAPABILITY_RATE_LIMIT_REDIS_URL=redis://redis:6379/0
 - `ENCRYPTION_KEY` 缺失、长度不足或仍是占位值
 - `FRONTEND_URL` 仍是 `localhost / 127.0.0.1 / example.com`
 - `OV_BASE_URL / OV_API_KEY` 仍是占位值
+- `LOCAL_IMPORT_UPLOAD_DIR` 缺失、仍是占位路径或不是绝对路径
 
 ## 数据库准备
 
@@ -139,6 +143,7 @@ server {
 - [ ] `ENCRYPTION_KEY` 已替换为 32+ 位随机字符串
 - [ ] `FRONTEND_URL` 已改为真实生产域名，CORS 不再使用 localhost
 - [ ] `DB_SYNCHRONIZE=false`，且已执行 `pnpm migration:run`
+- [ ] `LOCAL_IMPORT_UPLOAD_DIR` 已配置为 Admin 服务可写的绝对路径
 - [ ] PostgreSQL 已开启持久化备份策略
 - [ ] 应用日志已接入宿主机日志采集或容器日志平台
 - [ ] OpenViking `OV_BASE_URL` / `OV_API_KEY` 已替换为真实生产配置

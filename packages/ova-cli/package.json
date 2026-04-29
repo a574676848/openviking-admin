@@ -1,6 +1,6 @@
 {
   "name": "@openviking-admin/ova-cli",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "OpenViking Admin capability-first CLI",
   "keywords": [
     "openviking",
@@ -17,7 +17,7 @@
   "bugs": {
     "url": "https://github.com/openviking/openviking-knowdge/issues"
   },
-  "license": "GPL-3.0-or-later",
+  "license": "MIT",
   "publishConfig": {
     "access": "public"
   },
@@ -32,11 +32,19 @@
     "README.md"
   ],
   "scripts": {
-    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true}); require('fs').rmSync('openviking-admin-ova-cli-0.1.0.tgz',{force:true});\"",
+    "clean": "node -e \"const fs=require('fs'); fs.rmSync('dist',{recursive:true,force:true}); for (const file of fs.readdirSync('.')) if (/^openviking-admin-ova-cli-.*\\.tgz$/.test(file)) fs.rmSync(file,{force:true});\"",
     "build": "tsc -p tsconfig.json",
     "dev": "ts-node src/index.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "jest --config jest.config.js",
     "prepack": "npm run clean && npm run build"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/node": "^24.0.0",
+    "jest": "^30.0.0",
+    "ts-jest": "^29.2.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3"
   }
 }

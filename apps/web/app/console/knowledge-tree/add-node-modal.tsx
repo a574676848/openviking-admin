@@ -80,7 +80,7 @@ export function AddNodeModal({ isOpen, onClose, onSubmit, tree, defaultParentId,
         >
           {/* 弹窗头部 */}
           <div className="flex items-center justify-between border-b-[var(--border-width)] border-[var(--border)] px-6 py-4">
-            <h2 id="add-node-title" className="font-mono text-sm font-black uppercase tracking-widest text-[var(--text-primary)]">
+            <h2 id="add-node-title" className="font-sans text-sm font-black uppercase tracking-widest text-[var(--text-primary)]">
               新建知识节点
             </h2>
             <button
@@ -96,7 +96,7 @@ export function AddNodeModal({ isOpen, onClose, onSubmit, tree, defaultParentId,
           {/* 弹窗主体 */}
           <div className="space-y-5 p-6">
             <div>
-              <label className="mb-1.5 block font-mono text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
+              <label className="mb-1.5 block font-sans text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
                 节点名称
               </label>
               <input
@@ -108,7 +108,7 @@ export function AddNodeModal({ isOpen, onClose, onSubmit, tree, defaultParentId,
               />
             </div>
             <div>
-              <label className="mb-1.5 block font-mono text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
+              <label className="mb-1.5 block font-sans text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
                 父级节点
               </label>
               <ConsoleSelect
@@ -134,7 +134,7 @@ export function AddNodeModal({ isOpen, onClose, onSubmit, tree, defaultParentId,
             <button
               type="button"
               onClick={() => onCloseRef.current()}
-              className="px-5 py-2 font-mono text-[11px] font-black uppercase tracking-widest text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+              className="px-5 py-2 font-sans text-[11px] font-black uppercase tracking-widest text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
             >
               取消
             </button>

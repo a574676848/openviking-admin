@@ -4,12 +4,12 @@ export interface OVConnection {
   baseUrl: string;
   apiKey?: string;
   account?: string;
+  user?: string;
 }
 
 export interface OVRequestMeta {
   traceId?: string;
   requestId?: string;
-  account?: string;
   user?: string;
 }
 
@@ -19,6 +19,12 @@ export interface OVRequestOptions {
   serviceLabel?: string;
   retryCount?: number;
   retryDelayMs?: number;
+}
+
+export interface OVTempFileUploadInput {
+  fileName: string;
+  buffer: Uint8Array;
+  mimeType?: string | null;
 }
 
 interface OVRequestErrorResponse {
@@ -68,8 +74,8 @@ export class OVClientService {
       'x-api-key': conn.apiKey || '',
       'X-OpenViking-Account': conn.account || 'default',
     };
-    if (meta?.account) {
-      headers['X-OpenViking-Account'] = meta.account;
+    if (conn.user) {
+      headers['X-OpenViking-User'] = conn.user;
     }
     if (meta?.user) {
       headers['X-OpenViking-User'] = meta.user;
@@ -105,6 +111,38 @@ export class OVClientService {
       meta,
       options,
     );
+  }
+
+  async uploadTempFile(
+    conn: OVConnection,
+    path: string,
+    file: OVTempFileUploadInput,
+    meta?: OVRequestMeta,
+    options?: OVRequestOptions,
+  ) {
+    const url = `${conn.baseUrl}${path}`;
+    const headers: Record<string, string> = {
+      'x-api-key': conn.apiKey || '',
+      'X-OpenViking-Account': conn.account || 'default',
+    };
+    if (conn.user) {
+      headers['X-OpenViking-User'] = conn.user;
+    }
+    if (meta?.user) {
+      headers['X-OpenViking-User'] = meta.user;
+    }
+    Object.assign(headers, options?.headers ?? {});
+
+    const formData = new FormData();
+    formData.append(
+      'file',
+      new Blob([file.buffer as unknown as BlobPart], {
+        type: file.mimeType || 'application/octet-stream',
+      }),
+      file.fileName,
+    );
+
+    return this.requestFormData(url, headers, formData, meta, options);
   }
 
   async getHealth(baseUrl: string) {
@@ -152,6 +190,90 @@ export class OVClientService {
           method,
           headers: requestHeaders,
           body: body ? JSON.stringify(body) : undefined,
+          signal: controller.signal,
+        });
+
+        if (!res.ok) {
+          const errorText = await res.text();
+          throw this.createHttpError(
+            serviceLabel,
+            res.status,
+            errorText,
+            meta,
+          );
+        }
+
+        return await this.parseJsonResponse(res, serviceLabel, meta);
+      } catch (error: unknown) {
+        const mappedError = this.normalizeError(
+          serviceLabel,
+          error,
+          meta,
+        );
+        const hasNextAttempt = attempt < retryCount;
+
+        if (mappedError.retriable && hasNextAttempt) {
+          this.logger.warn(
+            `${serviceLabel} 请求失败，准备重试 (${attempt + 1}/${retryCount + 1}) traceId=${meta?.traceId ?? '-'} requestId=${meta?.requestId ?? '-'}: ${mappedError.message}`,
+          );
+          await this.sleep(retryDelayMs);
+          continue;
+        }
+
+        this.logger.error(
+          `Failed to connect to ${serviceLabel} traceId=${meta?.traceId ?? '-'} requestId=${meta?.requestId ?? '-'}: ${mappedError.message}`,
+        );
+        throw mappedError;
+      } finally {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+      }
+    }
+
+    throw this.createHttpError(
+      serviceLabel,
+      HttpStatus.SERVICE_UNAVAILABLE,
+      '重试次数耗尽',
+      meta,
+    );
+  }
+
+  private async requestFormData(
+    url: string,
+    headers: Record<string, string>,
+    body: FormData,
+    meta?: OVRequestMeta,
+    options?: OVRequestOptions,
+  ) {
+    const serviceLabel = options?.serviceLabel ?? 'OpenViking';
+    const retryCount = Math.max(options?.retryCount ?? 0, 0);
+    const retryDelayMs = Math.max(
+      options?.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS,
+      0,
+    );
+
+    for (let attempt = 0; attempt <= retryCount; attempt += 1) {
+      const controller = new AbortController();
+      const requestHeaders = { ...headers };
+      const timeoutMs = options?.timeoutMs;
+      const timeoutId =
+        timeoutMs && timeoutMs > 0
+          ? setTimeout(() => controller.abort(), timeoutMs)
+          : undefined;
+
+      if (meta?.traceId) {
+        requestHeaders['x-trace-id'] = meta.traceId;
+      }
+      if (meta?.requestId) {
+        requestHeaders['x-request-id'] = meta.requestId;
+      }
+
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: requestHeaders,
+          body,
           signal: controller.signal,
         });
 

@@ -89,7 +89,7 @@ function buildTenantPopupFeatures() {
 function renderTenantPopupBootingState(targetWindow: Window, tenantName: string) {
   targetWindow.document.title = `正在进入 ${tenantName}`;
   targetWindow.document.body.innerHTML = `
-    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0b0f19;color:#f7f8fa;font-family:'Microsoft YaHei','PingFang SC',sans-serif;margin:0;">
+    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0b0f19;color:#f7f8fa;font-family:Inter,'PingFang SC','Microsoft YaHei',sans-serif;margin:0;">
       <div style="width:min(420px,88vw);padding:32px;border:1px solid rgba(255,255,255,0.12);border-radius:20px;background:rgba(12,18,31,0.92);box-shadow:0 30px 90px rgba(0,0,0,0.28);">
         <div style="font-size:12px;letter-spacing:0.18em;text-transform:uppercase;color:#00f0ff;margin-bottom:14px;">Tenant Console</div>
         <div style="font-size:28px;font-weight:700;line-height:1.2;margin-bottom:10px;">正在打开租户空间</div>
@@ -310,7 +310,7 @@ export default function TenantsPage() {
       cell: (t) => (
         <>
           <div className="font-sans font-bold text-lg">{t.displayName}</div>
-          <div className="font-mono text-[10px] text-[var(--text-muted)] font-bold uppercase">{t.tenantId}</div>
+          <div className="font-sans text-[10px] text-[var(--text-muted)] font-bold uppercase">{t.tenantId}</div>
         </>
       )
     },
@@ -465,7 +465,7 @@ export default function TenantsPage() {
                   className="px-4 py-3 font-bold"
                   disabled={Boolean(editingTenant)}
                 />
-                <p className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--text-secondary)]">
+                <p className="font-sans text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--text-secondary)]">
                   // 命名空间全局唯一，创建后不可修改
                 </p>
               </PlatformField>
@@ -490,7 +490,7 @@ export default function TenantsPage() {
                   ]}
                   buttonClassName="py-2"
                 />
-                <p className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                <p className="font-sans text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--text-muted)]">
                   {form.isolationLevel === IsolationLevel.LARGE
                     ? "// 独立数据库实例，适合高隔离高配额租户"
                     : form.isolationLevel === IsolationLevel.MEDIUM
@@ -498,7 +498,7 @@ export default function TenantsPage() {
                       : "// 轻量共享空间，适合试运行或低成本场景"}
                 </p>
                 {editingTenant ? (
-                  <p className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                  <p className="font-sans text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--text-muted)]">
                     // 编辑模式下隔离等级与命名空间保持只读
                   </p>
                 ) : null}

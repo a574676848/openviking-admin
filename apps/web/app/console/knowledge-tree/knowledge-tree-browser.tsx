@@ -56,7 +56,7 @@ function TreeItem({
   }
 
   return (
-    <div className="font-mono text-[11px] tracking-widest">
+    <div className="font-sans text-[11px] tracking-widest">
       <div
         draggable={!isRenaming}
         className={`mb-1 flex w-full items-center gap-2 rounded-[var(--radius-tile)] border-[var(--border-width)] px-3 py-2.5 transition-all ${
@@ -225,7 +225,7 @@ export function KnowledgeTreeBrowser({
   return (
     <section className="flex min-h-0 flex-col bg-[var(--bg-card)]">
       <div className="border-b-[var(--border-width)] border-[var(--border)] bg-[var(--bg-elevated)] p-4">
-        <label className="mb-2 block font-mono text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
+        <label className="mb-2 block font-sans text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
           目标知识库
         </label>
         <ConsoleSelect
@@ -257,7 +257,7 @@ export function KnowledgeTreeBrowser({
 
       <div ref={treeContainerRef} className="hidden-scrollbar min-h-0 flex-1 overflow-y-auto p-3">
         <div
-          className={`mb-3 border-[var(--border-width)] border-dashed px-3 py-2 text-center font-mono text-[10px] font-black uppercase transition-all ${
+          className={`mb-3 border-[var(--border-width)] border-dashed px-3 py-2 text-center font-sans text-[10px] font-black uppercase transition-all ${
             dragOverRoot
               ? "border-[var(--brand)] bg-[var(--brand-muted)] text-[var(--text-primary)]"
               : "border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--text-secondary)]"
@@ -271,7 +271,7 @@ export function KnowledgeTreeBrowser({
         {tree.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center p-8 text-center text-[var(--text-muted)]">
             <Search size={42} strokeWidth={1.5} className="mb-4" />
-            <p className="font-mono text-xs font-black uppercase tracking-widest">暂无节点数据</p>
+            <p className="font-sans text-xs font-black uppercase tracking-widest">暂无节点数据</p>
           </div>
         ) : (
           tree.map((node) => (

@@ -5,13 +5,11 @@ import {
   OnModuleInit,
   Inject,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { ISystemConfigRepository } from './domain/repositories/system-config.repository.interface';
-import { TENANT_REPOSITORY } from '../tenant/domain/repositories/tenant.repository.interface';
-import type { ITenantRepository } from '../tenant/domain/repositories/tenant.repository.interface';
 import { AuditService } from '../audit/audit.service';
 import { EncryptionService } from '../common/encryption.service';
 import { OVClientService } from '../common/ov-client.service';
+import { OvConfigResolverService } from './ov-config-resolver.service';
 
 interface AdminContext {
   id: string;
@@ -35,6 +33,7 @@ const DEFAULTS: Record<string, { value: string; description: string }> = {
   },
   'ov.api_key': { value: '', description: 'OpenViking 访问令牌 (X-API-KEY)' },
   'ov.account': { value: 'default', description: '默认 OpenViking 业务账号' },
+  'ov.user': { value: '', description: '默认 OpenViking 用户标识' },
   'rerank.endpoint': {
     value: '',
     description: '推荐填写完整 Rerank 地址，例如 http://host:port/v1/rerank',
@@ -53,15 +52,6 @@ const DEFAULTS: Record<string, { value: string; description: string }> = {
   },
 };
 
-interface ResolvedOVConfig {
-  baseUrl: string | null;
-  apiKey: string | null;
-  account: string | null;
-  rerankEndpoint: string | null;
-  rerankApiKey: string | null;
-  rerankModel: string | null;
-}
-
 interface TestConnectionInput {
   type: 'engine' | 'rerank';
   baseUrl?: string;
@@ -79,9 +69,13 @@ interface TestConnectionResult {
 }
 
 const DEFAULT_OV_CONFIG_KEY = 'DEFAULT_OV_CONFIG';
-const DEFAULT_OV_ACCOUNT = 'default';
 const OV_HEALTH_PATH = '/health';
-const RERANK_CANDIDATE_PATHS = ['/v1/rerank', '/v1/reranks', '/rerank', '/reranks'];
+const RERANK_CANDIDATE_PATHS = [
+  '/v1/rerank',
+  '/v1/reranks',
+  '/rerank',
+  '/reranks',
+];
 const RERANK_TEST_QUERY = '连通性测试';
 const RERANK_TEST_DOCUMENTS = ['这是一次 Rerank 连通性探测请求。'];
 const RERANK_TEST_SERVICE_LABEL = 'Rerank Test';
@@ -91,12 +85,10 @@ export class SettingsService implements OnModuleInit {
   constructor(
     @Inject(ISystemConfigRepository)
     private readonly repo: ISystemConfigRepository,
-    @Inject(TENANT_REPOSITORY)
-    private readonly tenantRepo: ITenantRepository,
     private readonly auditService: AuditService,
     private readonly encryptionService: EncryptionService,
-    private readonly configService: ConfigService,
     private readonly ovClient: OVClientService,
+    private readonly ovConfigResolver: OvConfigResolverService,
   ) {}
 
   async testConnection(
@@ -114,93 +106,7 @@ export class SettingsService implements OnModuleInit {
   }
 
   async resolveOVConfig(tenantId?: string | null) {
-    const global = await this.resolveDefaultOVConfig();
-
-    if (!tenantId) return global;
-
-    const tenant =
-      (await this.tenantRepo.findById(tenantId)) ??
-      (await this.tenantRepo.findByTenantId(tenantId));
-    if (!tenant || !tenant.ovConfig) return global;
-
-    return {
-      baseUrl: tenant.ovConfig.baseUrl || global.baseUrl,
-      apiKey: tenant.ovConfig.apiKey
-        ? this.encryptionService.decrypt(tenant.ovConfig.apiKey)
-        : global.apiKey,
-      account:
-        tenant.vikingAccount ||
-        tenant.ovConfig.account ||
-        global.account ||
-        DEFAULT_OV_ACCOUNT,
-      rerankEndpoint: tenant.ovConfig.rerankEndpoint || global.rerankEndpoint,
-      rerankApiKey: tenant.ovConfig.rerankApiKey
-        ? this.encryptionService.decrypt(tenant.ovConfig.rerankApiKey)
-        : global.rerankApiKey,
-      rerankModel: tenant.ovConfig.rerankModel || global.rerankModel,
-    };
-  }
-
-  private async resolveDefaultOVConfig(): Promise<ResolvedOVConfig> {
-    const envConfig = this.resolveEnvOVConfig();
-    const legacy = await this.resolveLegacyOVConfig();
-    const row = await this.repo.findOne({
-      where: { key: DEFAULT_OV_CONFIG_KEY },
-    });
-
-    if (!row?.value) return this.mergeOVConfig(envConfig, legacy);
-
-    const parsed = this.parseDefaultOVConfig(row.value);
-    return this.mergeOVConfig(parsed, envConfig, legacy);
-  }
-
-  private resolveEnvOVConfig(): ResolvedOVConfig {
-    return {
-      baseUrl: this.configService.get<string>('OV_BASE_URL') ?? null,
-      apiKey: this.configService.get<string>('OV_API_KEY') ?? null,
-      account: this.configService.get<string>('OV_ACCOUNT') ?? null,
-      rerankEndpoint: this.configService.get<string>('RERANK_ENDPOINT') ?? null,
-      rerankApiKey: this.configService.get<string>('RERANK_API_KEY') ?? null,
-      rerankModel: this.configService.get<string>('RERANK_MODEL') ?? null,
-    };
-  }
-
-  private async resolveLegacyOVConfig(): Promise<ResolvedOVConfig> {
-    return {
-      baseUrl: await this.get('ov.base_url'),
-      apiKey: await this.get('ov.api_key'),
-      account: await this.get('ov.account'),
-      rerankEndpoint: await this.get('rerank.endpoint'),
-      rerankApiKey: await this.get('rerank.api_key'),
-      rerankModel: await this.get('rerank.model'),
-    };
-  }
-
-  private parseDefaultOVConfig(value: string): Partial<ResolvedOVConfig> {
-    try {
-      return JSON.parse(
-        this.encryptionService.decrypt(value),
-      ) as Partial<ResolvedOVConfig>;
-    } catch {
-      return {};
-    }
-  }
-
-  private mergeOVConfig(
-    ...configs: Array<Partial<ResolvedOVConfig>>
-  ): ResolvedOVConfig {
-    return {
-      baseUrl: configs.find((config) => config.baseUrl)?.baseUrl ?? null,
-      apiKey: configs.find((config) => config.apiKey)?.apiKey ?? null,
-      account:
-        configs.find((config) => config.account)?.account ?? DEFAULT_OV_ACCOUNT,
-      rerankEndpoint:
-        configs.find((config) => config.rerankEndpoint)?.rerankEndpoint ?? null,
-      rerankApiKey:
-        configs.find((config) => config.rerankApiKey)?.rerankApiKey ?? null,
-      rerankModel:
-        configs.find((config) => config.rerankModel)?.rerankModel ?? null,
-    };
+    return this.ovConfigResolver.resolve(tenantId);
   }
 
   async onModuleInit() {
@@ -349,10 +255,7 @@ export class SettingsService implements OnModuleInit {
 
   private buildRerankTargets(endpoint: string) {
     const normalized = endpoint.trim().replace(/\/+$/, '');
-    if (
-      normalized.endsWith('/rerank') ||
-      normalized.endsWith('/reranks')
-    ) {
+    if (normalized.endsWith('/rerank') || normalized.endsWith('/reranks')) {
       return [normalized];
     }
 

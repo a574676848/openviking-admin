@@ -16,7 +16,7 @@ export function ConsoleChatBubble({
   return (
     <div className={cx("flex flex-col group", role === "user" ? "items-end" : "items-start")}>
       <span className={cx(
-        "mb-2 px-2 py-0.5 font-mono text-[9px] font-black uppercase tracking-[0.18em]",
+        "mb-2 px-2 py-0.5 font-sans text-[9px] font-black uppercase tracking-[0.18em]",
         role === "user" ? "text-[var(--text-primary)]" : "text-[var(--brand)]"
       )}>
         {label ?? (role === "user" ? "USER_INPUT" : "SYS_RESPONSE")}
@@ -56,7 +56,7 @@ export function ConsoleSourceCard({
       <div className="mb-4 flex items-start justify-between gap-3 border-b border-[var(--border)] pb-3">
         <div>
           <div className="flex items-center gap-2">
-            <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[var(--brand)]/10 font-mono text-[10px] font-black text-[var(--brand)]">
+            <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[var(--brand)]/10 font-sans text-[10px] font-black text-[var(--brand)]">
               {index + 1}
             </span>
             <p className="font-sans text-sm font-black text-[var(--text-primary)]">
@@ -70,11 +70,11 @@ export function ConsoleSourceCard({
           ) : null}
         </div>
         <div className="text-right">
-          <p className="font-mono text-lg font-black text-[var(--brand)]">
+          <p className="font-sans text-lg font-black text-[var(--brand)]">
             {(source.score * 100).toFixed(1)}%
           </p>
           {source.reranked ? (
-            <p className="mt-0.5 font-mono text-[9px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+            <p className="mt-0.5 font-sans text-[9px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">
               ORIGIN {((source.stage1Score ?? 0) * 100).toFixed(1)}%
             </p>
           ) : null}
@@ -86,7 +86,7 @@ export function ConsoleSourceCard({
           {source.content}
         </div>
       ) : null}
-      <p className="mt-4 truncate font-mono text-[9px] font-bold uppercase tracking-[0.14em] text-[var(--text-muted)] group-hover:text-[var(--brand)] transition-colors">
+      <p className="mt-4 truncate font-sans text-[9px] font-bold uppercase tracking-[0.14em] text-[var(--text-muted)] group-hover:text-[var(--brand)] transition-colors">
         URI: {source.uri}
       </p>
     </div>

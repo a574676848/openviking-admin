@@ -37,6 +37,7 @@ const CUSTOM_OV_CONFIG_FIELDS: Array<keyof TenantOvConfig> = [
   'baseUrl',
   'apiKey',
   'account',
+  'user',
   'rerankEndpoint',
   'rerankApiKey',
   'rerankModel',
@@ -72,8 +73,14 @@ export class AuthService {
         throw new UnauthorizedException('租户信息不匹配');
       }
 
-      const tenantUser = await this.userRepo.findByUsername(dto.username, tenant.id);
-      const platformUser = await this.userRepo.findByUsername(dto.username, null);
+      const tenantUser = await this.userRepo.findByUsername(
+        dto.username,
+        tenant.id,
+      );
+      const platformUser = await this.userRepo.findByUsername(
+        dto.username,
+        null,
+      );
 
       user = await this.resolveTenantLoginUser(
         dto.password,
@@ -97,10 +104,7 @@ export class AuthService {
 
     // 校验租户逻辑
     if (dto.tenantCode) {
-      if (
-        user.role !== SystemRoles.SUPER_ADMIN &&
-        user.tenantId !== tenantId
-      ) {
+      if (user.role !== SystemRoles.SUPER_ADMIN && user.tenantId !== tenantId) {
         await this.auditService.log({
           userId: user.id,
           username: user.username,
@@ -193,9 +197,9 @@ export class AuthService {
     let payload: AuthTokenPayload & { tokenType?: string };
 
     try {
-      payload = this.jwtService.verify<AuthTokenPayload & { tokenType?: string }>(
-        refreshToken,
-      );
+      payload = this.jwtService.verify<
+        AuthTokenPayload & { tokenType?: string }
+      >(refreshToken);
     } catch {
       throw new UnauthorizedException('refresh token 无效或已过期');
     }
@@ -277,7 +281,10 @@ export class AuthService {
     tenantUser: UserModel | null,
     platformUser: UserModel | null,
   ): Promise<UserModel | null> {
-    if (tenantUser && (await bcrypt.compare(password, tenantUser.passwordHash))) {
+    if (
+      tenantUser &&
+      (await bcrypt.compare(password, tenantUser.passwordHash))
+    ) {
       return tenantUser;
     }
 
@@ -305,7 +312,9 @@ export class AuthService {
 
     return CUSTOM_OV_CONFIG_FIELDS.some((field) => {
       const value = tenant.ovConfig?.[field];
-      return typeof value === 'string' ? value.trim().length > 0 : Boolean(value);
+      return typeof value === 'string'
+        ? value.trim().length > 0
+        : Boolean(value);
     });
   }
 }

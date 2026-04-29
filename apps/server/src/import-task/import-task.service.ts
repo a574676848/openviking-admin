@@ -12,6 +12,11 @@ import { SettingsService } from '../settings/settings.service';
 import { OVClientService } from '../common/ov-client.service';
 import { IMPORT_TASK_REPOSITORY } from './domain/repositories/import-task.repository.interface';
 import type { IImportTaskRepository } from './domain/repositories/import-task.repository.interface';
+import { CreateLocalImportTaskDto } from './dto/create-local-import-task.dto';
+import {
+  LocalImportStorageService,
+  type LocalImportUploadFile,
+} from './local-import-storage.service';
 import { TaskStatus } from '../common/constants/system.enum';
 import { KNOWLEDGE_BASE_REPOSITORY } from '../knowledge-base/domain/repositories/knowledge-base.repository.interface';
 import type { IKnowledgeBaseRepository } from '../knowledge-base/domain/repositories/knowledge-base.repository.interface';
@@ -25,8 +30,10 @@ const AUTO_TARGET_SEGMENTS: Record<string, string> = {
   feishu: 'imports/feishu',
   dingtalk: 'imports/dingtalk',
   local: 'imports/local',
-  webdav: 'imports/webdav',
+  manifest: 'imports/manifest',
 };
+const RESOURCE_URI_PREFIX = 'viking://resources/';
+const TENANT_RESOURCE_PREFIX = 'viking://resources/tenants/';
 
 @Injectable()
 export class ImportTaskService {
@@ -41,6 +48,7 @@ export class ImportTaskService {
     private readonly nodeRepo: IKnowledgeNodeRepositoryType,
     private readonly settings: SettingsService,
     private readonly ovClient: OVClientService,
+    private readonly localImportStorage: LocalImportStorageService,
   ) {}
 
   findAll(tenantId: string | null) {
@@ -54,16 +62,8 @@ export class ImportTaskService {
   }
 
   async create(dto: CreateImportTaskDto, tenantId: string) {
-    if (dto.sourceType === 'local') {
-      throw new BadRequestException('当前版本暂不支持本地上传导入任务');
-    }
-    if (dto.sourceType === 'webdav') {
-      throw new BadRequestException(
-        '当前版本请使用 WebDAV 配置页完成同步挂载，导入中心暂不支持主动调度 WebDAV 任务',
-      );
-    }
     if (
-      ['feishu', 'dingtalk', 'webdav'].includes(dto.sourceType) &&
+      ['feishu', 'dingtalk'].includes(dto.sourceType) &&
       !dto.integrationId
     ) {
       throw new BadRequestException('该来源类型必须选择集成凭证');
@@ -73,6 +73,7 @@ export class ImportTaskService {
     if (sourceUrls.length === 0) {
       throw new BadRequestException('请至少提供一个来源地址');
     }
+    this.assertLocalSources(dto.sourceType, sourceUrls);
     const targetUri = await this.resolveTargetUri(dto, tenantId);
 
     const dispatch = sourceUrls.map((sourceUrl) =>
@@ -90,17 +91,54 @@ export class ImportTaskService {
     return Array.isArray(saved) ? saved[0] : saved;
   }
 
+  async createLocalUpload(
+    dto: CreateLocalImportTaskDto,
+    files: LocalImportUploadFile[],
+    tenantId: string,
+  ) {
+    if (files.length === 0) {
+      throw new BadRequestException('请先上传文件');
+    }
+
+    const storedFiles = await this.localImportStorage.saveFiles(
+      tenantId,
+      dto.kbId,
+      files,
+    );
+
+    try {
+      return await this.create(
+        {
+          kbId: dto.kbId,
+          sourceType: 'local',
+          sourceUrls: storedFiles.map((file) => file.sourceUrl),
+          targetUri: dto.targetUri,
+        },
+        tenantId,
+      );
+    } catch (error) {
+      await Promise.all(
+        storedFiles.map((file) =>
+          this.localImportStorage.deleteBySourceUrl(file.sourceUrl),
+        ),
+      );
+      throw error;
+    }
+  }
+
   private async resolveTargetUri(dto: CreateImportTaskDto, tenantId: string) {
     const kb = await this.kbRepo.findById(dto.kbId, tenantId);
     if (!kb) {
       throw new NotFoundException(`知识库 ${dto.kbId} 不存在或无权访问`);
     }
 
-    const knowledgeBaseUri = this.normalizeTargetUri(kb.vikingUri);
+    const knowledgeBaseUri = this.toEngineResourceUri(
+      this.normalizeTargetUri(kb.vikingUri),
+    );
 
     if (dto.targetUri?.trim()) {
       return this.validateExplicitTargetUri(
-        this.normalizeTargetUri(dto.targetUri),
+        this.toEngineResourceUri(this.normalizeTargetUri(dto.targetUri)),
         knowledgeBaseUri,
         await this.findNodeUris(dto.kbId, tenantId),
       );
@@ -123,7 +161,18 @@ export class ImportTaskService {
     return nodes
       .map((node: KnowledgeNodeModel) => node.vikingUri)
       .filter((uri): uri is string => Boolean(uri))
-      .map((uri) => this.normalizeTargetUri(uri));
+      .map((uri) => this.toEngineResourceUri(this.normalizeTargetUri(uri)));
+  }
+
+  private toEngineResourceUri(uri: string) {
+    if (uri.startsWith(TENANT_RESOURCE_PREFIX)) {
+      return uri;
+    }
+    if (!uri.startsWith(RESOURCE_URI_PREFIX)) {
+      return uri;
+    }
+
+    return `${TENANT_RESOURCE_PREFIX}${uri.slice(RESOURCE_URI_PREFIX.length)}`;
   }
 
   private validateExplicitTargetUri(
@@ -155,6 +204,19 @@ export class ImportTaskService {
     return [];
   }
 
+  private assertLocalSources(sourceType: string, sourceUrls: string[]) {
+    if (sourceType !== 'local') {
+      return;
+    }
+
+    const hasUnmanagedSource = sourceUrls.some(
+      (sourceUrl) => !this.localImportStorage.isManagedFileUrl(sourceUrl),
+    );
+    if (hasUnmanagedSource) {
+      throw new BadRequestException('本地导入只能使用受控上传文件');
+    }
+  }
+
   async syncResult(id: string, tenantId: string | null) {
     const task = await this.findOne(id, tenantId);
     if (!task) return null;
@@ -164,6 +226,7 @@ export class ImportTaskService {
       baseUrl: rawConn.baseUrl || '',
       apiKey: rawConn.apiKey || '',
       account: rawConn.account || 'default',
+      user: rawConn.user || '',
       rerankEndpoint: rawConn.rerankEndpoint || '',
       rerankModel: rawConn.rerankModel || '',
     };
@@ -171,18 +234,34 @@ export class ImportTaskService {
       const statData = await this.ovClient.request(
         conn,
         `/api/v1/fs/stat?uri=${encodeURIComponent(task.targetUri)}`,
+        'GET',
+        undefined,
+        { user: conn.user || undefined },
       );
       const statResult = statData?.result as
         | Record<string, unknown>
         | undefined;
-      const nodeCount = (statResult?.children_count as number) ?? 0;
+      let nodeCount = this.resolveNodeCountFromStat(statResult);
+      if (nodeCount === null) {
+        const treeData = await this.ovClient.request(
+          conn,
+          `/api/v1/fs/tree?uri=${encodeURIComponent(task.targetUri)}&depth=2`,
+          'GET',
+          undefined,
+          { user: conn.user || undefined },
+        );
+        nodeCount = this.countTreeItems(treeData?.result);
+      }
 
       const vecData = await this.ovClient.request(
         conn,
         `/api/v1/debug/vector/count?uri=${encodeURIComponent(task.targetUri)}`,
+        'GET',
+        undefined,
+        { user: conn.user || undefined },
       );
       const vecResult = vecData?.result as Record<string, unknown> | undefined;
-      const vectorCount = (vecResult?.count as number) ?? 0;
+      const vectorCount = this.toNonNegativeNumber(vecResult?.count);
 
       await this.taskRepo.update(id, { nodeCount, vectorCount });
       return this.taskRepo.findById(id, tenantId);
@@ -192,9 +271,36 @@ export class ImportTaskService {
     }
   }
 
+  private toNonNegativeNumber(value: unknown) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+  }
+
+  private resolveNodeCountFromStat(statResult: Record<string, unknown> | undefined) {
+    if (
+      statResult?.children_count === undefined &&
+      statResult?.descendant_count === undefined
+    ) {
+      return null;
+    }
+
+    return (
+      this.toNonNegativeNumber(statResult.children_count) +
+      this.toNonNegativeNumber(statResult.descendant_count)
+    );
+  }
+
+  private countTreeItems(result: unknown) {
+    return Array.isArray(result) ? result.length : 0;
+  }
+
   async retry(id: string, tenantId: string | null) {
     const task = await this.findOne(id, tenantId);
-    if (![TaskStatus.FAILED, TaskStatus.CANCELLED].includes(task.status as TaskStatus)) {
+    if (
+      ![TaskStatus.FAILED, TaskStatus.CANCELLED].includes(
+        task.status as TaskStatus,
+      )
+    ) {
       throw new ConflictException('只有失败或已取消的任务才能重试');
     }
 
@@ -220,6 +326,9 @@ export class ImportTaskService {
       errorMsg: '用户已取消排队任务',
       updatedAt: new Date(),
     });
+    if (task.sourceType === 'local') {
+      await this.localImportStorage.deleteBySourceUrl(task.sourceUrl);
+    }
     return this.taskRepo.findById(id, tenantId);
   }
 }

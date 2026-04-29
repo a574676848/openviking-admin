@@ -2,6 +2,7 @@ const mockExistsSync = jest.fn();
 const mockReadFileSync = jest.fn();
 const mockWriteFileSync = jest.fn();
 const mockMkdirSync = jest.fn();
+const mockSpawn = jest.fn(() => ({ unref: jest.fn() }));
 
 jest.mock('fs', () => ({
     existsSync: (...args: unknown[]) => mockExistsSync(...args),
@@ -12,6 +13,10 @@ jest.mock('fs', () => ({
 
 jest.mock('os', () => ({
     homedir: () => 'C:\\Users\\tester',
+}));
+
+jest.mock('child_process', () => ({
+    spawn: (...args: unknown[]) => mockSpawn.apply(null, args),
 }));
 
 const { bootstrap } = require('./index') as typeof import('./index');
@@ -168,6 +173,77 @@ describe('ova cli', () => {
         await bootstrap(['capabilities', 'list', '--output', 'jsonl']);
 
         expect(stdoutWrite).toHaveBeenCalledWith(expect.stringContaining('"id":"knowledge.search"'));
+    });
+
+    it('应该在只有 API Key 时使用 capability key 调用能力接口', async () => {
+        mockReadFileSync.mockReturnValue(
+            JSON.stringify({
+                version: 2,
+                currentProfile: 'default',
+                profiles: {
+                    default: {
+                        serverUrl: 'http://localhost:6001',
+                        apiKey: 'ov-sk-demo',
+                    },
+                },
+            }),
+        );
+        global.fetch = jest.fn().mockResolvedValueOnce(
+            createJsonResponse({
+                data: {
+                    items: [{ uri: 'viking://resources/tenants/acme/doc-1', score: 0.9 }],
+                },
+                traceId: 'trace-api-key',
+            }),
+        ) as unknown as typeof fetch;
+
+        await bootstrap(['knowledge', 'search', '--query', '多租户隔离']);
+
+        const request = (global.fetch as jest.Mock).mock.calls[0][1] as RequestInit;
+        const headers = request.headers as Headers;
+        expect(headers.get('x-capability-key')).toBe('ov-sk-demo');
+        expect(headers.has('Authorization')).toBe(false);
+        expect(stdoutWrite).toHaveBeenCalledWith(expect.stringContaining('traceId: trace-api-key'));
+    });
+
+    it('应该通过 configure 保存 API Key profile', async () => {
+        await bootstrap([
+            'configure',
+            '--server',
+            'https://admin.example.com',
+            '--api-key',
+            'ov-sk-demo',
+            '--output',
+            'json',
+        ]);
+
+        expect(mockWriteFileSync).toHaveBeenCalledWith(
+            'C:\\Users\\tester\\.openviking\\ova\\auth.json',
+            expect.stringContaining('"apiKey": "ov-sk-demo"'),
+            'utf8',
+        );
+        expect(stdoutWrite).toHaveBeenCalledWith(expect.stringContaining('"hasApiKey": true'));
+    });
+
+    it('应该通过 configure 保存 OAuth 地址并打开浏览器', async () => {
+        await bootstrap([
+            'configure',
+            '--server',
+            'https://admin.example.com',
+            '--oauth-url',
+            'https://sso.example.com/oauth',
+            '--open-browser',
+            '--output',
+            'json',
+        ]);
+
+        expect(mockWriteFileSync).toHaveBeenCalledWith(
+            'C:\\Users\\tester\\.openviking\\ova\\auth.json',
+            expect.stringContaining('"oauthUrl": "https://sso.example.com/oauth"'),
+            'utf8',
+        );
+        expect(mockSpawn).toHaveBeenCalled();
+        expect(stdoutWrite).toHaveBeenCalledWith(expect.stringContaining('"openedBrowser": true'));
     });
 
     it('应该支持 credential-options', async () => {

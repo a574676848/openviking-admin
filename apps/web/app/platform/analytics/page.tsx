@@ -99,7 +99,7 @@ function Histogram({
                   key={item.day}
                   className="group relative flex h-full flex-1 flex-col items-center justify-end"
                 >
-                  <span className="mb-1 font-mono text-[9px] font-black text-[var(--text-primary)] opacity-80 group-hover:opacity-100">
+                  <span className="mb-1 font-sans text-[9px] font-black text-[var(--text-primary)] opacity-80 group-hover:opacity-100">
                     {label}
                   </span>
 
@@ -124,7 +124,7 @@ function Histogram({
         {displayData.map((item) => (
           <span
             key={item.day}
-            className="flex-1 text-center font-mono text-[9px] font-black tracking-tighter text-[var(--text-muted)]"
+            className="flex-1 text-center font-sans text-[9px] font-black tracking-tighter text-[var(--text-muted)]"
           >
             {new Date(item.day).toLocaleDateString("zh-CN", { month: "2-digit", day: "2-digit" })}
           </span>

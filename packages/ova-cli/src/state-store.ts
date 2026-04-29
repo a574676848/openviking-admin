@@ -4,6 +4,7 @@ import { join } from 'path';
 
 export interface CliProfile {
     serverUrl: string;
+    oauthUrl?: string;
     accessToken?: string;
     refreshToken?: string;
     accessTokenExpiresAt?: string;

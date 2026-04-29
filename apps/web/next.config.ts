@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const BACKEND_URL = process.env.BACKEND_URL;
+const PUBLIC_BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || BACKEND_URL;
 const isDevLike = process.env.NODE_ENV !== "production";
 
 if (!BACKEND_URL) {
@@ -24,6 +25,10 @@ const cspHeader = [
 ].join("; ");
 
 const nextConfig: NextConfig = {
+  env: {
+    NEXT_PUBLIC_BACKEND_URL: PUBLIC_BACKEND_URL,
+  },
+
   async rewrites() {
     return [
       {

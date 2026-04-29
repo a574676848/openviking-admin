@@ -9,7 +9,7 @@
 - **图标**: Lucide React (strokeWidth: 1.5)
 - **图表**: react-force-graph-2d (知识图谱可视化)
 - **通知**: Sonner (Toast)
-- **字体**: Geist, Geist Mono, Space Grotesk
+- **字体**: `font-sans` 统一使用 Inter + 中文无衬线 fallback
 
 ## 路由体系
 

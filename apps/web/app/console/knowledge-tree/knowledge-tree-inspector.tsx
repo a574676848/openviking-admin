@@ -31,7 +31,7 @@ export function KnowledgeTreeInspector({
   return (
     <section className="hidden-scrollbar min-h-0 overflow-y-auto bg-[var(--bg-base)] p-6">
       <div className="mb-6 flex items-center justify-between border-b-[var(--border-width)] border-[var(--border)] pb-4">
-        <h2 className="font-mono text-sm font-black uppercase tracking-[0.2em] text-[var(--text-primary)]">
+        <h2 className="font-sans text-sm font-black uppercase tracking-[0.2em] text-[var(--text-primary)]">
           {selectedNode ? `节点观察器 [${selectedNode.name}]` : "// 等待选择节点"}
         </h2>
         {selectedNode && (
@@ -39,7 +39,7 @@ export function KnowledgeTreeInspector({
             {PIPELINE_STEPS.map((step) => (
               <div key={step} className="flex items-center gap-1.5 border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-card)] px-2 py-0.5">
                 <div className="h-2 w-2 animate-pulse bg-[var(--success)]" />
-                <span className="font-mono text-[9px] font-black">{step}</span>
+                <span className="font-sans text-[9px] font-black">{step}</span>
               </div>
             ))}
           </div>
@@ -50,7 +50,7 @@ export function KnowledgeTreeInspector({
         <div className="flex h-[60vh] flex-col items-center justify-center border-[var(--border-width)] border-dashed border-[var(--border)] bg-[var(--bg-card)] text-center">
           <AlertTriangle size={72} strokeWidth={1.5} className="mb-6 text-[var(--text-muted)]" />
           <h3 className="font-sans text-3xl font-black tracking-tighter">选择一个知识节点</h3>
-          <p className="mt-3 max-w-md font-mono text-xs font-bold leading-6 text-[var(--text-secondary)]">
+          <p className="mt-3 max-w-md font-sans text-xs font-bold leading-6 text-[var(--text-secondary)]">
             左侧知识树用于定位节点，当前工作区会在这里显示节点详情、权限与资源挂载。
           </p>
         </div>
@@ -63,22 +63,22 @@ export function KnowledgeTreeInspector({
                   key={item.label}
                   className={`border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-card)] p-4 shadow-[var(--shadow-base)] ${item.full ? "md:col-span-2" : ""}`}
                 >
-                  <div className="mb-1 font-mono text-[9px] font-black uppercase text-[var(--text-muted)]">{item.label}</div>
+                  <div className="mb-1 font-sans text-[9px] font-black uppercase text-[var(--text-muted)]">{item.label}</div>
                   {item.lines ? (
                     <div className="space-y-1">
                       {item.lines.map((line) => (
-                        <p key={line} className={`font-mono text-xs font-black leading-5 ${item.className}`}>
+                        <p key={line} className={`font-sans text-xs font-black leading-5 ${item.className}`}>
                           {line}
                         </p>
                       ))}
                     </div>
                   ) : (
-                    <div className={`truncate font-mono text-xs font-black ${item.className}`}>{item.value}</div>
+                    <div className={`truncate font-sans text-xs font-black ${item.className}`}>{item.value}</div>
                   )}
                 </div>
               ))}
               <div className="border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-card)] p-4 shadow-[var(--shadow-base)] md:col-span-2">
-                <div className="mb-4 font-mono text-[9px] font-black uppercase text-[var(--text-muted)]">访问权限控制 ACL</div>
+                <div className="mb-4 font-sans text-[9px] font-black uppercase text-[var(--text-muted)]">访问权限控制 ACL</div>
 
                 <KnowledgeTreeEditor
                   editAcl={editAcl}

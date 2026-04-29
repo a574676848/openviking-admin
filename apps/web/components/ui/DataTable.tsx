@@ -146,7 +146,7 @@ export function DataTable<T>({
               onChange={(event) => setSearchQuery(event.target.value)}
               placeholder={searchConfig.placeholder ?? DEFAULT_SEARCH_PLACEHOLDER}
               aria-label={`${tableLabel}搜索框`}
-              className="w-full border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-card)] py-3 pl-11 pr-4 font-mono text-xs text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--brand)]"
+              className="w-full border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-card)] py-3 pl-11 pr-4 font-sans text-xs text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--brand)]"
             />
           </label>
         </div>

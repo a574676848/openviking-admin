@@ -12,6 +12,7 @@ export interface TenantOvConfig {
   baseUrl?: string;
   apiKey?: string;
   account?: string;
+  user?: string;
   rerankEndpoint?: string;
   rerankApiKey?: string;
   rerankModel?: string;

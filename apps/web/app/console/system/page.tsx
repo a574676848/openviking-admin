@@ -132,7 +132,7 @@ export default function SystemPage() {
             className="ov-button px-6 py-3 text-xs"
           >
             <Activity size={16} strokeWidth={2} className={loading ? "animate-spin" : ""} />
-            <span className="font-mono font-bold uppercase tracking-widest">刷新遥测</span>
+            <span className="font-sans font-bold uppercase tracking-widest">刷新遥测</span>
           </PlatformButton>
         }
       />
@@ -212,10 +212,10 @@ export default function SystemPage() {
                     className="group flex items-center justify-between bg-[var(--bg-elevated)] p-4 transition-colors hover:border-[var(--brand)]"
                   >
                     <div>
-                      <div className="mb-1 font-mono text-xs font-bold uppercase tracking-widest text-[var(--text-primary)]">{q.label}</div>
-                      <div className="font-mono text-[9px] uppercase tracking-wider text-[var(--text-muted)]">{"// "}{q.desc}</div>
+                      <div className="mb-1 font-sans text-xs font-bold uppercase tracking-widest text-[var(--text-primary)]">{q.label}</div>
+                      <div className="font-sans text-[9px] uppercase tracking-wider text-[var(--text-muted)]">{"// "}{q.desc}</div>
                     </div>
-                    <div className={`font-mono text-2xl font-bold tracking-tighter tabular-nums ${cnt > 0 ? 'text-[var(--warning)]' : 'text-[var(--success)]'}`}>
+                    <div className={`font-sans text-2xl font-bold tracking-tighter tabular-nums ${cnt > 0 ? 'text-[var(--warning)]' : 'text-[var(--success)]'}`}>
                       {loading ? '--' : cnt.toLocaleString()}
                     </div>
                   </PlatformPanel>
@@ -235,7 +235,7 @@ export default function SystemPage() {
                {/* 集合列表 */}
                {vikingdb.collections.map((col) => (
                  <PlatformPanel key={col.Collection} className="bg-[var(--bg-elevated)] p-4">
-                   <div className="mb-2 font-mono text-xs font-bold uppercase tracking-widest text-[var(--text-primary)]">
+                   <div className="mb-2 font-sans text-xs font-bold uppercase tracking-widest text-[var(--text-primary)]">
                      <Layers size={14} strokeWidth={2} className="inline mr-2" />
                      {col.Collection}
                    </div>
@@ -248,10 +248,10 @@ export default function SystemPage() {
                ))}
                {/* 汇总 */}
                <div className="flex items-center justify-between bg-[var(--bg-elevated)] p-3 border-t border-[var(--border)]">
-                 <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                 <span className="font-sans text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
                    合计: {vikingdb.totalCollections} 集合 / {vikingdb.totalIndexCount} 索引
                  </span>
-                 <span className="font-mono text-sm font-bold tabular-nums text-[var(--brand)]">
+                 <span className="font-sans text-sm font-bold tabular-nums text-[var(--brand)]">
                    {vikingdb.totalVectorCount.toLocaleString()} 向量
                  </span>
                </div>

@@ -2,7 +2,17 @@ export type CapabilityId =
   | 'knowledge.search'
   | 'knowledge.grep'
   | 'resources.list'
-  | 'resources.tree';
+  | 'resources.tree'
+  | 'knowledgeBases.list'
+  | 'knowledgeBases.detail'
+  | 'knowledgeTree.list'
+  | 'knowledgeTree.detail'
+  | 'documents.import.create'
+  | 'documents.import.status'
+  | 'documents.import.list'
+  | 'documents.import.cancel'
+  | 'documents.import.retry'
+  | 'documents.import.events';
 
 export type CapabilityVersion = 'v1';
 
@@ -72,6 +82,7 @@ export interface OVConfigProfile {
   baseUrl: string;
   apiKey: string;
   account: string;
+  user?: string | null;
 }
 
 export interface Principal {

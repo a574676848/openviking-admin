@@ -419,11 +419,11 @@ export default function CapabilityPage() {
       sortValue: (item) => item.name,
       cell: (item) => (
         <div className="space-y-2">
-          <div className="flex items-center font-mono text-sm font-bold text-[var(--text-primary)]">
+          <div className="flex items-center font-sans text-sm font-bold text-[var(--text-primary)]">
             <KeyRound size={14} className="mr-2 text-[var(--text-muted)] transition-transform group-hover:scale-110" />
             {item.name}
           </div>
-          <code className="font-mono text-[10px] tracking-widest text-[var(--text-secondary)]">{item.id}</code>
+          <code className="font-sans text-[10px] tracking-widest text-[var(--text-secondary)]">{item.id}</code>
         </div>
       ),
     },
@@ -439,7 +439,7 @@ export default function CapabilityPage() {
         return (
           <div className="space-y-1">
             <div className="text-sm font-bold text-[var(--text-primary)]">{user?.username ?? item.userId}</div>
-            <div className="font-mono text-[10px] tracking-widest text-[var(--text-secondary)]">{item.userId}</div>
+            <div className="font-sans text-[10px] tracking-widest text-[var(--text-secondary)]">{item.userId}</div>
           </div>
         );
       },
@@ -456,7 +456,7 @@ export default function CapabilityPage() {
           <PlatformStateBadge tone={item.lastUsedAt ? "success" : "warning"}>
             {item.lastUsedAt ? "已使用" : "未使用"}
           </PlatformStateBadge>
-          <div className="font-mono text-[10px] tracking-widest text-[var(--text-secondary)]">
+          <div className="font-sans text-[10px] tracking-widest text-[var(--text-secondary)]">
             {item.lastUsedAt
               ? new Date(item.lastUsedAt).toLocaleString("zh-CN", { hour12: false })
               : "尚未产生调用记录"}
@@ -482,7 +482,7 @@ export default function CapabilityPage() {
             <PlatformStateBadge tone={isExpired ? "danger" : "info"}>
               {isExpired ? "已过期" : "有效中"}
             </PlatformStateBadge>
-            <div className="font-mono text-[10px] tracking-widest text-[var(--text-secondary)]">
+            <div className="font-sans text-[10px] tracking-widest text-[var(--text-secondary)]">
               {new Date(item.expiresAt).toLocaleString("zh-CN", { hour12: false })}
             </div>
           </div>
@@ -497,7 +497,7 @@ export default function CapabilityPage() {
         const maskedValue = `${item.apiKey.substring(0, 8)}***${item.apiKey.substring(item.apiKey.length - 4)}`;
         return (
           <div className="flex items-center justify-between gap-2 rounded-[var(--radius-base)] border border-[var(--border)] bg-[var(--bg-elevated)] px-3 py-2">
-            <code className="min-w-0 flex-1 truncate font-mono text-[10px] tracking-widest text-[var(--text-secondary)]">
+            <code className="min-w-0 flex-1 truncate font-sans text-[10px] tracking-widest text-[var(--text-secondary)]">
               {isVisible ? item.apiKey : maskedValue}
             </code>
             <div className="flex items-center gap-1">
@@ -526,7 +526,7 @@ export default function CapabilityPage() {
       sortable: true,
       sortValue: (item) => item.createdAt,
       cell: (item) => (
-        <span className="font-mono text-[10px] tracking-widest text-[var(--text-secondary)]">
+        <span className="font-sans text-[10px] tracking-widest text-[var(--text-secondary)]">
           {new Date(item.createdAt).toLocaleString("zh-CN", { hour12: false })}
         </span>
       ),
@@ -578,7 +578,7 @@ export default function CapabilityPage() {
               className="ov-button px-6 py-3 text-xs"
             >
               <Plus size={16} strokeWidth={2} />
-              <span className="font-mono font-bold uppercase tracking-widest">新增凭证</span>
+              <span className="font-sans font-bold uppercase tracking-widest">新增凭证</span>
             </PlatformButton>
           </>
         }
@@ -677,14 +677,14 @@ export default function CapabilityPage() {
                 </button>
             </div>
             <div className="grid h-full flex-1 grid-cols-[56px_minmax(0,1fr)] bg-black text-[var(--success)]">
-              <div className="border-r-[3px] border-[var(--border)] bg-black/80 px-3 py-6 font-mono text-xs font-black text-white/40 select-none">
+              <div className="border-r-[3px] border-[var(--border)] bg-black/80 px-3 py-6 font-sans text-xs font-black text-white/40 select-none">
                 {snippetLines.map((_, index) => (
                   <div key={index} className="h-7 leading-7 text-right pr-2">
                     {index + 1}
                   </div>
                 ))}
               </div>
-              <pre className="overflow-x-auto px-6 py-6 font-mono text-[13px] font-bold leading-7 tracking-wide">
+              <pre className="overflow-x-auto px-6 py-6 font-sans text-[13px] font-bold leading-7 tracking-wide">
                 {snippetLines.join("\n")}
               </pre>
             </div>
@@ -705,7 +705,7 @@ export default function CapabilityPage() {
       />
 
       {!loading && !loadError ? (
-        <div className="mt-4 flex flex-wrap gap-4 text-[10px] font-mono font-black uppercase tracking-widest">
+        <div className="mt-4 flex flex-wrap gap-4 text-[10px] font-sans font-black uppercase tracking-widest">
           <PlatformStatPill label="凭证总数" value={keys.length} accent="var(--border)" />
           <PlatformStatPill
             label="已使用"

@@ -30,6 +30,8 @@ const SSR_GRAPH_COLORS = {
   linkMuted: "rgba(0,0,0,0.12)",
 } as const;
 
+const GRAPH_LABEL_FONT_FAMILY = 'Inter, "PingFang SC", "Microsoft YaHei", sans-serif';
+
 /** 从 CSS 自定义属性读取 Neo 主题色板，用于 Canvas 渲染层 */
 function readGraphColors(): Record<keyof typeof SSR_GRAPH_COLORS, string> {
   if (typeof window === "undefined") {
@@ -218,7 +220,7 @@ export default function GraphPage() {
   const nodeCanvasObject = useCallback((node: GraphNode, ctx: CanvasRenderingContext2D, globalScale: number) => {
     const label = node.name;
     const fontSize = 11 / globalScale;
-    ctx.font = `600 ${fontSize}px Geist Mono, "Microsoft YaHei", sans-serif`;
+    ctx.font = `600 ${fontSize}px ${GRAPH_LABEL_FONT_FAMILY}`;
     const textWidth = ctx.measureText(label).width;
     const paddingH = fontSize * 1.6;
     const paddingV = fontSize * 1.2;

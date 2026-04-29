@@ -64,14 +64,14 @@ function QuotaProgressCard({ used, total, percent }: { used: number; total: numb
       {/* 顶部：大数字 + 百分比方块 */}
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
-          <span className="font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">
+          <span className="font-sans text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">
             已使用 / 总量
           </span>
           <div className="flex items-baseline gap-2">
-            <span className="font-mono text-5xl font-black tabular-nums leading-none text-[var(--text-primary)]">
+            <span className="font-sans text-5xl font-black tabular-nums leading-none text-[var(--text-primary)]">
               {used.toLocaleString()}
             </span>
-            <span className="font-mono text-sm font-bold text-[var(--text-muted)]">
+            <span className="font-sans text-sm font-bold text-[var(--text-muted)]">
               / {total.toLocaleString()}
             </span>
           </div>
@@ -79,7 +79,7 @@ function QuotaProgressCard({ used, total, percent }: { used: number; total: numb
         <div
           className="flex h-10 items-center justify-center rounded-full px-5 text-black"
         >
-          <span className="font-mono text-sm font-black tabular-nums text-[var(--text-primary)]">{percent}%</span>
+          <span className="font-sans text-sm font-black tabular-nums text-[var(--text-primary)]">{percent}%</span>
         </div>
       </div>
 
@@ -248,19 +248,19 @@ export default function KnowledgeBasesPage() {
             className="flex-1"
             columns={
               <>
-                <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">知识库</div>
-                <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">状态</div>
-                <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">文档数</div>
-                <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">向量数</div>
-                <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">引擎资源 URI</div>
-                <div className="px-5 py-4 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">操作</div>
+                <div className="px-5 py-4 font-sans text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">知识库</div>
+                <div className="px-5 py-4 font-sans text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">状态</div>
+                <div className="px-5 py-4 font-sans text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">文档数</div>
+                <div className="px-5 py-4 font-sans text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">向量数</div>
+                <div className="px-5 py-4 font-sans text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">引擎资源 URI</div>
+                <div className="px-5 py-4 font-sans text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">操作</div>
               </>
             }
             headerClassName={`grid ${TABLE_COLUMNS}`}
             state={tableState}
             stateContent={{
               loading: (
-                <div className="bg-[var(--bg-card)] px-6 py-16 text-center font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-secondary)]">
+                <div className="bg-[var(--bg-card)] px-6 py-16 text-center font-sans text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-secondary)]">
                   正在读取知识库注册表...
                 </div>
               ),
@@ -291,7 +291,7 @@ export default function KnowledgeBasesPage() {
                       className: "min-w-0",
                       render: (v) => (
                         <span
-                          className="block break-all font-mono text-[11px] font-bold leading-relaxed text-[var(--text-muted)] select-all"
+                          className="block break-all font-sans text-[11px] font-bold leading-relaxed text-[var(--text-muted)] select-all"
                           title="双击或框选复制"
                         >
                           {v}

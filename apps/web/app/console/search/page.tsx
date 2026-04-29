@@ -217,7 +217,7 @@ export default function SearchPage() {
 
           <ConsoleSurfaceCard tone="elevated" className="grid grid-cols-1 gap-4 border-dashed p-4 lg:grid-cols-[1fr_150px_150px_180px]">
             <ConsoleField label="">
-              <label className="flex items-center font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-secondary)]">
+              <label className="flex items-center font-sans text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-secondary)]">
                 <Settings2 size={12} className="mr-2" /> 检索范围 URI
               </label>
               <ConsoleSelect
@@ -237,7 +237,7 @@ export default function SearchPage() {
               </ConsoleSelect>
             </ConsoleField>
             <ConsoleField label="">
-              <label className="flex items-center font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-secondary)]">
+              <label className="flex items-center font-sans text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-secondary)]">
                 <Zap size={12} className="mr-2" /> 返回数量
               </label>
               <ConsoleInput
@@ -250,7 +250,7 @@ export default function SearchPage() {
               />
             </ConsoleField>
             <ConsoleField label="">
-              <label className="flex items-center font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-secondary)]">
+              <label className="flex items-center font-sans text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-secondary)]">
                 <ShieldAlert size={12} className="mr-2" /> 最低分数
               </label>
               <ConsoleInput
@@ -264,10 +264,10 @@ export default function SearchPage() {
               />
             </ConsoleField>
             <ConsoleField label="">
-              <label className="flex items-center font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-secondary)]">
+              <label className="flex items-center font-sans text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-secondary)]">
                 <Zap size={12} className="mr-2" /> Rerank
               </label>
-              <label className="flex h-[46px] cursor-pointer items-center justify-between border-[3px] border-[var(--border)] bg-[var(--bg-card)] px-3 font-mono text-[10px] font-black uppercase tracking-[0.16em]">
+              <label className="flex h-[46px] cursor-pointer items-center justify-between border-[3px] border-[var(--border)] bg-[var(--bg-card)] px-3 font-sans text-[10px] font-black uppercase tracking-[0.16em]">
                 <span>{useRerank ? "已启用" : "已关闭"}</span>
                 <input
                   type="checkbox"
@@ -297,7 +297,7 @@ export default function SearchPage() {
       {searched && (
         <section className="flex flex-col gap-6">
           <div className="flex items-center justify-between border-b-[3px] border-[var(--border)] pb-3">
-            <span className="font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">
+            <span className="font-sans text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">
               {"// 召回结果: "}<span className="text-[var(--brand)]">[{results.length}]</span>
             </span>
             <div className="flex items-center gap-3">
@@ -305,7 +305,7 @@ export default function SearchPage() {
                 {rerankApplied ? "Rerank 已启用" : "仅基础召回"}
               </ConsoleBadge>
               {latency !== null && (
-                <span className="flex items-center font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-secondary)]">
+                <span className="flex items-center font-sans text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-secondary)]">
                   <Clock size={12} className="mr-2 text-[var(--warning)]" /> {latency}ms
                 </span>
               )}
@@ -330,30 +330,30 @@ export default function SearchPage() {
                     <div className="mb-4 flex items-start justify-between gap-4 border-b-[3px] border-[var(--border)] pb-3">
                       <div className="min-w-0">
                         <div className="flex items-center gap-3">
-                          <span className="flex h-7 w-7 items-center justify-center border-[2px] border-[var(--border)] bg-[var(--bg-elevated)] font-mono text-[10px] font-black">
+                          <span className="flex h-7 w-7 items-center justify-center border-[2px] border-[var(--border)] bg-[var(--bg-elevated)] font-sans text-[10px] font-black">
                             {index + 1}
                           </span>
                           <h3 className="truncate font-sans text-xl font-black uppercase tracking-tight">
                             {highlightText(result.title ?? result.uri.split("/").pop() ?? "未命名节点", query)}
                           </h3>
                         </div>
-                        <p className="mt-3 inline-flex max-w-full items-center border-[2px] border-[var(--border)] bg-[var(--bg-elevated)] px-2 py-1 font-mono text-[10px] font-black text-[var(--brand)]">
+                        <p className="mt-3 inline-flex max-w-full items-center border-[2px] border-[var(--border)] bg-[var(--bg-elevated)] px-2 py-1 font-sans text-[10px] font-black text-[var(--brand)]">
                           <FileText size={10} className="mr-2 shrink-0" />
                           <span className="truncate">{result.uri}</span>
                         </p>
                       </div>
-                      <span className="border-[2px] border-[var(--border)] px-3 py-1 font-mono text-[10px] font-black uppercase tracking-[0.16em]" style={{ color: scoreColor, borderColor: scoreColor }}>
+                      <span className="border-[2px] border-[var(--border)] px-3 py-1 font-sans text-[10px] font-black uppercase tracking-[0.16em]" style={{ color: scoreColor, borderColor: scoreColor }}>
                         {(result.score * 100).toFixed(1)}%
                       </span>
                     </div>
                     {typeof result.stage1Score === "number" && result.reranked ? (
-                      <div className="mb-3 flex flex-wrap gap-2 font-mono text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">
+                      <div className="mb-3 flex flex-wrap gap-2 font-sans text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">
                         <ConsoleBadge tone="warning">初筛 {(result.stage1Score * 100).toFixed(1)}%</ConsoleBadge>
                         <ConsoleBadge tone="success">Rerank {(result.score * 100).toFixed(1)}%</ConsoleBadge>
                       </div>
                     ) : null}
                     {result.content && (
-                      <div className="border-[2px] border-[var(--border)] border-l-[6px] border-l-[var(--brand)] bg-[var(--bg-elevated)] p-4 font-mono text-xs leading-relaxed text-[var(--text-secondary)]">
+                      <div className="border-[2px] border-[var(--border)] border-l-[6px] border-l-[var(--brand)] bg-[var(--bg-elevated)] p-4 font-sans text-xs leading-relaxed text-[var(--text-secondary)]">
                         {highlightText(result.content, query)}
                       </div>
                     )}
@@ -366,10 +366,10 @@ export default function SearchPage() {
           <ConsolePanel className="p-6">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
-                <p className="font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-secondary)]">
+                <p className="font-sans text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-secondary)]">
                   结果反馈
                 </p>
-                <p className="mt-2 font-mono text-xs font-bold leading-6 text-[var(--text-secondary)]">
+                <p className="mt-2 font-sans text-xs font-bold leading-6 text-[var(--text-secondary)]">
                   对当前召回结果做标记，后续可用于排查无答案样本和调优召回策略。
                 </p>
               </div>
@@ -401,7 +401,7 @@ export default function SearchPage() {
                 className="flex-1 px-3 py-3 text-xs tracking-widest"
               />
               {feedbackMessage ? (
-                <ConsoleSurfaceCard tone="elevated" className="px-4 py-3 font-mono text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">
+                <ConsoleSurfaceCard tone="elevated" className="px-4 py-3 font-sans text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">
                   {feedbackMessage}
                 </ConsoleSurfaceCard>
               ) : null}

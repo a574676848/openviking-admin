@@ -8,6 +8,7 @@ import {
   KeyRound,
   Link2,
   MessageCircle,
+  Pencil,
   Plus,
   Server,
   Share2,
@@ -81,6 +82,7 @@ const TYPE_META: Record<
     tone: "brand",
     fields: [
       { key: "token", label: "Access Token", placeholder: "ghp_xxx", secret: true },
+      { key: "username", label: "Username", placeholder: "自托管服务账号，可选" },
       { key: "baseUrl", label: "Base URL", placeholder: "https://api.github.com" },
     ],
   },
@@ -91,6 +93,7 @@ const TYPE_META: Record<
     tone: "warning",
     fields: [
       { key: "token", label: "Access Token", placeholder: "glpat-xxx", secret: true },
+      { key: "username", label: "Username", placeholder: "GitLab 用户名，可选" },
       { key: "baseUrl", label: "Base URL", placeholder: "https://gitlab.com" },
     ],
   },
@@ -123,6 +126,7 @@ const TYPE_META: Record<
     fields: [
       { key: "appId", label: "App ID", placeholder: "dingxxx" },
       { key: "appSecret", label: "App Secret", placeholder: "secret", secret: true },
+      { key: "operatorId", label: "Operator ID", placeholder: "有文档权限的 unionId" },
     ],
   },
   oidc: {
@@ -154,17 +158,99 @@ function getTypeTone(type: IntegrationType): IntegrationTone {
   return TYPE_META[type].tone;
 }
 
+function toCredentialForm(credentials: Record<string, unknown>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(credentials ?? {}).map(([key, value]) => [key, String(value ?? "")]),
+  );
+}
+
+function IntegrationFormFields({
+  form,
+  onChange,
+}: {
+  form: IntegrationForm;
+  onChange: (form: IntegrationForm) => void;
+}) {
+  const activeMeta = TYPE_META[form.type];
+
+  return (
+    <>
+      <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
+        <PlatformField label="集成名称 *" className="gap-2">
+          <PlatformInput
+            required
+            value={form.name}
+            onChange={(event) => onChange({ ...form, name: event.target.value })}
+            placeholder="例如：研发 GitHub / 企业域控"
+            className="bg-[var(--bg-input)] px-4 py-3"
+          />
+        </PlatformField>
+        <PlatformField label="集成类型" className="gap-2">
+          <PlatformSelect
+            value={form.type}
+            onChange={(event) =>
+              onChange({
+                name: form.name,
+                type: event.target.value as IntegrationType,
+                credentials: {},
+              })
+            }
+            className="w-full bg-[var(--bg-input)] px-4 py-3 font-bold tracking-widest"
+          >
+            {Object.entries(TYPE_META).map(([key, meta]) => (
+              <option key={key} value={key}>
+                {meta.label}
+              </option>
+            ))}
+          </PlatformSelect>
+        </PlatformField>
+      </div>
+
+      <div className="mb-6 rounded-[var(--radius-base)] border border-[var(--border)] bg-[var(--bg-elevated)] px-5 py-4">
+        <div className="flex items-center gap-3">
+          <activeMeta.icon size={16} strokeWidth={2.2} className="text-[var(--brand)]" />
+          <PlatformStateBadge tone={activeMeta.tone}>{activeMeta.label}</PlatformStateBadge>
+        </div>
+        <p className="mt-3 text-sm font-medium text-[var(--text-muted)]">
+          {activeMeta.description}
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+        {activeMeta.fields.map((field) => (
+          <PlatformField key={field.key} label={field.label} className="gap-2">
+            <PlatformInput
+              type={field.secret ? "password" : "text"}
+              value={form.credentials[field.key] ?? ""}
+              onChange={(event) =>
+                onChange({
+                  ...form,
+                  credentials: {
+                    ...form.credentials,
+                    [field.key]: event.target.value,
+                  },
+                })
+              }
+              placeholder={field.placeholder}
+              className="bg-[var(--bg-input)] px-4 py-3"
+            />
+          </PlatformField>
+        ))}
+      </div>
+    </>
+  );
+}
+
 export default function IntegrationsPage() {
   const confirm = useConfirm();
   const [items, setItems] = useState<Integration[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [showCreate, setShowCreate] = useState(false);
+  const [editingItem, setEditingItem] = useState<Integration | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
   const [form, setForm] = useState<IntegrationForm>(DEFAULT_FORM);
-
-  const activeMeta = TYPE_META[form.type];
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -213,6 +299,41 @@ export default function IntegrationsPage() {
       await load();
     } catch (error: unknown) {
       setFormError(error instanceof Error ? error.message : "集成创建失败");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function openEdit(item: Integration) {
+    setEditingItem(item);
+    setForm({
+      name: item.name,
+      type: item.type as IntegrationType,
+      credentials: toCredentialForm(item.credentials),
+    });
+    setFormError("");
+  }
+
+  async function handleUpdate(event: React.FormEvent) {
+    event.preventDefault();
+    if (!editingItem) {
+      return;
+    }
+    setSubmitting(true);
+    setFormError("");
+
+    try {
+      await apiClient.patch(`/integrations/${editingItem.id}`, {
+        name: form.name,
+        type: form.type,
+        credentials: form.credentials,
+      });
+      toast.success("集成已更新");
+      setForm(DEFAULT_FORM);
+      setEditingItem(null);
+      await load();
+    } catch (error: unknown) {
+      setFormError(error instanceof Error ? error.message : "集成更新失败");
     } finally {
       setSubmitting(false);
     }
@@ -315,8 +436,8 @@ export default function IntegrationsPage() {
     {
       key: "actions",
       header: "操作",
-      headerClassName: "w-[240px] text-right",
-      cellClassName: "w-[240px] text-right",
+      headerClassName: "w-[300px] text-right",
+      cellClassName: "w-[300px] text-right",
       cell: (item) => (
         <div className="flex items-center justify-end gap-2">
           <PlatformButton
@@ -328,6 +449,10 @@ export default function IntegrationsPage() {
           >
             {item.active ? <ToggleRight size={14} strokeWidth={2.2} /> : <ToggleLeft size={14} strokeWidth={2.2} />}
             {item.active ? "停用" : "启用"}
+          </PlatformButton>
+          <PlatformButton type="button" onClick={() => openEdit(item)} className="h-9 px-3">
+            <Pencil size={14} strokeWidth={2.2} />
+            编辑
           </PlatformButton>
           <PlatformButton
             type="button"
@@ -358,6 +483,7 @@ export default function IntegrationsPage() {
             type="button"
             onClick={() => {
               setShowCreate(true);
+              setForm(DEFAULT_FORM);
               setFormError("");
             }}
             className="ov-button px-6 py-3 text-xs"
@@ -383,71 +509,29 @@ export default function IntegrationsPage() {
             <span>[创建失败] {formError}</span>
           </div>
         ) : null}
+        <IntegrationFormFields form={form} onChange={setForm} />
+      </FormModal>
 
-        <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
-          <PlatformField label="集成名称 *" className="gap-2">
-            <PlatformInput
-              required
-              value={form.name}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, name: event.target.value }))
-              }
-              placeholder="例如：研发 GitHub / 企业域控"
-              className="bg-[var(--bg-input)] px-4 py-3"
-            />
-          </PlatformField>
-          <PlatformField label="集成类型" className="gap-2">
-            <PlatformSelect
-              value={form.type}
-              onChange={(event) =>
-                setForm({
-                  name: form.name,
-                  type: event.target.value as IntegrationType,
-                  credentials: {},
-                })
-              }
-              className="w-full bg-[var(--bg-input)] px-4 py-3 font-bold tracking-widest"
-            >
-              {Object.entries(TYPE_META).map(([key, meta]) => (
-                <option key={key} value={key}>
-                  {meta.label}
-                </option>
-              ))}
-            </PlatformSelect>
-          </PlatformField>
-        </div>
-
-        <div className="mb-6 rounded-[var(--radius-base)] border border-[var(--border)] bg-[var(--bg-elevated)] px-5 py-4">
-          <div className="flex items-center gap-3">
-            <activeMeta.icon size={16} strokeWidth={2.2} className="text-[var(--brand)]" />
-            <PlatformStateBadge tone={activeMeta.tone}>{activeMeta.label}</PlatformStateBadge>
+      <FormModal
+        isOpen={Boolean(editingItem)}
+        onClose={() => {
+          setEditingItem(null);
+          setForm(DEFAULT_FORM);
+          setFormError("");
+        }}
+        onSubmit={handleUpdate}
+        title={editingItem ? `编辑集成 · ${editingItem.name}` : "编辑集成"}
+        saving={submitting}
+        saveText="保存更新"
+        savingText="保存中..."
+      >
+        {formError ? (
+          <div className="mb-6 flex items-start gap-3 border-[var(--border-width)] border-[var(--danger)] bg-[var(--danger)]/10 p-4 font-mono text-xs font-bold uppercase tracking-widest text-[var(--danger)]">
+            <ShieldAlert size={16} strokeWidth={2} className="mt-0.5 shrink-0" />
+            <span>[更新失败] {formError}</span>
           </div>
-          <p className="mt-3 text-sm font-medium text-[var(--text-muted)]">
-            {activeMeta.description}
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-          {activeMeta.fields.map((field) => (
-            <PlatformField key={field.key} label={field.label} className="gap-2">
-              <PlatformInput
-                type={field.secret ? "password" : "text"}
-                value={form.credentials[field.key] ?? ""}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    credentials: {
-                      ...current.credentials,
-                      [field.key]: event.target.value,
-                    },
-                  }))
-                }
-                placeholder={field.placeholder}
-                className="bg-[var(--bg-input)] px-4 py-3"
-              />
-            </PlatformField>
-          ))}
-        </div>
+        ) : null}
+        <IntegrationFormFields form={form} onChange={setForm} />
       </FormModal>
 
       <DataTable

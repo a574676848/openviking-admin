@@ -190,7 +190,7 @@ export default function UsersPage() {
       sortable: true,
       sortValue: (u) => u.username,
       cell: (u) => (
-        <div className="flex items-center font-mono text-sm font-bold text-[var(--text-primary)]">
+        <div className="flex items-center font-sans text-sm font-bold text-[var(--text-primary)]">
           <KeyRound size={14} className="mr-2 text-[var(--text-muted)] group-hover:scale-110 transition-transform" />
           {u.username}
         </div>
@@ -237,7 +237,7 @@ export default function UsersPage() {
       sortable: true,
       sortValue: (u) => u.createdAt,
       cell: (u) => (
-        <span className="font-mono text-[10px] tracking-widest text-[var(--text-secondary)]">
+        <span className="font-sans text-[10px] tracking-widest text-[var(--text-secondary)]">
           {new Date(u.createdAt).toLocaleString("zh-CN", { hour12: false })}
         </span>
       ),
@@ -305,7 +305,7 @@ export default function UsersPage() {
             className="px-6 py-3 text-xs"
           >
             <KeyRound size={16} strokeWidth={2} />
-            <span className="font-mono font-bold tracking-widest uppercase">前往凭证中心</span>
+            <span className="font-sans font-bold tracking-widest uppercase">前往凭证中心</span>
           </PlatformButton>
           <PlatformButton
             type="button"
@@ -313,7 +313,7 @@ export default function UsersPage() {
             className="ov-button px-6 py-3 text-xs"
           >
             <Plus size={16} strokeWidth={2} />
-            <span className="font-mono font-bold tracking-widest uppercase">新增成员</span>
+            <span className="font-sans font-bold tracking-widest uppercase">新增成员</span>
           </PlatformButton>
         </div>
       </div>
@@ -329,7 +329,7 @@ export default function UsersPage() {
         savingText="创建中..."
       >
         {error && (
-          <div className="mb-6 flex items-start gap-3 border-[var(--border-width)] border-[var(--danger)] bg-[var(--danger)]/10 p-4 font-mono text-xs font-bold uppercase tracking-widest text-[var(--danger)]">
+          <div className="mb-6 flex items-start gap-3 border-[var(--border-width)] border-[var(--danger)] bg-[var(--danger)]/10 p-4 font-sans text-xs font-bold uppercase tracking-widest text-[var(--danger)]">
             <ShieldAlert size={16} strokeWidth={2} className="mt-0.5 shrink-0" />
             <span>[创建失败] {error}</span>
           </div>
@@ -380,7 +380,7 @@ export default function UsersPage() {
         saveText="保存修改"
       >
         {editError && (
-          <div className="mb-6 flex items-start gap-3 border-[var(--border-width)] border-[var(--danger)] bg-[var(--danger)]/10 p-4 font-mono text-xs font-bold uppercase tracking-widest text-[var(--danger)]">
+          <div className="mb-6 flex items-start gap-3 border-[var(--border-width)] border-[var(--danger)] bg-[var(--danger)]/10 p-4 font-sans text-xs font-bold uppercase tracking-widest text-[var(--danger)]">
             <ShieldAlert size={16} strokeWidth={2} className="mt-0.5 shrink-0" />
             <span>[更新失败] {editError}</span>
           </div>
@@ -411,7 +411,7 @@ export default function UsersPage() {
         saveText="确认重置"
       >
         {resetError && (
-          <div className="mb-6 flex items-start gap-3 border-[var(--border-width)] border-[var(--danger)] bg-[var(--danger)]/10 p-4 font-mono text-xs font-bold uppercase tracking-widest text-[var(--danger)]">
+          <div className="mb-6 flex items-start gap-3 border-[var(--border-width)] border-[var(--danger)] bg-[var(--danger)]/10 p-4 font-sans text-xs font-bold uppercase tracking-widest text-[var(--danger)]">
             <ShieldAlert size={16} strokeWidth={2} className="mt-0.5 shrink-0" />
             <span>[重置失败] {resetError}</span>
           </div>
@@ -458,7 +458,7 @@ export default function UsersPage() {
 
       {/* ─── 底部统计 ─── */}
       {!loading && users.length > 0 && (
-        <div className="mt-4 flex flex-wrap gap-4 text-[10px] font-mono font-black tracking-widest uppercase">
+        <div className="mt-4 flex flex-wrap gap-4 text-[10px] font-sans font-black tracking-widest uppercase">
           <PlatformStatPill label="成员总数" value={users.length} accent="var(--border)" />
           <PlatformStatPill label="管理员" value={stats.admins} accent="var(--brand)" backgroundClassName="bg-[var(--brand)]/10" />
           <PlatformStatPill label="已禁用" value={stats.disabled} accent="var(--danger)" backgroundClassName="bg-[var(--danger)]/10" />

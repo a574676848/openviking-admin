@@ -144,7 +144,7 @@ export default function AuditPage() {
       sortable: true,
       sortValue: (log) => new Date(log.createdAt),
       cell: (log) => (
-        <div className="whitespace-nowrap font-mono text-[10px] tracking-widest text-[var(--text-secondary)]">
+        <div className="whitespace-nowrap font-sans text-[10px] tracking-widest text-[var(--text-secondary)]">
           {new Date(log.createdAt).toLocaleString("zh-CN", { hour12: false })}
         </div>
       ),
@@ -197,7 +197,7 @@ export default function AuditPage() {
       key: "ip",
       header: "来源 IP",
       cell: (log) => (
-        <div className="font-mono text-[10px] tracking-widest text-[var(--text-secondary)]">
+        <div className="font-sans text-[10px] tracking-widest text-[var(--text-secondary)]">
           {log.ip || "---"}
         </div>
       ),
@@ -305,7 +305,7 @@ export default function AuditPage() {
             <span className="font-sans text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
               记录总数
             </span>
-            <span className="font-mono text-sm font-black tabular-nums text-[var(--brand)]">
+            <span className="font-sans text-sm font-black tabular-nums text-[var(--brand)]">
               [{result?.total ?? 0}]
             </span>
           </div>
@@ -321,7 +321,7 @@ export default function AuditPage() {
                 <ChevronLeft size={12} strokeWidth={2.6} />
                 上一页
               </ConsoleButton>
-              <span className="font-mono text-[10px] font-bold tracking-widest text-[var(--text-primary)]">
+              <span className="font-sans text-[10px] font-bold tracking-widest text-[var(--text-primary)]">
                 第 {page}/{result.pages} 页
               </span>
               <ConsoleButton

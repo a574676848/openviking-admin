@@ -414,7 +414,7 @@ export default function DashboardPage() {
               <div className="rounded-[var(--radius-base)] border border-[var(--border)] bg-[linear-gradient(180deg,rgba(230,74,25,0.09),rgba(230,74,25,0.01))] p-4">
                 <div className="mb-4 flex items-start justify-between gap-4">
                   <div>
-                    <p className="font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--text-muted)]">
+                    <p className="font-sans text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--text-muted)]">
                       Search Volume / 检索热度波形
                     </p>
                     <p className="mt-1.5 text-sm font-medium text-[var(--text-secondary)]">
@@ -422,7 +422,7 @@ export default function DashboardPage() {
                     </p>
                   </div>
                   <div className="rounded-[var(--radius-base)] border border-[rgba(230,74,25,0.18)] bg-[rgba(255,255,255,0.72)] px-3.5 py-2.5 text-right">
-                    <p className="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--text-muted)]">
+                    <p className="font-sans text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--text-muted)]">
                       最近一天
                     </p>
                     <p className="mt-1 font-sans text-xl font-bold text-[var(--brand)]">
@@ -527,7 +527,7 @@ export default function DashboardPage() {
                   >
                     <div className="flex items-center gap-3">
                       <div
-                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-base)] border font-mono text-[11px] font-black ${visual.badgeClassName}`}
+                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-base)] border font-sans text-[11px] font-black ${visual.badgeClassName}`}
                       >
                         {index + 1}
                       </div>
@@ -537,12 +537,12 @@ export default function DashboardPage() {
                             {item.query}
                           </p>
                           <span
-                            className={`shrink-0 font-mono text-[11px] font-black uppercase tracking-[0.14em] ${visual.textClassName}`}
+                            className={`shrink-0 font-sans text-[11px] font-black uppercase tracking-[0.14em] ${visual.textClassName}`}
                           >
                             {item.count} 次
                           </span>
                         </div>
-                        <div className="mt-1 flex items-center gap-3 font-mono text-[10px] font-bold text-[var(--text-muted)]">
+                        <div className="mt-1 flex items-center gap-3 font-sans text-[10px] font-bold text-[var(--text-muted)]">
                           <span>
                             命中率{" "}
                             <span className="text-[var(--text-primary)]">
@@ -577,7 +577,7 @@ export default function DashboardPage() {
               key={`${log.label}-${index}`}
               className="group flex items-center gap-4 px-6 py-4 transition-colors hover:bg-[var(--bg-elevated)]/50"
             >
-              <div className="w-20 shrink-0 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--text-muted)]">
+              <div className="w-20 shrink-0 font-sans text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--text-muted)]">
                 {log.time}
               </div>
               <div
@@ -587,7 +587,7 @@ export default function DashboardPage() {
                 <Clock size={12} strokeWidth={2.5} style={{ color: log.tone }} />
               </div>
               <div className="min-w-0 flex-1">
-                <div className="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--text-secondary)]">
+                <div className="font-sans text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--text-secondary)]">
                   {log.label}
                 </div>
                 <div className="mt-0.5 truncate font-sans text-sm font-bold">
@@ -595,7 +595,7 @@ export default function DashboardPage() {
                 </div>
               </div>
               <div
-                className="shrink-0 text-right font-mono text-[10px] font-bold uppercase tracking-[0.16em]"
+                className="shrink-0 text-right font-sans text-[10px] font-bold uppercase tracking-[0.16em]"
                 style={{ color: log.tone }}
               >
                 {log.status === "online"

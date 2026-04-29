@@ -38,7 +38,7 @@
 | 指南 | [开发者指南](./DEVELOPMENT.md) | 本地开发、代码规范和提交流程 |
 | 指南 | [CLI 指南](./CLI_GUIDE.md) | `ova` 安装、登录、换证和命令 |
 | 指南 | [MCP 指南](./MCP_GUIDE.md) | MCP 客户端配置、会话建立和调试 |
-| 指南 | [Skill 集成指南](./SKILL_GUIDE.md) | Agent Skill 的 HTTP/CLI 调用模式 |
+| 指南 | [Skill 集成指南](./SKILL_GUIDE.md) | Agent Skill 的 HTTP/CLI 调用模式；项目内置 Skill 位于 `skills/openviking-admin` |
 | 参考 | [API 参考](./API_REFERENCE.md) | HTTP 端点、认证方式、响应格式和错误码 |
 | 参考 | [配置参考](./CONFIGURATION.md) | 环境变量和系统配置项 |
 | 参考 | [数据库 Schema](./DATABASE_SCHEMA.md) | 表结构、关系和迁移说明 |

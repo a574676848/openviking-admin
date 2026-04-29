@@ -19,7 +19,11 @@ const PLATFORM_TONE_CLASS = {
   default:
     "border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-primary)] hover:border-[var(--brand)] hover:bg-[var(--brand-muted)] hover:text-[var(--brand)] focus-visible:ring-[var(--brand)] focus-visible:ring-offset-[var(--bg-card)]",
   danger:
-    "border-[var(--danger)] bg-transparent text-[var(--danger)] hover:bg-[var(--danger)] hover:text-white focus-visible:ring-[var(--danger)] focus-visible:ring-offset-[var(--bg-card)]",
+    "border-[var(--danger)] bg-[var(--danger)]/10 text-[var(--danger)] hover:bg-[var(--danger)] hover:text-white focus-visible:ring-[var(--danger)] focus-visible:ring-offset-[var(--bg-card)]",
+  warning:
+    "border-[var(--warning)] bg-[var(--warning)]/10 text-[var(--warning)] hover:bg-[var(--warning)] hover:text-white focus-visible:ring-[var(--warning)] focus-visible:ring-offset-[var(--bg-card)]",
+  brand:
+    "border-transparent bg-[var(--brand)] text-[var(--bg-card)] hover:bg-[var(--brand)]/90 hover:text-[var(--bg-card)] focus-visible:ring-[var(--brand)] focus-visible:ring-offset-[var(--bg-card)]",
 } as const;
 
 const PLATFORM_BADGE_TONE_CLASS = {

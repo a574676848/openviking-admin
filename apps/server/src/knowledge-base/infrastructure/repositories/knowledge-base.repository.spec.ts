@@ -56,10 +56,10 @@ describe('TypeOrmKnowledgeBaseRepository', () => {
     expect(tenantQueryRunner.manager.update).toHaveBeenCalledWith(
       KnowledgeBase,
       'kb-1',
-      { vikingUri: 'viking://resources/test3/kb-1/' },
+      { vikingUri: 'viking://resources/tenants/test3/kb-1/' },
     );
     expect(tenantQueryRunner.release).not.toHaveBeenCalled();
-    expect(result.vikingUri).toBe('viking://resources/test3/kb-1/');
+    expect(result.vikingUri).toBe('viking://resources/tenants/test3/kb-1/');
   });
 
   it('LARGE 租户创建知识库时应从租户 DataSource 创建事务', async () => {

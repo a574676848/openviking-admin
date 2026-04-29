@@ -21,6 +21,7 @@ import {
   Principal,
 } from '../domain/capability.types';
 import { resolveCredentialTtlSeconds } from '../domain/credential-ttl.policy';
+import { buildTenantIdentityWhere } from '../../tenant/tenant-identity.util';
 
 interface JwtLikePayload {
   sub?: string;
@@ -85,7 +86,9 @@ export class CapabilityCredentialService {
     }
 
     if (!payload.sub || !payload.tenantId) {
-      throw new ForbiddenException('当前凭证缺少租户上下文，无法调用 capability');
+      throw new ForbiddenException(
+        '当前凭证缺少租户上下文，无法调用 capability',
+      );
     }
 
     const ovConfig = await this.loadOvConfigForTenant(payload.tenantId);
@@ -142,7 +145,9 @@ export class CapabilityCredentialService {
     name: string,
     ttlSeconds?: number | null,
   ) {
-    const user = await this.userRepo.findOne({ where: { id: userId, tenantId } });
+    const user = await this.userRepo.findOne({
+      where: { id: userId, tenantId },
+    });
     if (!user || !user.active) {
       throw new NotFoundException('用户不存在或不可用');
     }
@@ -195,9 +200,11 @@ export class CapabilityCredentialService {
     return { success: true };
   }
 
-  private async loadOvConfigForTenant(tenantId: string): Promise<OVConfigProfile> {
+  private async loadOvConfigForTenant(
+    tenantId: string,
+  ): Promise<OVConfigProfile> {
     const tenant = await this.tenantRepo.findOne({
-      where: [{ id: tenantId }, { tenantId }],
+      where: buildTenantIdentityWhere(tenantId),
     });
 
     if (tenant?.ovConfig?.apiKey) {
@@ -205,6 +212,7 @@ export class CapabilityCredentialService {
         ...tenant.ovConfig,
         apiKey: this.encryptionService.decrypt(tenant.ovConfig.apiKey),
         account: tenant.vikingAccount || tenant.ovConfig.account || 'default',
+        user: tenant.ovConfig.user || null,
       } as OVConfigProfile;
     }
 

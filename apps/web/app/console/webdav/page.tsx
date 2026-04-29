@@ -18,6 +18,8 @@ interface DashboardData {
   };
 }
 
+const DEFAULT_WEBDAV_BASE_URL = "https://viking-engine.local:1933";
+
 type ClientPreset = {
   id: "obsidian" | "vscode" | "windows" | "mac";
   label: string;
@@ -102,14 +104,14 @@ function CodeBlock({
         </button>
       </div>
       <div className="grid h-full flex-1 grid-cols-[56px_minmax(0,1fr)] bg-black text-[var(--success)]">
-        <div className="border-r-[3px] border-[var(--border)] bg-black/80 px-3 py-6 font-mono text-xs font-black text-white/40 select-none">
+        <div className="border-r-[3px] border-[var(--border)] bg-black/80 px-3 py-6 font-sans text-xs font-black text-white/40 select-none">
           {lines.map((_, index) => (
             <div key={index} className="h-7 leading-7 text-right pr-2">
               {index + 1}
             </div>
           ))}
         </div>
-        <pre className="overflow-x-auto px-6 py-6 font-mono text-[13px] font-bold leading-7 tracking-wide">{lines.join("\n")}</pre>
+        <pre className="overflow-x-auto px-6 py-6 font-sans text-[13px] font-bold leading-7 tracking-wide">{lines.join("\n")}</pre>
       </div>
     </div>
   );
@@ -140,7 +142,7 @@ export default function WebdavConfigPage() {
       });
   }, []);
 
-  const webdavUrl = `${resolveWebdavBaseUrl()}/webdav/${tenantId}/`;
+  const webdavUrl = `${resolveWebdavBaseUrl(process.env.NEXT_PUBLIC_BACKEND_URL)}/webdav/${tenantId}/`;
 
   const preset = useMemo(() => {
     return clientPresets.find((item) => item.id === activePreset) ?? clientPresets[0];
@@ -168,7 +170,7 @@ export default function WebdavConfigPage() {
         actions={
           <div className="flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--bg-card)] px-3 py-1.5">
             <div className={`h-2 w-2 rounded-full ${isHealthy ? "bg-[var(--success)] shadow-[0_0_8px_var(--success)]" : "bg-[var(--danger)]"}`} />
-            <span className="font-mono text-[9px] font-black uppercase tracking-widest opacity-60">
+            <span className="font-sans text-[9px] font-black uppercase tracking-widest opacity-60">
               {loading ? "CHECKING" : isHealthy ? "ONLINE" : "DEGRADED"}
             </span>
           </div>
@@ -255,7 +257,7 @@ export default function WebdavConfigPage() {
               { code: "PATH_ERROR", hint: "确认 URL 末尾保留完整路径，例如 /webdav/{tenant_id}/。" },
             ].map((item) => (
               <div key={item.code} className="flex items-start gap-4">
-                <div className="mt-1 font-mono text-xs font-black text-[var(--brand)] uppercase shrink-0">[{item.code.split(' ')[0]}]</div>
+                <div className="mt-1 font-sans text-xs font-black text-[var(--brand)] uppercase shrink-0">[{item.code.split(' ')[0]}]</div>
                 <p className="font-sans text-sm font-medium text-[var(--text-secondary)] leading-tight">{item.hint}</p>
               </div>
             ))}
@@ -283,5 +285,5 @@ function resolveWebdavBaseUrl(resolvedBaseUrl?: string, fallbackHost?: string) {
     return window.location.origin;
   }
 
-  return fallbackHost ? `https://${fallbackHost}` : "https://viking-engine.local:1933";
+  return fallbackHost ? `https://${fallbackHost}` : DEFAULT_WEBDAV_BASE_URL;
 }

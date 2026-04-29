@@ -193,7 +193,7 @@ export default function AnalysisPage() {
       <div className="flex h-96 items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="h-12 w-12 animate-spin rounded-full border-4 border-[var(--brand)] border-t-transparent" />
-          <p className="font-mono text-xs font-black uppercase tracking-[0.24em] text-[var(--brand)]">
+          <p className="font-sans text-xs font-black uppercase tracking-[0.24em] text-[var(--brand)]">
             分析引擎解析中...
           </p>
         </div>
@@ -273,7 +273,7 @@ export default function AnalysisPage() {
               <ConsoleSurfaceCard tone="elevated" className="flex flex-col justify-between border-dashed">
                 <div>
                   <div className="flex items-center justify-between">
-                    <span className="font-mono text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">
+                    <span className="font-sans text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">
                       LATEST GAP / 最新缺口样本
                     </span>
                     <TrendingUp size={14} className="text-[var(--danger)] opacity-80" />
@@ -281,7 +281,7 @@ export default function AnalysisPage() {
                   <div className="mt-6 border-l-4 border-[var(--danger)]/50 pl-4">
                     <h3 className="line-clamp-2 font-sans text-xl font-black text-[var(--text-primary)]">
                       {data.noAnswerLogs[0]?.query ?? "全域已对齐"}
-                    </h3>                    <p className="mt-2 font-mono text-[10px] font-bold text-[var(--text-muted)]">
+                    </h3>                    <p className="mt-2 font-sans text-[10px] font-bold text-[var(--text-muted)]">
                       {data.noAnswerLogs[0]?.scope || "viking://global"}
                     </p>
                   </div>
@@ -299,7 +299,7 @@ export default function AnalysisPage() {
 
               <ConsoleSurfaceCard className="bg-transparent border-dashed">
                 <div className="flex items-center justify-between">
-                  <span className="font-mono text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">
+                  <span className="font-sans text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">
                     TREND / 近七日趋势
                   </span>
                   <BarChart3 size={14} className="text-[var(--text-muted)]" />
@@ -313,7 +313,7 @@ export default function AnalysisPage() {
                   ) : (
                     trend.map((item) => (
                       <div key={item.day} className="group relative flex h-full flex-1 flex-col justify-end gap-1">
-                        <div className="absolute -top-7 left-1/2 -translate-x-1/2 scale-75 rounded bg-[var(--text-primary)] px-2 py-1 font-mono text-[9px] font-black text-[var(--bg-card)] opacity-0 shadow-xl transition-all group-hover:scale-100 group-hover:opacity-100">
+                        <div className="absolute -top-7 left-1/2 -translate-x-1/2 scale-75 rounded bg-[var(--text-primary)] px-2 py-1 font-sans text-[9px] font-black text-[var(--bg-card)] opacity-0 shadow-xl transition-all group-hover:scale-100 group-hover:opacity-100">
                           {item.total}
                         </div>
                         <div
@@ -325,7 +325,7 @@ export default function AnalysisPage() {
                             style={{ height: `${(item.noAnswer / (item.total || 1)) * 100}%` }}
                           />
                         </div>
-                        <span className="text-center font-mono text-[9px] font-bold text-[var(--text-muted)] group-hover:text-[var(--text-primary)]">
+                        <span className="text-center font-sans text-[9px] font-bold text-[var(--text-muted)] group-hover:text-[var(--text-primary)]">
                           {item.day.split('-').slice(1).join('/')}
                         </span>
                       </div>
@@ -344,13 +344,13 @@ export default function AnalysisPage() {
               <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
                 <ConsoleSurfaceCard tone="elevated" className="flex flex-col justify-between">
                   <div>
-                    <span className="font-mono text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">
+                    <span className="font-sans text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">
                       ACTIVE QUERY / 当前待处理
                     </span>
                     <h2 className="mt-4 font-sans text-3xl font-black text-[var(--text-primary)]">
                       {selectedLog.query}
                     </h2>
-                    <div className="mt-4 flex flex-wrap gap-4 font-mono text-[10px] font-bold text-[var(--text-muted)]">
+                    <div className="mt-4 flex flex-wrap gap-4 font-sans text-[10px] font-bold text-[var(--text-muted)]">
                       <div className="flex items-center gap-1.5">
                         <span className="opacity-60">耗时:</span>
                         <span className="text-[var(--brand)]">{selectedLog.latencyMs}ms</span>
@@ -371,7 +371,7 @@ export default function AnalysisPage() {
                       跳转导入
                     </ConsoleButton>
                     <ConsoleButton
-                      tone="default"
+                      tone="neutral"
                       className="flex-1 h-9 text-[11px] border"
                       style={{ 
                         backgroundColor: "var(--bg-base)", 
@@ -387,7 +387,7 @@ export default function AnalysisPage() {
                 </ConsoleSurfaceCard>
 
                 <ConsoleSurfaceCard className="bg-transparent border-dashed">
-                  <span className="font-mono text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">
+                  <span className="font-sans text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">
                     RECOMMENDED KB / 推荐知识库
                   </span>
                   <div className="mt-4 space-y-2">
@@ -396,7 +396,7 @@ export default function AnalysisPage() {
                         <div key={kb.id} className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-3 transition-colors hover:border-[var(--brand)]">
                           <div className="min-w-0">
                             <p className="truncate font-sans text-sm font-bold">{kb.name}</p>
-                            <p className="truncate font-mono text-[9px] text-[var(--text-muted)]">ID: {kb.id}</p>
+                            <p className="truncate font-sans text-[9px] text-[var(--text-muted)]">ID: {kb.id}</p>
                           </div>
                           <ConsoleButton
                             tone="dark"
@@ -409,7 +409,7 @@ export default function AnalysisPage() {
                         </div>
                       ))
                     ) : (
-                      <p className="py-8 text-center font-mono text-[10px] text-[var(--text-muted)]">
+                      <p className="py-8 text-center font-sans text-[10px] text-[var(--text-muted)]">
                         暂无推荐库，请先创建。
                       </p>
                     )}
@@ -436,8 +436,8 @@ export default function AnalysisPage() {
                     : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
                 }`}
               >
-                <span className="font-mono text-[10px] font-black uppercase tracking-widest">{tab.label}</span>
-                <span className="font-mono text-xs font-bold">[{tab.count}]</span>
+                <span className="font-sans text-[10px] font-black uppercase tracking-widest">{tab.label}</span>
+                <span className="font-sans text-xs font-bold">[{tab.count}]</span>
                 {activeTab === tab.id && (
                   <div className="absolute bottom-0 h-1 w-full bg-[var(--brand)] shadow-[0_0_8px_var(--brand)]" />
                 )}
@@ -474,7 +474,7 @@ export default function AnalysisPage() {
                               {isTop3 ? `TOP ${index + 1}` : "样本"}
                             </ConsoleBadge>
                           </div>
-                          <p className="mt-1 truncate font-mono text-[10px] text-[var(--text-muted)]">
+                          <p className="mt-1 truncate font-sans text-[10px] text-[var(--text-muted)]">
                             {new Date(log.createdAt).toLocaleString()} · {log.latencyMs}ms
                           </p>
                         </div>
@@ -499,12 +499,12 @@ export default function AnalysisPage() {
                     
                     return (
                       <div key={index} className="flex items-center gap-4 px-6 py-4">
-                        <span className={`font-mono text-xs ${isTop3 ? "font-black" : "font-bold"} ${rankColor}`}>
+                        <span className={`font-sans text-xs ${isTop3 ? "font-black" : "font-bold"} ${rankColor}`}>
                           #{String(index + 1).padStart(2, "0")}
                         </span>
                         <div className="flex-1 min-w-0">
                           <p className={`truncate font-sans ${fontClass} ${queryColor}`}>{item.query}</p>
-                          <div className="mt-1 flex gap-4 font-mono text-[10px] font-bold text-[var(--text-muted)]">
+                          <div className="mt-1 flex gap-4 font-sans text-[10px] font-bold text-[var(--text-muted)]">
                             <span>频次: <span className="text-[var(--brand)]">{item.count}</span></span>
                             <span>平均召回: <span className={(item.avgResults ?? 0) > 0 ? "text-[var(--success)]" : "text-[var(--danger)]"}>{(item.avgResults ?? 0).toFixed(1)}</span></span>
                           </div>

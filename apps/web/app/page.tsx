@@ -22,7 +22,7 @@ export default function HomePage() {
   }, [user, isLoading, router]);
 
   return (
-    <div className="min-h-screen bg-[var(--bg-base)] flex items-center justify-center font-mono text-xs uppercase tracking-widest animate-pulse">
+    <div className="min-h-screen bg-[var(--bg-base)] flex items-center justify-center font-sans text-xs uppercase tracking-widest animate-pulse">
       正在连接 OpenViking 核心引擎...
     </div>
   );

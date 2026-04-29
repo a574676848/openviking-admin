@@ -39,6 +39,7 @@ async function renderPage() {
 describe("WebdavConfigPage", () => {
   beforeEach(() => {
     (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    vi.stubEnv("NEXT_PUBLIC_BACKEND_URL", "http://localhost:6001");
     getMock.mockReset();
   });
 
@@ -49,6 +50,7 @@ describe("WebdavConfigPage", () => {
       });
     }
     container?.remove();
+    vi.unstubAllEnvs();
   });
 
   it("核心健康度降级时仍允许查看 WebDAV 配置", async () => {
@@ -64,7 +66,7 @@ describe("WebdavConfigPage", () => {
     expect(getMock).toHaveBeenCalledWith("/system/dashboard");
     expect(container.textContent).toContain("核心健康度降级");
     expect(container.textContent).toContain("DEGRADED");
-    expect(container.textContent).toContain('"address": "http://localhost:3000/webdav/tenant-demo/"');
+    expect(container.textContent).toContain('"address": "http://localhost:6001/webdav/tenant-demo/"');
     expect(container.textContent).toContain("OBSIDIAN");
     expect(container.querySelector(".pointer-events-none")).toBeNull();
   });

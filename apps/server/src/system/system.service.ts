@@ -21,6 +21,10 @@ import {
   TenantIsolationLevel,
   TenantStatus,
 } from '../common/constants/system.enum';
+import {
+  DashboardImportTaskStatsService,
+  type PlatformImportTaskStats,
+} from './dashboard-import-task-stats.service';
 
 interface DashboardOVConnection {
   baseUrl: string;
@@ -51,13 +55,23 @@ interface PlatformKnowledgeBaseStats {
 
 /** 解析 OV 文本表格为结构化行数据 */
 function parseOVTable(tableStr: string): Array<Record<string, string>> {
-  const lines = tableStr.split('\n').filter(l => l.trim() && !l.trim().startsWith('+'));
+  const lines = tableStr
+    .split('\n')
+    .filter((l) => l.trim() && !l.trim().startsWith('+'));
   if (lines.length < 2) return [];
-  const headers = lines[0].split('|').map(h => h.trim()).filter(Boolean);
-  return lines.slice(1).map(line => {
-    const cells = line.split('|').map(c => c.trim()).filter(Boolean);
+  const headers = lines[0]
+    .split('|')
+    .map((h) => h.trim())
+    .filter(Boolean);
+  return lines.slice(1).map((line) => {
+    const cells = line
+      .split('|')
+      .map((c) => c.trim())
+      .filter(Boolean);
     const row: Record<string, string> = {};
-    headers.forEach((h, i) => { row[h] = cells[i] ?? ''; });
+    headers.forEach((h, i) => {
+      row[h] = cells[i] ?? '';
+    });
     return row;
   });
 }
@@ -103,6 +117,7 @@ export class SystemService {
     private readonly logRepo: ISearchLogRepository,
     @Inject(TENANT_REPOSITORY)
     private readonly tenantRepo: ITenantRepository,
+    private readonly dashboardImportTaskStats: DashboardImportTaskStatsService,
   ) {}
 
   async getDashboardStats(tenantId: string | null) {
@@ -116,36 +131,45 @@ export class SystemService {
 
     const [
       scopedKbCount,
-      taskCount,
+      tenantTaskCount,
       searchCount,
       zeroCount,
-      recentTasks,
+      tenantRecentTasks,
       ovSnapshot,
     ] = await Promise.allSettled([
       tenantId ? this.kbRepo.count({ where }) : Promise.resolve(0),
-      this.taskRepo.count(where),
+      tenantId ? this.taskRepo.count(where) : Promise.resolve(0),
       this.logRepo.count({ where }),
       this.logRepo.count({ where: { ...where, resultCount: 0 } }),
-      this.taskRepo.find(
-        where,
-        { createdAt: 'DESC' },
-        DASHBOARD_RECENT_TASK_LIMIT,
-      ),
+      tenantId
+        ? this.taskRepo.find(
+            where,
+            { createdAt: 'DESC' },
+            DASHBOARD_RECENT_TASK_LIMIT,
+          )
+        : Promise.resolve([]),
       this.resolveOVSnapshot(ovTargets),
     ]);
 
-    const failedTasks = await this.taskRepo.count({
-      ...where,
-      status: 'failed',
-    });
-    const runningTasks = await this.taskRepo.count({
-      ...where,
-      status: 'running',
-    });
+    let failedTasks = 0;
+    let runningTasks = 0;
+    if (tenantId) {
+      [failedTasks, runningTasks] = await Promise.all([
+        this.taskRepo.count({
+          ...where,
+          status: 'failed',
+        }),
+        this.taskRepo.count({
+          ...where,
+          status: 'running',
+        }),
+      ]);
+    }
 
     let quota: Record<string, unknown> | null = null;
     let tenantIdentifier: string | null = null;
     let platformKnowledgeBaseStats: PlatformKnowledgeBaseStats | null = null;
+    let platformImportTaskStats: PlatformImportTaskStats | null = null;
     let tenantSearchTop: TenantLeaderboardItem[] = [];
     if (tenantId) {
       const tenant =
@@ -156,10 +180,12 @@ export class SystemService {
         tenantIdentifier = tenant.tenantId;
       }
     } else {
-      [platformKnowledgeBaseStats, tenantSearchTop] = await Promise.all([
-        this.resolvePlatformKnowledgeBaseStats(activeTenants),
-        this.resolveTenantSearchTop(activeTenants),
-      ]);
+      [platformKnowledgeBaseStats, tenantSearchTop, platformImportTaskStats] =
+        await Promise.all([
+          this.resolvePlatformKnowledgeBaseStats(activeTenants),
+          this.resolveTenantSearchTop(activeTenants),
+          this.dashboardImportTaskStats.resolvePlatformStats(activeTenants),
+        ]);
     }
 
     const effectiveKbCount = tenantId
@@ -167,15 +193,31 @@ export class SystemService {
         ? scopedKbCount.value
         : 0
       : (platformKnowledgeBaseStats?.total ?? 0);
+    const effectiveSearchCount =
+      searchCount.status === 'fulfilled' ? searchCount.value : 0;
+    const effectiveZeroCount =
+      zeroCount.status === 'fulfilled' ? zeroCount.value : 0;
 
     return {
       kbCount: effectiveKbCount,
-      taskCount: taskCount.status === 'fulfilled' ? taskCount.value : 0,
-      searchCount: searchCount.status === 'fulfilled' ? searchCount.value : 0,
-      zeroCount: zeroCount.status === 'fulfilled' ? zeroCount.value : 0,
-      failedTasks,
-      runningTasks,
-      recentTasks: recentTasks.status === 'fulfilled' ? recentTasks.value : [],
+      taskCount: tenantId
+        ? tenantTaskCount.status === 'fulfilled'
+          ? tenantTaskCount.value
+          : 0
+        : (platformImportTaskStats?.total ?? 0),
+      searchCount: effectiveSearchCount,
+      zeroCount: effectiveZeroCount,
+      failedTasks: tenantId
+        ? failedTasks
+        : (platformImportTaskStats?.failed ?? 0),
+      runningTasks: tenantId
+        ? runningTasks
+        : (platformImportTaskStats?.running ?? 0),
+      recentTasks: tenantId
+        ? tenantRecentTasks.status === 'fulfilled'
+          ? tenantRecentTasks.value
+          : []
+        : (platformImportTaskStats?.recentTasks ?? []),
       quota,
       tenantIdentifier,
       tenantCount: ovTargetsResult.tenantCount,
@@ -268,9 +310,15 @@ export class SystemService {
           queue:
             queue.status === 'fulfilled'
               ? (() => {
-                  const val = queue.value as Record<string, unknown> | undefined;
-                  const result = val?.result as Record<string, unknown> | undefined;
-                  const tableStr = (result?.status ?? val?.result ?? val) as string | undefined;
+                  const val = queue.value as
+                    | Record<string, unknown>
+                    | undefined;
+                  const result = val?.result as
+                    | Record<string, unknown>
+                    | undefined;
+                  const tableStr = (result?.status ?? val?.result ?? val) as
+                    | string
+                    | undefined;
                   return tableStr ? parseQueueTable(tableStr) : null;
                 })()
               : null,
@@ -368,7 +416,9 @@ export class SystemService {
     tenant: TenantModel,
   ): Promise<number> {
     if (!tenant.dbConfig) {
-      this.logger.warn(`LARGE 租户缺少独立库配置，无法统计知识库: ${tenant.tenantId}`);
+      this.logger.warn(
+        `LARGE 租户缺少独立库配置，无法统计知识库: ${tenant.tenantId}`,
+      );
       return 0;
     }
     const tenantDataSource = await this.dynamicDS.getTenantDataSource(
@@ -382,7 +432,10 @@ export class SystemService {
     tenants: TenantModel[],
   ): Promise<TenantLeaderboardItem[]> {
     const tenantNameMap = new Map(
-      tenants.map((tenant) => [tenant.tenantId, tenant.displayName || tenant.tenantId]),
+      tenants.map((tenant) => [
+        tenant.tenantId,
+        tenant.displayName || tenant.tenantId,
+      ]),
     );
     const rows = await this.defaultDataSource
       .createQueryBuilder()

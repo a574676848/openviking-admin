@@ -25,6 +25,7 @@
     "cli:build": "pnpm --filter @openviking-admin/ova-cli run build",
     "cli:test": "pnpm --filter @openviking-admin/ova-cli run test",
     "cli:typecheck": "pnpm --filter @openviking-admin/ova-cli run typecheck",
+    "cli:install": "node scripts/install-ova-cli.mjs",
     "ova": "pnpm --filter @openviking-admin/ova-cli run dev --"
   }
 }

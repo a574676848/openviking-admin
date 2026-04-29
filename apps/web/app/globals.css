@@ -31,6 +31,8 @@
   --warning: #F9AB00;
   --danger:  #D93025;
   --info:    #16A34A;
+
+  --font-stack-sans: var(--font-inter), "PingFang SC", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
 }
 
 /* ─── Starry Sky Dark Style Overrides ─── */
@@ -96,17 +98,20 @@ html, body { min-height: 100%; }
 body {
   background: var(--bg-base);
   color: var(--text-primary);
-  font-family: var(--font-inter), "PingFang SC", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-stack-sans);
   -webkit-font-smoothing: antialiased;
   transition: background-color 0.4s ease, color 0.4s ease;
 }
 
 .font-sans {
-  font-family: var(--font-inter), "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-family: var(--font-stack-sans);
 }
 
-.font-mono {
-  font-family: var(--font-mono), "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+code,
+pre,
+kbd,
+samp {
+  font-family: inherit;
 }
 
 /* Base Classes */

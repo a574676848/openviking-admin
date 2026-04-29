@@ -204,7 +204,7 @@ export default function UsersPage() {
       cell: (u) => {
         const isSuper = u.role === "super_admin";
         return (
-          <div className="font-mono font-bold text-sm text-[var(--text-primary)] flex items-center">
+          <div className="font-sans font-bold text-sm text-[var(--text-primary)] flex items-center">
             <Key size={14} className={`mr-2 ${isSuper ? 'text-[var(--danger)]' : 'text-[var(--text-muted)]'} group-hover:scale-110 transition-transform`} />
             {u.username}
             <span title="平台超级管理员" className="flex items-center">
@@ -248,7 +248,7 @@ export default function UsersPage() {
       cell: (u) => {
         const tenant = tenants.find(t => t.id === u.tenantId);
         return (
-          <div className="font-mono text-[10px] tracking-widest text-[var(--text-secondary)]">
+          <div className="font-sans text-[10px] tracking-widest text-[var(--text-secondary)]">
             {u.tenantId ? (
               <span className="flex items-start gap-1.5">
                 <Building2 size={12} className="opacity-50 shrink-0 mt-0.5" />
@@ -344,7 +344,7 @@ export default function UsersPage() {
             className={`ov-button px-6 py-3 text-xs ${showCreate ? 'bg-[var(--danger)] text-white border-[var(--danger)] hover:bg-[var(--danger)]' : ''}`}
           >
             <Plus size={16} strokeWidth={2} className={showCreate ? 'rotate-45 transition-transform' : 'transition-transform'} />
-            <span className="font-mono font-bold tracking-widest uppercase">{showCreate ? '取消创建' : '创建新账号'}</span>
+            <span className="font-sans font-bold tracking-widest uppercase">{showCreate ? '取消创建' : '创建新账号'}</span>
           </PlatformButton>
         }
       />
@@ -359,7 +359,7 @@ export default function UsersPage() {
         saveText="确认分配"
       >
         {error && (
-          <div className="flex items-start gap-3 p-4 mb-6 border-[var(--border-width)] border-[var(--danger)] bg-[var(--danger)]/10 text-[var(--danger)] font-mono text-xs font-bold uppercase tracking-widest">
+          <div className="flex items-start gap-3 p-4 mb-6 border-[var(--border-width)] border-[var(--danger)] bg-[var(--danger)]/10 text-[var(--danger)] font-sans text-xs font-bold uppercase tracking-widest">
             <ShieldAlert size={16} strokeWidth={2} className="shrink-0 mt-0.5" />
             <span>[分配失败] {error}</span>
           </div>
@@ -426,7 +426,7 @@ export default function UsersPage() {
         saveText="保存修改"
       >
         {editError && (
-          <div className="flex items-start gap-3 p-4 mb-6 border-[var(--border-width)] border-[var(--danger)] bg-[var(--danger)]/10 text-[var(--danger)] font-mono text-xs font-bold uppercase tracking-widest">
+          <div className="flex items-start gap-3 p-4 mb-6 border-[var(--border-width)] border-[var(--danger)] bg-[var(--danger)]/10 text-[var(--danger)] font-sans text-xs font-bold uppercase tracking-widest">
             <ShieldAlert size={16} strokeWidth={2} className="shrink-0 mt-0.5" />
             <span>[更新失败] {editError}</span>
           </div>
@@ -479,7 +479,7 @@ export default function UsersPage() {
         saveText="确认重置"
       >
         {resetError && (
-          <div className="flex items-start gap-3 p-4 mb-6 border-[var(--border-width)] border-[var(--danger)] bg-[var(--danger)]/10 text-[var(--danger)] font-mono text-xs font-bold uppercase tracking-widest">
+          <div className="flex items-start gap-3 p-4 mb-6 border-[var(--border-width)] border-[var(--danger)] bg-[var(--danger)]/10 text-[var(--danger)] font-sans text-xs font-bold uppercase tracking-widest">
             <ShieldAlert size={16} strokeWidth={2} className="shrink-0 mt-0.5" />
             <span>[重置失败] {resetError}</span>
           </div>
@@ -527,7 +527,7 @@ export default function UsersPage() {
       
       {/* ─── Footer Stats ─── */}
       {!loading && users.length > 0 && (
-        <div className="mt-4 flex flex-wrap gap-4 text-[10px] font-mono font-black tracking-widest uppercase">
+        <div className="mt-4 flex flex-wrap gap-4 text-[10px] font-sans font-black tracking-widest uppercase">
           <PlatformStatPill label="账号总数" value={<ScrambleText text={users.length.toString()} scrambleSpeed={50} />} accent="var(--border)" />
           <PlatformStatPill label="管理员" value={users.filter((u) => u.role === "super_admin" || u.role === "tenant_admin").length} accent="var(--brand)" backgroundClassName="bg-[var(--brand)]/10" />
           <PlatformStatPill label="运营成员" value={users.filter((u) => u.role === "tenant_operator").length} accent="var(--warning)" backgroundClassName="bg-[var(--warning)]/10" />

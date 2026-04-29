@@ -180,7 +180,7 @@ export default function QaPage() {
                           </span>
                           <Zap size={14} className="text-[var(--text-muted)] group-hover:text-[var(--brand)] transition-colors" />
                         </div>
-                        <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] opacity-60">
+                        <span className="font-sans text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] opacity-60">
                           {item.desc}
                         </span>
                       </button>
@@ -244,7 +244,7 @@ export default function QaPage() {
                     placeholder="输入问题或检索指令 (e.g. 如何配置 WebDAV)..."
                     className="w-full rounded-[var(--radius-base)] border-[3px] border-[var(--border)] bg-[var(--bg-card)] px-6 py-5 font-sans text-sm font-black text-[var(--text-primary)] outline-none transition-all focus:border-[var(--brand)] focus:shadow-[0_0_25px_rgba(var(--brand-rgb),0.1)] group-hover:border-[var(--text-muted)]/30"
                   />
-                  <div className="absolute right-6 top-1/2 -translate-y-1/2 font-mono text-[10px] font-black text-[var(--text-muted)] pointer-events-none opacity-40 group-focus-within:opacity-100 transition-opacity">
+                  <div className="absolute right-6 top-1/2 -translate-y-1/2 font-sans text-[10px] font-black text-[var(--text-muted)] pointer-events-none opacity-40 group-focus-within:opacity-100 transition-opacity">
                     [ CMD + ENTER ] TO SYNC
                   </div>
                 </div>
@@ -265,7 +265,7 @@ export default function QaPage() {
           <ConsolePanel className="relative overflow-hidden p-0">
             <div className="p-8 space-y-8">
               <div className="space-y-3">
-                <label className="flex items-center gap-2 font-mono text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">
+                <label className="flex items-center gap-2 font-sans text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">
                   <Settings2 size={12} />
                   检索作用域 (URI_SCOPE)
                 </label>
@@ -288,7 +288,7 @@ export default function QaPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-3">
-                  <label className="flex items-center gap-2 font-mono text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">
+                  <label className="flex items-center gap-2 font-sans text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">
                     <Activity size={12} />
                     召回数量 (TOP_K)
                   </label>
@@ -302,7 +302,7 @@ export default function QaPage() {
                   />
                 </div>
                 <div className="space-y-3">
-                  <label className="flex items-center gap-2 font-mono text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">
+                  <label className="flex items-center gap-2 font-sans text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">
                     <ShieldAlert size={12} />
                     最低分数 (MIN_SCORE)
                   </label>
@@ -319,11 +319,11 @@ export default function QaPage() {
               </div>
 
               <div className="space-y-3">
-                <label className="flex items-center gap-2 font-mono text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">
+                <label className="flex items-center gap-2 font-sans text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">
                   <Zap size={12} />
                   重排引擎 (RERANK_PROCESS)
                 </label>
-                <label className="flex h-12 cursor-pointer items-center justify-between border-[2px] border-[var(--border)] bg-[var(--bg-elevated)]/50 px-4 font-mono text-[10px] font-black uppercase tracking-[0.16em]">
+                <label className="flex h-12 cursor-pointer items-center justify-between border-[2px] border-[var(--border)] bg-[var(--bg-elevated)]/50 px-4 font-sans text-[10px] font-black uppercase tracking-[0.16em]">
                   <span>{useRerank ? "已启用高性能重排" : "仅使用向量初筛"}</span>
                   <input
                     type="checkbox"

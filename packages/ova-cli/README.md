@@ -12,6 +12,18 @@
 npm install -g @openviking-admin/ova-cli
 ```
 
+仓库提供可重复执行的一键安装脚本，重复运行会更新全局 `ova`：
+
+```bash
+node scripts/install-ova-cli.mjs
+```
+
+Windows PowerShell 可直接执行：
+
+```powershell
+.\scripts\install-ova-cli.ps1
+```
+
 如果是首次发布 scoped package，需要使用：
 
 ```bash
@@ -25,6 +37,29 @@ npm run ova -- <group> <command> [options]
 ```
 
 ## 登录
+
+交互式配置：
+
+```bash
+ova configure
+```
+
+直接写入 API Key：
+
+```bash
+ova configure \
+  --server http://localhost:6001 \
+  --api-key <YOUR_API_KEY>
+```
+
+配置 OAuth 授权地址并打开浏览器：
+
+```bash
+ova configure \
+  --server http://localhost:6001 \
+  --oauth-url "http://localhost:6001/api/v1/auth/sso/redirect/acme/oidc" \
+  --open-browser
+```
 
 ```bash
 ova auth login \
@@ -61,7 +96,7 @@ Profile 状态文件：
 ~/.openviking/ova/auth.json
 ```
 
-CLI 会按 profile 保存 `accessToken`、`refreshToken`、过期时间和可选的派生 capability 凭证。登录 token 过期前会自动刷新。
+CLI 会按 profile 保存 `accessToken`、`refreshToken`、过期时间和可选的派生 capability 凭证。登录 token 过期前会自动刷新。如果 profile 只保存了 API Key，能力接口会自动使用 `x-capability-key` 调用。
 
 ## 能力调用
 

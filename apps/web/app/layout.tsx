@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { Inter } from "next/font/google";
 import { Toaster } from "sonner";
 import "./globals.css";
 import { TerminalOverlay } from "@/components/ui/TerminalOverlay";
@@ -9,7 +9,6 @@ import { MeteorShower } from "@/components/ui/meteor-shower";
 import { DataWisps } from "@/components/ui/data-wisps";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
-const jetbrainsMono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono" });
 
 export const metadata: Metadata = {
   title: "OpenViking 知识管理平台",
@@ -23,7 +22,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN" className="h-full" suppressHydrationWarning>
-      <body suppressHydrationWarning className={`${inter.variable} ${jetbrainsMono.variable} min-h-full bg-[var(--bg-base)] text-[var(--text-primary)] antialiased transition-colors duration-300 vector-space-bg`}>
+      <body suppressHydrationWarning className={`${inter.variable} min-h-full bg-[var(--bg-base)] text-[var(--text-primary)] antialiased transition-colors duration-300 vector-space-bg`}>
         <AppProvider>
           <ConfirmProvider>
             <DataWisps />
@@ -35,7 +34,7 @@ export default function RootLayout({
         <Toaster 
           position="bottom-center"
           toastOptions={{
-            className: "ov-card !border-[var(--border)] !bg-[var(--bg-card)] !text-[var(--text-primary)] !font-mono !shadow-[var(--shadow-hover)]",
+            className: "ov-card !border-[var(--border)] !bg-[var(--bg-card)] !text-[var(--text-primary)] !font-sans !shadow-[var(--shadow-hover)]",
             style: {
               borderWidth: "var(--border-width)",
               borderRadius: "var(--radius-base)",

@@ -114,7 +114,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 | `tenant_id` | VARCHAR(64) | NULLABLE | — | 所属租户 |
 | `integration_id` | VARCHAR(255) | NULLABLE | — | 关联的集成凭证 |
 | `kb_id` | UUID | NOT NULL | — | 所属知识库 |
-| `source_type` | VARCHAR(20) | NOT NULL | — | `url` / `git` / `local` |
+| `source_type` | VARCHAR(20) | NOT NULL | — | `url` / `git` / `local` / `manifest` / `feishu` / `dingtalk` |
 | `source_url` | VARCHAR(2048) | NULLABLE | — | 来源 URL |
 | `target_uri` | VARCHAR(2048) | NOT NULL | — | 目标 URI |
 | `status` | VARCHAR(20) | NOT NULL | `'pending'` | `pending` / `running` / `done` / `failed` |

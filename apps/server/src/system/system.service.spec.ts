@@ -32,9 +32,13 @@ describe('SystemService', () => {
     findById: jest.fn(),
     findByTenantId: jest.fn(),
   };
+  const dashboardImportTaskStats = {
+    resolvePlatformStats: jest.fn(),
+  };
 
   let service: SystemService;
   let smallKnowledgeBaseRepo: { count: jest.Mock };
+  let largeKnowledgeBaseRepo: { count: jest.Mock };
   let searchLeaderboardQuery: {
     from: jest.Mock;
     select: jest.Mock;
@@ -72,7 +76,16 @@ describe('SystemService', () => {
     tenantRepo.findAll.mockResolvedValue([]);
     tenantRepo.findById.mockResolvedValue(null);
     tenantRepo.findByTenantId.mockResolvedValue(null);
+    dashboardImportTaskStats.resolvePlatformStats.mockResolvedValue({
+      total: 0,
+      failed: 0,
+      running: 0,
+      recentTasks: [],
+    });
     smallKnowledgeBaseRepo = {
+      count: jest.fn().mockResolvedValue(0),
+    };
+    largeKnowledgeBaseRepo = {
       count: jest.fn().mockResolvedValue(0),
     };
     searchLeaderboardQuery = {
@@ -95,12 +108,12 @@ describe('SystemService', () => {
       release: jest.fn().mockResolvedValue(undefined),
     };
     defaultDataSource.getRepository.mockReturnValue(smallKnowledgeBaseRepo);
-    defaultDataSource.createQueryBuilder.mockReturnValue(searchLeaderboardQuery);
+    defaultDataSource.createQueryBuilder.mockReturnValue(
+      searchLeaderboardQuery,
+    );
     defaultDataSource.createQueryRunner.mockReturnValue(mediumQueryRunner);
     dynamicDS.getTenantDataSource.mockResolvedValue({
-      getRepository: jest.fn().mockReturnValue({
-        count: jest.fn().mockResolvedValue(0),
-      }),
+      getRepository: jest.fn().mockReturnValue(largeKnowledgeBaseRepo),
     });
 
     service = new SystemService(
@@ -112,6 +125,7 @@ describe('SystemService', () => {
       kbRepo as never,
       logRepo as never,
       tenantRepo as never,
+      dashboardImportTaskStats as never,
     );
   });
 
@@ -168,10 +182,19 @@ describe('SystemService', () => {
       .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce([{ count: 3 }]);
     defaultDataSource.createQueryRunner.mockReturnValue(mediumQueryRunner);
+    largeKnowledgeBaseRepo.count.mockResolvedValue(5);
     dynamicDS.getTenantDataSource.mockResolvedValue({
-      getRepository: jest.fn().mockReturnValue({
-        count: jest.fn().mockResolvedValue(5),
-      }),
+      getRepository: jest.fn().mockReturnValue(largeKnowledgeBaseRepo),
+    });
+    dashboardImportTaskStats.resolvePlatformStats.mockResolvedValue({
+      total: 9,
+      failed: 1,
+      running: 2,
+      recentTasks: [
+        { id: 'task-large' },
+        { id: 'task-medium' },
+        { id: 'task-small' },
+      ],
     });
     searchLeaderboardQuery.getRawMany.mockResolvedValue([
       { tenantId: 'tenant-large', count: '12' },
@@ -183,6 +206,14 @@ describe('SystemService', () => {
 
     expect(result.kbCount).toBe(10);
     expect(result.platformKbCount).toBe(10);
+    expect(result.taskCount).toBe(9);
+    expect(result.failedTasks).toBe(1);
+    expect(result.runningTasks).toBe(2);
+    expect(result.recentTasks.map((task) => task.id)).toEqual([
+      'task-large',
+      'task-medium',
+      'task-small',
+    ]);
     expect(result.tenantCount).toBe(3);
     expect(result.tenantKnowledgeBaseTop).toEqual([
       { tenantId: 'tenant-large', tenantName: '大租户', value: 5 },

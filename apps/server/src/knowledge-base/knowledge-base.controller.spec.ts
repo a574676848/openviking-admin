@@ -8,12 +8,16 @@ describe('KnowledgeBaseController', () => {
     findOne: jest.fn(),
     update: jest.fn(),
   };
+  const knowledgeTreeService = {
+    findByKb: jest.fn(),
+  };
   const auditService = {
     log: jest.fn(),
   };
 
   const controller = new KnowledgeBaseController(
     kbService as never,
+    knowledgeTreeService as never,
     auditService as never,
   );
 

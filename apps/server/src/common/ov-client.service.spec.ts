@@ -53,7 +53,7 @@ describe('OVClientService', () => {
     );
   });
 
-  it('应优先透传请求级租户账号和用户头', async () => {
+  it('请求级元信息不应覆盖后端配置的 OpenViking 账号', async () => {
     fetchMock.mockResolvedValue({
       ok: true,
       headers: {
@@ -69,7 +69,6 @@ describe('OVClientService', () => {
       'POST',
       { query: 'tenant' },
       {
-        account: 'tenant-alpha',
         user: 'user-1',
       },
       { serviceLabel: 'OpenViking Search' },
@@ -79,11 +78,52 @@ describe('OVClientService', () => {
       'http://ov.local/api/v1/search/find',
       expect.objectContaining({
         headers: expect.objectContaining({
-          'X-OpenViking-Account': 'tenant-alpha',
+          'X-OpenViking-Account': 'default',
           'X-OpenViking-User': 'user-1',
         }),
       }),
     );
+  });
+
+  it('上传临时文件时应使用 multipart 且不手动设置 JSON Content-Type', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      headers: {
+        get: () => 'application/json; charset=utf-8',
+      },
+      text: async () =>
+        JSON.stringify({ result: { temp_file_id: 'upload_guide.md' } }),
+    });
+
+    const result = await service.uploadTempFile(
+      { baseUrl: 'http://ov.local', apiKey: 'key', account: 'default' },
+      '/api/v1/resources/temp_upload',
+      {
+        fileName: 'guide.md',
+        buffer: Buffer.from('# Guide'),
+        mimeType: 'text/markdown',
+      },
+      {
+        user: 'user-1',
+      },
+      { serviceLabel: 'OpenViking Resources' },
+    );
+
+    expect(result).toEqual({ result: { temp_file_id: 'upload_guide.md' } });
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://ov.local/api/v1/resources/temp_upload',
+      expect.objectContaining({
+        method: 'POST',
+        body: expect.any(FormData),
+        headers: expect.objectContaining({
+          'x-api-key': 'key',
+          'X-OpenViking-Account': 'default',
+          'X-OpenViking-User': 'user-1',
+        }),
+      }),
+    );
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.headers).not.toHaveProperty('Content-Type');
   });
 
   it('403 应映射为不可重试异常', async () => {

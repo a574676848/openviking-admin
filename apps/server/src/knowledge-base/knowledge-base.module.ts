@@ -7,9 +7,15 @@ import { TenantModule } from '../tenant/tenant.module';
 import { AuditModule } from '../audit/audit.module';
 import { KNOWLEDGE_BASE_REPOSITORY } from './domain/repositories/knowledge-base.repository.interface';
 import { TypeOrmKnowledgeBaseRepository } from './infrastructure/repositories/knowledge-base.repository';
+import { KnowledgeTreeModule } from '../knowledge-tree/knowledge-tree.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([KnowledgeBase]), TenantModule, AuditModule],
+  imports: [
+    TypeOrmModule.forFeature([KnowledgeBase]),
+    TenantModule,
+    AuditModule,
+    KnowledgeTreeModule,
+  ],
   controllers: [KnowledgeBaseController],
   providers: [
     KnowledgeBaseService,

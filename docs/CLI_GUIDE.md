@@ -19,6 +19,47 @@ npm install -g @openviking-admin/ova-cli
 ova <group> <command> [options]
 ```
 
+一键安装或更新：
+
+```bash
+node scripts/install-ova-cli.mjs
+```
+
+Windows PowerShell：
+
+```powershell
+.\scripts\install-ova-cli.ps1
+```
+
+该脚本会执行全局安装或更新 `@openviking-admin/ova-cli`。安装完成后，交互式终端会询问是否进入 `ova configure`。
+
+## 配置
+
+交互式配置：
+
+```bash
+ova configure
+```
+
+直接写入 API Key：
+
+```bash
+ova configure \
+  --server http://localhost:6001 \
+  --api-key <YOUR_API_KEY>
+```
+
+保存 OAuth 授权地址并打开浏览器：
+
+```bash
+ova configure \
+  --server http://localhost:6001 \
+  --oauth-url "http://localhost:6001/api/v1/auth/sso/redirect/acme/oidc" \
+  --open-browser
+```
+
+OAuth 授权沿用现有 SSO 机制：浏览器完成授权后，如果回跳地址包含 `sso_ticket`，可以在交互式配置中粘贴该 ticket，或单独执行 `ova auth sso --ticket <ticket>`。
+
 ## 登录
 
 账号密码登录：
@@ -50,7 +91,7 @@ CLI 会把登录态保存到：
 ~/.openviking/ova/auth.json
 ```
 
-状态文件采用多 profile 结构。当 `accessToken` 过期或接近过期时，CLI 会自动调用 `/api/v1/auth/refresh`。如果 `refreshToken` 也失效，需要重新登录。
+状态文件采用多 profile 结构。当 `accessToken` 过期或接近过期时，CLI 会自动调用 `/api/v1/auth/refresh`。如果 `refreshToken` 也失效，需要重新登录。如果 profile 只配置了 API Key，CLI 会对 capability、knowledge、resources 等能力接口自动注入 `x-capability-key`。
 
 ## Profile 管理
 
@@ -113,6 +154,32 @@ ova resources list --uri "viking://resources/tenants/acme/"
 ova resources tree --uri "viking://resources/tenants/acme/" --depth 2
 ```
 
+选择导入目标知识库：
+
+```bash
+ova kb list
+ova kb detail --id <kbId>
+```
+
+选择导入目标知识树节点：
+
+```bash
+ova tree list --kb <kbId>
+ova tree detail --id <nodeId>
+```
+
+创建文档导入任务并查看进度：
+
+```bash
+ova documents import "https://example.com/product.pdf" --kb <kbId> --type url
+ova documents import status --task <taskId> [--watch]
+ova documents import list
+ova documents import cancel --task <taskId>
+ova documents import retry --task <taskId>
+```
+
+文档导入来源限定为 `local`、`url`、`manifest`。WebDAV 只用于外部客户端访问知识资源，不作为导入来源。
+
 ## 换证
 
 查看服务端建议的凭证入口：
@@ -149,6 +216,7 @@ ova auth client-credentials --name ci-bot --ttl-seconds 2592000 --output json
 
 - 派生凭证默认只输出，不覆盖 JWT 登录态。
 - 只有显式传入 `--save` 时，CLI 才会把派生凭证写入当前 profile。
+- 保存后的 API Key 可作为后续能力命令的直接调用凭证。
 - `logout` 只清理本地 profile，不删除服务端已签发的 API key。
 
 ## 输出模式
@@ -195,12 +263,22 @@ ova auth token-exchange [--save]
 ova auth session-exchange [--save]
 ova auth client-credentials --name <name> [--save]
 ova auth logout
+ova configure [--server <url>] [--api-key <key>] [--oauth-url <url>] [--open-browser]
 ova capabilities list
 ova capabilities inspect --id <capability>
 ova knowledge search --query <query> [--limit <n>] [--score-threshold <score>]
 ova knowledge grep --pattern <pattern> [--uri <uri>] [--case-insensitive true]
 ova resources list [--uri <uri>]
 ova resources tree [--uri <uri>] [--depth <n>]
+ova kb list
+ova kb detail --id <kbId>
+ova tree list --kb <kbId>
+ova tree detail --id <nodeId>
+ova documents import <url> --kb <kbId> [--type url|manifest|local] [--parent <nodeId>]
+ova documents import status --task <taskId> [--watch]
+ova documents import list
+ova documents import cancel --task <taskId>
+ova documents import retry --task <taskId>
 ova config show
 ova config set --server <url>
 ova config use --profile <name>
