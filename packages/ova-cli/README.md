@@ -12,6 +12,12 @@
 npm install -g @openviking-admin/ova-cli
 ```
 
+安装完成后，推荐立刻执行用户级初始化：
+
+```bash
+ova setup --server http://localhost:6001 --api-key <YOUR_API_KEY>
+```
+
 仓库提供可重复执行的一键安装脚本，重复运行会更新全局 `ova`：
 
 ```bash
@@ -24,6 +30,14 @@ Windows PowerShell 可直接执行：
 .\scripts\install-ova-cli.ps1
 ```
 
+脚本会在安装完成后直接执行：
+
+```bash
+ova bootstrap --path <repo>
+```
+
+也就是一次完成 MCP、Skills 和仓库 prompt 注入。
+
 如果是首次发布 scoped package，需要使用：
 
 ```bash
@@ -34,6 +48,27 @@ npm publish --access public
 
 ```bash
 npm run ova -- <group> <command> [options]
+```
+
+## 初始化命令
+
+用户级初始化：
+
+```bash
+ova setup
+ova setup --credential session-key
+```
+
+仓库级初始化：
+
+```bash
+ova init --path <repo>
+```
+
+一键串联：
+
+```bash
+ova bootstrap --path <repo>
 ```
 
 ## 登录
@@ -97,6 +132,8 @@ Profile 状态文件：
 ```
 
 CLI 会按 profile 保存 `accessToken`、`refreshToken`、过期时间和可选的派生 capability 凭证。登录 token 过期前会自动刷新。如果 profile 只保存了 API Key，能力接口会自动使用 `x-capability-key` 调用。
+
+如果 profile 已经有登录态，`ova setup` 可以自动签发 API key 或 session key 供 MCP 使用。
 
 ## 能力调用
 

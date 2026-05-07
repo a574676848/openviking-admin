@@ -31,7 +31,82 @@ Windows PowerShell：
 .\scripts\install-ova-cli.ps1
 ```
 
-该脚本会执行全局安装或更新 `@openviking-admin/ova-cli`。安装完成后，交互式终端会询问是否进入 `ova configure`。
+该脚本会执行全局安装或更新 `@openviking-admin/ova-cli`，随后自动运行：
+
+```bash
+ova bootstrap --path <repo>
+```
+
+也就是一次完成：
+
+- 用户级 `setup`：写入 MCP 配置、安装全局 Skill。
+- 仓库级 `init`：生成 capability 快照、落盘本地 Skill、向 `AGENTS.md` / `CLAUDE.md` 注入 OpenViking 调用规则。
+
+如果只想安装 CLI 而不初始化环境，可直接使用 `npm install -g @openviking-admin/ova-cli`。
+
+## 环境初始化
+
+### `ova setup`
+
+`setup` 负责用户级环境初始化，默认面向 `claude`、`cursor`、`codex` 三类客户端：
+
+```bash
+ova setup --server http://localhost:6001 --api-key <YOUR_API_KEY>
+```
+
+如果当前 profile 已有登录态，`setup` 也可以自动签发 MCP 所需凭证：
+
+```bash
+ova auth login --server http://localhost:6001 --username admin --password acme@123 --tenant-code acme
+ova setup
+```
+
+默认会优先生成 API key；如果要改为短期 session key，可显式指定：
+
+```bash
+ova setup --credential session-key
+```
+
+`setup` 会写入：
+
+- `~/.claude.json`
+- `~/.cursor/mcp.json`
+- `~/.codex/config.toml`
+- `~/.claude/skills/openviking-admin/SKILL.md`
+- `~/.cursor/skills/openviking-admin/SKILL.md`
+- `~/.agents/skills/openviking-admin/SKILL.md`
+
+### `ova init`
+
+`init` 负责仓库级初始化：
+
+```bash
+ova init --path <repo>
+```
+
+它会在目标仓库生成或更新：
+
+- `.openviking/capabilities.json`
+- `.claude/skills/openviking-admin/SKILL.md`
+- `.agents/skills/openviking-admin/SKILL.md`
+- `AGENTS.md` 中的 OpenViking 注入块
+- `CLAUDE.md` 中的 OpenViking 注入块
+
+### `ova bootstrap`
+
+`bootstrap` 会串联 `setup` 与 `init`，是推荐入口：
+
+```bash
+ova bootstrap --path <repo>
+```
+
+常见变体：
+
+```bash
+ova bootstrap --path <repo> --editor claude
+ova bootstrap --path <repo> --skip-setup
+ova bootstrap --path <repo> --skip-init
+```
 
 ## 配置
 
@@ -59,6 +134,8 @@ ova configure \
 ```
 
 OAuth 授权沿用现有 SSO 机制：浏览器完成授权后，如果回跳地址包含 `sso_ticket`，可以在交互式配置中粘贴该 ticket，或单独执行 `ova auth sso --ticket <ticket>`。
+
+`configure` 只负责 profile 和凭证准备；如果要连带写入 MCP / Skills / Prompt 注入，应使用 `setup` 或 `bootstrap`。
 
 ## 登录
 

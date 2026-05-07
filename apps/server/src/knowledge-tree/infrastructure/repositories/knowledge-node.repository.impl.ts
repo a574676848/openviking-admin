@@ -1,7 +1,12 @@
 import { Injectable, Inject, Scope } from '@nestjs/common';
 import { REQUEST } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, type FindManyOptions, type FindOneOptions, type QueryRunner } from 'typeorm';
+import {
+  Repository,
+  type FindManyOptions,
+  type FindOneOptions,
+  type QueryRunner,
+} from 'typeorm';
 import { KnowledgeNode } from '../../entities/knowledge-node.entity';
 import { IKnowledgeNodeRepository } from '../../domain/repositories/knowledge-node.repository.interface';
 import type { KnowledgeNodeModel } from '../../domain/knowledge-node.model';
@@ -49,7 +54,9 @@ export class KnowledgeNodeRepositoryImpl implements IKnowledgeNodeRepository {
     };
   }
 
-  private toEntityInput(node: Partial<KnowledgeNodeModel>): Partial<KnowledgeNode> {
+  private toEntityInput(
+    node: Partial<KnowledgeNodeModel>,
+  ): Partial<KnowledgeNode> {
     return {
       id: node.id,
       tenantId: node.tenantId ?? undefined,
@@ -71,6 +78,15 @@ export class KnowledgeNodeRepositoryImpl implements IKnowledgeNodeRepository {
     id: string;
   }): string {
     return `${KnowledgeNodeRepositoryImpl.RESOURCE_URI_PREFIX}/tenants/${node.tenantId}/${node.kbId}/${node.id}/`;
+  }
+
+  private buildFileVikingUri(node: {
+    tenantId: string;
+    kbId: string;
+    id: string;
+    fileExtension: string;
+  }): string {
+    return `${KnowledgeNodeRepositoryImpl.RESOURCE_URI_PREFIX}/tenants/${node.tenantId}/${node.kbId}/${node.id}${node.fileExtension}`;
   }
 
   private async createTransactionalQueryRunner(): Promise<{
@@ -97,14 +113,18 @@ export class KnowledgeNodeRepositoryImpl implements IKnowledgeNodeRepository {
   async find(
     options: RepositoryFindQuery<KnowledgeNodeModel>,
   ): Promise<KnowledgeNodeModel[]> {
-    const items = await this.repo.find(options as FindManyOptions<KnowledgeNode>);
+    const items = await this.repo.find(
+      options as FindManyOptions<KnowledgeNode>,
+    );
     return items.map((item) => this.toModel(item));
   }
 
   async findOne(
     options: RepositoryFindOneQuery<KnowledgeNodeModel>,
   ): Promise<KnowledgeNodeModel | null> {
-    const item = await this.repo.findOne(options as FindOneOptions<KnowledgeNode>);
+    const item = await this.repo.findOne(
+      options as FindOneOptions<KnowledgeNode>,
+    );
     return item ? this.toModel(item) : null;
   }
 
@@ -177,8 +197,61 @@ export class KnowledgeNodeRepositoryImpl implements IKnowledgeNodeRepository {
     }
   }
 
+  async createFileWithGeneratedUri(
+    node: Partial<KnowledgeNodeModel> & { fileExtension: string },
+  ): Promise<KnowledgeNodeModel> {
+    if (!node.tenantId || !node.kbId) {
+      throw new Error('生成文件节点资源 URI 缺少 tenantId 或 kbId。');
+    }
+
+    const { queryRunner, releaseAfterUse } =
+      await this.createTransactionalQueryRunner();
+    const startedTransaction = !queryRunner.isTransactionActive;
+
+    if (startedTransaction) {
+      await queryRunner.startTransaction();
+    }
+
+    try {
+      const entity = queryRunner.manager.create(
+        KnowledgeNode,
+        this.toEntityInput({
+          ...node,
+          vikingUri: undefined,
+        }),
+      );
+      const saved = await queryRunner.manager.save(entity);
+      const vikingUri = this.buildFileVikingUri({
+        tenantId: node.tenantId,
+        kbId: node.kbId,
+        id: saved.id,
+        fileExtension: node.fileExtension,
+      });
+
+      await queryRunner.manager.update(KnowledgeNode, saved.id, { vikingUri });
+
+      if (startedTransaction) {
+        await queryRunner.commitTransaction();
+      }
+
+      saved.vikingUri = vikingUri;
+      return this.toModel(saved);
+    } catch (error) {
+      if (startedTransaction) {
+        await queryRunner.rollbackTransaction();
+      }
+      throw error;
+    } finally {
+      if (releaseAfterUse && !queryRunner.isReleased) {
+        await queryRunner.release();
+      }
+    }
+  }
+
   async remove(node: KnowledgeNodeModel): Promise<KnowledgeNodeModel> {
-    const removed = await this.repo.remove(this.repo.create(this.toEntityInput(node)));
+    const removed = await this.repo.remove(
+      this.repo.create(this.toEntityInput(node)),
+    );
     return this.toModel(removed);
   }
 

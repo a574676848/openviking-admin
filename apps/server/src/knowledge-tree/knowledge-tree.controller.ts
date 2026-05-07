@@ -52,7 +52,11 @@ export class KnowledgeTreeController {
       username: req.user.username,
       action: 'create_knowledge_node',
       target: created.id,
-      meta: { kbId: created.kbId, name: created.name, requestId: req.headers['x-request-id'] },
+      meta: {
+        kbId: created.kbId,
+        name: created.name,
+        requestId: req.headers['x-request-id'],
+      },
       ip: req.ip,
     });
     return created;
@@ -79,7 +83,9 @@ export class KnowledgeTreeController {
 
   @Delete(':id')
   async remove(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
-    const removed = await this.treeService.remove(id, req.tenantScope);
+    const removed = await this.treeService.remove(id, req.tenantScope, {
+      user: req.user.username,
+    });
     await this.auditService.log({
       tenantId: req.tenantScope ?? undefined,
       userId: req.user.id,

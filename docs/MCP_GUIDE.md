@@ -44,6 +44,33 @@ ova auth client-credentials --name claude-desktop --output json
 ova auth session-exchange --output json
 ```
 
+## 推荐方式：使用 `ova setup`
+
+如果本机已安装 `@openviking-admin/ova-cli`，推荐直接使用：
+
+```bash
+ova setup --server http://localhost:6001 --api-key <ov-sk-...>
+```
+
+或在已经登录的 profile 上直接执行：
+
+```bash
+ova auth login --server http://localhost:6001 --username admin --password acme@123 --tenant-code acme
+ova setup
+```
+
+`setup` 会自动：
+
+- 生成 OpenViking MCP remote 配置
+- 安装全局 OpenViking Skill
+- 在需要时自动签发 API key 或 session key
+
+如果还要把当前仓库的 `AGENTS.md` / `CLAUDE.md` 与 repo-local Skill 一起初始化，应执行：
+
+```bash
+ova bootstrap --path <repo>
+```
+
 ## Claude Desktop 配置
 
 ```json
@@ -84,10 +111,24 @@ ova auth session-exchange --output json
 {
   "mcpServers": {
     "openviking": {
-      "url": "http://localhost:6001/api/v1/mcp/sse?key=<ov-sk-...>"
+      "command": "npx",
+      "args": [
+        "-y",
+        "@anthropic-ai/mcp-remote",
+        "--url",
+        "http://localhost:6001/api/v1/mcp/sse?key=<ov-sk-...>"
+      ]
     }
   }
 }
+```
+
+## Codex 配置
+
+```toml
+[mcp_servers.openviking]
+command = "npx"
+args = ["-y", "@anthropic-ai/mcp-remote", "--url", "http://localhost:6001/api/v1/mcp/sse?key=<ov-sk-...>"]
 ```
 
 ## 协议流转

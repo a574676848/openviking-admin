@@ -60,14 +60,14 @@ describe('GitIntegrator', () => {
     );
 
     expect(result.path).toBe(
-      'https://git-token@git.exexm.com/epaas-product/exe-cloud-business-center',
+      'http://oauth2:git-token@git.exexm.com/epaas-product/exe-cloud-business-center',
     );
     expect(result.fallbackPaths).toEqual([
-      'http://oauth2:git-token@git.exexm.com/epaas-product/exe-cloud-business-center',
       'http://admin:git-token@git.exexm.com/epaas-product/exe-cloud-business-center',
       'https://oauth2:git-token@git.exexm.com/epaas-product/exe-cloud-business-center',
       'https://admin:git-token@git.exexm.com/epaas-product/exe-cloud-business-center',
       'http://git-token@git.exexm.com/epaas-product/exe-cloud-business-center',
+      'https://git-token@git.exexm.com/epaas-product/exe-cloud-business-center',
     ]);
   });
 });

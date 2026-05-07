@@ -240,7 +240,7 @@ export default function DocumentsPage() {
         </ConsoleSurfaceCard>
         <ConsoleSurfaceCard className="flex flex-col justify-between">
           <p className="font-sans text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
-            累计向量
+            任务累计向量
           </p>
           <div className="mt-4 font-sans text-5xl font-black tabular-nums text-[var(--brand)]">
             {stats.vectors.toLocaleString()}

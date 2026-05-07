@@ -63,6 +63,10 @@ export class UpdateNodeDto {
 
   @IsOptional()
   @IsString()
+  path?: string | null;
+
+  @IsOptional()
+  @IsString()
   vikingUri?: string;
 
   @IsOptional()

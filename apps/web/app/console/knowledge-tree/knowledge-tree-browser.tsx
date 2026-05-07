@@ -219,7 +219,7 @@ export function KnowledgeTreeBrowser({
     }
 
     const target = treeContainerRef.current?.querySelector<HTMLElement>(`[data-node-id="${selectedNodeId}"]`);
-    target?.scrollIntoView({ block: "center", behavior: "smooth" });
+    target?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [selectedNodeId]);
 
   return (

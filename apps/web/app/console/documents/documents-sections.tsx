@@ -65,8 +65,7 @@ function resolveTaskProgress(status: string) {
   if (status === "done") return 100;
   if (status === "running") return 65;
   if (status === "pending") return 20;
-  if (status === "cancelled") return 0;
-  return 100;
+  return 0;
 }
 
 export function DocumentsFiltersPanel({

@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Database, FolderTree, Plus, Search } from "lucide-react";
+import { Database, FolderTree, Plus, Search } from "lucide-react";
+import { toast } from "sonner";
 import { apiClient } from "@/lib/apiClient";
+import { useConfirm } from "@/components/ui/ConfirmProvider";
 import {
   ConsoleButton,
   ConsoleEmptyState,
@@ -18,11 +20,13 @@ import {
   resolveConsoleTableState,
 } from "@/components/console/primitives";
 
+type KnowledgeBaseStatus = "active" | "building" | "archived";
+
 interface KnowledgeBase {
   id: string;
   name: string;
   tenantId: string;
-  status: string;
+  status: KnowledgeBaseStatus;
   vikingUri: string;
   docCount: number;
   vectorCount: number;
@@ -40,6 +44,7 @@ const STATUS_MAP: Record<string, { label: string; className: string }> = {
   archived: { label: "已归档", className: "bg-[var(--text-muted)] text-white" },
 };
 
+const ARCHIVED_STATUS: KnowledgeBaseStatus = "archived";
 const TABLE_COLUMNS = "lg:grid-cols-[minmax(0,1fr)_120px_110px_110px_minmax(160px,1fr)_180px]";
 
 /** 根据占用比例返回对应的色调 */
@@ -116,34 +121,35 @@ function QuotaProgressCard({ used, total, percent }: { used: number; total: numb
 }
 
 export default function KnowledgeBasesPage() {
+  const confirm = useConfirm();
   const [items, setItems] = useState<KnowledgeBase[]>([]);
   const [quota, setQuota] = useState({ used: 0, total: 0 });
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
+  const [mutatingId, setMutatingId] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    const [kbData, dashboard] = await Promise.all([
+      apiClient.get<KnowledgeBase[]>("/knowledge-bases"),
+      apiClient.get<DashboardSnapshot>("/system/dashboard"),
+    ]);
+
+    setItems(kbData);
+
+    const used = dashboard.kbCount ?? kbData.length;
+    const maxDocs = (dashboard.quota as Record<string, number> | undefined)?.maxDocs ?? 0;
+    setQuota({
+      used,
+      total: maxDocs > 0 ? maxDocs : 0,
+    });
+  }, []);
 
   useEffect(() => {
     let active = true;
 
-    const load = async () => {
+    const run = async () => {
       try {
-        const [kbData, dashboard] = await Promise.all([
-          apiClient.get<KnowledgeBase[]>("/knowledge-bases"),
-          apiClient.get<DashboardSnapshot>("/system/dashboard"),
-        ]);
-
-        if (!active) {
-          return;
-        }
-
-        setItems(kbData);
-
-        const used = dashboard.kbCount ?? kbData.length;
-        const maxDocs =
-          (dashboard.quota as Record<string, number> | undefined)?.maxDocs ?? 0;
-        setQuota({
-          used,
-          total: maxDocs > 0 ? maxDocs : 0,
-        });
+        await load();
       } finally {
         if (active) {
           setLoading(false);
@@ -151,11 +157,11 @@ export default function KnowledgeBasesPage() {
       }
     };
 
-    void load();
+    void run();
     return () => {
       active = false;
     };
-  }, []);
+  }, [load]);
 
   const filtered = useMemo(() => {
     const keyword = searchQuery.trim().toLowerCase();
@@ -183,6 +189,33 @@ export default function KnowledgeBasesPage() {
     loading,
     hasData: filtered.length > 0,
   });
+
+  async function handleArchive(item: KnowledgeBase) {
+    const approved = await confirm({
+      title: "归档知识库",
+      description: `归档后「${item.name}」会从列表、能力入口和 WebDAV 目录中隐藏。`,
+      confirmText: "归档",
+      cancelText: "保留",
+      tone: "warning",
+    });
+
+    if (!approved) {
+      return;
+    }
+
+    setMutatingId(item.id);
+    try {
+      await apiClient.patch(`/knowledge-bases/${item.id}`, {
+        status: ARCHIVED_STATUS,
+      });
+      toast.success("知识库已归档");
+      await load();
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "知识库状态更新失败");
+    } finally {
+      setMutatingId(null);
+    }
+  }
 
   return (
     <div className="flex min-h-full flex-col gap-8">
@@ -301,12 +334,23 @@ export default function KnowledgeBasesPage() {
                   ]}
                   columns={TABLE_COLUMNS}
                   actions={
-                    <Link href={`/console/knowledge-tree?kbId=${item.id}`}>
-                      <ConsoleButton tone="dark" className="px-3 py-2.5 text-[11px]">
-                        <FolderTree size={13} strokeWidth={2.6} />
-                        查看知识树
+                    <div className="flex flex-wrap gap-3">
+                      <Link href={`/console/knowledge-tree?kbId=${item.id}`}>
+                        <ConsoleButton tone="dark" className="px-3 py-2.5 text-[11px]">
+                          <FolderTree size={13} strokeWidth={2.6} />
+                          查看知识树
+                        </ConsoleButton>
+                      </Link>
+                      <ConsoleButton
+                        type="button"
+                        tone="warning"
+                        className="px-3 py-2.5 text-[11px]"
+                        onClick={() => void handleArchive(item)}
+                        disabled={mutatingId === item.id}
+                      >
+                        归档
                       </ConsoleButton>
-                    </Link>
+                    </div>
                   }
                 />
               );

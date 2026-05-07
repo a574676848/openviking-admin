@@ -73,8 +73,8 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 | `tenant_id` | VARCHAR(64) | NOT NULL | — | 所属租户 |
 | `status` | VARCHAR(20) | NOT NULL | `'active'` | `active` / `building` / `archived` |
 | `viking_uri` | VARCHAR(512) | NULLABLE | — | OpenViking URI |
-| `doc_count` | INTEGER | NOT NULL | `0` | 文档数量 |
-| `vector_count` | INTEGER | NOT NULL | `0` | 向量数量 |
+| `doc_count` | INTEGER | NOT NULL | `0` | 文档数量，读取知识库接口时会按根目录文件数回写 |
+| `vector_count` | INTEGER | NOT NULL | `0` | 向量数量，读取知识库接口时会按根目录总向量数回写 |
 | `created_at` | TIMESTAMP | NOT NULL | `now()` | 创建时间 |
 | `updated_at` | TIMESTAMP | NOT NULL | `now()` | 更新时间 |
 

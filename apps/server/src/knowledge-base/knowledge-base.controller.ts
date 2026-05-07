@@ -32,12 +32,12 @@ export class KnowledgeBaseController {
 
   @Get()
   findAll(@Req() req: AuthenticatedRequest) {
-    return this.kbService.findAll(req.tenantScope);
+    return this.kbService.findAllWithRuntimeStats(req.tenantScope);
   }
 
   @Get(':id')
   async findOne(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
-    return this.kbService.findOne(id, req.tenantScope);
+    return this.kbService.findOneWithRuntimeStats(id, req.tenantScope);
   }
 
   @Get(':id/tree')
@@ -66,15 +66,15 @@ export class KnowledgeBaseController {
       return created;
     } catch (error) {
       try {
-        await this.kbService.remove(created.id, req.tenantScope);
+        await this.kbService.remove(created.id, req.tenantScope, {
+          user: req.user.username,
+        });
       } catch (rollbackError) {
         const message =
           rollbackError instanceof Error
             ? rollbackError.message
             : String(rollbackError);
-        this.logger.error(
-          `知识库创建后审计失败，且补偿删除失败：${message}`,
-        );
+        this.logger.error(`知识库创建后审计失败，且补偿删除失败：${message}`);
       }
 
       throw error;
@@ -102,7 +102,9 @@ export class KnowledgeBaseController {
 
   @Delete(':id')
   async remove(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
-    const removed = await this.kbService.remove(id, req.tenantScope);
+    const removed = await this.kbService.remove(id, req.tenantScope, {
+      user: req.user.username,
+    });
     await this.auditService.log({
       tenantId: req.tenantScope ?? undefined,
       userId: req.user.id,

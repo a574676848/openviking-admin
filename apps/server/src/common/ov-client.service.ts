@@ -1,4 +1,5 @@
 import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
+import { Readable } from 'node:stream';
 
 export interface OVConnection {
   baseUrl: string;
@@ -25,6 +26,12 @@ export interface OVTempFileUploadInput {
   fileName: string;
   buffer: Uint8Array;
   mimeType?: string | null;
+}
+
+export interface OVStreamResponse {
+  stream: Readable;
+  contentType?: string;
+  contentLength?: string;
 }
 
 interface OVRequestErrorResponse {
@@ -81,14 +88,7 @@ export class OVClientService {
       headers['X-OpenViking-User'] = meta.user;
     }
     Object.assign(headers, options?.headers ?? {});
-    return this.requestJson(
-      url,
-      method,
-      headers,
-      body,
-      meta,
-      options,
-    );
+    return this.requestJson(url, method, headers, body, meta, options);
   }
 
   async requestExternal(
@@ -103,7 +103,54 @@ export class OVClientService {
       ...(options?.headers ?? {}),
     };
 
-    return this.requestJson(
+    return this.requestJson(url, method, headers, body, meta, options);
+  }
+
+  async requestText(
+    conn: OVConnection,
+    path: string,
+    method: string = 'GET',
+    body?: Record<string, unknown>,
+    meta?: OVRequestMeta,
+    options?: OVRequestOptions,
+  ) {
+    const url = `${conn.baseUrl}${path}`;
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'x-api-key': conn.apiKey || '',
+      'X-OpenViking-Account': conn.account || 'default',
+    };
+    if (conn.user) {
+      headers['X-OpenViking-User'] = conn.user;
+    }
+    if (meta?.user) {
+      headers['X-OpenViking-User'] = meta.user;
+    }
+    Object.assign(headers, options?.headers ?? {});
+    return this.requestPlainText(url, method, headers, body, meta, options);
+  }
+
+  async requestStream(
+    conn: OVConnection,
+    path: string,
+    method: string = 'GET',
+    body?: Record<string, unknown>,
+    meta?: OVRequestMeta,
+    options?: OVRequestOptions,
+  ): Promise<OVStreamResponse> {
+    const url = `${conn.baseUrl}${path}`;
+    const headers: Record<string, string> = {
+      'x-api-key': conn.apiKey || '',
+      'X-OpenViking-Account': conn.account || 'default',
+    };
+    if (conn.user) {
+      headers['X-OpenViking-User'] = conn.user;
+    }
+    if (meta?.user) {
+      headers['X-OpenViking-User'] = meta.user;
+    }
+    Object.assign(headers, options?.headers ?? {});
+    return this.requestReadableStream(
       url,
       method,
       headers,
@@ -195,21 +242,12 @@ export class OVClientService {
 
         if (!res.ok) {
           const errorText = await res.text();
-          throw this.createHttpError(
-            serviceLabel,
-            res.status,
-            errorText,
-            meta,
-          );
+          throw this.createHttpError(serviceLabel, res.status, errorText, meta);
         }
 
         return await this.parseJsonResponse(res, serviceLabel, meta);
       } catch (error: unknown) {
-        const mappedError = this.normalizeError(
-          serviceLabel,
-          error,
-          meta,
-        );
+        const mappedError = this.normalizeError(serviceLabel, error, meta);
         const hasNextAttempt = attempt < retryCount;
 
         if (mappedError.retriable && hasNextAttempt) {
@@ -279,21 +317,12 @@ export class OVClientService {
 
         if (!res.ok) {
           const errorText = await res.text();
-          throw this.createHttpError(
-            serviceLabel,
-            res.status,
-            errorText,
-            meta,
-          );
+          throw this.createHttpError(serviceLabel, res.status, errorText, meta);
         }
 
         return await this.parseJsonResponse(res, serviceLabel, meta);
       } catch (error: unknown) {
-        const mappedError = this.normalizeError(
-          serviceLabel,
-          error,
-          meta,
-        );
+        const mappedError = this.normalizeError(serviceLabel, error, meta);
         const hasNextAttempt = attempt < retryCount;
 
         if (mappedError.retriable && hasNextAttempt) {
@@ -321,6 +350,145 @@ export class OVClientService {
       '重试次数耗尽',
       meta,
     );
+  }
+
+  private async requestPlainText(
+    url: string,
+    method: string,
+    headers: Record<string, string>,
+    body: Record<string, unknown> | undefined,
+    meta?: OVRequestMeta,
+    options?: OVRequestOptions,
+  ) {
+    const serviceLabel = options?.serviceLabel ?? 'OpenViking';
+    const retryCount = Math.max(options?.retryCount ?? 0, 0);
+    const retryDelayMs = Math.max(
+      options?.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS,
+      0,
+    );
+
+    for (let attempt = 0; attempt <= retryCount; attempt += 1) {
+      const controller = new AbortController();
+      const requestHeaders = { ...headers };
+      const timeoutMs = options?.timeoutMs;
+      const timeoutId =
+        timeoutMs && timeoutMs > 0
+          ? setTimeout(() => controller.abort(), timeoutMs)
+          : undefined;
+
+      if (meta?.traceId) {
+        requestHeaders['x-trace-id'] = meta.traceId;
+      }
+      if (meta?.requestId) {
+        requestHeaders['x-request-id'] = meta.requestId;
+      }
+
+      try {
+        const res = await fetch(url, {
+          method,
+          headers: requestHeaders,
+          body: body ? JSON.stringify(body) : undefined,
+          signal: controller.signal,
+        });
+
+        if (!res.ok) {
+          const errorText = await res.text();
+          throw this.createHttpError(serviceLabel, res.status, errorText, meta);
+        }
+
+        return await res.text();
+      } catch (error: unknown) {
+        const mappedError = this.normalizeError(serviceLabel, error, meta);
+        const hasNextAttempt = attempt < retryCount;
+
+        if (mappedError.retriable && hasNextAttempt) {
+          this.logger.warn(
+            `${serviceLabel} 请求失败，准备重试 (${attempt + 1}/${retryCount + 1}) traceId=${meta?.traceId ?? '-'} requestId=${meta?.requestId ?? '-'}: ${mappedError.message}`,
+          );
+          await this.sleep(retryDelayMs);
+          continue;
+        }
+
+        this.logger.error(
+          `Failed to connect to ${serviceLabel} traceId=${meta?.traceId ?? '-'} requestId=${meta?.requestId ?? '-'}: ${mappedError.message}`,
+        );
+        throw mappedError;
+      } finally {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+      }
+    }
+
+    throw this.createHttpError(
+      serviceLabel,
+      HttpStatus.SERVICE_UNAVAILABLE,
+      '重试次数耗尽',
+      meta,
+    );
+  }
+
+  private async requestReadableStream(
+    url: string,
+    method: string,
+    headers: Record<string, string>,
+    body: Record<string, unknown> | undefined,
+    meta?: OVRequestMeta,
+    options?: OVRequestOptions,
+  ): Promise<OVStreamResponse> {
+    const serviceLabel = options?.serviceLabel ?? 'OpenViking';
+    const controller = new AbortController();
+    const requestHeaders = { ...headers };
+    const timeoutMs = options?.timeoutMs;
+    const timeoutId =
+      timeoutMs && timeoutMs > 0
+        ? setTimeout(() => controller.abort(), timeoutMs)
+        : undefined;
+
+    if (meta?.traceId) {
+      requestHeaders['x-trace-id'] = meta.traceId;
+    }
+    if (meta?.requestId) {
+      requestHeaders['x-request-id'] = meta.requestId;
+    }
+
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: requestHeaders,
+        body: body ? JSON.stringify(body) : undefined,
+        signal: controller.signal,
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw this.createHttpError(serviceLabel, res.status, errorText, meta);
+      }
+      if (!res.body) {
+        throw this.createHttpError(
+          serviceLabel,
+          HttpStatus.BAD_GATEWAY,
+          '缺少响应流',
+          meta,
+        );
+      }
+
+      return {
+        stream: Readable.fromWeb(res.body as never),
+        contentType: res.headers.get('content-type') ?? undefined,
+        contentLength: res.headers.get('content-length') ?? undefined,
+      };
+    } catch (error: unknown) {
+      const mappedError = this.normalizeError(serviceLabel, error, meta);
+      this.logger.error(
+        `Failed to connect to ${serviceLabel} traceId=${meta?.traceId ?? '-'} requestId=${meta?.requestId ?? '-'}: ${mappedError.message}`,
+      );
+      throw mappedError;
+    } finally {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    }
   }
 
   private normalizeError(

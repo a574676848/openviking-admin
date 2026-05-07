@@ -30,9 +30,9 @@ const sourceOptions = [
     sourceListPlaceholder:
       "https://github.com/org/repo1.git\nhttps://github.com/org/repo2.git",
     supportsSubType: false,
-    requiresIntegration: false,
+    requiresIntegration: true,
     credentialLabel: "集成凭证",
-    credentialEmptyLabel: "公开库 (无需凭证)",
+    credentialEmptyLabel: "请选择 Git 凭证",
     resolveSourceType: () => "git",
     filterIntegrations: (integrations: Integration[]) =>
       integrations.filter((integration) =>

@@ -22,6 +22,7 @@ npm run ova -- doctor
 ```bash
 npm install -g @openviking-admin/ova-cli
 ova doctor
+ova bootstrap --path <repo>
 ```
 
 ## 目录
@@ -41,4 +42,4 @@ ova doctor
 | CI 或自动化脚本 | `ova auth client-credentials --name <name> --save` |
 | 后端服务集成 | HTTP 登录或 SSO 后调用 `/api/v1/auth/token/exchange` |
 | Claude Desktop / Cursor | API key 或 session key |
-| Agent Skill | 优先使用项目 MCP；MCP 不可用时使用 `ova`；两者都不可用时按 `skills/openviking-admin` 配置入口 |
+| Agent Skill | 优先使用项目 MCP；MCP 不可用时使用 `ova`；两者都不可用时按 `skills/openviking-admin` 配置入口，并优先读取 `.openviking/capabilities.json` |

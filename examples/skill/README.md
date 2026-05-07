@@ -1,14 +1,26 @@
 # Skill 示例
 
-本目录展示 Agent Skill 如何接入 OpenViking Admin。Skill 不定义新协议，只在 HTTP 和 `ova` CLI 之间选择可用入口。
+本目录展示 Agent Skill 如何接入 OpenViking Admin。Skill 不定义新协议，只在 MCP、`ova` CLI 和配置指引之间选择可用入口。
 
 ## 推荐策略
 
-1. 探测 `ova` 是否可用。
-2. 可用时运行 `ova capabilities list --output json` 发现能力。
-3. 不可用时调用 `GET /api/v1/capabilities`。
-4. 按 capability id 调用对应 HTTP 接口或 CLI 命令。
+1. 先检查 MCP tools 是否已经可用。
+2. 如仓库已执行 `ova init` 或 `ova bootstrap`，优先读取 `.openviking/capabilities.json`。
+3. 然后运行 `ova capabilities list --output json` 发现最新 capability。
+4. MCP 不可用时，按 capability id 选择 CLI 或 HTTP 回退。
 5. 将响应中的 `traceId` 写入 Agent 日志或最终回答。
+
+## 推荐初始化
+
+```bash
+ova bootstrap --path <repo>
+```
+
+该命令会为 Skill 准备：
+
+- repo-local Skill 文件
+- `AGENTS.md` / `CLAUDE.md` 注入块
+- `.openviking/capabilities.json` capability 快照
 
 ## 本地 CLI 调用
 
@@ -86,7 +98,9 @@ curl "http://localhost:6001/api/v1/import-tasks/:id/events" \
   -H "Authorization: Bearer <capability-access-token>"
 ```
 
-## 当前 capability 映射
+## 当前 capability 摘要
+
+下面这张表只作为当前仓库的能力摘要，便于阅读和 smoke check；真正的单一事实源仍然是 capability registry，以及 `ova capabilities list --output json` / `.openviking/capabilities.json` 的实时结果。
 
 | Capability | CLI | HTTP |
 |------|------|------|
@@ -104,3 +118,11 @@ curl "http://localhost:6001/api/v1/import-tasks/:id/events" \
 | `documents.import.cancel` | `ova documents import cancel` | `POST /api/v1/import-tasks/:id/cancel` |
 | `documents.import.retry` | `ova documents import retry` | `POST /api/v1/import-tasks/:id/retry` |
 | `documents.import.events` | `ova documents import status --watch` | `GET /api/v1/import-tasks/:id/events` |
+
+## 关于 capability 映射刷新
+
+推荐做法是：
+
+1. 读取 `.openviking/capabilities.json` 当前快照。
+2. 必要时再调用 `ova capabilities list --output json` 或 `GET /api/v1/capabilities` 刷新。
+3. 只根据实时返回的 capability id 选择 MCP / CLI / HTTP 入口。

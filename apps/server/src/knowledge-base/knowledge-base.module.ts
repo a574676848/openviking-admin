@@ -8,6 +8,7 @@ import { AuditModule } from '../audit/audit.module';
 import { KNOWLEDGE_BASE_REPOSITORY } from './domain/repositories/knowledge-base.repository.interface';
 import { TypeOrmKnowledgeBaseRepository } from './infrastructure/repositories/knowledge-base.repository';
 import { KnowledgeTreeModule } from '../knowledge-tree/knowledge-tree.module';
+import { SettingsModule } from '../settings/settings.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { KnowledgeTreeModule } from '../knowledge-tree/knowledge-tree.module';
     TenantModule,
     AuditModule,
     KnowledgeTreeModule,
+    SettingsModule,
   ],
   controllers: [KnowledgeBaseController],
   providers: [

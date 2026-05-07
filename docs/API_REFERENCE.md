@@ -1,10 +1,10 @@
 # API 参考
 
-所有 HTTP 接口统一挂载在 `/api/v1` 前缀下。示例默认服务地址为 `http://localhost:6001/api/v1`。
+除 WebDAV 入口外，所有 HTTP 接口统一挂载在 `/api/v1` 前缀下。示例默认服务地址为 `http://localhost:6001/api/v1`。
 
 ## 通用约定
 
-### 认证方式
+### WebDAV 认证方式
 
 | 方式                                              | 适用接口                   | 说明                       |
 | ------------------------------------------------- | -------------------------- | -------------------------- |
@@ -18,6 +18,53 @@
 ### 请求追踪
 
 所有能力、换证和 MCP 调用都支持 `x-request-id`。服务端会在响应中返回 `traceId`，用于关联服务端日志、审计日志和 OpenViking 下游请求。
+
+## WebDAV 入口
+
+WebDAV 不走 `/api/v1` 前缀，根路径为 `/webdav/:tenantId/`。该入口用于标准 WebDAV 客户端访问租户知识资源，当前开放 `OPTIONS`、`PROPFIND`、`GET`、`HEAD`、`MKCOL`、`PUT`、`DELETE` 与 `MOVE`。
+
+### 认证方式
+
+| 方式                                           | 说明                                                            |
+| ---------------------------------------------- | --------------------------------------------------------------- |
+| `Authorization: Basic base64(tenantId:apiKey)` | `username` 必须等于租户标识，`password` 使用 capability API key |
+
+### 支持的方法
+
+| Method     | Path                                             | 说明                                            |
+| ---------- | ------------------------------------------------ | ----------------------------------------------- |
+| `OPTIONS`  | `/webdav/:tenantId/`                             | 返回 `Allow` 与 `DAV` 头                        |
+| `PROPFIND` | `/webdav/:tenantId/`                             | `Depth: 0/1` 返回 `207 Multi-Status` XML        |
+| `GET`      | `/webdav/:tenantId/:kbName/:nodeName...`         | 流式读取叶子文件正文                            |
+| `HEAD`     | `/webdav/:tenantId/:kbName/:nodeName...`         | 返回叶子文件元信息，不读取正文                  |
+| `MKCOL`    | `/webdav/:tenantId/:path.../:name`               | 在租户根创建知识库，或在知识库内创建目录节点    |
+| `PUT`      | `/webdav/:tenantId/:kbName/:nodeName...`         | 新建或覆盖受支持文件，创建本地导入任务          |
+| `DELETE`   | `/webdav/:tenantId/:kbName/:nodeName...`         | 删除叶子文件或空目录，成功返回 `204 No Content` |
+| `MOVE`     | `/webdav/:tenantId/:kbName/:nodeName...`         | 重命名或移动文件与目录，成功返回 `201 Created`  |
+
+WebDAV 响应不使用统一 JSON envelope。`GET` / `HEAD` 仅面向 ACL 允许访问、带非目录 `vikingUri` 的叶子节点，目录资源仍通过 `PROPFIND` 浏览。`MKCOL`、`PUT`、`DELETE` 与 `MOVE` 需要至少 `tenant_operator` 权限；成功后分别写入 `webdav_mkcol`、`webdav_put_create`、`webdav_put_update`、`webdav_delete` 或 `webdav_move` 审计日志。
+
+### 资源映射
+
+- `/webdav/:tenantId/` 映射到租户根目录，`Depth: 1` 返回该租户可访问的知识库目录；在根目录执行 `MKCOL` 会创建新的知识库。
+- `/webdav/:tenantId/:kbName/` 映射到知识库目录，`Depth: 1` 返回该知识库下的一级知识树节点。
+- `/webdav/:tenantId/:kbName/:nodeName...` 按知识树父子关系继续下钻；ACL 允许访问、没有子节点且带非目录 `vikingUri` 的叶子节点按文件资源输出。
+- WebDAV 复用知识树节点 ACL；无权限节点不会出现在目录列表中，直接访问时返回未找到类错误，避免泄露资源存在性。
+- 叶子节点的 `GET` 会转发到 OpenViking 的 `content/download` 能力，并以流式响应返回 Markdown 正文；`HEAD` 仅返回 WebDAV 元信息，不主动下载正文。
+- 资源响应会返回 `displayname`、`resourcetype`、`getcontenttype`、`getcontentlength`、`getetag`、`getlastmodified` 与 `creationdate`。
+- 当前读侧 `href` 对外使用知识库名和节点名路径，便于标准 WebDAV 客户端直接挂载租户根目录并浏览全部可访问知识库。
+- `PUT` 当前支持与本地导入白名单一致的文件扩展名，默认包括 `.md`、`.markdown`、`.txt`、`.json`、`.canvas`、`.css`、`.js`、`.pdf`、`.doc`、`.docx` 与 `.zip`。新建文件时服务端会先创建非目录文件节点，再通过受控本地上传链路创建导入任务，成功返回 `201 Created`。
+- `PUT` 命中已有叶子文件 `href` 时，会保持原节点和 `vikingUri` 不变，刷新节点更新时间并创建新的本地导入任务，成功返回 `204 No Content`。
+- `PUT` 响应头会返回 `X-OpenViking-Import-Task-Id`，用于关联后续导入任务进度。
+- `DELETE` 只删除叶子文件或空目录；非空目录返回 `409 Conflict`，无 ACL 权限的节点按不存在处理。
+- `DELETE` 对带 `vikingUri` 的节点会进入知识树服务层：叶子文件使用 OpenViking `/api/v1/fs?uri=<vikingUri>&recursive=false` 删除资源和对应向量，目录节点使用 `/api/v1/fs?uri=<vikingUri>&recursive=true`；OpenViking 返回 `404` 时按幂等删除处理。
+- `MOVE` 只更新 Admin 侧知识树节点的 `name`、`parentId`、`sortOrder` 与展示路径，不修改系统生成的 `vikingUri`，不调用 OpenViking 移动接口，也不触发重新索引。目标路径必须位于同一租户、同一知识库内，不能移动到自身或子节点下。
+- `MKCOL`、`PUT`、`DELETE` 与 `MOVE` 支持基础 `If-Match` / `If-None-Match` 条件判断。条件不满足时返回 `412 Precondition Failed`；服务端会同时接受 `PROPFIND` 暴露的节点 ETag 和 `GET` / `HEAD` 暴露的内容 ETag。
+- 多端无条件写入采用最后写入胜出策略；需要冲突保护的客户端应携带 `If-Match` 或 `If-None-Match`，收到 `412 Precondition Failed` 后重新拉取资源再重试。
+- 当前未实现 `LOCK` / `UNLOCK`。Obsidian Remotely Save 的 WebDAV 主链路不强依赖锁方法，常规同步通过目录探测、目录创建、文件写入、删除与 `MOVE` 完成。
+- 写入阶段同一父目录下不允许同名同类型资源；新建 `PUT`、`MKCOL` 或 `MOVE` 产生同名冲突时返回 `409 Conflict`。
+- 路径单段名称不能是空名称、`.`、`..`，不能包含 `/` 或 `\` 分隔符，单段长度不能超过 255 个字符；非法路径返回 `400 text/plain`。
+- `MKCOL` 在租户根目录下创建知识库，在知识库内创建目录节点；两种场景都不触发导入任务或索引重建。`PUT` 会触发异步导入任务，检索索引更新以导入任务完成为准。
 
 ### 成功响应
 
@@ -343,18 +390,18 @@ SSO Provider 回调入口。认证成功后重定向到前端并携带一次性 
 
 文档导入能力用于让 HTTP、CLI、MCP 和 Skill 在同一套契约下完成“选择目标知识库/知识树节点、创建导入任务、查看进度”。这些接口仍走 capability 鉴权，响应保持 `{ data, meta, traceId, error }` 信封。
 
-| Capability | Method | Path | 说明 |
-| ---------- | ------ | ---- | ---- |
-| `knowledgeBases.list` | `GET` | `/api/v1/knowledge-bases` | 列出当前租户可导入的知识库 |
-| `knowledgeBases.detail` | `GET` | `/api/v1/knowledge-bases/:id` | 查看知识库详情与导入根路径 |
-| `knowledgeTree.list` | `GET` | `/api/v1/knowledge-bases/:id/tree` | 列出知识库下可导入节点 |
-| `knowledgeTree.detail` | `GET` | `/api/v1/knowledge-tree/:id` | 查看知识树节点详情与导入路径 |
-| `documents.import.create` | `POST` | `/api/v1/import-tasks/documents` | 创建文档导入任务 |
-| `documents.import.status` | `GET` | `/api/v1/import-tasks/:id` | 查看导入进度 |
-| `documents.import.list` | `GET` | `/api/v1/import-tasks` | 列出导入任务 |
-| `documents.import.cancel` | `POST` | `/api/v1/import-tasks/:id/cancel` | 取消排队中的导入任务 |
-| `documents.import.retry` | `POST` | `/api/v1/import-tasks/:id/retry` | 重试失败或已取消任务 |
-| `documents.import.events` | `GET` | `/api/v1/import-tasks/:id/events` | 查看进度事件快照 |
+| Capability                | Method | Path                               | 说明                         |
+| ------------------------- | ------ | ---------------------------------- | ---------------------------- |
+| `knowledgeBases.list`     | `GET`  | `/api/v1/knowledge-bases`          | 列出当前租户可导入的知识库   |
+| `knowledgeBases.detail`   | `GET`  | `/api/v1/knowledge-bases/:id`      | 查看知识库详情与导入根路径   |
+| `knowledgeTree.list`      | `GET`  | `/api/v1/knowledge-bases/:id/tree` | 列出知识库下可导入节点       |
+| `knowledgeTree.detail`    | `GET`  | `/api/v1/knowledge-tree/:id`       | 查看知识树节点详情与导入路径 |
+| `documents.import.create` | `POST` | `/api/v1/import-tasks/documents`   | 创建文档导入任务             |
+| `documents.import.status` | `GET`  | `/api/v1/import-tasks/:id`         | 查看导入进度                 |
+| `documents.import.list`   | `GET`  | `/api/v1/import-tasks`             | 列出导入任务                 |
+| `documents.import.cancel` | `POST` | `/api/v1/import-tasks/:id/cancel`  | 取消排队中的导入任务         |
+| `documents.import.retry`  | `POST` | `/api/v1/import-tasks/:id/retry`   | 重试失败或已取消任务         |
+| `documents.import.events` | `GET`  | `/api/v1/import-tasks/:id/events`  | 查看进度事件快照             |
 
 创建导入任务请求体：
 
@@ -520,28 +567,32 @@ MCP JSON-RPC 消息接口。
 
 需要 JWT 和租户上下文。
 
-| Method   | Path                                  | 说明                       |
-| -------- | ------------------------------------- | -------------------------- |
-| `GET`    | `/api/v1/knowledge-bases`             | 获取当前租户知识库         |
-| `GET`    | `/api/v1/knowledge-bases/:id`         | 获取知识库详情             |
-| `GET`    | `/api/v1/knowledge-bases/:id/tree`    | 获取指定知识库下的知识树   |
-| `POST`   | `/api/v1/knowledge-bases`             | 创建知识库                 |
-| `PATCH`  | `/api/v1/knowledge-bases/:id`         | 更新知识库                 |
-| `DELETE` | `/api/v1/knowledge-bases/:id`         | 删除知识库                 |
+| Method   | Path                               | 说明                     |
+| -------- | ---------------------------------- | ------------------------ |
+| `GET`    | `/api/v1/knowledge-bases`          | 获取当前租户未归档知识库 |
+| `GET`    | `/api/v1/knowledge-bases/:id`      | 获取未归档知识库详情     |
+| `GET`    | `/api/v1/knowledge-bases/:id/tree` | 获取未归档知识库下的知识树 |
+| `POST`   | `/api/v1/knowledge-bases`          | 创建知识库               |
+| `PATCH`  | `/api/v1/knowledge-bases/:id`      | 更新知识库               |
+| `DELETE` | `/api/v1/knowledge-bases/:id`      | 删除知识库               |
+
+删除知识库由服务层统一先清理 OpenViking 资源，再删除 Admin 元数据。服务会先对知识库根 `vikingUri` 调用 OpenViking `/api/v1/fs?recursive=true`，成功或远端 `404` 后再删除知识树节点和知识库记录。已归档知识库默认不会出现在列表、能力选择和 WebDAV 根目录中，详情接口会按不存在处理。
 
 ## 知识树接口
 
 需要 JWT 和租户上下文。
 
-| Method   | Path                              | 说明           |
-| -------- | --------------------------------- | -------------- |
-| `GET`    | `/api/v1/knowledge-tree`          | 获取知识树节点 |
-| `GET`    | `/api/v1/knowledge-tree/graph`    | 获取知识图谱   |
+| Method   | Path                              | 说明             |
+| -------- | --------------------------------- | ---------------- |
+| `GET`    | `/api/v1/knowledge-tree`          | 获取知识树节点   |
+| `GET`    | `/api/v1/knowledge-tree/graph`    | 获取知识图谱     |
 | `GET`    | `/api/v1/knowledge-tree/:id`      | 获取知识节点详情 |
-| `POST`   | `/api/v1/knowledge-tree`          | 创建知识节点   |
-| `PATCH`  | `/api/v1/knowledge-tree/:id`      | 更新知识节点   |
-| `DELETE` | `/api/v1/knowledge-tree/:id`      | 删除知识节点   |
-| `PATCH`  | `/api/v1/knowledge-tree/:id/move` | 移动节点       |
+| `POST`   | `/api/v1/knowledge-tree`          | 创建知识节点     |
+| `PATCH`  | `/api/v1/knowledge-tree/:id`      | 更新知识节点     |
+| `DELETE` | `/api/v1/knowledge-tree/:id`      | 删除知识节点     |
+| `PATCH`  | `/api/v1/knowledge-tree/:id/move` | 移动节点         |
+
+删除知识树节点由服务层统一先调用 OpenViking `/api/v1/fs` 删除节点对应资源，再删除 Admin 侧节点元数据：叶子文件使用 `recursive=false`，目录节点使用 `recursive=true`。递归删除时按子节点优先顺序清理，避免本地元数据先消失后留下 OpenViking 残留资源。
 
 知识树查询参数：
 
@@ -554,17 +605,17 @@ MCP JSON-RPC 消息接口。
 
 需要 JWT 和租户上下文。
 
-| Method | Path                                  | 说明                       |
-| ------ | ------------------------------------- | -------------------------- |
-| `GET`  | `/api/v1/import-tasks`                | 获取导入任务列表           |
-| `GET`  | `/api/v1/import-tasks/:id`            | 获取任务详情               |
-| `POST` | `/api/v1/import-tasks`                | 创建导入任务               |
-| `POST` | `/api/v1/import-tasks/documents`      | 创建文档导入任务并返回进度入口 |
-| `POST` | `/api/v1/import-tasks/local-upload`   | 上传本地文件并创建导入任务 |
-| `GET`  | `/api/v1/import-tasks/:id/events`     | 查看任务进度事件快照       |
-| `GET`  | `/api/v1/import-tasks/:id/sync`       | 同步任务执行结果           |
-| `POST` | `/api/v1/import-tasks/:id/retry`      | 重试失败或已取消的导入任务 |
-| `POST` | `/api/v1/import-tasks/:id/cancel`     | 取消排队中的导入任务       |
+| Method | Path                                | 说明                           |
+| ------ | ----------------------------------- | ------------------------------ |
+| `GET`  | `/api/v1/import-tasks`              | 获取导入任务列表               |
+| `GET`  | `/api/v1/import-tasks/:id`          | 获取任务详情                   |
+| `POST` | `/api/v1/import-tasks`              | 创建导入任务                   |
+| `POST` | `/api/v1/import-tasks/documents`    | 创建文档导入任务并返回进度入口 |
+| `POST` | `/api/v1/import-tasks/local-upload` | 上传本地文件并创建导入任务     |
+| `GET`  | `/api/v1/import-tasks/:id/events`   | 查看任务进度事件快照           |
+| `GET`  | `/api/v1/import-tasks/:id/sync`     | 同步任务执行结果               |
+| `POST` | `/api/v1/import-tasks/:id/retry`    | 重试失败或已取消的导入任务     |
+| `POST` | `/api/v1/import-tasks/:id/cancel`   | 取消排队中的导入任务           |
 
 导入来源：
 
@@ -584,6 +635,7 @@ MCP JSON-RPC 消息接口。
 - `sourceType=git` 建议提供 `integrationId`，用于读取平台凭证、分支和路径配置
 - `sourceType=local` 只能由 `/api/v1/import-tasks/local-upload` 生成，不能直接提交任意 `file://` 路径
 - `/api/v1/import-tasks/local-upload` 使用 `multipart/form-data`，字段为 `kbId`、可选 `targetUri`，以及 `files`
+- WebDAV `PUT` 会复用本地上传链路，但不把 WebDAV 注册为新的 `sourceType`；导入任务仍以 `sourceType=local` 入队
 - 控制台默认不再传 `targetUri`，服务端会按知识库 `vikingUri` 自动生成导入目标路径
 - OpenViking 资源接口只接收 `path` 或 `temp_file_id`；平台 Token 不会作为 `config` 透传给 OpenViking
 - WebDAV 不作为导入来源；外部客户端访问知识资源请使用 WebDAV 配置页或资源 capability
@@ -592,16 +644,17 @@ MCP JSON-RPC 消息接口。
 
 保留给控制台和历史搜索页面使用。Capability 搜索入口见 `/api/v1/knowledge/search`。
 
-| Method | Path                               | 说明         |
-| ------ | ---------------------------------- | ------------ |
-| `POST` | `/api/v1/search/find`              | 语义检索     |
-| `POST` | `/api/v1/search/grep`              | 文本匹配     |
+| Method | Path                               | 说明           |
+| ------ | ---------------------------------- | -------------- |
+| `POST` | `/api/v1/search/find`              | 语义检索       |
+| `POST` | `/api/v1/search/grep`              | 文本匹配       |
 | `GET`  | `/api/v1/search/analysis`          | 无答案基础分析 |
-| `GET`  | `/api/v1/search/stats-deep`        | 深度检索统计 |
-| `GET`  | `/api/v1/search/logs`              | 最近检索日志 |
-| `POST` | `/api/v1/search/logs/:id/feedback` | 提交检索反馈 |
+| `GET`  | `/api/v1/search/stats-deep`        | 深度检索统计   |
+| `GET`  | `/api/v1/search/logs`              | 最近检索日志   |
+| `POST` | `/api/v1/search/logs/:id/feedback` | 提交检索反馈   |
 
 其中：
+
 - `/api/v1/search/analysis` 返回 `total` 与 `noAnswerLogs`，用于缺口样本与补录闭环。
 - `/api/v1/search/stats-deep` 返回命中率、高频问题、趋势等聚合统计。
 
@@ -621,14 +674,14 @@ MCP JSON-RPC 消息接口。
 
 租户视角只有在当前租户已启用自定义 OV 配置时，才允许访问 `/api/v1/system/health`、`/api/v1/system/stats` 与 `/api/v1/system/queue`；未启用时接口会直接拒绝，用于拦截手工访问或直接敲 URL 的绕过路径。
 
-`/api/v1/system/dashboard` 在租户视角返回当前租户数据；在平台视角返回全平台数据，并按活跃租户解析有效 OV 配置。租户未配置 `ovConfig` 时使用 `DEFAULT_OV_CONFIG` 默认配置，平台视角会对相同 OV 连接去重后聚合健康状态和队列数据，并额外返回 `tenantCount`、`platformKbCount`、`tenantSearchTop`、`tenantKnowledgeBaseTop`。其中 `platformKbCount` 与 `tenantKnowledgeBaseTop` 会按租户隔离级别逐个统计，覆盖 `SMALL`/`MEDIUM`/`LARGE` 三种知识库存储路径。
+`/api/v1/system/dashboard` 在租户视角返回当前租户数据；在平台视角返回全平台数据，并按活跃租户解析有效 OV 配置。租户未配置 `ovConfig` 时使用 `DEFAULT_OV_CONFIG` 默认配置，平台视角会对相同 OV 连接去重后聚合健康状态和队列数据，并额外返回 `tenantCount`、`platformKbCount`、`tenantSearchTop`、`tenantKnowledgeBaseTop`。其中 `platformKbCount` 与 `tenantKnowledgeBaseTop` 会按租户隔离级别逐个统计，覆盖 `SMALL`/`MEDIUM`/`LARGE` 三种知识库存储路径，且只统计未归档知识库。
 
 ## 配置接口
 
-| Method  | Path               | 说明                                 |
-| ------- | ------------------ | ------------------------------------ |
-| `GET`   | `/api/v1/settings` | 获取系统配置，需要 JWT               |
-| `PATCH` | `/api/v1/settings` | 批量更新系统配置，需要 `super_admin` |
+| Method  | Path                               | 说明                                           |
+| ------- | ---------------------------------- | ---------------------------------------------- |
+| `GET`   | `/api/v1/settings`                 | 获取系统配置，需要 JWT                         |
+| `PATCH` | `/api/v1/settings`                 | 批量更新系统配置，需要 `super_admin`           |
 | `POST`  | `/api/v1/settings/test-connection` | 测试 OV 引擎或 rerank 连接，需要 `super_admin` |
 
 ## 审计接口

@@ -7,8 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-05-06
+
 ### Added
 
+- 首次公开发布 `@openviking-admin/ova-cli` 到 npm，提供独立安装与升级入口
+- `ova-cli` 新增 `setup`、`init`、`bootstrap` 命令，支持一键写入远程 MCP、全局 Skill、仓库 Skill 与提示词注入
 - 新增 `capabilities` 模块，收口统一 capability contract、execution、authorization、discovery、credential exchange
 - 新增平铺 HTTP 接口：`/api/capabilities`、`/api/knowledge/search`、`/api/knowledge/grep`、`/api/resources`、`/api/resources/tree`
 - 新增 capability 换证接口：`/api/auth/token/exchange`、`/api/auth/session/exchange`、`/api/auth/client-credentials`

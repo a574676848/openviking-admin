@@ -177,13 +177,19 @@ npm run ova -- documents import "https://example.com/product.pdf" --kb <kbId> --
 ```bash
 npm install -g @openviking-admin/ova-cli
 ova doctor
+ova setup --server http://localhost:6001 --api-key <YOUR_API_KEY>
 ```
 
-也可以使用仓库的一键安装脚本，重复执行会更新全局 CLI，并可进入 `ova configure`：
+也可以使用仓库的一键安装脚本，重复执行会更新全局 CLI，并直接执行 `ova bootstrap`，完成 MCP、Skills 和仓库提示词注入：
 
 ```bash
 node scripts/install-ova-cli.mjs
-ova configure --server http://localhost:6001 --api-key <YOUR_API_KEY>
+```
+
+如果已经全局安装 `ova`，也可以手动执行：
+
+```bash
+ova bootstrap --path <repo>
 ```
 
 ### MCP
@@ -205,7 +211,7 @@ ova configure --server http://localhost:6001 --api-key <YOUR_API_KEY>
 
 ### Skill
 
-Skill 不定义新协议，只负责在 Agent 运行环境中发现 capability，并选择最合适的调用入口。项目内置 Skill 位于 [`skills/openviking-admin`](./skills/openviking-admin/SKILL.md)，默认按 `MCP -> OVA CLI -> 配置指引` 的顺序使用项目能力。详见 [Skill 集成指南](./docs/SKILL_GUIDE.md)。
+Skill 不定义新协议，只负责在 Agent 运行环境中发现 capability，并选择最合适的调用入口。项目内置 Skill 位于 [`skills/openviking-admin`](./skills/openviking-admin/SKILL.md)，`ova init` / `ova bootstrap` 会额外把 Skill 落到本地仓库的 `.claude/skills/openviking-admin/` 与 `.agents/skills/openviking-admin/`，并向 `AGENTS.md` / `CLAUDE.md` 注入 OpenViking 调用规则。默认入口顺序仍然是 `MCP -> OVA CLI -> 配置指引`。详见 [Skill 集成指南](./docs/SKILL_GUIDE.md)。
 
 ## 文档导航
 

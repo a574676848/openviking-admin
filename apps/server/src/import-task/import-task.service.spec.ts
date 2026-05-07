@@ -128,6 +128,7 @@ describe('ImportTaskService', () => {
       {
         kbId: 'kb-1',
         sourceType: 'git',
+        integrationId: 'integration-1',
         sourceUrls: [
           'https://example.com/repo-a.git',
           'https://example.com/repo-b.git',
@@ -154,6 +155,20 @@ describe('ImportTaskService', () => {
         sourceUrl: 'https://example.com/repo-a.git',
       }),
     );
+  });
+
+  it('Git 导入缺少集成凭证时应拒绝创建', async () => {
+    await expect(
+      service.create(
+        {
+          kbId: 'kb-git',
+          sourceType: 'git',
+          sourceUrl: 'https://git.exexm.com/repo.git',
+        },
+        'tenant-a',
+      ),
+    ).rejects.toThrow('该来源类型必须选择集成凭证');
+    expect(taskRepo.create).not.toHaveBeenCalled();
   });
 
   it('会将网页提取任务写入 url 目标路径', async () => {
@@ -287,11 +302,7 @@ describe('ImportTaskService', () => {
 
   it('本地导入必须上传文件', async () => {
     await expect(
-      service.createLocalUpload(
-        { kbId: 'kb-1' },
-        [],
-        'tenant-a',
-      ),
+      service.createLocalUpload({ kbId: 'kb-1' }, [], 'tenant-a'),
     ).rejects.toThrow('请先上传文件');
     expect(localImportStorage.saveFiles).not.toHaveBeenCalled();
   });
@@ -338,7 +349,9 @@ describe('ImportTaskService', () => {
       rerankModel: null,
     });
     ovClient.request
-      .mockResolvedValueOnce({ result: { children_count: 3, descendant_count: 4 } })
+      .mockResolvedValueOnce({
+        result: { children_count: 3, descendant_count: 4 },
+      })
       .mockResolvedValueOnce({ result: { count: '9' } });
     taskRepo.findById.mockResolvedValueOnce({
       id: 'task-sync',
@@ -428,6 +441,7 @@ describe('ImportTaskService', () => {
       {
         kbId: 'kb-3',
         sourceType: 'git',
+        integrationId: 'integration-1',
         sourceUrl: 'https://example.com/repo.git',
         targetUri: 'viking://resources/tenant-a/kb-3/node-1/',
       },
@@ -437,6 +451,38 @@ describe('ImportTaskService', () => {
     expect(result).toEqual(
       expect.objectContaining({
         targetUri: 'viking://resources/tenants/tenant-a/kb-3/node-1/',
+      }),
+    );
+  });
+
+  it('显式 targetUri 指向文件节点时不应追加目录斜杠', async () => {
+    taskRepo.create.mockImplementation((payload) => payload);
+    taskRepo.save.mockImplementation(async (payload) => payload);
+    kbRepo.findById.mockResolvedValue({
+      id: 'kb-3',
+      vikingUri: 'viking://resources/tenant-a/kb-3/',
+    });
+    nodeRepo.find.mockResolvedValue([
+      {
+        id: 'node-file',
+        vikingUri: 'viking://resources/tenant-a/kb-3/node-file.md',
+      },
+    ]);
+
+    const result = await service.create(
+      {
+        kbId: 'kb-3',
+        sourceType: 'git',
+        integrationId: 'integration-1',
+        sourceUrl: 'https://example.com/repo.git',
+        targetUri: 'viking://resources/tenant-a/kb-3/node-file.md',
+      },
+      'tenant-a',
+    );
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        targetUri: 'viking://resources/tenants/tenant-a/kb-3/node-file.md',
       }),
     );
   });
@@ -458,6 +504,7 @@ describe('ImportTaskService', () => {
         {
           kbId: 'kb-4',
           sourceType: 'git',
+          integrationId: 'integration-1',
           sourceUrl: 'https://example.com/repo.git',
           targetUri: 'viking://resources/tenant-b/kb-x/node-y/',
         },

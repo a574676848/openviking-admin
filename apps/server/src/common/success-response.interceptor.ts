@@ -63,8 +63,10 @@ export class SuccessResponseInterceptor<T>
     const contentType = String(response.getHeader('content-type') ?? '');
 
     return (
+      path.includes('/webdav/') ||
       path.includes('/mcp/sse') ||
       contentType.includes('text/event-stream') ||
+      contentType.includes('xml') ||
       data instanceof StreamableFile ||
       Buffer.isBuffer(data)
     );

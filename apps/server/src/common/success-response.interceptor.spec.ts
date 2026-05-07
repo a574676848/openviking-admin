@@ -83,4 +83,17 @@ describe('SuccessResponseInterceptor', () => {
 
     expect(result).toBe(payload);
   });
+
+  it('应该跳过 WebDAV XML 响应', async () => {
+    const { context, response } = createHttpContext('/webdav/tenant-a/');
+    response.setHeader('content-type', 'application/xml; charset=utf-8');
+    const payload = '<?xml version="1.0" encoding="utf-8"?><D:multistatus />';
+    const next: CallHandler = {
+      handle: () => of(payload),
+    };
+
+    const result = await lastValueFrom(interceptor.intercept(context, next));
+
+    expect(result).toBe(payload);
+  });
 });

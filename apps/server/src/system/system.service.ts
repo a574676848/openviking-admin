@@ -95,6 +95,7 @@ const DEFAULT_OV_ACCOUNT = 'default';
 const DASHBOARD_RECENT_TASK_LIMIT = 8;
 const DASHBOARD_LEADERBOARD_LIMIT = 5;
 const TENANT_SCHEMA_PREFIX = 'tenant_';
+const ARCHIVED_KNOWLEDGE_BASE_STATUS = 'archived';
 const EMPTY_VALUE = '';
 const OV_QUEUE_PATH = '/api/v1/observer/queue';
 const OV_VIKINGDB_PATH = '/api/v1/observer/vikingdb';
@@ -137,7 +138,9 @@ export class SystemService {
       tenantRecentTasks,
       ovSnapshot,
     ] = await Promise.allSettled([
-      tenantId ? this.kbRepo.count({ where }) : Promise.resolve(0),
+      tenantId
+        ? this.countVisibleKnowledgeBasesForTenantScope(tenantId)
+        : Promise.resolve(0),
       tenantId ? this.taskRepo.count(where) : Promise.resolve(0),
       this.logRepo.count({ where }),
       this.logRepo.count({ where: { ...where, resultCount: 0 } }),
@@ -366,6 +369,15 @@ export class SystemService {
     };
   }
 
+  private async countVisibleKnowledgeBasesForTenantScope(
+    tenantId: string,
+  ): Promise<number> {
+    const items = await this.kbRepo.findAll(tenantId);
+    return items.filter(
+      (item) => item.status !== ARCHIVED_KNOWLEDGE_BASE_STATUS,
+    ).length;
+  }
+
   private async safeCountKnowledgeBasesForTenant(
     tenant: TenantModel,
   ): Promise<number> {
@@ -391,7 +403,10 @@ export class SystemService {
       case TenantIsolationLevel.SMALL:
       default:
         return this.defaultDataSource.getRepository(KnowledgeBase).count({
-          where: { tenantId: tenant.tenantId },
+          where: [
+            { tenantId: tenant.tenantId, status: 'active' },
+            { tenantId: tenant.tenantId, status: 'building' },
+          ],
         });
     }
   }
@@ -404,7 +419,8 @@ export class SystemService {
         `SET search_path TO "${this.buildTenantSchemaName(tenantId)}", public`,
       );
       const result = await queryRunner.query(
-        `SELECT COUNT(*)::int AS count FROM "${KNOWLEDGE_BASE_TABLE}"`,
+        `SELECT COUNT(*)::int AS count FROM "${KNOWLEDGE_BASE_TABLE}" WHERE status <> $1`,
+        [ARCHIVED_KNOWLEDGE_BASE_STATUS],
       );
       return Number(result?.[0]?.count ?? 0);
     } finally {
@@ -425,7 +441,12 @@ export class SystemService {
       tenant.tenantId,
       tenant.dbConfig,
     );
-    return tenantDataSource.getRepository(KnowledgeBase).count();
+    return tenantDataSource.getRepository(KnowledgeBase).count({
+      where: [
+        { tenantId: tenant.tenantId, status: 'active' },
+        { tenantId: tenant.tenantId, status: 'building' },
+      ],
+    });
   }
 
   private async resolveTenantSearchTop(

@@ -57,6 +57,8 @@ describe('KnowledgeBaseController', () => {
     expect(kbService.create).toHaveBeenCalledWith(
       expect.objectContaining({ tenantId: 'mem' }),
     );
-    expect(kbService.remove).toHaveBeenCalledWith('kb-1', 'mem');
+    expect(kbService.remove).toHaveBeenCalledWith('kb-1', 'mem', {
+      user: 'admin',
+    });
   });
 });

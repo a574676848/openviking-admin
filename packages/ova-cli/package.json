@@ -1,6 +1,6 @@
 {
   "name": "@openviking-admin/ova-cli",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "OpenViking Admin capability-first CLI",
   "keywords": [
     "openviking",
@@ -29,7 +29,8 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "assets"
   ],
   "scripts": {
     "clean": "node -e \"const fs=require('fs'); fs.rmSync('dist',{recursive:true,force:true}); for (const file of fs.readdirSync('.')) if (/^openviking-admin-ova-cli-.*\\.tgz$/.test(file)) fs.rmSync(file,{force:true});\"",

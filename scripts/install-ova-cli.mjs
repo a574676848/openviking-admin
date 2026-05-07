@@ -1,39 +1,28 @@
 #!/usr/bin/env node
 
 import { spawnSync } from 'node:child_process';
-import { createInterface } from 'node:readline/promises';
-import { stdin as input, stdout as output } from 'node:process';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const PACKAGE_NAME = '@openviking-admin/ova-cli';
 const PACKAGE_SPEC = `${PACKAGE_NAME}@latest`;
-const SKIP_CONFIG_FLAG = '--skip-config';
-const YES_FLAG = '--yes';
 
-const args = new Set(process.argv.slice(2));
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const REPO_ROOT = resolve(__dirname, '..');
 
-run('npm', ['install', '-g', PACKAGE_SPEC]);
+const rawArgs = process.argv.slice(2);
 
-if (args.has(SKIP_CONFIG_FLAG)) {
-    process.exit(0);
-}
+run('npm', ['install', '-g', PACKAGE_SPEC], { inherit: true });
+run('ova', buildBootstrapArgs(rawArgs), { inherit: true });
 
-const shouldConfigure = args.has(YES_FLAG) || (await askConfigure());
-if (shouldConfigure) {
-    run('ova', ['configure'], { inherit: true });
-}
-
-async function askConfigure() {
-    if (!input.isTTY) {
-        return false;
+function buildBootstrapArgs(args) {
+    const nextArgs = ['bootstrap'];
+    if (!args.includes('--path')) {
+        nextArgs.push('--path', REPO_ROOT);
     }
-
-    const rl = createInterface({ input, output });
-    try {
-        const answer = await rl.question('是否现在进入 ova 配置？(Y/n): ');
-        return answer.trim().toLowerCase() !== 'n';
-    } finally {
-        rl.close();
-    }
+    nextArgs.push(...args);
+    return nextArgs;
 }
 
 function run(command, commandArgs, options = {}) {

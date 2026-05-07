@@ -191,13 +191,14 @@ describe("IngestionPage", () => {
       await Promise.resolve();
     });
     await chooseConsoleSelect(0, "ov记忆系统");
+    await chooseConsoleSelect(1, "exeGitLab");
     await submitForm();
 
     expect(postMock).toHaveBeenCalledWith("/import-tasks", {
       kbId: "kb-1",
       sourceUrl: "https://git.exexm.com/repo.git",
       sourceUrls: ["https://git.exexm.com/repo.git"],
-      integrationId: undefined,
+      integrationId: "integration-1",
       targetUri: undefined,
       sourceType: "git",
     });
@@ -245,13 +246,14 @@ describe("IngestionPage", () => {
     await chooseConsoleSelect(0, "ov记忆系统");
     expect(container.textContent).toContain("导入目标节点");
     await chooseConsoleSelect(1, "产品文档");
+    await chooseConsoleSelect(2, "exeGitLab");
     await submitForm();
 
     expect(postMock).toHaveBeenCalledWith("/import-tasks", {
       kbId: "kb-1",
       sourceUrl: "https://git.exexm.com/repo.git",
       sourceUrls: ["https://git.exexm.com/repo.git"],
-      integrationId: undefined,
+      integrationId: "integration-1",
       targetUri: "viking://resources/tenant-a/kb-1/node-1/",
       sourceType: "git",
     });

@@ -481,6 +481,8 @@ describe('TaskWorkerService', () => {
 
     expect(taskRepo.update).toHaveBeenNthCalledWith(2, 'failed-inject-task', {
       status: TaskStatus.FAILED,
+      nodeCount: 0,
+      vectorCount: 0,
       errorMsg: 'Parse error: git clone failed',
       updatedAt: expect.any(Date),
     });

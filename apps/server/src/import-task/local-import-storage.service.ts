@@ -154,6 +154,10 @@ export class LocalImportStorageService {
     }
 
     const extension = path.extname(file.originalname).toLowerCase();
+    if (!extension) {
+      return;
+    }
+
     if (
       !(
         LOCAL_IMPORT_UPLOAD_CONFIG.ALLOWED_EXTENSIONS as readonly string[]

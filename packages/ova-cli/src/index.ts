@@ -14,6 +14,9 @@ import { handleDocuments } from './commands/documents';
 import { handleConfig } from './commands/config';
 import { handleDoctor } from './commands/doctor';
 import { handleConfigure } from './commands/configure';
+import { handleSetup } from './commands/setup';
+import { handleInit } from './commands/init';
+import { handleBootstrap } from './commands/bootstrap';
 
 const credentialStore = new FileCredentialStore();
 
@@ -50,7 +53,10 @@ function printUsage() {
   ova config show [--profile dev] [--output json|jsonl]
   ova config set --server http://localhost:6001 [--profile dev] [--output json|jsonl]
   ova config use --profile dev [--output json|jsonl]
-  ova doctor [--profile dev] [--output json|jsonl]`);
+    ova doctor [--profile dev] [--output json|jsonl]
+    ova setup [--profile dev] [--server http://localhost:6001] [--credential api-key|session-key] [--editor claude,cursor,codex] [--output json|jsonl]
+    ova init [--path <repoPath>] [--profile dev] [--output json|jsonl]
+    ova bootstrap [--path <repoPath>] [--profile dev] [--editor claude,cursor,codex] [--skip-setup] [--skip-init] [--output json|jsonl]`);
 }
 
 export async function bootstrap(argv = process.argv.slice(2)) {
@@ -127,6 +133,15 @@ export async function bootstrap(argv = process.argv.slice(2)) {
             return;
         case 'doctor':
             await handleDoctor(options, credentialStore);
+            return;
+        case 'setup':
+            await handleSetup(options, credentialStore);
+            return;
+        case 'init':
+            await handleInit(options, credentialStore);
+            return;
+        case 'bootstrap':
+            await handleBootstrap(options, credentialStore);
             return;
         default:
             printUsage();

@@ -458,6 +458,8 @@ export class TaskWorkerService implements OnModuleInit {
     await this.withTenantTaskContext(tenant, async (context) => {
       await context.taskRepo.update(taskId, {
         status: TaskStatus.FAILED,
+        nodeCount: 0,
+        vectorCount: 0,
         errorMsg,
         updatedAt: new Date(),
       });

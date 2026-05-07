@@ -58,8 +58,8 @@ export class GitIntegrator implements IPlatformIntegrator {
     }
 
     return [
-      primaryPath,
       ...this.buildGitLabCredentialPaths(sourceUrl, token, credentials),
+      primaryPath,
     ];
   }
 

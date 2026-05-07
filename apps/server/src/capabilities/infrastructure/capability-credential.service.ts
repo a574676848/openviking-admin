@@ -61,11 +61,16 @@ export class CapabilityCredentialService {
     }
 
     await this.keyRepo.update(keyRecord.id, { lastUsedAt: new Date() });
+    const user = await this.userRepo.findOne({
+      where: { id: keyRecord.userId, tenantId: keyRecord.tenantId },
+    });
     const ovConfig = await this.loadOvConfigForTenant(keyRecord.tenantId);
 
     return {
       userId: keyRecord.userId,
+      username: user?.username,
       tenantId: keyRecord.tenantId,
+      role: user?.role,
       scope: 'tenant',
       credentialType: 'api_key',
       clientType,

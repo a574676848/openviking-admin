@@ -62,10 +62,7 @@ export class ImportTaskService {
   }
 
   async create(dto: CreateImportTaskDto, tenantId: string) {
-    if (
-      ['feishu', 'dingtalk'].includes(dto.sourceType) &&
-      !dto.integrationId
-    ) {
+    if (['git', 'feishu', 'dingtalk'].includes(dto.sourceType) && !dto.integrationId) {
       throw new BadRequestException('该来源类型必须选择集成凭证');
     }
 
@@ -138,7 +135,7 @@ export class ImportTaskService {
 
     if (dto.targetUri?.trim()) {
       return this.validateExplicitTargetUri(
-        this.toEngineResourceUri(this.normalizeTargetUri(dto.targetUri)),
+        this.resolveExplicitTargetUriCandidates(dto.targetUri),
         knowledgeBaseUri,
         await this.findNodeUris(dto.kbId, tenantId),
       );
@@ -153,6 +150,15 @@ export class ImportTaskService {
     return trimmed.endsWith('/') ? trimmed : `${trimmed}/`;
   }
 
+  private resolveExplicitTargetUriCandidates(uri: string) {
+    const trimmed = uri.trim();
+    const candidates = [trimmed];
+    if (!trimmed.endsWith('/')) {
+      candidates.push(`${trimmed}/`);
+    }
+    return candidates.map((candidate) => this.toEngineResourceUri(candidate));
+  }
+
   private async findNodeUris(kbId: string, tenantId: string) {
     const nodes = await this.nodeRepo.find({
       where: { kbId, tenantId },
@@ -161,7 +167,7 @@ export class ImportTaskService {
     return nodes
       .map((node: KnowledgeNodeModel) => node.vikingUri)
       .filter((uri): uri is string => Boolean(uri))
-      .map((uri) => this.toEngineResourceUri(this.normalizeTargetUri(uri)));
+      .map((uri) => this.toEngineResourceUri(uri.trim()));
   }
 
   private toEngineResourceUri(uri: string) {
@@ -176,16 +182,18 @@ export class ImportTaskService {
   }
 
   private validateExplicitTargetUri(
-    targetUri: string,
+    targetUris: string[],
     knowledgeBaseUri: string,
     nodeUris: string[],
   ) {
-    if (targetUri === knowledgeBaseUri) {
+    const targetUri = targetUris.find(
+      (candidate) =>
+        candidate === knowledgeBaseUri || nodeUris.includes(candidate),
+    );
+    if (targetUri) {
       return targetUri;
     }
-    if (nodeUris.includes(targetUri)) {
-      return targetUri;
-    }
+
     throw new BadRequestException(
       '非法导入目标路径：只能导入到当前知识库根目录或当前知识库已有节点下。',
     );
@@ -276,7 +284,9 @@ export class ImportTaskService {
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
   }
 
-  private resolveNodeCountFromStat(statResult: Record<string, unknown> | undefined) {
+  private resolveNodeCountFromStat(
+    statResult: Record<string, unknown> | undefined,
+  ) {
     if (
       statResult?.children_count === undefined &&
       statResult?.descendant_count === undefined

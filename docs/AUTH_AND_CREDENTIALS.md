@@ -4,13 +4,13 @@ OpenViking Admin 将用户登录态、能力调用凭证和机器凭证分层管
 
 ## 凭证类型
 
-| 凭证 | 获取方式 | 适用入口 | 说明 |
-|------|------|------|------|
-| JWT access token | `/api/v1/auth/login`、`/api/v1/auth/sso/exchange` | Web、HTTP、CLI 登录态 | 用户身份凭证，默认短期有效 |
-| JWT refresh token | `/api/v1/auth/login`、`/api/v1/auth/sso/exchange` | Web、CLI | 仅用于 `/api/v1/auth/refresh`，不直接调用 capability |
-| Capability access token | `/api/v1/auth/token/exchange` | HTTP、Skill、服务集成 | 面向能力调用的短中期 token |
-| Session key | `/api/v1/auth/session/exchange` | MCP、短会话 Agent | 更短生命周期，适合会话型连接 |
-| API key | `/api/v1/capability/keys` 或 `/api/v1/auth/client-credentials` | CLI、MCP、自动化任务 | 可吊销机器凭证，适合长期配置 |
+| 凭证                    | 获取方式                                                       | 适用入口              | 说明                                                 |
+| ----------------------- | -------------------------------------------------------------- | --------------------- | ---------------------------------------------------- |
+| JWT access token        | `/api/v1/auth/login`、`/api/v1/auth/sso/exchange`              | Web、HTTP、CLI 登录态 | 用户身份凭证，默认短期有效                           |
+| JWT refresh token       | `/api/v1/auth/login`、`/api/v1/auth/sso/exchange`              | Web、CLI              | 仅用于 `/api/v1/auth/refresh`，不直接调用 capability |
+| Capability access token | `/api/v1/auth/token/exchange`                                  | HTTP、Skill、服务集成 | 面向能力调用的短中期 token                           |
+| Session key             | `/api/v1/auth/session/exchange`                                | MCP、短会话 Agent     | 更短生命周期，适合会话型连接                         |
+| API key                 | `/api/v1/capability/keys` 或 `/api/v1/auth/client-credentials` | CLI、MCP、自动化任务  | 可吊销机器凭证，适合长期配置                         |
 
 ## 推荐链路
 
@@ -46,6 +46,16 @@ ova auth login
 登录态或 CLI profile
   -> 签发 API key 或 session key
   -> 配置 /api/v1/mcp/sse?key=... 或 /api/v1/mcp/sse?sessionKey=...
+```
+
+### WebDAV 客户端
+
+```text
+租户标识作为 username
+  -> capability API key 作为 password
+  -> 通过 /webdav/:tenantId/ 访问知识资源
+  -> 叶子文件 GET 由 OpenViking content/download 流式返回
+  -> MKCOL、PUT、DELETE 与 MOVE 至少需要 tenant_operator 权限并写入 WebDAV 审计日志
 ```
 
 ### Skill 或 Agent
@@ -108,13 +118,13 @@ Agent 运行环境
 
 ## 生命周期
 
-| 凭证 | 默认 TTL | 生命周期建议 |
-|------|------|------|
-| JWT access token | 2 小时 | 自动刷新，不长期持久化到不可信环境 |
-| JWT refresh token | 7 天 | 只存在浏览器安全存储或 CLI profile |
-| Capability access token | 2 小时 | 可选 30 分钟、1 小时、2 小时、8 小时、24 小时，默认 2 小时 |
-| Session key | 30 分钟 | 可选 15 分钟、30 分钟、1 小时、8 小时，默认 30 分钟 |
-| API key | 30 天 | 可选 7 天、30 天、90 天、180 天、长期有效，默认 30 天 |
+| 凭证                    | 默认 TTL | 生命周期建议                                               |
+| ----------------------- | -------- | ---------------------------------------------------------- |
+| JWT access token        | 2 小时   | 自动刷新，不长期持久化到不可信环境                         |
+| JWT refresh token       | 7 天     | 只存在浏览器安全存储或 CLI profile                         |
+| Capability access token | 2 小时   | 可选 30 分钟、1 小时、2 小时、8 小时、24 小时，默认 2 小时 |
+| Session key             | 30 分钟  | 可选 15 分钟、30 分钟、1 小时、8 小时，默认 30 分钟        |
+| API key                 | 30 天    | 可选 7 天、30 天、90 天、180 天、长期有效，默认 30 天      |
 
 ## 权限边界
 
@@ -124,13 +134,14 @@ Agent 运行环境
 - 访问租户范围外 URI 时，服务端返回显式拒绝。
 - API key 与用户和租户绑定，不能跨租户使用。
 - 凭证中心的 API key 列表、创建和吊销接口使用 `/api/v1/capability/keys`，MCP 路径仅保留 SSE 与 JSON-RPC 协议入口。
+- WebDAV 入口复用 capability API key，不额外引入第二套凭证体系；`username` 使用租户标识，`password` 使用 capability API key。
 
 ## 客户端存储建议
 
-| 客户端 | 建议 |
-|------|------|
-| Web | 使用浏览器会话存储或更安全的服务端 session 模式 |
-| CLI | 使用 `~/.openviking/ova/auth.json` profile，后续可替换为系统 keychain |
-| MCP Desktop | 使用桌面客户端配置文件保存 API key，优先使用可吊销 key |
-| CI | 使用环境变量或 secret manager 注入 API key |
-| Skill | 不在 Skill 文件中硬编码凭证，由宿主环境注入 |
+| 客户端      | 建议                                                                  |
+| ----------- | --------------------------------------------------------------------- |
+| Web         | 使用浏览器会话存储或更安全的服务端 session 模式                       |
+| CLI         | 使用 `~/.openviking/ova/auth.json` profile，后续可替换为系统 keychain |
+| MCP Desktop | 使用桌面客户端配置文件保存 API key，优先使用可吊销 key                |
+| CI          | 使用环境变量或 secret manager 注入 API key                            |
+| Skill       | 不在 Skill 文件中硬编码凭证，由宿主环境注入                           |

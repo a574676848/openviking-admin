@@ -1,9 +1,21 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe, Logger, VersioningType } from '@nestjs/common';
+import {
+  ValidationPipe,
+  Logger,
+  VersioningType,
+  RequestMethod,
+} from '@nestjs/common';
+import type { NextFunction, Request, Response } from 'express';
 import { AppModule } from './app.module';
 import passport from 'passport';
 import { Strategy as JwtStrategy, ExtractJwt } from 'passport-jwt';
 import { assertSafeRuntimeConfig } from './common/runtime-config';
+import {
+  WEBDAV_ALLOW,
+  WEBDAV_DAV,
+  WEBDAV_ROOT_PATH,
+  WEBDAV_TEXT_CONTENT_TYPE,
+} from './webdav/webdav.constants';
 
 interface JwtPayload {
   sub: string;
@@ -37,7 +49,25 @@ async function bootstrap() {
 
   const app = await NestFactory.create(AppModule);
 
-  app.setGlobalPrefix('api');
+  const expressApp = app.getHttpAdapter().getInstance();
+  expressApp.use(
+    WEBDAV_ROOT_PATH,
+    (req: Request, res: Response, next: NextFunction) => {
+      if (req.method !== 'OPTIONS') {
+        next();
+        return;
+      }
+
+      res.setHeader('Allow', WEBDAV_ALLOW);
+      res.setHeader('DAV', WEBDAV_DAV);
+      res.setHeader('Content-Type', WEBDAV_TEXT_CONTENT_TYPE);
+      res.status(200).send('');
+    },
+  );
+
+  app.setGlobalPrefix('api', {
+    exclude: [{ path: 'webdav/{*path}', method: RequestMethod.ALL }],
+  });
   app.enableVersioning({
     type: VersioningType.URI,
     defaultVersion: '1',

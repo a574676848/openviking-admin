@@ -122,6 +122,10 @@ describe("DocumentsPage", () => {
     const doneRow = rows.find((row) => row.textContent?.includes("https://example.com/done"));
     expect(doneRow).toBeDefined();
 
+    const failedRow = rows.find((row) => row.textContent?.includes("https://example.com/page"));
+    expect(failedRow).toBeDefined();
+    expect(failedRow?.textContent).toContain("0%");
+
     const actionButtons = Array.from(doneRow?.querySelectorAll("button") ?? []).filter((button) =>
       ["同步", "重试", "取消"].includes(button.textContent?.trim() ?? ""),
     );

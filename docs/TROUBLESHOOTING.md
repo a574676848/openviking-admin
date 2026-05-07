@@ -11,6 +11,7 @@
 **原因**: PostgreSQL 未启动或连接信息错误。
 
 **解决**:
+
 ```bash
 # 检查 PostgreSQL 是否运行
 pg_isready -h localhost -p 5432
@@ -24,6 +25,7 @@ cat apps/server/.env | grep DB_
 **原因**: 数据库迁移未执行。
 
 **解决**:
+
 ```bash
 cd apps/server
 pnpm typeorm migration:run -d src/data-source.ts
@@ -34,6 +36,7 @@ pnpm typeorm migration:run -d src/data-source.ts
 **原因**: 端口被占用。
 
 **解决**:
+
 ```bash
 # 查找占用端口的进程 (Windows)
 netstat -ano | findstr :6002
@@ -51,6 +54,7 @@ lsof -i :6002
 **原因**: pnpm-workspace.yaml 配置问题。
 
 **解决**:
+
 ```bash
 # 确认 pnpm 版本 >= 8
 pnpm --version
@@ -69,6 +73,7 @@ pnpm install
 **原因**: JWT_SECRET 前后端不一致或 Token 过期。
 
 **解决**:
+
 - 确认后端 `.env` 中 `JWT_SECRET` 未修改后重启
 - Token 2 小时过期，重新登录获取新 Token
 - 检查浏览器 Network 面板确认 `Authorization` Header 格式为 `Bearer <token>`
@@ -78,6 +83,7 @@ pnpm install
 **原因**: SSO Provider 返回的授权码无效或已过期。
 
 **解决**:
+
 - 检查集成配置中 `appId` / `appSecret` 是否正确
 - 确认回调 URL 与 SSO Provider 中配置一致
 - 确认对应租户下存在已启用的 SSO 集成配置
@@ -87,6 +93,7 @@ pnpm install
 **原因**: JIT Provisioning 失败。
 
 **解决**:
+
 - 检查 `SSOPortalService` 日志，确认 `syncUser()` 是否执行
 - 确认租户下存在对应类型的激活集成配置 (`active: true`)
 - 检查 `sso_id` 字段是否已添加到数据库 (需执行 `FixSchemaInconsistencies` 迁移)
@@ -100,6 +107,7 @@ pnpm install
 **原因**: PostgreSQL 用户缺少 `CREATE` 权限。
 
 **解决**:
+
 ```sql
 GRANT CREATE ON DATABASE openviking_admin TO postgres;
 ```
@@ -109,6 +117,7 @@ GRANT CREATE ON DATABASE openviking_admin TO postgres;
 **原因**: Schema 未正确初始化。
 
 **解决**:
+
 ```sql
 -- 检查租户 Schema 是否存在
 SELECT schema_name FROM information_schema.schemata WHERE schema_name LIKE 'tenant_%';
@@ -122,6 +131,7 @@ SELECT schema_name FROM information_schema.schemata WHERE schema_name LIKE 'tena
 **原因**: LARGE 租户过多或 QueryRunner 未释放。
 
 **解决**:
+
 - 检查 `TenantCleanupInterceptor` 是否正常注册
 - 监控 `GET /api/v1/system/health` 中的 `dbPool` 指标
 - LARGE 租户连接池默认最大 10 连接，可在 `DynamicDataSourceService` 中调整
@@ -135,6 +145,7 @@ SELECT schema_name FROM information_schema.schemata WHERE schema_name LIKE 'tena
 **原因**: OV 引擎未启动或地址不可达。
 
 **解决**:
+
 ```bash
 # 检查 OV 引擎是否运行
 curl http://localhost:1933/api/v1/health
@@ -148,6 +159,7 @@ cat apps/server/.env | grep OV_
 **原因**: TaskWorker 未启动或 OV 引擎不可达。
 
 **解决**:
+
 - 检查后端日志，确认 `TaskWorkerService` 是否启动
 - TaskWorker 在模块初始化时启动，定时轮询 `pending` 任务
 - 确认 OV 引擎 `/api/v1/resources` 端点可访问
@@ -157,6 +169,7 @@ cat apps/server/.env | grep OV_
 **原因**: OpenViking 资源接口只接受 `path` 或 `temp_file_id` 等标准字段。如果旧 Worker 将飞书、钉钉 Token 或 `config` 透传给 `/api/v1/resources`，OpenViking 会拒绝未知字段。
 
 **解决**:
+
 - 确认 Worker 使用 Admin 侧平台文档解析流程
 - 飞书文档应先读取 `raw_content`，再通过 `/api/v1/resources/temp_upload` 注入
 - 钉钉文档应通过应用 Token、`operatorId` 和文档块接口读取内容，再通过 `temp_upload` 注入
@@ -167,15 +180,43 @@ cat apps/server/.env | grep OV_
 **原因**: 平台文档使用 `wait=false` 注入，OpenViking 接收资源后会继续在后台处理语义化队列。
 
 **解决**:
+
 - 等待 OpenViking 后台队列处理完成
 - 调用 `GET /api/v1/import-tasks/:id/sync` 同步最新 `nodeCount` 和 `vectorCount`
 - 如需排查资源是否已落盘，优先检查 `/api/v1/fs/tree?uri=<targetUri>`
 
-### 15. Rerank 超时
+### 15. WebDAV 客户端删除失败
+
+**原因**: WebDAV `DELETE` 只支持叶子文件或空目录。非空目录会返回 `409 Conflict`；OpenViking `/api/v1/fs` 删除资源失败时，Admin 侧会保留知识树节点并返回 `502`。如果 OpenViking 返回 `404`，服务层按资源已不存在处理，并继续清理 Admin 元数据。
+
+**解决**:
+
+- 先用 `PROPFIND Depth: 1` 确认目录为空，再删除目录
+- 确认 WebDAV 账号绑定的 capability API key 至少具备 `tenant_operator` 权限
+- 检查 OpenViking `/api/v1/fs?uri=<vikingUri>` 删除参数是否与资源类型匹配：叶子文件使用 `recursive=false`，目录使用 `recursive=true`
+- 遇到 `502` 时先修复下游删除失败原因，再重新执行 WebDAV 删除
+
+### 16. Obsidian Remotely Save 连接失败
+
+**原因**: WebDAV 地址、租户用户名或 capability API key 不匹配。OpenViking Admin 的 WebDAV 根路径不带 `/api/v1` 前缀，地址格式为 `/webdav/:tenantId/`。
+
+**解决**:
+
+- 在控制台 WebDAV 配置页复制服务地址，确认地址以 `/webdav/<tenantId>/` 结尾
+- `username` 填租户标识，`password` 填当前租户签发且未过期的 capability API key
+- 确认 capability API key 绑定的租户与 URL 中的 `tenantId` 一致
+- 初次连接先用 `PROPFIND Depth: 0` 验证根路径是否返回 `207 Multi-Status`
+- 写入、删除或重命名失败时，确认 API key 至少具备 `tenant_operator` 权限
+- 如果客户端提示 `415 Unsupported Media Type`，通常不是鉴权失败，而是客户端尝试写入当前白名单外的文件类型。当前 WebDAV 默认支持 `.md`、`.markdown`、`.txt`、`.json`、`.canvas`、`.css`、`.js`、`.pdf`、`.doc`、`.docx` 与 `.zip`，并兼容 Obsidian 首连时写入的无扩展名 `rs-test-file-*` 探测文件。
+- 多端同时编辑同一文件时，客户端如果带 `If-Match` 或 `If-None-Match`，过期 ETag 会返回 `412 Precondition Failed`，需要重新同步后再写入
+- 当前 WebDAV 入口不实现 `LOCK` / `UNLOCK`；Obsidian Remotely Save 常规同步不依赖这两个方法
+
+### 17. Rerank 超时
 
 **原因**: Rerank 服务响应慢或未配置。
 
 **解决**:
+
 - 检查 `system_configs` 表中 `rerank.endpoint`、`rerank.api_key` 与 `rerank.model` 配置
 - 确认 `rerank.endpoint` 指向可用的完整重排地址，推荐格式为 `http://host:port/v1/rerank`
 - 默认超时 1500ms，由服务端网关控制，超时会自动回退到 Stage 1 结果
@@ -185,20 +226,22 @@ cat apps/server/.env | grep OV_
 
 ## 前端问题
 
-### 16. 前端页面空白
+### 18. 前端页面空白
 
 **原因**: 后端 API 不可达或构建产物问题。
 
 **解决**:
+
 - 检查浏览器 Console 是否有 API 请求报错
 - 确认 `apps/web/.env.local` 中 `BACKEND_URL` 指向正确的后端地址
 - 开发模式下 `next.config.ts` 的 rewrite 代理自动转发 `/api/v1/*` 到后端
 
-### 17. 主题切换不生效
+### 19. 主题切换不生效
 
 **原因**: `next-themes` 配置问题或 localStorage 缓存。
 
 **解决**:
+
 - 清除浏览器 localStorage 中 `theme` 键
 - 检查 `ThemeSwitcher` 组件是否正确调用 `setTheme()`
 
@@ -206,20 +249,22 @@ cat apps/server/.env | grep OV_
 
 ## MCP 问题
 
-### 18. MCP SSE 连接断开
+### 20. MCP SSE 连接断开
 
 **原因**: 网络不稳定或反向代理未配置 SSE 支持。
 
 **解决**:
+
 - 如果使用 Nginx，确保 `/api/v1/mcp/sse` 配置了 `proxy_buffering off` 和 `chunked_transfer_encoding off` (见 `DEPLOYMENT.md`)
 - 检查 API key 或 session key 是否有效
 - 确认 Capability Key 未过期且未被删除
 
-### 19. MCP 工具调用返回空结果
+### 21. MCP 工具调用返回空结果
 
 **原因**: 租户 Scope 未正确注入或知识库为空。
 
 **解决**:
+
 - 确认 Capability Key 绑定的租户下有可用的知识库
 - 检查知识树节点是否已关联 `viking_uri`
 - 通过 `GET /api/v1/system/dashboard` 确认知识库文档数 > 0
@@ -241,6 +286,7 @@ cd apps/server && pnpm start:prod > server.log 2>&1
 ### 查看审计日志
 
 通过 API 查询：
+
 ```bash
 curl -H "Authorization: Bearer <token>" \
   "http://localhost:6001/api/v1/audit?pageSize=10&dateFrom=2024-01-01"
@@ -249,6 +295,7 @@ curl -H "Authorization: Bearer <token>" \
 ### 查看搜索日志
 
 通过 API 查询无结果搜索：
+
 ```bash
 curl -H "Authorization: Bearer <token>" \
   "http://localhost:6001/api/v1/search/analysis"

@@ -1,4 +1,5 @@
 import { HttpStatus } from '@nestjs/common';
+import { Readable } from 'node:stream';
 import {
   OpenVikingRequestException,
   OVClientService,
@@ -126,6 +127,66 @@ describe('OVClientService', () => {
     expect(init.headers).not.toHaveProperty('Content-Type');
   });
 
+  it('流式请求应透传 OpenViking 头并返回 Node Readable', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      headers: {
+        get: (name: string) => {
+          if (name === 'content-type') return 'text/markdown; charset=utf-8';
+          if (name === 'content-length') return '12';
+          return null;
+        },
+      },
+      body: Readable.toWeb(Readable.from(['# 标题\n正文'])),
+    });
+
+    const result = await service.requestStream(
+      { baseUrl: 'http://ov.local', apiKey: 'key', account: 'default' },
+      '/api/v1/content/download?uri=viking%3A%2F%2Fdemo',
+      'GET',
+      undefined,
+      { user: 'user-1' },
+      { serviceLabel: 'OpenViking 内容下载' },
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://ov.local/api/v1/content/download?uri=viking%3A%2F%2Fdemo',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({
+          'x-api-key': 'key',
+          'X-OpenViking-Account': 'default',
+          'X-OpenViking-User': 'user-1',
+        }),
+      }),
+    );
+    expect(result.contentType).toBe('text/markdown; charset=utf-8');
+    expect(result.contentLength).toBe('12');
+    await expect(collectStream(result.stream)).resolves.toBe('# 标题\n正文');
+  });
+
+  it('流式请求失败时应复用 OpenViking 异常映射', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 404,
+      text: async () => 'not found',
+    });
+
+    await expect(
+      service.requestStream(
+        { baseUrl: 'http://ov.local', apiKey: 'key', account: 'default' },
+        '/api/v1/content/download?uri=missing',
+        'GET',
+        undefined,
+        undefined,
+        { serviceLabel: 'OpenViking 内容下载' },
+      ),
+    ).rejects.toMatchObject<Partial<OpenVikingRequestException>>({
+      statusCode: HttpStatus.NOT_FOUND,
+      retriable: false,
+    });
+  });
+
   it('403 应映射为不可重试异常', async () => {
     fetchMock.mockResolvedValue({
       ok: false,
@@ -140,7 +201,11 @@ describe('OVClientService', () => {
         'GET',
         undefined,
         undefined,
-        { retryCount: 1, retryDelayMs: 0, serviceLabel: 'OpenViking Resources' },
+        {
+          retryCount: 1,
+          retryDelayMs: 0,
+          serviceLabel: 'OpenViking Resources',
+        },
       ),
     ).rejects.toMatchObject<Partial<OpenVikingRequestException>>({
       statusCode: HttpStatus.FORBIDDEN,
@@ -192,4 +257,12 @@ describe('OVClientService', () => {
       retriable: false,
     });
   });
+
+  async function collectStream(stream: Readable) {
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    return Buffer.concat(chunks).toString('utf8');
+  }
 });
