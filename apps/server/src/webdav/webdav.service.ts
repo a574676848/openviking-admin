@@ -17,6 +17,7 @@ import type { Principal } from '../capabilities/domain/capability.types';
 import { CapabilityCredentialService } from '../capabilities/infrastructure/capability-credential.service';
 import { TenantCacheService } from '../tenant/tenant-cache.service';
 import { SystemRoles, type UserRole } from '../users/entities/user.entity';
+import { OvConfigResolverService } from '../settings/ov-config-resolver.service';
 import {
   WEBDAV_ALLOW,
   WEBDAV_DAV,
@@ -28,10 +29,12 @@ const WEBDAV_REALM = 'OpenViking WebDAV';
 const WEBDAV_XML_CONTENT_TYPE = 'application/xml; charset=utf-8';
 const WEBDAV_MARKDOWN_CONTENT_TYPE = 'text/markdown; charset=utf-8';
 const WEBDAV_CONTENT_DOWNLOAD_PATH = '/api/v1/content/download';
+const WEBDAV_FS_TREE_PATH = '/api/v1/fs/tree';
 const WEBDAV_SUCCESS_STATUS = 'HTTP/1.1 200 OK';
 const WEBDAV_DIRECTORY_URI_SUFFIX = '/';
 const WEBDAV_MAX_PATH_SEGMENT_LENGTH = 255;
 const WEBDAV_RESERVED_PATH_SEGMENTS = new Set(['.', '..']);
+const WEBDAV_ROOT_WRITE_PROBE_PREFIX = '.webdav_write_test_';
 const WEBDAV_MIN_WRITE_ROLE = SystemRoles.TENANT_OPERATOR;
 const WEBDAV_SORT_ORDER_STEP = 1;
 const WEBDAV_ALLOWED_FILE_EXTENSIONS: ReadonlySet<string> = new Set(
@@ -88,7 +91,9 @@ interface WebdavKnowledgeNode {
     users?: string[];
     isPublic?: boolean;
   } | null;
+  kind: 'collection' | 'document';
   vikingUri: string | null;
+  contentUri: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -120,6 +125,13 @@ interface WebdavKnowledgeBaseLike {
   updatedAt: Date;
 }
 
+interface WebdavOVConnection {
+  baseUrl: string;
+  apiKey: string;
+  account: string;
+  user?: string;
+}
+
 type WebdavTarget =
   | WebdavTargetRoot
   | WebdavTargetKnowledgeBase
@@ -137,6 +149,7 @@ export class WebdavService {
     private readonly ovClientService: OVClientService,
     private readonly auditService: AuditService,
     private readonly dataSource: DataSource,
+    private readonly ovConfigResolver: OvConfigResolverService,
   ) {}
 
   async buildResponse(
@@ -806,13 +819,7 @@ export class WebdavService {
     knowledgeNodes: WebdavKnowledgeNode[],
     nodeSegments: string[] = this.resolveNodePathSegments(node, knowledgeNodes),
   ): WebdavResource {
-    const hasChildren = knowledgeNodes.some(
-      (child) => child.parentId === node.id,
-    );
-    const isCollection =
-      hasChildren ||
-      !node.vikingUri ||
-      this.isDirectoryVikingUri(node.vikingUri);
+    const isCollection = this.isCollectionNode(node, knowledgeNodes);
     const lastModified = node.updatedAt;
     return {
       href: this.toHref(
@@ -900,14 +907,7 @@ export class WebdavService {
     }
 
     const node = nodeResolution.node;
-    const hasChildren = knowledgeNodes.some(
-      (child) => child.parentId === node.id,
-    );
-    if (
-      !node.vikingUri ||
-      hasChildren ||
-      this.isDirectoryVikingUri(node.vikingUri)
-    ) {
+    if (!this.isDocumentNode(node)) {
       return this.createMethodNotAllowedResponse();
     }
 
@@ -934,7 +934,8 @@ export class WebdavService {
 
     const contentStream = await this.readOpenVikingContentStream(
       principal,
-      node.vikingUri,
+      node.contentUri ?? node.vikingUri ?? '',
+      node.vikingUri ?? '',
     );
     if (!contentStream) {
       return this.createBadGatewayResponse('WebDAV 正文读取失败。');
@@ -1081,13 +1082,25 @@ export class WebdavService {
     }
 
     const segments = this.normalizePathSegments(resourcePath);
-    if (segments.length < 2) {
-      return this.createMethodNotAllowedResponse();
+    if (this.isWriteProbePath(segments)) {
+      const preconditionResponse = this.evaluateWritePreconditions(
+        request,
+        false,
+        [],
+      );
+      if (preconditionResponse) {
+        return preconditionResponse;
+      }
+      return this.createCreatedResponse();
     }
 
     const bodyResult = await this.readRequestBody(request);
     if (!bodyResult.ok) {
       return bodyResult.response;
+    }
+
+    if (segments.length < 2) {
+      return this.createMethodNotAllowedResponse();
     }
 
     const target = this.parseTarget(resourcePath);
@@ -1273,11 +1286,7 @@ export class WebdavService {
     const hasChildren = knowledgeNodes.some(
       (child) => child.parentId === nodeResolution.node.id,
     );
-    if (
-      hasChildren ||
-      !nodeResolution.node.vikingUri ||
-      this.isDirectoryVikingUri(nodeResolution.node.vikingUri)
-    ) {
+    if (!this.isDocumentNode(nodeResolution.node) || hasChildren) {
       return {
         ok: false,
         response: this.createConflictResponse('目标路径不是可写文件。'),
@@ -1360,12 +1369,38 @@ export class WebdavService {
       return this.createBadRequestResponse(pathError);
     }
 
+    const segments = this.normalizePathSegments(resourcePath);
+    if (this.isWriteProbePath(segments)) {
+      const preconditionResponse = this.evaluateWritePreconditions(
+        request,
+        true,
+        [],
+      );
+      if (preconditionResponse) {
+        return preconditionResponse;
+      }
+      return this.createNoContentResponse();
+    }
+
     const target = this.parseTarget(resourcePath);
-    if (!target || target.kind !== 'knowledge-node') {
+    if (
+      !target ||
+      (target.kind !== 'knowledge-node' && target.kind !== 'knowledge-base')
+    ) {
       return this.createMethodNotAllowedResponse();
     }
 
     try {
+      if (target.kind === 'knowledge-base') {
+        return await this.buildDeleteKnowledgeBaseResponse(
+          request,
+          principal,
+          tenantScope,
+          resourcePath,
+          target,
+        );
+      }
+
       const knowledgeBase = await this.requireKnowledgeBaseForPathSegment(
         target.knowledgeBaseId,
         tenantScope,
@@ -1444,6 +1479,64 @@ export class WebdavService {
     }
   }
 
+  private async buildDeleteKnowledgeBaseResponse(
+    request: Request,
+    principal: Principal,
+    tenantScope: string,
+    resourcePath: string | undefined,
+    target: WebdavTargetKnowledgeBase,
+  ) {
+    const knowledgeBase = await this.requireKnowledgeBaseForPathSegment(
+      target.knowledgeBaseId,
+      tenantScope,
+    );
+
+    const preconditionResponse = this.evaluateWritePreconditions(
+      request,
+      true,
+      this.resolveKnowledgeBaseEtags(tenantScope, knowledgeBase),
+    );
+    if (preconditionResponse) {
+      return preconditionResponse;
+    }
+
+    try {
+      await this.knowledgeBaseService.remove(knowledgeBase.id, tenantScope, {
+        ovConfig: principal.ovConfig,
+        user: this.resolveOpenVikingUser(principal),
+      });
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      if (error instanceof HttpException) {
+        return this.createBadGatewayResponse('WebDAV 下游资源删除失败。');
+      }
+      throw error;
+    }
+
+    await this.auditService.log({
+      tenantId: tenantScope,
+      userId: principal.userId,
+      username: principal.username,
+      action: 'webdav_delete',
+      target: knowledgeBase.id,
+      meta: {
+        resourceKind: 'knowledge-base',
+        kbId: knowledgeBase.id,
+        parentId: null,
+        name: knowledgeBase.name,
+        path: resourcePath ?? '',
+        credentialType: principal.credentialType,
+        clientType: principal.clientType,
+        requestId: request.header('x-request-id'),
+      },
+      ip: request.ip,
+    });
+
+    return this.createNoContentResponse();
+  }
+
   private async buildMoveResponse(
     request: Request,
     principal: Principal,
@@ -1474,10 +1567,32 @@ export class WebdavService {
 
     const sourceTarget = this.parseTarget(resourcePath);
     const destinationTarget = this.parseTarget(destination.resourcePath);
+    if (!sourceTarget || !destinationTarget) {
+      return this.createMethodNotAllowedResponse();
+    }
     if (
-      !sourceTarget ||
+      sourceTarget.kind === 'knowledge-base' ||
+      destinationTarget.kind === 'knowledge-base'
+    ) {
+      if (
+        sourceTarget.kind !== 'knowledge-base' ||
+        destinationTarget.kind !== 'knowledge-base'
+      ) {
+        return this.createMethodNotAllowedResponse();
+      }
+
+      return this.buildMoveKnowledgeBaseResponse(
+        request,
+        principal,
+        tenantScope,
+        resourcePath,
+        destination.resourcePath,
+        sourceTarget,
+        destinationTarget,
+      );
+    }
+    if (
       sourceTarget.kind !== 'knowledge-node' ||
-      !destinationTarget ||
       destinationTarget.kind !== 'knowledge-node'
     ) {
       return this.createMethodNotAllowedResponse();
@@ -1634,6 +1749,84 @@ export class WebdavService {
     }
   }
 
+  private async buildMoveKnowledgeBaseResponse(
+    request: Request,
+    principal: Principal,
+    tenantScope: string,
+    resourcePath: string | undefined,
+    destinationResourcePath: string,
+    sourceTarget: WebdavTargetKnowledgeBase,
+    destinationTarget: WebdavTargetKnowledgeBase,
+  ) {
+    const knowledgeBases = await this.knowledgeBaseService.findAll(tenantScope);
+    const knowledgeBase = this.resolveKnowledgeBaseByPathSegment(
+      sourceTarget.knowledgeBaseId,
+      knowledgeBases,
+    );
+    if (!knowledgeBase) {
+      throw new NotFoundException(
+        `知识库 ${sourceTarget.knowledgeBaseId} 不存在或无权访问`,
+      );
+    }
+
+    const preconditionResponse = this.evaluateWritePreconditions(
+      request,
+      true,
+      this.resolveKnowledgeBaseEtags(tenantScope, knowledgeBase),
+    );
+    if (preconditionResponse) {
+      return preconditionResponse;
+    }
+
+    const normalizedSourcePath = this.normalizePathSegments(resourcePath).join('/');
+    const normalizedDestinationPath =
+      this.normalizePathSegments(destinationResourcePath).join('/');
+    const destinationKnowledgeBase = this.resolveKnowledgeBaseByPathSegment(
+      destinationTarget.knowledgeBaseId,
+      knowledgeBases,
+    );
+
+    if (
+      normalizedSourcePath === normalizedDestinationPath ||
+      destinationKnowledgeBase?.id === knowledgeBase.id
+    ) {
+      return this.createNoContentResponse();
+    }
+    if (destinationKnowledgeBase) {
+      return this.createConflictResponse('目标路径已存在资源。');
+    }
+
+    const moved = await this.knowledgeBaseService.update(
+      knowledgeBase.id,
+      { name: destinationTarget.knowledgeBaseId },
+      tenantScope,
+    );
+
+    await this.auditService.log({
+      tenantId: tenantScope,
+      userId: principal.userId,
+      username: principal.username,
+      action: 'webdav_move',
+      target: moved.id,
+      meta: {
+        resourceKind: 'knowledge-base',
+        kbId: moved.id,
+        previousParentId: null,
+        parentId: null,
+        previousName: knowledgeBase.name,
+        name: moved.name,
+        sourcePath: resourcePath ?? '',
+        destinationPath: destinationResourcePath,
+        credentialType: principal.credentialType,
+        clientType: principal.clientType,
+        requestId: request.header('x-request-id'),
+      },
+      ip: request.ip,
+    });
+
+    return this.createCreatedResponse();
+  }
+
   private createLocalImportFile(
     fileName: string,
     body: Buffer,
@@ -1681,11 +1874,7 @@ export class WebdavService {
     const hasChildren = knowledgeNodes.some(
       (child) => child.parentId === nodeResolution.node.id,
     );
-    if (
-      !hasChildren &&
-      nodeResolution.node.vikingUri &&
-      !this.isDirectoryVikingUri(nodeResolution.node.vikingUri)
-    ) {
+    if (!hasChildren && this.isDocumentNode(nodeResolution.node)) {
       return {
         ok: false,
         response: this.createConflictResponse('父路径不是目录。'),
@@ -1884,6 +2073,13 @@ export class WebdavService {
     node: WebdavKnowledgeNode,
     knowledgeNodes: WebdavKnowledgeNode[],
   ) {
+    if (node.kind === 'collection') {
+      return true;
+    }
+    if (node.kind === 'document') {
+      return false;
+    }
+
     const hasChildren = knowledgeNodes.some(
       (child) => child.parentId === node.id,
     );
@@ -1892,6 +2088,17 @@ export class WebdavService {
       !node.vikingUri ||
       this.isDirectoryVikingUri(node.vikingUri)
     );
+  }
+
+  private isDocumentNode(node: WebdavKnowledgeNode) {
+    if (node.kind === 'document') {
+      return true;
+    }
+    if (node.kind === 'collection') {
+      return false;
+    }
+
+    return Boolean(node.vikingUri && !this.isDirectoryVikingUri(node.vikingUri));
   }
 
   private isDescendantParent(
@@ -1979,6 +2186,20 @@ export class WebdavService {
     ];
   }
 
+  private resolveKnowledgeBaseEtags(
+    tenantScope: string,
+    knowledgeBase: WebdavKnowledgeBaseLike,
+  ) {
+    return [
+      this.toEtag(
+        'knowledge-base',
+        tenantScope,
+        knowledgeBase.id,
+        knowledgeBase.updatedAt.toISOString(),
+      ),
+    ];
+  }
+
   private resolveNextSortOrder(
     knowledgeNodes: WebdavKnowledgeNode[],
     parentId: string | null,
@@ -2012,6 +2233,17 @@ export class WebdavService {
     }
 
     return WEBDAV_ALLOWED_FILE_EXTENSIONS.has(extension) ? extension : null;
+  }
+
+  private isRootWriteProbePath(segments: string[]) {
+    return (
+      segments.length === 1 &&
+      segments[0].startsWith(WEBDAV_ROOT_WRITE_PROBE_PREFIX)
+    );
+  }
+
+  private isWriteProbePath(segments: string[]) {
+    return segments.at(-1)?.startsWith(WEBDAV_ROOT_WRITE_PROBE_PREFIX) ?? false;
   }
 
   private async readRequestBody(
@@ -2065,17 +2297,14 @@ export class WebdavService {
 
   private async readOpenVikingContentStream(
     principal: Principal,
-    vikingUri: string,
+    downloadUri: string,
+    resourceUri: string,
   ) {
+    const connection = await this.resolveOpenVikingConnection(principal);
     try {
       return await this.ovClientService.requestStream(
-        {
-          baseUrl: principal.ovConfig.baseUrl,
-          apiKey: principal.ovConfig.apiKey,
-          account: principal.ovConfig.account,
-          user: this.resolveOpenVikingUser(principal),
-        },
-        `${WEBDAV_CONTENT_DOWNLOAD_PATH}?uri=${encodeURIComponent(vikingUri)}`,
+        connection,
+        `${WEBDAV_CONTENT_DOWNLOAD_PATH}?uri=${encodeURIComponent(downloadUri)}`,
         'GET',
         undefined,
         undefined,
@@ -2085,10 +2314,84 @@ export class WebdavService {
       );
     } catch (error) {
       if (error instanceof HttpException) {
+        const fallbackUri = await this.resolveDownloadableLeafUri(
+          connection,
+          resourceUri,
+        );
+        if (!fallbackUri || fallbackUri === downloadUri) {
+          return null;
+        }
+
+        try {
+          return await this.ovClientService.requestStream(
+            connection,
+            `${WEBDAV_CONTENT_DOWNLOAD_PATH}?uri=${encodeURIComponent(fallbackUri)}`,
+            'GET',
+            undefined,
+            undefined,
+            {
+              serviceLabel: 'OpenViking 内容下载',
+            },
+          );
+        } catch (fallbackError) {
+          if (fallbackError instanceof HttpException) {
+            return null;
+          }
+          throw fallbackError;
+        }
+      }
+      throw error;
+    }
+  }
+
+  private async resolveDownloadableLeafUri(
+    connection: WebdavOVConnection,
+    vikingUri: string,
+  ) {
+    try {
+      const response = await this.ovClientService.request(
+        connection,
+        `${WEBDAV_FS_TREE_PATH}?uri=${encodeURIComponent(vikingUri)}&depth=1`,
+        'GET',
+        undefined,
+        connection.user ? { user: connection.user } : undefined,
+        {
+          serviceLabel: 'OpenViking 资源树',
+        },
+      );
+      const entries = Array.isArray(response?.result) ? response.result : [];
+      const leaf = entries.find(
+        (entry): entry is { uri: string; isDir?: boolean } =>
+          Boolean(
+            entry &&
+              typeof entry === 'object' &&
+              typeof (entry as { uri?: unknown }).uri === 'string' &&
+              (entry as { isDir?: unknown }).isDir === false,
+          ),
+      );
+      return leaf?.uri ?? null;
+    } catch (error) {
+      if (error instanceof HttpException) {
         return null;
       }
       throw error;
     }
+  }
+
+  private async resolveOpenVikingConnection(
+    principal: Principal,
+  ): Promise<WebdavOVConnection> {
+    const resolved = principal.tenantId
+      ? await this.ovConfigResolver.resolve(principal.tenantId)
+      : principal.ovConfig;
+    const user = resolved.user || principal.ovConfig.user || undefined;
+
+    return {
+      baseUrl: resolved.baseUrl || principal.ovConfig.baseUrl,
+      apiKey: resolved.apiKey || principal.ovConfig.apiKey,
+      account: resolved.account || principal.ovConfig.account || 'default',
+      ...(user ? { user } : {}),
+    };
   }
 
   private renderMultiStatusXml(resources: WebdavResource[]) {

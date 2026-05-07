@@ -50,6 +50,7 @@ export function ConsoleSelect({
   onChange,
   children,
   className,
+  triggerClassName,
   placeholder = "请选择...",
   disabled,
 }: {
@@ -57,6 +58,7 @@ export function ConsoleSelect({
   onChange?: (e: { target: { value: string } }) => void;
   children: ReactNode;
   className?: string;
+  triggerClassName?: string;
   placeholder?: string;
   disabled?: boolean;
 }) {
@@ -129,11 +131,12 @@ export function ConsoleSelect({
         disabled={disabled}
         onClick={() => !disabled && setIsOpen(!isOpen)}
         className={cx(
-          "ov-input flex w-full items-center justify-between pl-5 pr-4 py-3.5 font-sans text-sm font-bold transition-all duration-300",
+          "ov-input flex w-full items-center justify-between px-4 py-3 font-sans text-sm font-bold transition-all duration-300",
           "bg-[var(--bg-input)] border-[var(--border)] text-[var(--text-primary)]",
           !disabled && "hover:border-[var(--brand)] hover:bg-[var(--bg-card)]",
           isOpen && !disabled && "ring-4 ring-[var(--brand-muted)] border-[var(--brand)] shadow-lg",
-          disabled && "cursor-not-allowed opacity-50 bg-[var(--bg-elevated)]"
+          disabled && "cursor-not-allowed opacity-50 bg-[var(--bg-elevated)]",
+          triggerClassName
         )}
       >
         <span className="truncate">{selectedOption?.label || placeholder}</span>

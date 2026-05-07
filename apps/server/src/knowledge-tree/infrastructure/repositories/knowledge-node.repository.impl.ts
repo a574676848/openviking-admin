@@ -9,7 +9,10 @@ import {
 } from 'typeorm';
 import { KnowledgeNode } from '../../entities/knowledge-node.entity';
 import { IKnowledgeNodeRepository } from '../../domain/repositories/knowledge-node.repository.interface';
-import type { KnowledgeNodeModel } from '../../domain/knowledge-node.model';
+import type {
+  KnowledgeNodeKind,
+  KnowledgeNodeModel,
+} from '../../domain/knowledge-node.model';
 import type { RepositoryRequest } from '../../../common/repository-request.interface';
 import type {
   RepositoryFindOneQuery,
@@ -19,6 +22,26 @@ import type {
 @Injectable({ scope: Scope.REQUEST })
 export class KnowledgeNodeRepositoryImpl implements IKnowledgeNodeRepository {
   private static readonly RESOURCE_URI_PREFIX = 'viking://resources';
+
+  private inferKind(entity: Pick<KnowledgeNode, 'kind' | 'vikingUri'>): KnowledgeNodeKind {
+    if (entity.kind === 'collection' || entity.kind === 'document') {
+      return entity.kind;
+    }
+
+    return entity.vikingUri?.endsWith('/') ? 'collection' : 'document';
+  }
+
+  private inferContentUri(entity: Pick<KnowledgeNode, 'contentUri' | 'vikingUri' | 'kind'>) {
+    if (entity.contentUri) {
+      return entity.contentUri;
+    }
+
+    if (this.inferKind(entity) === 'document' && entity.vikingUri && !entity.vikingUri.endsWith('/')) {
+      return entity.vikingUri;
+    }
+
+    return null;
+  }
 
   constructor(
     @Inject(REQUEST) private readonly request: RepositoryRequest,
@@ -48,7 +71,9 @@ export class KnowledgeNodeRepositoryImpl implements IKnowledgeNodeRepository {
       path: entity.path,
       sortOrder: entity.sortOrder,
       acl: entity.acl,
+      kind: this.inferKind(entity),
       vikingUri: entity.vikingUri,
+      contentUri: this.inferContentUri(entity),
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,
     };
@@ -66,7 +91,9 @@ export class KnowledgeNodeRepositoryImpl implements IKnowledgeNodeRepository {
       path: node.path ?? undefined,
       sortOrder: node.sortOrder,
       acl: node.acl ?? undefined,
+      kind: node.kind ?? undefined,
       vikingUri: node.vikingUri ?? undefined,
+      contentUri: node.contentUri ?? undefined,
       createdAt: node.createdAt,
       updatedAt: node.updatedAt,
     };
@@ -78,15 +105,6 @@ export class KnowledgeNodeRepositoryImpl implements IKnowledgeNodeRepository {
     id: string;
   }): string {
     return `${KnowledgeNodeRepositoryImpl.RESOURCE_URI_PREFIX}/tenants/${node.tenantId}/${node.kbId}/${node.id}/`;
-  }
-
-  private buildFileVikingUri(node: {
-    tenantId: string;
-    kbId: string;
-    id: string;
-    fileExtension: string;
-  }): string {
-    return `${KnowledgeNodeRepositoryImpl.RESOURCE_URI_PREFIX}/tenants/${node.tenantId}/${node.kbId}/${node.id}${node.fileExtension}`;
   }
 
   private async createTransactionalQueryRunner(): Promise<{
@@ -167,7 +185,9 @@ export class KnowledgeNodeRepositoryImpl implements IKnowledgeNodeRepository {
         KnowledgeNode,
         this.toEntityInput({
           ...node,
+          kind: 'collection',
           vikingUri: undefined,
+          contentUri: undefined,
         }),
       );
       const saved = await queryRunner.manager.save(entity);
@@ -177,13 +197,19 @@ export class KnowledgeNodeRepositoryImpl implements IKnowledgeNodeRepository {
         id: saved.id,
       });
 
-      await queryRunner.manager.update(KnowledgeNode, saved.id, { vikingUri });
+      await queryRunner.manager.update(KnowledgeNode, saved.id, {
+        kind: 'collection',
+        vikingUri,
+        contentUri: null,
+      });
 
       if (startedTransaction) {
         await queryRunner.commitTransaction();
       }
 
+      saved.kind = 'collection';
       saved.vikingUri = vikingUri;
+      saved.contentUri = null;
       return this.toModel(saved);
     } catch (error) {
       if (startedTransaction) {
@@ -217,24 +243,31 @@ export class KnowledgeNodeRepositoryImpl implements IKnowledgeNodeRepository {
         KnowledgeNode,
         this.toEntityInput({
           ...node,
+          kind: 'document',
           vikingUri: undefined,
+          contentUri: undefined,
         }),
       );
       const saved = await queryRunner.manager.save(entity);
-      const vikingUri = this.buildFileVikingUri({
+      const vikingUri = this.buildVikingUri({
         tenantId: node.tenantId,
         kbId: node.kbId,
         id: saved.id,
-        fileExtension: node.fileExtension,
       });
 
-      await queryRunner.manager.update(KnowledgeNode, saved.id, { vikingUri });
+      await queryRunner.manager.update(KnowledgeNode, saved.id, {
+        kind: 'document',
+        vikingUri,
+        contentUri: null,
+      });
 
       if (startedTransaction) {
         await queryRunner.commitTransaction();
       }
 
+      saved.kind = 'document';
       saved.vikingUri = vikingUri;
+      saved.contentUri = null;
       return this.toModel(saved);
     } catch (error) {
       if (startedTransaction) {
@@ -261,7 +294,6 @@ export class KnowledgeNodeRepositoryImpl implements IKnowledgeNodeRepository {
   ): Promise<string[]> {
     const queryBuilder = this.repo
       .createQueryBuilder('node')
-      .select('node.vikingUri')
       .where('node.tenantId = :tenantId', { tenantId })
       .andWhere('node.vikingUri IS NOT NULL');
 
@@ -275,6 +307,14 @@ export class KnowledgeNodeRepositoryImpl implements IKnowledgeNodeRepository {
     );
 
     const nodes = await queryBuilder.getMany();
-    return nodes.map((n) => n.vikingUri);
+    return Array.from(
+      new Set(
+        nodes.flatMap((node) =>
+          [node.vikingUri, node.contentUri].filter(
+            (uri): uri is string => Boolean(uri),
+          ),
+        ),
+      ),
+    );
   }
 }

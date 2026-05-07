@@ -18,7 +18,7 @@ export const PLATFORM_ENDPOINTS = {
 export const QUEUE_CONFIG = {
   GLOBAL_MAX_CONCURRENCY: 5, // 全局最大并行任务数
   TENANT_MAX_CONCURRENCY: 2, // 单租户最大并行任务数
-  POLLING_INTERVAL_MS: 3000, // 队列轮询间隔
+  POLLING_INTERVAL_MS: 60_000, // 队列轮询间隔
 };
 
 /** 本地导入上传配置 */

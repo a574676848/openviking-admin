@@ -195,8 +195,8 @@ POST /api/v1/import-tasks
 - 控制台创建导入任务时不再要求手工填写 `targetUri`
 - 服务端会基于知识库的 `vikingUri` 自动派生目标路径
 - 当前默认规则为 `viking://resources/{tenantId}/{kbId}/imports/{sourceType}/`
-- 如果知识库下已有知识树节点，控制台会额外提供“导入目标节点”选择；选中节点后会直接使用该节点的 `vikingUri` 作为导入目标
-- 服务端会严格校验显式 `targetUri`：只允许当前知识库根目录或当前知识库下已有节点的 `vikingUri`，禁止写入其他租户的 OV 路径
+- 如果知识库下已有知识树节点，控制台会额外提供“导入目标节点”选择；当前控制台只允许选择目录节点，文档叶子不支持从导入中心直接覆盖
+- 服务端会严格校验显式 `targetUri`：只允许当前知识库根目录或当前知识库下已有节点的稳定资源容器 URI，禁止写入其他租户的 OV 路径
 
 ---
 
@@ -215,9 +215,9 @@ LOCAL_IMPORT_KEEP_FILES_AFTER_DONE=false
 - 上传接口生成的临时文件会写入 `LOCAL_IMPORT_UPLOAD_DIR/managed`，Worker 只读取该受控子目录下的文件。
 - 本地文件统一转成 OpenViking `temp_file_id` 后再注入，不向 OpenViking 传递 `file://` 路径。
 - 默认导入成功后会删除暂存文件；失败任务会保留文件，便于排查和重试。
-- WebDAV `PUT` 复用同一条受控上传链路：WebDAV adapter 接收请求正文，新建白名单内文件时创建知识树文件节点，覆盖已有白名单文件时保留原节点和 `vikingUri`，并用目标节点的 `vikingUri` 创建 `sourceType=local` 导入任务。WebDAV 本身仍是同步 adapter，不新增独立导入来源。
+- WebDAV `PUT` 复用同一条受控上传链路：WebDAV adapter 接收请求正文，新建白名单内文件时创建文档叶子节点并分配稳定资源容器 URI，覆盖已有白名单文件时保留原节点和资源容器 URI，并用目标叶子的资源容器 URI 创建 `sourceType=local` 导入任务。Worker 导入成功后会把当前正文叶子的实际 `contentUri` 回写到知识树节点。WebDAV 本身仍是同步 adapter，不新增独立导入来源。
 - WebDAV `DELETE` 不创建导入任务；它复用知识树服务层删除语义，对带 `vikingUri` 的叶子文件或空目录先调用 OpenViking `/api/v1/fs` 删除资源和向量，再删除 Admin 侧知识树节点。控制台知识树和知识库删除同样走这条服务层语义，避免只删 Admin 元数据。
-- WebDAV `MOVE` 不创建导入任务，也不触发 OpenViking 移动或重索引；它只更新 Admin 侧知识树节点名称、父节点、排序和展示路径，保持系统生成的 `vikingUri` 不变。
+- WebDAV `MOVE` 不创建导入任务，也不触发 OpenViking 移动或重索引；它只更新 Admin 侧知识树节点名称、父节点、排序和展示路径，保持稳定资源容器 URI 不变。
 
 ### 创建导入任务
 
@@ -324,6 +324,14 @@ GET /api/v1/import-tasks/:id/sync
 
 导入任务失败时会把 `nodeCount` 和 `vectorCount` 统一清零，控制台任务进度也会回落为 `0%`，避免把失败任务误展示为已完成。
 
+### 删除失败任务
+
+```bash
+DELETE /api/v1/import-tasks/:id
+```
+
+该接口仅供控制台/JWT 管理入口使用，只允许物理删除 `failed` 状态的任务。若失败任务来源于受控本地上传文件，服务端会同步删除暂存文件；现有 CLI、MCP 和 capability 契约暂不暴露该能力。
+
 ### 状态流转
 
 ```
@@ -337,12 +345,12 @@ pending → running → done
 
 `TaskWorkerService` 在 `ImportTaskModule` 初始化时自动启动：
 
-- **轮询间隔**: 定时检查 `pending` 状态的任务
+- **轮询间隔**: 每 60 秒检查一次 `pending` 状态的任务
 - **并发处理**: 同时处理多个任务
 - **租户路由**: Worker 会按活跃租户逐个扫描任务；`SMALL` 读取公共库，`MEDIUM` 设置租户 schema，`LARGE` 连接独立库
 - **集成凭证**: 处理飞书、钉钉、Git 等任务时，从任务所属租户的数据域读取并解密集成凭证
 - **本地文件清理**: `sourceType=local` 的任务成功后默认删除暂存文件；失败任务保留原文件以支持重试
-- **错误处理**: 任务失败时记录 `errorMsg`，状态设为 `failed`
+- **错误处理**: 任务失败时记录 `errorMsg`，状态设为 `failed`；单次轮询异常只记日志，不退出后端进程
 - **模块销毁时**: Worker 停止
 
 ---

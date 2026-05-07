@@ -182,7 +182,7 @@ function IntegrationFormFields({
             value={form.name}
             onChange={(event) => onChange({ ...form, name: event.target.value })}
             placeholder="例如：研发 GitHub / 企业域控"
-            className="bg-[var(--bg-input)] px-4 py-3"
+            className="bg-[var(--bg-input)]"
           />
         </PlatformField>
         <PlatformField label="集成类型" className="gap-2">
@@ -195,7 +195,8 @@ function IntegrationFormFields({
                 credentials: {},
               })
             }
-            className="w-full bg-[var(--bg-input)] px-4 py-3 font-bold tracking-widest"
+            className="w-full"
+            triggerClassName="bg-[var(--bg-input)] font-bold tracking-widest"
           >
             {Object.entries(TYPE_META).map(([key, meta]) => (
               <option key={key} value={key}>
@@ -232,7 +233,7 @@ function IntegrationFormFields({
                 })
               }
               placeholder={field.placeholder}
-              className="bg-[var(--bg-input)] px-4 py-3"
+              className="bg-[var(--bg-input)]"
             />
           </PlatformField>
         ))}

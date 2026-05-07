@@ -79,6 +79,13 @@ OpenViking Admin 的 capability 调用链路提供统一追踪、审计、指标
 | 调用入口 | HTTP、CLI、MCP、Skill |
 | 凭证类型 | API 响应 meta、服务端日志 |
 
+### WebDAV 访问日志
+
+- 所有请求都会输出摘要访问日志，事件名为 `http.request`，包含 `requestId`、`traceId`、方法、路径、状态码、租户和用户等基础字段。
+- WebDAV 请求在失败时会额外输出 `http.request.webdav`，用于排查 Obsidian、Remotely Save、Finder、WebDAV 客户端等失败场景。该日志会补充脱敏后的请求头、响应头、租户路径和解码后的资源路径。
+- `Authorization`、`Cookie`、`Set-Cookie`、`x-api-key` 等敏感头会被自动脱敏，不会原样写入日志。
+- 若需要观察成功链路上的完整 WebDAV 方法序列，可设置环境变量 `WEBDAV_ACCESS_LOG_VERBOSE=true`，让所有 WebDAV 请求都输出 `http.request.webdav` 明细日志。
+
 然后查看：
 
 ```bash

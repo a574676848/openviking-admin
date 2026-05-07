@@ -161,7 +161,8 @@ cat apps/server/.env | grep OV_
 **解决**:
 
 - 检查后端日志，确认 `TaskWorkerService` 是否启动
-- TaskWorker 在模块初始化时启动，定时轮询 `pending` 任务
+- TaskWorker 在模块初始化时启动，默认每 60 秒轮询一次 `pending` 任务
+- 单次轮询若遇到数据库断连，服务会记录错误并等待下一轮重试，不会因为这一轮失败而直接退出后端进程
 - 确认 OV 引擎 `/api/v1/resources` 端点可访问
 
 ### 13. 平台文档导入返回 422: `extra_forbidden`
@@ -187,10 +188,11 @@ cat apps/server/.env | grep OV_
 
 ### 15. WebDAV 客户端删除失败
 
-**原因**: WebDAV `DELETE` 只支持叶子文件或空目录。非空目录会返回 `409 Conflict`；OpenViking `/api/v1/fs` 删除资源失败时，Admin 侧会保留知识树节点并返回 `502`。如果 OpenViking 返回 `404`，服务层按资源已不存在处理，并继续清理 Admin 元数据。
+**原因**: WebDAV `DELETE` 分两类语义：`DELETE /webdav/<tenantId>/<knowledgeBaseName>` 会映射为整个知识库递归删除；`DELETE /webdav/<tenantId>/<knowledgeBaseName>/<node...>` 只支持叶子文件或空目录。知识库内的非空目录会返回 `409 Conflict`；OpenViking `/api/v1/fs` 删除资源失败时，Admin 侧会保留元数据并返回 `502`。如果 OpenViking 返回 `404`，服务层会按资源已不存在处理，并继续清理 Admin 元数据。
 
 **解决**:
 
+- 如果请求路径只有一段知识库目录，确认客户端确实是在执行“删除知识库”而不是误删整个知识库目录
 - 先用 `PROPFIND Depth: 1` 确认目录为空，再删除目录
 - 确认 WebDAV 账号绑定的 capability API key 至少具备 `tenant_operator` 权限
 - 检查 OpenViking `/api/v1/fs?uri=<vikingUri>` 删除参数是否与资源类型匹配：叶子文件使用 `recursive=false`，目录使用 `recursive=true`
@@ -207,6 +209,7 @@ cat apps/server/.env | grep OV_
 - 确认 capability API key 绑定的租户与 URL 中的 `tenantId` 一致
 - 初次连接先用 `PROPFIND Depth: 0` 验证根路径是否返回 `207 Multi-Status`
 - 写入、删除或重命名失败时，确认 API key 至少具备 `tenant_operator` 权限
+- 如果客户端在租户根目录对知识库目录执行 `MOVE`，服务端会把它映射为知识库重命名；目标路径必须仍位于 `/webdav/<tenantId>/` 根下，且不能与已有知识库同名
 - 如果客户端提示 `415 Unsupported Media Type`，通常不是鉴权失败，而是客户端尝试写入当前白名单外的文件类型。当前 WebDAV 默认支持 `.md`、`.markdown`、`.txt`、`.json`、`.canvas`、`.css`、`.js`、`.pdf`、`.doc`、`.docx` 与 `.zip`，并兼容 Obsidian 首连时写入的无扩展名 `rs-test-file-*` 探测文件。
 - 多端同时编辑同一文件时，客户端如果带 `If-Match` 或 `If-None-Match`，过期 ETag 会返回 `412 Precondition Failed`，需要重新同步后再写入
 - 当前 WebDAV 入口不实现 `LOCK` / `UNLOCK`；Obsidian Remotely Save 常规同步不依赖这两个方法
@@ -282,6 +285,13 @@ cd apps/server && pnpm start:dev
 # 生产模式 (建议配置日志文件)
 cd apps/server && pnpm start:prod > server.log 2>&1
 ```
+
+### 查看 WebDAV 明细日志
+
+- 常规访问摘要日志事件名是 `http.request`。
+- WebDAV 请求失败时，服务端会额外输出 `http.request.webdav`，其中包含脱敏后的请求头、响应头、租户路径和解码后的资源路径，适合排查 Obsidian 上传、删除、MOVE、条件写入失败等问题。
+- 默认只有失败的 WebDAV 请求才会输出这条明细日志；如果要观察客户端完整方法序列，可在 `apps/server/.env` 中设置 `WEBDAV_ACCESS_LOG_VERBOSE=true` 后重启服务。
+- 明细日志会自动脱敏 `Authorization`、`Cookie`、`Set-Cookie`、`x-api-key` 等敏感头，所以可以直接把日志片段用于排障协作。
 
 ### 查看审计日志
 

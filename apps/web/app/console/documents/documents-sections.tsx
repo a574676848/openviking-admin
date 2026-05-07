@@ -12,6 +12,7 @@ import {
   RefreshCw,
   RotateCcw,
   Search,
+  Trash2,
   Timer,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -24,6 +25,7 @@ import { cx } from "@/components/console/shared";
 import { DataTable, type ColumnDef } from "@/components/ui/DataTable";
 import {
   canCancelDocumentTask,
+  canDeleteDocumentTask,
   canRetryDocumentTask,
   canSyncDocumentTask,
   DOCUMENT_SOURCE_ICONS,
@@ -59,6 +61,7 @@ type DocumentsTasksTableProps = {
   onSync: (id: string) => void;
   onRetry: (id: string) => void;
   onCancel: (id: string) => void;
+  onDelete: (id: string) => void;
 };
 
 function resolveTaskProgress(status: string) {
@@ -289,6 +292,7 @@ export function DocumentsTasksTable({
   onSync,
   onRetry,
   onCancel,
+  onDelete,
 }: DocumentsTasksTableProps) {
   const columns = useMemo<ColumnDef<ImportTask>[]>(() => [
     {
@@ -428,6 +432,7 @@ export function DocumentsTasksTable({
         const canSync = canSyncDocumentTask(task);
         const canRetry = canRetryDocumentTask(task);
         const canCancel = canCancelDocumentTask(task);
+        const canDelete = canDeleteDocumentTask(task);
         return (
           <div className="flex items-center justify-end flex-nowrap gap-2">
             <PlatformButton
@@ -462,11 +467,21 @@ export function DocumentsTasksTable({
               <Ban size={14} strokeWidth={2.2} />
               取消
             </PlatformButton>
+            <PlatformButton
+              type="button"
+              tone="danger"
+              onClick={() => onDelete(task.id)}
+              disabled={isActing || !canDelete}
+              className="h-9 px-3 whitespace-nowrap min-w-fit"
+            >
+              <Trash2 size={14} strokeWidth={2.2} />
+              删除
+            </PlatformButton>
           </div>
         );
       },
     },
-  ], [selectedIds, actingIds, onSelectOne, onSync, onRetry, onCancel]);
+  ], [selectedIds, actingIds, onSelectOne, onSync, onRetry, onCancel, onDelete]);
 
   return (
     <div className="relative">

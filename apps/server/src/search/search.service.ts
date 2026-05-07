@@ -104,7 +104,11 @@ export class SearchService {
       },
       meta,
     )) as OVSearchResponse;
-    let resources = data?.result?.resources ?? [];
+    let resources = this.filterResourcesByScope(
+      data?.result?.resources ?? [],
+      allowedUris,
+      params.uri,
+    );
 
     if (shouldUseRerank && resources.length > 0) {
       try {
@@ -258,6 +262,59 @@ export class SearchService {
     }
 
     return fallbackScore;
+  }
+
+  private filterResourcesByScope(
+    resources: OVSearchResource[],
+    allowedUris: string[],
+    requestedScope?: string,
+  ) {
+    const normalizedAllowedUris = allowedUris
+      .map((uri) => this.normalizeUri(uri))
+      .filter((uri): uri is string => !!uri);
+    const normalizedRequestedScope = this.normalizeUri(requestedScope);
+
+    return resources.filter((resource) => {
+      const resourceUri = this.normalizeUri(resource.uri);
+      if (!resourceUri) {
+        return false;
+      }
+
+      const allowedByAcl = normalizedAllowedUris.some((allowedUri) =>
+        this.isUriWithinScope(resourceUri, allowedUri),
+      );
+      if (!allowedByAcl) {
+        return false;
+      }
+
+      if (!normalizedRequestedScope) {
+        return true;
+      }
+
+      return this.isUriWithinScope(resourceUri, normalizedRequestedScope);
+    });
+  }
+
+  private isUriWithinScope(candidateUri: string, scopeUri: string) {
+    const normalizedCandidate = this.normalizeUri(candidateUri);
+    const normalizedScope = this.normalizeUri(scopeUri);
+    if (!normalizedCandidate || !normalizedScope) {
+      return false;
+    }
+
+    return (
+      normalizedCandidate === normalizedScope ||
+      normalizedCandidate.startsWith(`${normalizedScope}/`)
+    );
+  }
+
+  private normalizeUri(uri?: string | null) {
+    if (!uri) {
+      return null;
+    }
+
+    const normalized = uri.trim().replace(/\/+$/, '');
+    return normalized.length > 0 ? normalized : null;
   }
 
   private buildRerankDocument(resource: OVSearchResource) {

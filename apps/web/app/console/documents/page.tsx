@@ -139,6 +139,26 @@ export default function DocumentsPage() {
     });
   }
 
+  async function handleDelete(id: string) {
+    const approved = await confirm({
+      title: "删除失败任务",
+      description: "该操作会物理删除失败任务记录。本地上传来源还会一并清理受控上传文件。",
+      confirmText: "确认删除",
+      cancelText: "继续保留",
+      tone: "danger",
+    });
+    if (!approved) {
+      return;
+    }
+
+    await runTaskAction(id, () => apiClient.delete(`/import-tasks/${id}`), {
+      loading: "正在删除失败任务...",
+      success: "失败任务已删除",
+      error: "删除失败",
+    });
+    setSelectedIds((current) => current.filter((taskId) => taskId !== id));
+  }
+
   async function handleBulkAction(action: TaskAction) {
     const actionableTasks = selectedTasks.filter((task) => {
       if (action === "retry") return canRetryDocumentTask(task);
@@ -280,6 +300,7 @@ export default function DocumentsPage() {
           onSync={(id) => void handleSync(id)}
           onRetry={(id) => void handleRetry(id)}
           onCancel={(id) => void handleCancel(id)}
+          onDelete={(id) => void handleDelete(id)}
         />
       </div>
     </div>

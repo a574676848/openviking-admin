@@ -33,7 +33,11 @@ describe('SearchService', () => {
       settings as never,
       ovKnowledgeGateway as never,
     );
-    nodeRepo.findAllowedUris.mockResolvedValue(['viking://resources/default/']);
+    nodeRepo.findAllowedUris.mockResolvedValue([
+      'viking://a',
+      'viking://b',
+      'viking://resources/default/',
+    ]);
     logRepo.save.mockImplementation(async (payload: Record<string, unknown>) => ({
       id: 'log-1',
       ...payload,
@@ -273,6 +277,60 @@ describe('SearchService', () => {
       expect.objectContaining({
         resultCount: 0,
         scoreMax: 0,
+      }),
+    );
+  });
+
+  it('命中结果超出选中 URI_SCOPE 时应在服务端过滤', async () => {
+    nodeRepo.findAllowedUris.mockResolvedValue([
+      'viking://resources/tenants/test3/pre-research/',
+      'viking://resources/tenants/test3/pre-research/report.md',
+      'viking://resources/tenants/test3/ops-guide/',
+    ]);
+    settings.resolveOVConfig.mockResolvedValue({
+      baseUrl: 'http://ov.local',
+      apiKey: 'key',
+      account: 'default',
+      rerankEndpoint: null,
+      rerankApiKey: null,
+      rerankModel: null,
+    });
+    ovKnowledgeGateway.findKnowledge.mockResolvedValue({
+      result: {
+        resources: [
+          {
+            uri: 'viking://resources/tenants/test3/pre-research/report.md',
+            score: 0.82,
+            content: '预研报告正文',
+          },
+          {
+            uri: 'viking://resources/tech-specs/openviking/SECURITY/SECURITY.md',
+            score: 0.93,
+            content: '越权命中的外部文档',
+          },
+        ],
+      },
+    });
+
+    const result = await service.find(
+      {
+        query: '安全策略',
+        uri: 'viking://resources/tenants/test3/pre-research/',
+        useRerank: false,
+      },
+      'tenant-a',
+      { id: 'user-1', role: 'tenant_admin' },
+    );
+
+    expect(result.resources).toEqual([
+      expect.objectContaining({
+        uri: 'viking://resources/tenants/test3/pre-research/report.md',
+      }),
+    ]);
+    expect(logRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scope: 'viking://resources/tenants/test3/pre-research/',
+        resultCount: 1,
       }),
     );
   });

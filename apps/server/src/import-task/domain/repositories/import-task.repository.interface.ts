@@ -11,6 +11,7 @@ export interface IImportTaskRepository {
   create(data: Partial<ImportTaskModel>): ImportTaskModel;
   save(task: ImportTaskModel | ImportTaskModel[]): Promise<ImportTaskModel | ImportTaskModel[]>;
   update(id: string, data: Partial<ImportTaskModel>): Promise<void>;
+  delete(id: string, tenantId?: string | null): Promise<void>;
   findOne(options: RepositoryFindOneQuery<ImportTaskModel>): Promise<ImportTaskModel | null>;
   count(where?: Record<string, unknown>): Promise<number>;
   find(

@@ -5,6 +5,7 @@ import DocumentsPage from "./page";
 
 const getMock = vi.fn();
 const postMock = vi.fn();
+const deleteMock = vi.fn();
 const confirmMock = vi.fn();
 
 vi.mock("sonner", () => ({
@@ -23,6 +24,7 @@ vi.mock("@/lib/apiClient", () => ({
   apiClient: {
     get: (...args: unknown[]) => getMock(...args),
     post: (...args: unknown[]) => postMock(...args),
+    delete: (...args: unknown[]) => deleteMock(...args),
   },
 }));
 
@@ -44,6 +46,7 @@ describe("DocumentsPage", () => {
     (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     getMock.mockReset();
     postMock.mockReset();
+    deleteMock.mockReset();
     confirmMock.mockReset();
     vi.spyOn(globalThis, "setInterval").mockImplementation(() => 1 as unknown as ReturnType<typeof setInterval>);
     vi.spyOn(globalThis, "clearInterval").mockImplementation(() => {});
@@ -67,7 +70,7 @@ describe("DocumentsPage", () => {
     expect(container.textContent).toContain("任务中心暂不可用");
   });
 
-  it("根据任务状态展示重试、取消和批量操作入口", async () => {
+  it("根据任务状态展示重试、取消、删除和批量操作入口", async () => {
     getMock.mockResolvedValueOnce([
       {
         id: "task-pending",
@@ -127,10 +130,56 @@ describe("DocumentsPage", () => {
     expect(failedRow?.textContent).toContain("0%");
 
     const actionButtons = Array.from(doneRow?.querySelectorAll("button") ?? []).filter((button) =>
-      ["同步", "重试", "取消"].includes(button.textContent?.trim() ?? ""),
+      ["同步", "重试", "取消", "删除"].includes(button.textContent?.trim() ?? ""),
     );
-    expect(actionButtons.map((button) => button.textContent?.trim())).toEqual(["同步", "重试", "取消"]);
+    expect(actionButtons.map((button) => button.textContent?.trim())).toEqual(["同步", "重试", "取消", "删除"]);
     expect(actionButtons[0]?.disabled).toBe(false);
     expect(actionButtons.slice(1).every((button) => button.disabled)).toBe(true);
+
+    const failedDeleteButton = Array.from(failedRow?.querySelectorAll("button") ?? []).find(
+      (button) => button.textContent?.trim() === "删除",
+    );
+    expect(failedDeleteButton).toBeDefined();
+    expect(failedDeleteButton?.disabled).toBe(false);
+  });
+
+  it("确认后会删除失败任务", async () => {
+    getMock.mockResolvedValueOnce([
+      {
+        id: "task-failed",
+        kbId: "kb-1",
+        sourceType: "url",
+        sourceUrl: "https://example.com/page",
+        targetUri: "viking://kb-1/page",
+        status: "failed",
+        nodeCount: 0,
+        vectorCount: 0,
+        errorMsg: "抓取失败",
+        createdAt: "2026-04-26T00:00:00.000Z",
+        updatedAt: "2026-04-26T00:00:00.000Z",
+      },
+    ]);
+    confirmMock.mockResolvedValueOnce(true);
+    deleteMock.mockResolvedValueOnce({});
+
+    await renderPage();
+
+    const deleteButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "删除",
+    );
+    expect(deleteButton).toBeDefined();
+
+    await act(async () => {
+      deleteButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(confirmMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "删除失败任务",
+        confirmText: "确认删除",
+      }),
+    );
+    expect(deleteMock).toHaveBeenCalledWith("/import-tasks/task-failed");
   });
 });

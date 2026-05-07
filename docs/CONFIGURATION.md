@@ -27,6 +27,7 @@
 | `FRONTEND_URL`    | string  | `http://localhost:6002`              | 是   | 前端地址，用于 CORS 白名单                                                                |
 | `PORT`            | number  | `6001`                               | 否   | 后端监听端口                                                                              |
 | `NODE_ENV`        | string  | `development`                        | 否   | 运行环境: `development` / `production`                                                    |
+| `WEBDAV_ACCESS_LOG_VERBOSE` | boolean | `false`                     | 否   | 是否输出所有 WebDAV 请求的脱敏明细日志；默认只在 WebDAV 请求失败时输出 `http.request.webdav` 事件 |
 | `DB_SYNCHRONIZE`  | boolean | `false`                              | 否   | 是否允许 TypeORM 自动同步表结构。默认关闭；生产环境若设置为 `true` 会在启动期直接拒绝启动 |
 | `LOCAL_IMPORT_UPLOAD_DIR` | string | `./storage/import-uploads` | 生产必填 | 本地文档上传暂存目录；Admin Worker 会读取该目录下的受控上传文件并转传 OpenViking `temp_upload` |
 | `LOCAL_IMPORT_KEEP_FILES_AFTER_DONE` | boolean | `false` | 否 | 本地导入成功后是否保留暂存文件 |

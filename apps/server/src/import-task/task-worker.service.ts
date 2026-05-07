@@ -22,11 +22,22 @@ import { Tenant } from '../tenant/entities/tenant.entity';
 import type { TenantModel } from '../tenant/domain/tenant.model';
 import { OvConfigResolverService } from '../settings/ov-config-resolver.service';
 import { buildTenantIdentityWhere } from '../tenant/tenant-identity.util';
+import { KnowledgeNode } from '../knowledge-tree/entities/knowledge-node.entity';
 
 interface TenantTaskContext {
   taskRepo: Repository<ImportTask>;
   integrationRepo: Repository<Integration>;
+  nodeRepo: Repository<KnowledgeNode>;
   release: () => Promise<void>;
+}
+
+interface TargetKnowledgeNode {
+  id: string;
+  tenantId: string | null;
+  name: string;
+  kind: string | null;
+  vikingUri: string | null;
+  contentUri: string | null;
 }
 
 @Injectable()
@@ -75,8 +86,15 @@ export class TaskWorkerService implements OnModuleInit {
 
   private startWorker() {
     setInterval(() => {
-      void this.poll();
+      this.runPollSafely();
     }, QUEUE_CONFIG.POLLING_INTERVAL_MS);
+  }
+
+  private runPollSafely() {
+    void this.poll().catch((error) => {
+      const message = error instanceof Error ? error.message : '未知错误';
+      this.logger.error(`Import task polling failed: ${message}`);
+    });
   }
 
   private async poll() {
@@ -139,6 +157,14 @@ export class TaskWorkerService implements OnModuleInit {
           reason: `Queue Task: ${task.id}`,
           wait: true,
         };
+        const targetNode = await this.findTargetNode(
+          context,
+          currentTenant.tenantId,
+          task.targetUri,
+        );
+        if (this.isDocumentNode(targetNode)) {
+          await this.prepareDocumentTarget(conn, task.targetUri);
+        }
 
         if (task.integrationId) {
           const integration = await this.findIntegration(
@@ -187,6 +213,9 @@ export class TaskWorkerService implements OnModuleInit {
           conn,
           this.toEngineResourceUri(task.targetUri),
         );
+        if (targetNode && this.isDocumentNode(targetNode)) {
+          await this.syncDocumentContentUri(context, conn, targetNode, task.targetUri);
+        }
 
         await context.taskRepo.update(task.id, {
           status: TaskStatus.DONE,
@@ -301,6 +330,128 @@ export class TaskWorkerService implements OnModuleInit {
       this.logger.warn(`同步导入任务资源统计失败: ${message}`);
       return {};
     }
+  }
+
+  private async findTargetNode(
+    context: TenantTaskContext,
+    tenantId: string,
+    targetUri: string,
+  ): Promise<TargetKnowledgeNode | null> {
+    if (typeof (context.nodeRepo as { findOne?: unknown }).findOne !== 'function') {
+      return null;
+    }
+    const candidates = this.resolveTargetUriCandidates(targetUri);
+    const node = await context.nodeRepo.findOne({
+      where: candidates.map((candidate) => ({
+        tenantId,
+        vikingUri: candidate,
+      })),
+    });
+    return node ?? null;
+  }
+
+  private isDocumentNode(node: TargetKnowledgeNode | null) {
+    if (!node) {
+      return false;
+    }
+
+    if (node.kind === 'document') {
+      return true;
+    }
+
+    return Boolean(node.vikingUri && !node.vikingUri.endsWith('/'));
+  }
+
+  private resolveTargetUriCandidates(targetUri: string) {
+    const normalized = this.toEngineResourceUri(targetUri);
+    const candidates = [normalized];
+    const tenantPrefix = 'viking://resources/tenants/';
+    const legacyPrefix = 'viking://resources/';
+
+    if (normalized.startsWith(tenantPrefix)) {
+      candidates.push(
+        `${legacyPrefix}${normalized.slice(tenantPrefix.length)}`,
+      );
+    } else if (normalized.startsWith(legacyPrefix)) {
+      candidates.push(
+        `${tenantPrefix}${normalized.slice(legacyPrefix.length)}`,
+      );
+    }
+
+    return Array.from(new Set(candidates));
+  }
+
+  private async prepareDocumentTarget(
+    conn: {
+      baseUrl: string;
+      apiKey: string;
+      account: string;
+      user: string;
+    },
+    targetUri: string,
+  ) {
+    try {
+      await this.ovClient.request(
+        conn,
+        `/api/v1/fs?uri=${encodeURIComponent(
+          this.toEngineResourceUri(targetUri),
+        )}&recursive=true`,
+        'DELETE',
+        undefined,
+        { user: conn.user || undefined },
+        { serviceLabel: 'OpenViking 资源删除' },
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '未知错误';
+      if (message.includes('404') || message.includes('NOT_FOUND')) {
+        return;
+      }
+      throw error;
+    }
+  }
+
+  private async syncDocumentContentUri(
+    context: TenantTaskContext,
+    conn: {
+      baseUrl: string;
+      apiKey: string;
+      account: string;
+      user: string;
+    },
+    node: TargetKnowledgeNode,
+    targetUri: string,
+  ) {
+    const treeData = await this.ovClient.request(
+      conn,
+      `/api/v1/fs/tree?uri=${encodeURIComponent(
+        this.toEngineResourceUri(targetUri),
+      )}&depth=1`,
+      'GET',
+      undefined,
+      { user: conn.user || undefined },
+      { serviceLabel: 'OpenViking 资源树' },
+    );
+    const resources = Array.isArray(treeData?.result) ? treeData.result : [];
+    const leafResources = resources.filter(
+      (item): item is { uri: string; isDir?: boolean } =>
+        Boolean(
+          item &&
+            typeof item === 'object' &&
+            typeof (item as { uri?: unknown }).uri === 'string' &&
+            (item as { isDir?: unknown }).isDir === false,
+        ),
+    );
+    if (leafResources.length !== 1) {
+      this.logger.warn(
+        `文档叶子 ${node.id} 的内容资源数量异常，期望 1 个，实际 ${leafResources.length} 个。`,
+      );
+      return;
+    }
+
+    await context.nodeRepo.update(node.id, {
+      contentUri: leafResources[0].uri,
+      updatedAt: new Date(),
+    });
   }
 
   private async injectResourceWithPaths(
@@ -513,6 +664,7 @@ export class TaskWorkerService implements OnModuleInit {
       return {
         taskRepo: dataSource.getRepository(ImportTask),
         integrationRepo: dataSource.getRepository(Integration),
+        nodeRepo: dataSource.getRepository(KnowledgeNode),
         release: async () => undefined,
       };
     }
@@ -529,6 +681,7 @@ export class TaskWorkerService implements OnModuleInit {
     return {
       taskRepo: this.defaultDataSource.getRepository(ImportTask),
       integrationRepo: this.defaultDataSource.getRepository(Integration),
+      nodeRepo: this.defaultDataSource.getRepository(KnowledgeNode),
       release: async () => undefined,
     };
   }
@@ -539,9 +692,18 @@ export class TaskWorkerService implements OnModuleInit {
     return {
       taskRepo: queryRunner.manager.getRepository(ImportTask),
       integrationRepo: queryRunner.manager.getRepository(Integration),
+      nodeRepo: queryRunner.manager.getRepository(KnowledgeNode),
       release: async () => {
-        if (!queryRunner.isReleased) {
-          await queryRunner.release();
+        if (queryRunner.isReleased) {
+          return;
+        }
+
+        try {
+          await queryRunner.query('SET search_path TO public');
+        } finally {
+          if (!queryRunner.isReleased) {
+            await queryRunner.release();
+          }
         }
       },
     };

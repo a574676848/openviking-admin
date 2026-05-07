@@ -341,4 +341,18 @@ export class ImportTaskService {
     }
     return this.taskRepo.findById(id, tenantId);
   }
+
+  async deleteFailed(id: string, tenantId: string | null) {
+    const task = await this.findOne(id, tenantId);
+    if (task.status !== TaskStatus.FAILED) {
+      throw new ConflictException('只有失败任务才能物理删除');
+    }
+
+    if (task.sourceType === 'local') {
+      await this.localImportStorage.deleteBySourceUrl(task.sourceUrl);
+    }
+
+    await this.taskRepo.delete(id, tenantId);
+    return task;
+  }
 }

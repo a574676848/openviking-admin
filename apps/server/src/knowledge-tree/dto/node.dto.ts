@@ -70,6 +70,10 @@ export class UpdateNodeDto {
   vikingUri?: string;
 
   @IsOptional()
+  @IsString()
+  contentUri?: string;
+
+  @IsOptional()
   @ValidateNested()
   @Type(() => KnowledgeAclDto)
   acl?: KnowledgeAclDto;

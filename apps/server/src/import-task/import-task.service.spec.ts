@@ -9,6 +9,7 @@ describe('ImportTaskService', () => {
     create: jest.fn(),
     save: jest.fn(),
     update: jest.fn(),
+    delete: jest.fn(),
     findOne: jest.fn(),
     count: jest.fn(),
     find: jest.fn(),
@@ -113,6 +114,55 @@ describe('ImportTaskService', () => {
       ConflictException,
     );
     expect(taskRepo.update).not.toHaveBeenCalled();
+  });
+
+  it('允许物理删除失败任务', async () => {
+    taskRepo.findById.mockResolvedValueOnce({
+      id: 'task-failed-delete',
+      status: TaskStatus.FAILED,
+      sourceType: 'url',
+      sourceUrl: 'https://example.com/broken.pdf',
+    });
+
+    const result = await service.deleteFailed('task-failed-delete', 'tenant-a');
+
+    expect(taskRepo.delete).toHaveBeenCalledWith('task-failed-delete', 'tenant-a');
+    expect(result).toEqual(
+      expect.objectContaining({
+        id: 'task-failed-delete',
+        status: TaskStatus.FAILED,
+      }),
+    );
+  });
+
+  it('物理删除失败的本地任务时会清理受控上传文件', async () => {
+    taskRepo.findById.mockResolvedValueOnce({
+      id: 'task-local-failed',
+      status: TaskStatus.FAILED,
+      sourceType: 'local',
+      sourceUrl: 'file:///data/openviking/imports/broken.md',
+    });
+
+    await service.deleteFailed('task-local-failed', 'tenant-a');
+
+    expect(localImportStorage.deleteBySourceUrl).toHaveBeenCalledWith(
+      'file:///data/openviking/imports/broken.md',
+    );
+    expect(taskRepo.delete).toHaveBeenCalledWith('task-local-failed', 'tenant-a');
+  });
+
+  it('拒绝物理删除非失败任务', async () => {
+    taskRepo.findById.mockResolvedValueOnce({
+      id: 'task-done',
+      status: TaskStatus.DONE,
+      sourceType: 'url',
+      sourceUrl: 'https://example.com/done.pdf',
+    });
+
+    await expect(
+      service.deleteFailed('task-done', 'tenant-a'),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(taskRepo.delete).not.toHaveBeenCalled();
   });
 
   it('会将批量 sourceUrls 展开成多条真实任务', async () => {

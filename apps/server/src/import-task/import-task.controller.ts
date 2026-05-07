@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Delete,
   Body,
   Req,
   Param,
@@ -159,6 +160,21 @@ export class ImportTaskController {
       ip: req.ip,
     });
     return cancelled;
+  }
+
+  @Delete(':id')
+  async remove(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    const removed = await this.taskService.deleteFailed(id, req.tenantScope);
+    await this.auditService.log({
+      tenantId: req.tenantScope ?? undefined,
+      userId: req.user.id,
+      username: req.user.username,
+      action: 'delete_failed_import_task',
+      target: id,
+      meta: { status: removed.status, requestId: req.headers['x-request-id'] },
+      ip: req.ip,
+    });
+    return removed;
   }
 
   private async createAndAudit(

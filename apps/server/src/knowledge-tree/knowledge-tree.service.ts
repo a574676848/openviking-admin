@@ -8,7 +8,10 @@ import {
 } from '@nestjs/common';
 import { CreateNodeDto, UpdateNodeDto } from './dto/node.dto';
 import { IKnowledgeNodeRepository } from './domain/repositories/knowledge-node.repository.interface';
-import type { KnowledgeNodeModel } from './domain/knowledge-node.model';
+import type {
+  KnowledgeNodeKind,
+  KnowledgeNodeModel,
+} from './domain/knowledge-node.model';
 import { SettingsService } from '../settings/settings.service';
 import {
   OVClientService,
@@ -32,7 +35,11 @@ const DIRECTORY_URI_SUFFIX = '/';
 
 @Injectable()
 export class KnowledgeTreeService {
-  private static readonly IMMUTABLE_FIELDS = ['vikingUri'] as const;
+  private static readonly IMMUTABLE_FIELDS = [
+    'kind',
+    'vikingUri',
+    'contentUri',
+  ] as const;
 
   constructor(
     @Inject(IKnowledgeNodeRepository)
@@ -60,7 +67,9 @@ export class KnowledgeTreeService {
       id: n.id,
       name: n.name,
       val: 1,
+      kind: n.kind,
       vikingUri: n.vikingUri,
+      contentUri: n.contentUri,
     }));
 
     const links = allNodes
@@ -103,10 +112,19 @@ export class KnowledgeTreeService {
     tenantId: string | null,
   ): Promise<KnowledgeNodeModel> {
     const node = await this.findOne(id, tenantId);
-    for (const field of KnowledgeTreeService.IMMUTABLE_FIELDS) {
-      if (dto[field] !== undefined && dto[field] !== node[field]) {
-        throw new BadRequestException(`字段 ${field} 不允许修改。`);
-      }
+    if (
+      'vikingUri' in dto &&
+      dto.vikingUri !== undefined &&
+      dto.vikingUri !== node.vikingUri
+    ) {
+      throw new BadRequestException('字段 vikingUri 不允许修改。');
+    }
+    if (
+      'contentUri' in dto &&
+      dto.contentUri !== undefined &&
+      dto.contentUri !== node.contentUri
+    ) {
+      throw new BadRequestException('字段 contentUri 不允许修改。');
     }
     Object.assign(node, dto);
     return this.nodeRepo.save(node);
@@ -146,14 +164,22 @@ export class KnowledgeTreeService {
       await this.deleteOpenVikingResource(
         node.vikingUri,
         ovConfig,
-        this.isDirectoryResource(node.vikingUri),
+        this.shouldDeleteRecursively(node),
       );
     }
     await this.nodeRepo.remove(node);
   }
 
-  private isDirectoryResource(vikingUri: string | null): boolean {
-    return vikingUri?.endsWith(DIRECTORY_URI_SUFFIX) ?? false;
+  private shouldDeleteRecursively(node: KnowledgeNodeModel): boolean {
+    if (node.kind === 'collection') {
+      return true;
+    }
+
+    if (node.kind === 'document' && node.contentUri) {
+      return true;
+    }
+
+    return node.vikingUri?.endsWith(DIRECTORY_URI_SUFFIX) ?? false;
   }
 
   private async resolveOpenVikingConfig(

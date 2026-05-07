@@ -372,7 +372,7 @@ export default function UsersPage() {
               value={form.username}
               onChange={(e) => setForm({ ...form, username: e.target.value })}
               placeholder="e.g. platform_root"
-              className="bg-[var(--bg-input)] px-4 py-3"
+              className="bg-[var(--bg-input)]"
             />
           </PlatformField>
           <PlatformField label="登录密钥 *" className="gap-2">
@@ -383,14 +383,14 @@ export default function UsersPage() {
               value={form.password}
               onChange={(e) => setForm({ ...form, password: e.target.value })}
               placeholder="至少 6 位字符"
-              className="bg-[var(--bg-input)] px-4 py-3"
+              className="bg-[var(--bg-input)]"
             />
           </PlatformField>
           <PlatformField label="角色范围" className="gap-2">
             <PlatformSelect
               value={form.role}
               onChange={(e) => setForm({ ...form, role: e.target.value })}
-              className="bg-[var(--bg-input)] px-4 py-3 font-bold tracking-widest"
+              triggerClassName="bg-[var(--bg-input)] font-bold tracking-widest"
             >
               <option value="super_admin">平台超级管理员</option>
               <option value="tenant_admin">租户管理员</option>
@@ -403,7 +403,7 @@ export default function UsersPage() {
               disabled={form.role === "super_admin"}
               value={form.role === "super_admin" ? "" : form.tenantId}
               onChange={(e) => setForm({ ...form, tenantId: e.target.value })}
-              className="bg-[var(--bg-input)] px-4 py-3 font-bold tracking-widest disabled:bg-[var(--bg-elevated)] disabled:opacity-50"
+              triggerClassName="bg-[var(--bg-input)] font-bold tracking-widest disabled:bg-[var(--bg-elevated)] disabled:opacity-50"
             >
               <option value="">{form.role === "super_admin" ? "平台全局" : "选择租户..."}</option>
               {tenants.map((t) => (
@@ -437,7 +437,7 @@ export default function UsersPage() {
             <PlatformSelect
               value={editForm.role}
               onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}
-              className="bg-[var(--bg-input)] px-4 py-3 font-bold tracking-widest"
+              triggerClassName="bg-[var(--bg-input)] font-bold tracking-widest"
             >
               {editTarget?.role === "super_admin" ? (
                 <option value="super_admin">平台超级管理员</option>
@@ -456,7 +456,7 @@ export default function UsersPage() {
             <PlatformSelect
               disabled
               value={editForm.tenantId}
-              className="bg-[var(--bg-input)] px-4 py-3 font-bold tracking-widest disabled:bg-[var(--bg-elevated)] disabled:opacity-50"
+              triggerClassName="bg-[var(--bg-input)] font-bold tracking-widest disabled:bg-[var(--bg-elevated)] disabled:opacity-50"
             >
               <option value="">平台全局</option>
               {tenants.map((t) => (
@@ -494,7 +494,7 @@ export default function UsersPage() {
               value={resetPassword}
               onChange={(e) => setResetPassword(e.target.value)}
               placeholder="至少 6 位字符"
-              className="bg-[var(--bg-input)] px-4 py-3"
+              className="bg-[var(--bg-input)]"
             />
           </PlatformField>
           <PlatformField label="确认新密钥 *" className="gap-2">
@@ -505,7 +505,7 @@ export default function UsersPage() {
               value={resetConfirm}
               onChange={(e) => setResetConfirm(e.target.value)}
               placeholder="再次输入新密码"
-              className="bg-[var(--bg-input)] px-4 py-3"
+              className="bg-[var(--bg-input)]"
             />
           </PlatformField>
         </div>

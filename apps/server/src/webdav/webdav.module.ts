@@ -4,6 +4,7 @@ import { CapabilitiesModule } from '../capabilities/capabilities.module';
 import { ImportTaskModule } from '../import-task/import-task.module';
 import { KnowledgeBaseModule } from '../knowledge-base/knowledge-base.module';
 import { KnowledgeTreeModule } from '../knowledge-tree/knowledge-tree.module';
+import { SettingsModule } from '../settings/settings.module';
 import { WebdavController } from './webdav.controller';
 import { WebdavService } from './webdav.service';
 
@@ -14,6 +15,7 @@ import { WebdavService } from './webdav.service';
     ImportTaskModule,
     KnowledgeBaseModule,
     KnowledgeTreeModule,
+    SettingsModule,
   ],
   controllers: [WebdavController],
   providers: [WebdavService],

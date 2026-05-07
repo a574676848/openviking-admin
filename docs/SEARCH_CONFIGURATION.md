@@ -33,7 +33,7 @@ Stage 2: BGE-Rerank 重排序 (可选)
 | `query` | string | — | — | 用户搜索查询文本 |
 | `topK` | number | `10` | 1-100 | 返回结果数量 |
 | `scoreThreshold` | number | `0.5` | 0.0-1.0 | 最低相似度分数阈值 |
-| `scope` | string | — | — | 搜索范围 URI 过滤 |
+| `scope` | string | — | — | 搜索范围 URI 过滤；服务端会将其与当前用户 ACL 可见范围取交集，超出范围的命中会被直接丢弃 |
 
 ### 调优建议
 
@@ -142,8 +142,9 @@ UPDATE system_configs SET value = 'false' WHERE key = 'search.rerank_enabled';
 
 1. 获取当前用户可访问的所有知识节点
 2. 提取这些节点关联的 `viking_uri`
-3. 在向量搜索时将这些 URI 作为 scope 过滤条件
-4. 确保用户只能检索到自己有权限的知识
+3. 在向量搜索时将这些 URI 作为 ACL 过滤条件，并透传用户选中的 `scope`
+4. 收到召回结果后，服务端会再次按 `ACL 可见范围 ∩ scope` 收敛结果
+5. 仅返回交集内的结果，避免下游引擎返回范围偏宽时出现跨知识库或跨租户命中
 
 ---
 

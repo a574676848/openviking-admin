@@ -4,6 +4,8 @@ export interface KnowledgeNodeAcl {
   isPublic?: boolean;
 }
 
+export type KnowledgeNodeKind = 'collection' | 'document';
+
 export interface KnowledgeNodeModel {
   id: string;
   tenantId: string | null;
@@ -13,7 +15,9 @@ export interface KnowledgeNodeModel {
   path: string | null;
   sortOrder: number;
   acl: KnowledgeNodeAcl | null;
+  kind: KnowledgeNodeKind;
   vikingUri: string | null;
+  contentUri: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

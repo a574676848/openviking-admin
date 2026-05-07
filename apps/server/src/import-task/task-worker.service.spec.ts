@@ -2,6 +2,7 @@ import { TaskWorkerService } from './task-worker.service';
 import { ImportTask } from './entities/import-task.entity';
 import { Integration } from '../tenant/entities/integration.entity';
 import { Tenant } from '../tenant/entities/tenant.entity';
+import { KnowledgeNode } from '../knowledge-tree/entities/knowledge-node.entity';
 import {
   IntegrationType,
   TaskStatus,
@@ -135,6 +136,7 @@ describe('TaskWorkerService', () => {
         if (entity === Tenant) return tenantRepo;
         if (entity === ImportTask) return publicTaskRepo;
         if (entity === Integration) return publicIntegrationRepo;
+        if (entity === KnowledgeNode) return {};
         throw new Error('unexpected repository');
       }),
       createQueryRunner: jest.fn(() => mediumQueryRunner),
@@ -159,8 +161,13 @@ describe('TaskWorkerService', () => {
       where: { tenantId: 'small-a', status: TaskStatus.PENDING },
       order: { createdAt: 'ASC' },
     });
-    expect(mediumQueryRunner.query).toHaveBeenCalledWith(
+    expect(mediumQueryRunner.query).toHaveBeenNthCalledWith(
+      1,
       'SET search_path TO "tenant_test3", public',
+    );
+    expect(mediumQueryRunner.query).toHaveBeenNthCalledWith(
+      2,
+      'SET search_path TO public',
     );
     expect(mediumTaskRepo.find).toHaveBeenCalledWith({
       where: { tenantId: 'test3', status: TaskStatus.PENDING },
@@ -175,6 +182,36 @@ describe('TaskWorkerService', () => {
       where: { tenantId: 'large-a', status: TaskStatus.PENDING },
       order: { createdAt: 'ASC' },
     });
+  });
+
+  it('轮询入口应吞掉单次轮询异常，避免未处理拒绝退出进程', async () => {
+    const service = createService({
+      defaultDataSource: { getRepository: jest.fn() },
+    });
+    const serviceWithInternals = service as unknown as {
+      poll: () => Promise<void>;
+      runPollSafely: () => void;
+      logger: {
+        error: jest.Mock;
+        warn: jest.Mock;
+        log: jest.Mock;
+      };
+    };
+    serviceWithInternals.logger = {
+      error: jest.fn(),
+      warn: jest.fn(),
+      log: jest.fn(),
+    };
+    jest
+      .spyOn(serviceWithInternals, 'poll')
+      .mockRejectedValue(new Error('Connection terminated unexpectedly'));
+
+    serviceWithInternals.runPollSafely();
+    await Promise.resolve();
+
+    expect(serviceWithInternals.logger.error).toHaveBeenCalledWith(
+      'Import task polling failed: Connection terminated unexpectedly',
+    );
   });
 
   it('处理任务时应在租户库内更新任务并读取集成凭证', async () => {

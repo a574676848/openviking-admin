@@ -223,7 +223,7 @@ export default function SearchPage() {
               <ConsoleSelect
                 value={uri}
                 onChange={(e) => setUri(e.target.value)}
-                className="px-3 py-2 text-xs tracking-widest"
+                triggerClassName="px-3 py-2 text-xs tracking-widest"
               >
                 <option value="">全部知识库</option>
                 {knowledgeBases.map((kb) => (
@@ -267,7 +267,7 @@ export default function SearchPage() {
               <label className="flex items-center font-sans text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-secondary)]">
                 <Zap size={12} className="mr-2" /> Rerank
               </label>
-              <label className="flex h-[46px] cursor-pointer items-center justify-between border-[3px] border-[var(--border)] bg-[var(--bg-card)] px-3 font-sans text-[10px] font-black uppercase tracking-[0.16em]">
+              <label className="flex h-[37px] cursor-pointer items-center justify-between border-[3px] border-[var(--border)] bg-[var(--bg-card)] px-3 font-sans text-[10px] font-black uppercase tracking-[0.16em]">
                 <span>{useRerank ? "已启用" : "已关闭"}</span>
                 <input
                   type="checkbox"

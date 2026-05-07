@@ -99,6 +99,11 @@ export class TypeOrmImportTaskRepository implements IImportTaskRepository {
     await this.repo.update(id, this.toEntityInput(data));
   }
 
+  async delete(id: string, tenantId?: string | null): Promise<void> {
+    const criteria = tenantId ? { id, tenantId } : { id };
+    await this.repo.delete(criteria);
+  }
+
   async findOne(
     options: RepositoryFindOneQuery<ImportTaskModel>,
   ): Promise<ImportTaskModel | null> {

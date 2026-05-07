@@ -16,7 +16,21 @@ import {
 type SourceType = "git" | "local" | "url" | "enterprise";
 type Integration = { id: string; name: string; type: string };
 type KnowledgeBase = { id: string; name: string };
-type KnowledgeNode = { id: string; name: string; vikingUri: string | null };
+type KnowledgeNode = {
+  id: string;
+  name: string;
+  kind?: "collection" | "document";
+  vikingUri: string | null;
+  contentUri?: string | null;
+};
+
+function isCollectionNode(node: KnowledgeNode) {
+  if (node.kind) {
+    return node.kind === "collection";
+  }
+
+  return Boolean(node.vikingUri && node.vikingUri.endsWith("/"));
+}
 
 const sourceOptions = [
   {
@@ -124,7 +138,9 @@ export default function IngestionPage() {
         `/knowledge-tree?kbId=${encodeURIComponent(form.kbId)}`,
       )
       .then((items) => {
-        const nextNodes = items.filter((item) => Boolean(item.vikingUri));
+        const nextNodes = items.filter(
+          (item) => Boolean(item.vikingUri) && isCollectionNode(item),
+        );
         setNodes(nextNodes);
         setForm((prev) => {
           if (!prev.targetNodeUri) {
@@ -343,7 +359,7 @@ export default function IngestionPage() {
                   ))}
                 </ConsoleSelect>
                 <p className="font-sans text-[11px] text-[var(--text-muted)]">
-                  已存在知识树节点时，可将本次导入内容挂到指定节点；不选择时默认进入知识库根目录。
+                  这里只支持选择目录节点作为导入目标；文档叶子不支持从导入中心直接覆盖。不选择时默认进入知识库根目录。
                 </p>
               </div>
             )}

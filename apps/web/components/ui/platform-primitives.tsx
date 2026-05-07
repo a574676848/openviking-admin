@@ -237,7 +237,7 @@ export function PlatformInput({
   return (
     <input
       className={cx(
-        "ov-input px-3 py-2 font-sans text-sm rounded-[var(--radius-pill)]",
+        "ov-input h-[52px] px-4 font-sans text-sm rounded-[var(--radius-pill)]",
         BASE_FOCUS_RING,
         "focus-visible:ring-[var(--brand)] focus-visible:ring-offset-[var(--bg-card)]",
         className,
@@ -251,12 +251,14 @@ import { ConsoleSelect } from "../console/forms";
 
 export function PlatformSelect({
   className,
+  triggerClassName,
   ...props
-}: SelectHTMLAttributes<HTMLSelectElement>) {
+}: SelectHTMLAttributes<HTMLSelectElement> & { triggerClassName?: string }) {
   return (
     <ConsoleSelect
       {...props as any}
       className={className}
+      triggerClassName={cx("h-[52px] px-4", triggerClassName)}
     />
   );
 }

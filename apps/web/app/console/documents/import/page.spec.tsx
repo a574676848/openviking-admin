@@ -259,6 +259,51 @@ describe("IngestionPage", () => {
     });
   });
 
+  it("导入目标节点下拉不应展示文档叶子节点", async () => {
+    getMock
+      .mockResolvedValueOnce([
+        { id: "integration-1", name: "exeGitLab", type: "gitlab" },
+      ])
+      .mockResolvedValueOnce([{ id: "kb-1", name: "ov记忆系统" }])
+      .mockResolvedValueOnce([
+        {
+          id: "dir-1",
+          name: "产品文档",
+          kind: "collection",
+          vikingUri: "viking://resources/tenant-a/kb-1/dir-1/",
+          contentUri: null,
+        },
+        {
+          id: "doc-1",
+          name: "产品手册.md",
+          kind: "document",
+          vikingUri: "viking://resources/tenant-a/kb-1/doc-1/",
+          contentUri:
+            "viking://resources/tenant-a/kb-1/doc-1/content-1.md",
+        },
+      ]);
+
+    await renderPage();
+
+    await chooseConsoleSelect(0, "ov记忆系统");
+
+    expect(container.textContent).toContain("导入目标节点");
+    const trigger = container.querySelectorAll('form button[type="button"]')[
+      1
+    ] as HTMLElement | undefined;
+    if (!trigger) {
+      throw new Error("未找到目标节点下拉");
+    }
+
+    await act(async () => {
+      trigger.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(document.body.textContent).toContain("产品文档");
+    expect(document.body.textContent).not.toContain("产品手册.md");
+  });
+
   it("网页提取应提交 sourceType=url 的导入任务", async () => {
     getMock
       .mockResolvedValueOnce([])

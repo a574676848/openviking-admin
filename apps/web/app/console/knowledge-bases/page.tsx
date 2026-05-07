@@ -334,9 +334,9 @@ export default function KnowledgeBasesPage() {
                   ]}
                   columns={TABLE_COLUMNS}
                   actions={
-                    <div className="flex flex-wrap gap-3">
+                    <div className="flex items-center gap-3">
                       <Link href={`/console/knowledge-tree?kbId=${item.id}`}>
-                        <ConsoleButton tone="dark" className="px-3 py-2.5 text-[11px]">
+                        <ConsoleButton tone="dark" className="px-3 py-2.5 text-[11px] whitespace-nowrap">
                           <FolderTree size={13} strokeWidth={2.6} />
                           查看知识树
                         </ConsoleButton>
@@ -344,7 +344,7 @@ export default function KnowledgeBasesPage() {
                       <ConsoleButton
                         type="button"
                         tone="warning"
-                        className="px-3 py-2.5 text-[11px]"
+                        className="px-3 py-2.5 text-[11px] whitespace-nowrap"
                         onClick={() => void handleArchive(item)}
                         disabled={mutatingId === item.id}
                       >

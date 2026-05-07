@@ -18,6 +18,7 @@ import { TenantCacheService } from '../tenant/tenant-cache.service';
 import { DynamicDataSourceService } from '../common/dynamic-datasource.service';
 import { ImportTaskService } from '../import-task/import-task.service';
 import { OVClientService } from '../common/ov-client.service';
+import { OvConfigResolverService } from '../settings/ov-config-resolver.service';
 import { WebdavController } from './webdav.controller';
 import { WebdavService } from './webdav.service';
 import { TenantIsolationLevel } from '../common/constants/system.enum';
@@ -118,6 +119,10 @@ describe('WebdavController', () => {
     requestStream: jest.fn(),
   };
 
+  const ovConfigResolver = {
+    resolve: jest.fn(),
+  };
+
   const importTaskService = {
     createLocalUpload: jest.fn(),
   };
@@ -155,6 +160,8 @@ describe('WebdavController', () => {
     findOne: jest.fn(async (id: string) =>
       knowledgeBases.find((item) => item.id === id),
     ),
+    update: jest.fn(),
+    remove: jest.fn(async () => undefined),
     create: jest.fn(async (input: { name: string; tenantId: string }) => ({
       id: 'kb-created',
       name: input.name,
@@ -253,6 +260,7 @@ describe('WebdavController', () => {
         },
         { provide: ImportTaskService, useValue: importTaskService },
         { provide: OVClientService, useValue: ovClientService },
+        { provide: OvConfigResolverService, useValue: ovConfigResolver },
         { provide: AuditService, useValue: auditService },
         { provide: KnowledgeBaseService, useValue: knowledgeBaseService },
         { provide: KnowledgeTreeService, useValue: knowledgeTreeService },
@@ -282,10 +290,30 @@ describe('WebdavController', () => {
       tenantId: 'tenant-a',
       level: TenantIsolationLevel.SMALL,
     });
+    ovConfigResolver.resolve.mockResolvedValue({
+      baseUrl: 'https://ov.example.com',
+      apiKey: 'ov-sk-test',
+      account: 'tenant-a',
+      user: null,
+      rerankEndpoint: null,
+      rerankApiKey: null,
+      rerankModel: null,
+    });
     knowledgeBaseService.findAll.mockResolvedValue(knowledgeBases);
     knowledgeBaseService.findOne.mockImplementation(async (id: string) =>
       knowledgeBases.find((item) => item.id === id),
     );
+    knowledgeBaseService.update.mockImplementation(
+      async (id: string, dto: Record<string, unknown>) => {
+        const existing = knowledgeBases.find((item) => item.id === id);
+        return {
+          ...existing,
+          ...dto,
+          updatedAt: new Date('2026-05-09T00:00:00.000Z'),
+        };
+      },
+    );
+    knowledgeBaseService.remove.mockResolvedValue(undefined);
     knowledgeBaseService.create.mockImplementation(
       async (input: { name: string; tenantId: string }) => ({
         id: 'kb-created',
@@ -570,6 +598,129 @@ describe('WebdavController', () => {
       '/api/v1/content/download?uri=' +
         encodeURIComponent(
           'viking://resources/tenants/tenant-a/kb-1/node-file.md',
+        ),
+      'GET',
+      undefined,
+      undefined,
+      expect.objectContaining({
+        serviceLabel: 'OpenViking 内容下载',
+      }),
+    );
+    expect(ovClientService.requestStream.mock.calls[0]?.[0]).not.toHaveProperty(
+      'user',
+    );
+  });
+
+  it('GET 叶子节点在 ovConfig.user 存在时应透传 OpenViking 用户头', async () => {
+    capabilityCredentialService.resolvePrincipalFromApiKey.mockResolvedValueOnce(
+      {
+        tenantId: principal.tenantId,
+        userId: principal.userId,
+        username: 'alice',
+        role: 'tenant_viewer',
+        scope: 'tenant',
+        credentialType: 'api_key',
+        clientType: 'service',
+        ovConfig: {
+          baseUrl: 'https://ov.example.com',
+          apiKey: 'ov-sk-test',
+          account: 'tenant-a',
+          user: 'tenant-ov-user',
+        },
+      } as any,
+    );
+
+    await webdavRequest('GET', '/webdav/tenant-a/kb-1/node-dir/node-file')
+      .set(
+        'Authorization',
+        'Basic ' + Buffer.from('tenant-a:ov-sk-test').toString('base64'),
+      )
+      .expect(200);
+
+    expect(ovClientService.requestStream.mock.calls[0]?.[0]).toMatchObject({
+      user: 'tenant-ov-user',
+    });
+  });
+
+  it('GET 叶子节点在 resolver 提供全局 OV_USER 时应透传该用户', async () => {
+    ovConfigResolver.resolve.mockResolvedValueOnce({
+      baseUrl: 'https://ov.example.com',
+      apiKey: 'ov-sk-test',
+      account: 'tenant-a',
+      user: 'global-admin',
+      rerankEndpoint: null,
+      rerankApiKey: null,
+      rerankModel: null,
+    });
+
+    await webdavRequest('GET', '/webdav/tenant-a/kb-1/node-dir/node-file')
+      .set(
+        'Authorization',
+        'Basic ' + Buffer.from('tenant-a:ov-sk-test').toString('base64'),
+      )
+      .expect(200);
+
+    expect(ovClientService.requestStream.mock.calls[0]?.[0]).toMatchObject({
+      user: 'global-admin',
+    });
+  });
+
+  it('GET 命中文件容器 URI 时应回退到唯一叶子正文', async () => {
+    ovClientService.requestStream
+      .mockRejectedValueOnce(new HttpException('not found', 404))
+      .mockResolvedValueOnce({
+        stream: Readable.from(['报告1']),
+        contentType: 'text/plain; charset=utf-8',
+        contentLength: '7',
+      });
+    ovClientService.request.mockResolvedValueOnce({
+      result: [
+        {
+          uri: 'viking://resources/tenants/tenant-a/kb-1/node-file.md/child.md',
+          isDir: false,
+        },
+      ],
+    });
+
+    const response = await webdavRequest(
+      'GET',
+      '/webdav/tenant-a/kb-1/node-dir/node-file',
+    )
+      .set(
+        'Authorization',
+        'Basic ' + Buffer.from('tenant-a:ov-sk-test').toString('base64'),
+      )
+      .expect(200);
+
+    expect(response.text).toBe('报告1');
+    expect(ovClientService.request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        baseUrl: 'https://ov.example.com',
+        apiKey: 'ov-sk-test',
+        account: 'tenant-a',
+      }),
+      '/api/v1/fs/tree?uri=' +
+        encodeURIComponent(
+          'viking://resources/tenants/tenant-a/kb-1/node-file.md',
+        ) +
+        '&depth=1',
+      'GET',
+      undefined,
+      undefined,
+      expect.objectContaining({
+        serviceLabel: 'OpenViking 资源树',
+      }),
+    );
+    expect(ovClientService.requestStream).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        baseUrl: 'https://ov.example.com',
+        apiKey: 'ov-sk-test',
+        account: 'tenant-a',
+      }),
+      '/api/v1/content/download?uri=' +
+        encodeURIComponent(
+          'viking://resources/tenants/tenant-a/kb-1/node-file.md/child.md',
         ),
       'GET',
       undefined,
@@ -1109,6 +1260,80 @@ describe('WebdavController', () => {
     );
   });
 
+  it('PUT 租户根目录写探针时应返回合成成功且不落库', async () => {
+    capabilityCredentialService.resolvePrincipalFromApiKey.mockResolvedValueOnce(
+      {
+        tenantId: principal.tenantId,
+        userId: principal.userId,
+        username: 'alice',
+        role: 'tenant_operator',
+        scope: 'tenant',
+        credentialType: 'api_key',
+        clientType: 'service',
+        ovConfig: {
+          baseUrl: 'https://ov.example.com',
+          apiKey: 'ov-sk-test',
+          account: 'tenant-a',
+        },
+      },
+    );
+
+    const response = await webdavRequest(
+      'PUT',
+      '/webdav/tenant-a/.webdav_write_test_1778129568533',
+    )
+      .set(
+        'Authorization',
+        'Basic ' + Buffer.from('tenant-a:ov-sk-test').toString('base64'),
+      )
+      .set('Content-Type', 'application/octet-stream')
+      .send('1')
+      .expect(201);
+
+    expect(response.text).toBe('');
+    expect(knowledgeBaseService.create).not.toHaveBeenCalled();
+    expect(knowledgeTreeService.createFile).not.toHaveBeenCalled();
+    expect(importTaskService.createLocalUpload).not.toHaveBeenCalled();
+    expect(auditService.log).not.toHaveBeenCalled();
+  });
+
+  it('PUT 子目录写探针时也应直接返回且不触发写入流程', async () => {
+    capabilityCredentialService.resolvePrincipalFromApiKey.mockResolvedValueOnce(
+      {
+        tenantId: principal.tenantId,
+        userId: principal.userId,
+        username: 'alice',
+        role: 'tenant_operator',
+        scope: 'tenant',
+        credentialType: 'api_key',
+        clientType: 'service',
+        ovConfig: {
+          baseUrl: 'https://ov.example.com',
+          apiKey: 'ov-sk-test',
+          account: 'tenant-a',
+        },
+      },
+    );
+
+    const response = await webdavRequest(
+      'PUT',
+      '/webdav/tenant-a/kb-1/node-dir/.webdav_write_test_1778129568533',
+    )
+      .set(
+        'Authorization',
+        'Basic ' + Buffer.from('tenant-a:ov-sk-test').toString('base64'),
+      )
+      .set('Content-Type', 'application/octet-stream')
+      .send('1')
+      .expect(201);
+
+    expect(response.text).toBe('');
+    expect(knowledgeTreeService.findByKb).not.toHaveBeenCalled();
+    expect(knowledgeTreeService.createFile).not.toHaveBeenCalled();
+    expect(importTaskService.createLocalUpload).not.toHaveBeenCalled();
+    expect(auditService.log).not.toHaveBeenCalled();
+  });
+
   it('PUT 覆盖已有文件时 If-Match 过期应返回 412', async () => {
     capabilityCredentialService.resolvePrincipalFromApiKey.mockResolvedValueOnce(
       {
@@ -1453,6 +1678,120 @@ describe('WebdavController', () => {
     expect(knowledgeTreeService.remove).not.toHaveBeenCalled();
   });
 
+  it('DELETE 租户根目录写探针时应返回合成成功且不删知识树节点', async () => {
+    capabilityCredentialService.resolvePrincipalFromApiKey.mockResolvedValueOnce(
+      {
+        tenantId: principal.tenantId,
+        userId: principal.userId,
+        username: 'alice',
+        role: 'tenant_operator',
+        scope: 'tenant',
+        credentialType: 'api_key',
+        clientType: 'service',
+        ovConfig: {
+          baseUrl: 'https://ov.example.com',
+          apiKey: 'ov-sk-test',
+          account: 'tenant-a',
+        },
+      },
+    );
+
+    const response = await webdavRequest(
+      'DELETE',
+      '/webdav/tenant-a/.webdav_write_test_1778129568533',
+    )
+      .set(
+        'Authorization',
+        'Basic ' + Buffer.from('tenant-a:ov-sk-test').toString('base64'),
+      )
+      .expect(204);
+
+    expect(response.text).toBe('');
+    expect(knowledgeTreeService.remove).not.toHaveBeenCalled();
+    expect(auditService.log).not.toHaveBeenCalled();
+  });
+
+  it('DELETE 子目录写探针时也应直接返回且不删知识树节点', async () => {
+    capabilityCredentialService.resolvePrincipalFromApiKey.mockResolvedValueOnce(
+      {
+        tenantId: principal.tenantId,
+        userId: principal.userId,
+        username: 'alice',
+        role: 'tenant_operator',
+        scope: 'tenant',
+        credentialType: 'api_key',
+        clientType: 'service',
+        ovConfig: {
+          baseUrl: 'https://ov.example.com',
+          apiKey: 'ov-sk-test',
+          account: 'tenant-a',
+        },
+      },
+    );
+
+    const response = await webdavRequest(
+      'DELETE',
+      '/webdav/tenant-a/kb-1/node-dir/.webdav_write_test_1778129568533',
+    )
+      .set(
+        'Authorization',
+        'Basic ' + Buffer.from('tenant-a:ov-sk-test').toString('base64'),
+      )
+      .expect(204);
+
+    expect(response.text).toBe('');
+    expect(knowledgeTreeService.remove).not.toHaveBeenCalled();
+    expect(auditService.log).not.toHaveBeenCalled();
+  });
+
+  it('DELETE 租户根目录知识库时应委托知识库服务递归删除', async () => {
+    capabilityCredentialService.resolvePrincipalFromApiKey.mockResolvedValueOnce(
+      {
+        tenantId: principal.tenantId,
+        userId: principal.userId,
+        username: 'alice',
+        role: 'tenant_operator',
+        scope: 'tenant',
+        credentialType: 'api_key',
+        clientType: 'service',
+        ovConfig: {
+          baseUrl: 'https://ov.example.com',
+          apiKey: 'ov-sk-test',
+          account: 'tenant-a',
+        },
+      },
+    );
+
+    await webdavRequest(
+      'DELETE',
+      `/webdav/tenant-a/${encodeURIComponent('知识库一')}`,
+    )
+      .set(
+        'Authorization',
+        'Basic ' + Buffer.from('tenant-a:ov-sk-test').toString('base64'),
+      )
+      .set('x-request-id', 'request-delete-kb-1')
+      .expect(204);
+
+    expect(knowledgeBaseService.remove).toHaveBeenCalledWith(
+      'kb-1',
+      'tenant-a',
+      expect.objectContaining({ user: 'alice' }),
+    );
+    expect(knowledgeTreeService.remove).not.toHaveBeenCalled();
+    expect(auditService.log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'webdav_delete',
+        target: 'kb-1',
+        meta: expect.objectContaining({
+          resourceKind: 'knowledge-base',
+          name: '知识库一',
+          requestId: 'request-delete-kb-1',
+        }),
+      }),
+    );
+  });
+
   it('DELETE 空目录时应通过服务层删除目录 URI 并移除节点', async () => {
     capabilityCredentialService.resolvePrincipalFromApiKey.mockResolvedValueOnce(
       {
@@ -1659,6 +1998,59 @@ describe('WebdavController', () => {
           name: 'renamed.md',
           vikingUri: 'viking://resources/tenants/tenant-a/kb-1/node-file.md',
           requestId: 'request-move-1',
+        }),
+      }),
+    );
+  });
+
+  it('MOVE 租户根目录知识库时应重命名知识库', async () => {
+    capabilityCredentialService.resolvePrincipalFromApiKey.mockResolvedValueOnce(
+      {
+        tenantId: principal.tenantId,
+        userId: principal.userId,
+        username: 'alice',
+        role: 'tenant_operator',
+        scope: 'tenant',
+        credentialType: 'api_key',
+        clientType: 'service',
+        ovConfig: {
+          baseUrl: 'https://ov.example.com',
+          apiKey: 'ov-sk-test',
+          account: 'tenant-a',
+        },
+      },
+    );
+
+    await webdavRequest(
+      'MOVE',
+      `/webdav/tenant-a/${encodeURIComponent('知识库一')}`,
+    )
+      .set(
+        'Authorization',
+        'Basic ' + Buffer.from('tenant-a:ov-sk-test').toString('base64'),
+      )
+      .set(
+        'Destination',
+        `/webdav/tenant-a/${encodeURIComponent('重命名知识库')}`,
+      )
+      .set('x-request-id', 'request-move-kb-1')
+      .expect(201);
+
+    expect(knowledgeBaseService.update).toHaveBeenCalledWith(
+      'kb-1',
+      { name: '重命名知识库' },
+      'tenant-a',
+    );
+    expect(knowledgeTreeService.update).not.toHaveBeenCalled();
+    expect(auditService.log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'webdav_move',
+        target: 'kb-1',
+        meta: expect.objectContaining({
+          resourceKind: 'knowledge-base',
+          previousName: '知识库一',
+          name: '重命名知识库',
+          requestId: 'request-move-kb-1',
         }),
       }),
     );

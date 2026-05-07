@@ -24,6 +24,7 @@
     "typeorm": "typeorm-ts-node-commonjs",
     "migration:show": "npm run typeorm -- migration:show -d src/data-source.ts",
     "migration:baseline": "ts-node src/scripts/baseline-migrations.ts",
+    "migration:knowledge-node-uris": "ts-node src/scripts/migrate-knowledge-node-kind-content-uri.ts",
     "migration:run": "npm run typeorm -- migration:run -d src/data-source.ts",
     "migration:revert": "npm run typeorm -- migration:revert -d src/data-source.ts"
   },
