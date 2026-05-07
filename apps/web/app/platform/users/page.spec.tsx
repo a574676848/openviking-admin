@@ -2,6 +2,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import UsersPage from "./page";
+import { API_ENDPOINTS } from "@/lib/constants";
 
 const getMock = vi.fn();
 const postMock = vi.fn();
@@ -36,6 +37,44 @@ async function renderPage() {
   await act(async () => {
     root.render(<UsersPage />);
     await Promise.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await Promise.resolve();
+  });
+}
+
+async function openMoreMenu() {
+  const moreButton = Array.from(document.body.querySelectorAll("button")).find((button) =>
+    button.textContent?.includes("更多"),
+  );
+  expect(moreButton).toBeTruthy();
+
+  await act(async () => {
+    moreButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await Promise.resolve();
+  });
+
+  return moreButton;
+}
+
+function mockPageData({
+  users = [],
+  tenants = [],
+  usersError = null,
+}: {
+  users?: Array<{ id: string; username: string; role: string; tenantId: string | null; active: boolean; createdAt: string }>;
+  tenants?: Array<{ id: string; tenantId: string; displayName: string }>;
+  usersError?: Error | null;
+}) {
+  getMock.mockImplementation((endpoint: string) => {
+    if (endpoint === "/users") {
+      return usersError ? Promise.reject(usersError) : Promise.resolve(users);
+    }
+
+    if (endpoint === API_ENDPOINTS.TENANTS) {
+      return Promise.resolve(tenants);
+    }
+
+    return Promise.resolve([]);
   });
 }
 
@@ -59,7 +98,7 @@ describe("Platform UsersPage", () => {
   });
 
   it("加载失败时展示平台用户失败态", async () => {
-    getMock.mockRejectedValueOnce(new Error("用户目录暂不可用"));
+    mockPageData({ usersError: new Error("用户目录暂不可用") });
 
     await renderPage();
 
@@ -67,7 +106,7 @@ describe("Platform UsersPage", () => {
   });
 
   it("切换为超级管理员角色后租户绑定选择进入禁用态", async () => {
-    getMock.mockResolvedValueOnce([]);
+    mockPageData({ tenants: [] });
 
     await renderPage();
 
@@ -80,31 +119,40 @@ describe("Platform UsersPage", () => {
       toggleButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    const selects = Array.from(container.querySelectorAll("select"));
-    const roleSelect = selects.find((s) => {
-      const options = Array.from(s.querySelectorAll("option"));
-      return options.some((o) => o.value === "super_admin");
-    });
+    const buttons = Array.from(document.body.querySelectorAll("button"));
+    const roleSelect = buttons.find((button) =>
+      button.textContent?.includes("租户只读成员"),
+    );
     expect(roleSelect).toBeTruthy();
 
     await act(async () => {
       if (roleSelect) {
-        roleSelect.value = "super_admin";
-        roleSelect.dispatchEvent(new Event("change", { bubbles: true }));
+        roleSelect.dispatchEvent(new MouseEvent("click", { bubbles: true }));
       }
     });
 
-    const tenantSelect = selects.find((s) => {
-      const options = Array.from(s.querySelectorAll("option"));
-      return options.some((o) => o.textContent?.includes("选择租户") || o.textContent?.includes("平台全局"));
+    const superAdminOption = Array.from(document.body.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("平台超级管理员"),
+    );
+    expect(superAdminOption).toBeTruthy();
+
+    await act(async () => {
+      superAdminOption?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
     });
+
+    const tenantSelect = Array.from(document.body.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("平台全局"),
+    );
     expect(tenantSelect).toBeTruthy();
     expect(tenantSelect?.getAttribute("disabled")).not.toBeNull();
-    expect((tenantSelect as HTMLSelectElement).value).toBe("");
+    expect(tenantSelect?.textContent).toContain("平台全局");
   });
 
   it("自身账号的停用按钮处于禁用态", async () => {
-    getMock.mockResolvedValueOnce([{ id: "self-id", username: "admin", role: "super_admin", tenantId: null, active: true, createdAt: "2024-01-01" }]);
+    mockPageData({
+      users: [{ id: "self-id", username: "admin", role: "super_admin", tenantId: null, active: true, createdAt: "2024-01-01" }],
+    });
 
     await renderPage();
 
@@ -116,23 +164,31 @@ describe("Platform UsersPage", () => {
   });
 
   it("更多菜单包含编辑和重置密码按钮", async () => {
-    getMock.mockResolvedValueOnce([{ id: "other-id", username: "testuser", role: "tenant_viewer", tenantId: "demo", active: true, createdAt: "2024-01-01" }]);
+    mockPageData({
+      users: [{ id: "other-id", username: "testuser", role: "tenant_viewer", tenantId: "demo", active: true, createdAt: "2024-01-01" }],
+      tenants: [{ id: "demo", tenantId: "demo", displayName: "演示租户" }],
+    });
 
     await renderPage();
 
-    expect(container.textContent).toContain("编辑");
-    expect(container.textContent).toContain("重置密码");
-    expect(container.textContent).toContain("删除用户");
+    await openMoreMenu();
+
+    expect(document.body.textContent).toContain("编辑");
+    expect(document.body.textContent).toContain("重置密码");
+    expect(document.body.textContent).toContain("删除用户");
   });
 
   it("编辑弹窗中角色范围可选，租户绑定为禁用态", async () => {
-    getMock.mockResolvedValueOnce([
-      { id: "other-id", username: "testuser", role: "tenant_viewer", tenantId: "demo", active: true, createdAt: "2024-01-01" },
-    ]);
+    mockPageData({
+      users: [{ id: "other-id", username: "testuser", role: "tenant_viewer", tenantId: "demo", active: true, createdAt: "2024-01-01" }],
+      tenants: [{ id: "tenant-1", tenantId: "demo", displayName: "演示租户" }],
+    });
 
     await renderPage();
 
-    const editBtn = Array.from(container.querySelectorAll("button")).find((button) =>
+    await openMoreMenu();
+
+    const editBtn = Array.from(document.body.querySelectorAll("button")).find((button) =>
       button.textContent?.includes("编辑"),
     );
     expect(editBtn).toBeTruthy();
@@ -141,11 +197,11 @@ describe("Platform UsersPage", () => {
       editBtn?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    expect(container.textContent).toContain("编辑用户");
-    expect(container.textContent).toContain("保存修改");
+    expect(document.body.textContent).toContain("编辑用户");
+    expect(document.body.textContent).toContain("保存修改");
 
     // ConsoleSelect 渲染为 button，角色范围按钮不应有 disabled 属性
-    const buttons = Array.from(container.querySelectorAll("button"));
+    const buttons = Array.from(document.body.querySelectorAll("button"));
     const roleSelectBtn = buttons.find((b) =>
       b.textContent?.includes("租户只读成员") || b.textContent?.includes("租户管理员") || b.textContent?.includes("平台超级管理员"),
     );
@@ -154,18 +210,25 @@ describe("Platform UsersPage", () => {
 
     // 租户绑定按钮应有 disabled 属性
     const tenantSelectBtn = buttons.find((b) =>
-      b.textContent?.includes("平台全局") || b.textContent?.includes("demo"),
+      b.textContent?.includes("演示租户") ||
+      b.textContent?.includes("平台全局") ||
+      b.textContent?.includes("请选择..."),
     );
     expect(tenantSelectBtn).toBeTruthy();
     expect(tenantSelectBtn?.getAttribute("disabled")).not.toBeNull();
   });
 
   it("重置密码弹窗需输入两遍新密码且一致才能提交", async () => {
-    getMock.mockResolvedValueOnce([{ id: "other-id", username: "testuser", role: "tenant_viewer", tenantId: "demo", active: true, createdAt: "2024-01-01" }]);
+    mockPageData({
+      users: [{ id: "other-id", username: "testuser", role: "tenant_viewer", tenantId: "demo", active: true, createdAt: "2024-01-01" }],
+      tenants: [{ id: "tenant-1", tenantId: "demo", displayName: "演示租户" }],
+    });
 
     await renderPage();
 
-    const resetBtn = Array.from(container.querySelectorAll("button")).find((button) =>
+    await openMoreMenu();
+
+    const resetBtn = Array.from(document.body.querySelectorAll("button")).find((button) =>
       button.textContent?.includes("重置密码"),
     );
     expect(resetBtn).toBeTruthy();
@@ -174,10 +237,10 @@ describe("Platform UsersPage", () => {
       resetBtn?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    expect(container.textContent).toContain("重置");
-    expect(container.textContent).toContain("确认重置");
+    expect(document.body.textContent).toContain("重置");
+    expect(document.body.textContent).toContain("确认重置");
 
-    const passwordInputs = Array.from(container.querySelectorAll("input[type='password']"));
+    const passwordInputs = Array.from(document.body.querySelectorAll("input[type='password']"));
     expect(passwordInputs.length).toBe(2);
   });
 });

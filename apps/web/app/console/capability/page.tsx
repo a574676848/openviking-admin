@@ -252,7 +252,7 @@ export default function CapabilityPage() {
       setUsers([]);
       setSelectedUserId("");
       setApiKeyOption(null);
-      setLoadError(error instanceof Error ? error.message : "Capability Key 列表加载失败");
+      setLoadError(error instanceof Error ? error.message : "凭证列表加载失败");
     } finally {
       setLoading(false);
     }
@@ -313,7 +313,7 @@ export default function CapabilityPage() {
       setName("");
       setShowCreate(false);
       setActiveCredentialId("__new__");
-      toast.success("Capability Key 已创建");
+      toast.success("凭证已创建");
       await load();
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : "创建失败");
@@ -324,7 +324,7 @@ export default function CapabilityPage() {
 
   async function handleDelete(id: string, keyName: string) {
     const approved = await confirm({
-      title: "吊销 Capability Key",
+      title: "吊销凭证",
       description: `将吊销「${keyName}」，所有依赖该凭证的客户端会立即失去连接权限。`,
       confirmText: "吊销",
       cancelText: "保留",
@@ -697,7 +697,7 @@ export default function CapabilityPage() {
         columns={columns}
         loading={loading}
         loadingMessage="正在同步凭证列表..."
-        errorMessage={loadError ? `Capability Key 列表加载失败：${loadError}` : undefined}
+        errorMessage={loadError ? `凭证列表加载失败：${loadError}` : undefined}
         emptyMessage="暂无凭证"
         tableLabel="租户凭证列表"
         searchConfig={{ placeholder: "搜索凭证 / 状态..." }}

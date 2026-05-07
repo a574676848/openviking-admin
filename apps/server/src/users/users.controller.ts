@@ -44,7 +44,9 @@ export class UsersController {
       throw new ForbiddenException('无权创建超级管理员账号');
     }
 
-    const data = { ...dto, tenantId: req.tenantScope ?? '' };
+    const data = req.tenantScope
+      ? { ...dto, tenantId: req.tenantScope }
+      : dto;
     const created = await this.usersService.create(data);
     await this.auditService.log({
       tenantId: req.tenantScope ?? undefined,
