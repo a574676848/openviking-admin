@@ -9,11 +9,9 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Tenant } from '../../tenant/entities/tenant.entity';
 import { User } from '../../users/entities/user.entity';
-import { SystemConfig } from '../../settings/entities/system-config.entity';
 import { CapabilityKey } from '../entities/capability-key.entity';
-import { EncryptionService } from '../../common/encryption.service';
+import { OvConfigResolverService } from '../../settings/ov-config-resolver.service';
 import {
   ClientType,
   CredentialType,
@@ -21,7 +19,6 @@ import {
   Principal,
 } from '../domain/capability.types';
 import { resolveCredentialTtlSeconds } from '../domain/credential-ttl.policy';
-import { buildTenantIdentityWhere } from '../../tenant/tenant-identity.util';
 
 interface JwtLikePayload {
   sub?: string;
@@ -32,19 +29,19 @@ interface JwtLikePayload {
   tokenType?: CredentialType | 'capability_access_token';
 }
 
+const DEFAULT_OPENVIKING_ACCOUNT = 'default';
+const OPENVIKING_CONFIG_MISSING_MESSAGE =
+  '该租户未配置 OpenViking 引擎连接';
+
 @Injectable()
 export class CapabilityCredentialService {
   constructor(
     @InjectRepository(CapabilityKey)
     private readonly keyRepo: Repository<CapabilityKey>,
-    @InjectRepository(Tenant)
-    private readonly tenantRepo: Repository<Tenant>,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
-    @InjectRepository(SystemConfig)
-    private readonly configRepo: Repository<SystemConfig>,
-    private readonly encryptionService: EncryptionService,
     private readonly jwtService: JwtService,
+    private readonly ovConfigResolver: OvConfigResolverService,
   ) {}
 
   async resolvePrincipalFromApiKey(
@@ -208,35 +205,17 @@ export class CapabilityCredentialService {
   private async loadOvConfigForTenant(
     tenantId: string,
   ): Promise<OVConfigProfile> {
-    const tenant = await this.tenantRepo.findOne({
-      where: buildTenantIdentityWhere(tenantId),
-    });
+    const resolved = await this.ovConfigResolver.resolve(tenantId);
 
-    if (tenant?.ovConfig?.apiKey) {
-      return {
-        ...tenant.ovConfig,
-        apiKey: this.encryptionService.decrypt(tenant.ovConfig.apiKey),
-        account: tenant.vikingAccount || tenant.ovConfig.account || 'default',
-        user: tenant.ovConfig.user || null,
-      } as OVConfigProfile;
+    if (!resolved.apiKey || !resolved.baseUrl) {
+      throw new NotFoundException(OPENVIKING_CONFIG_MISSING_MESSAGE);
     }
 
-    const defaultConfig = await this.configRepo.findOne({
-      where: { key: 'DEFAULT_OV_CONFIG' },
-    });
-
-    if (!defaultConfig) {
-      throw new NotFoundException('该租户未配置 OpenViking 引擎连接');
-    }
-
-    const parsed = JSON.parse(
-      this.encryptionService.decrypt(defaultConfig.value),
-    ) as OVConfigProfile;
-
-    if (!parsed.apiKey || !parsed.baseUrl) {
-      throw new NotFoundException('该租户未配置 OpenViking 引擎连接');
-    }
-
-    return parsed;
+    return {
+      baseUrl: resolved.baseUrl,
+      apiKey: resolved.apiKey,
+      account: resolved.account || DEFAULT_OPENVIKING_ACCOUNT,
+      user: resolved.user,
+    };
   }
 }

@@ -2,9 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Tenant } from '../tenant/entities/tenant.entity';
 import { User } from '../users/entities/user.entity';
-import { SystemConfig } from '../settings/entities/system-config.entity';
 import { CapabilityKey } from './entities/capability-key.entity';
 import { CapabilitiesController } from './capabilities.controller';
 import { CapabilityAuthController } from './capability-auth.controller';
@@ -35,6 +33,7 @@ import { KnowledgeBaseModule } from '../knowledge-base/knowledge-base.module';
 import { KnowledgeTreeModule } from '../knowledge-tree/knowledge-tree.module';
 import { ImportTaskModule } from '../import-task/import-task.module';
 import { RedisCapabilityRateLimitStore } from './infrastructure/redis-capability-rate-limit.store';
+import { SettingsModule } from '../settings/settings.module';
 
 const CAPABILITY_RATE_LIMIT_ENV = {
   DRIVER: 'CAPABILITY_RATE_LIMIT_STORE_DRIVER',
@@ -50,7 +49,7 @@ const CAPABILITY_RATE_LIMIT_ENV = {
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([CapabilityKey, Tenant, User, SystemConfig]),
+    TypeOrmModule.forFeature([CapabilityKey, User]),
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
@@ -61,6 +60,7 @@ const CAPABILITY_RATE_LIMIT_ENV = {
     KnowledgeBaseModule,
     KnowledgeTreeModule,
     ImportTaskModule,
+    SettingsModule,
   ],
   controllers: [
     CapabilitiesController,

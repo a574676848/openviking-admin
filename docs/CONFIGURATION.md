@@ -83,7 +83,7 @@
 }
 ```
 
-> `SettingsService.resolveOVConfig(tenantId)` 会先解析数据库默认配置，再用环境变量和旧版分散键补齐空字段，最后合并租户 `ovConfig`。租户自定义字段优先；租户未配置或字段为空时回退默认配置。租户 `ovConfig.apiKey` 与 `ovConfig.rerankApiKey` 在入库时加密，读取时会自动解密。
+> `OvConfigResolverService.resolve(tenantId)` 会先解析数据库默认配置，再用环境变量和旧版分散键补齐空字段，最后合并租户 `ovConfig`。租户自定义字段优先；租户未配置或字段为空时回退默认配置。Capability、MCP、WebDAV 和导入任务等服务端 OpenViking 调用入口统一复用该解析链路。租户 `ovConfig.apiKey` 与 `ovConfig.rerankApiKey` 在入库时加密，读取时会自动解密。
 
 ---
 
