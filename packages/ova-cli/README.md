@@ -37,6 +37,7 @@ ova bootstrap --path <repo>
 ```
 
 也就是一次完成 MCP、Skills 和仓库 prompt 注入。
+MCP 配置按固定 server 名 `openviking` 增量写入；重复执行只刷新同名配置，不会删除其他 MCP server 或 Codex 的 `[projects.*]` 配置。
 
 如果是首次发布 scoped package，需要使用：
 

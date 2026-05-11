@@ -342,6 +342,97 @@ describe('ova cli', () => {
         expect(stdoutWrite).toHaveBeenCalledWith(expect.stringContaining('"credentialType": "api-key"'));
     });
 
+    it('应该保留 Codex 其他配置并只替换 openviking MCP 段落', async () => {
+        setStateFile(buildStateFile({
+            apiKey: 'ov-sk-demo',
+        }));
+        const codexPath = 'C:\\Users\\tester\\.codex\\config.toml';
+        mockExistsSync.mockImplementation((filePath: unknown) => {
+            const normalized = normalizePath(filePath);
+            return normalized === AUTH_STATE_PATH
+                || normalized === codexPath
+                || normalized.includes(SKILL_ASSET_SEGMENT);
+        });
+        mockReadFileSync.mockImplementation((filePath: unknown) => {
+            const normalized = normalizePath(filePath);
+            if (normalized === AUTH_STATE_PATH) {
+                return currentStateRaw;
+            }
+            if (normalized === codexPath) {
+                return [
+                    'model = "gpt-5.5"',
+                    '',
+                    '[mcp_servers.memory]',
+                    'command = "npx"',
+                    'args = ["-y", "@modelcontextprotocol/server-memory"]',
+                    '',
+                    '[mcp_servers.openviking]   ',
+                    'command = "legacy"',
+                    'args = ["legacy"]',
+                    '',
+                    ' [mcp_servers.openviking.env]',
+                    'TOKEN = "legacy"',
+                    '',
+                    "[projects.'\\\\?\\E:\\repo']",
+                    'trust_level = "trusted"',
+                    '',
+                    '[mcp_servers.gitnexus]',
+                    'command = "gitnexus"',
+                    'args = ["mcp"]',
+                    '',
+                ].join('\n');
+            }
+            if (normalized.includes(SKILL_ASSET_SEGMENT)) {
+                return SAMPLE_SKILL_CONTENT;
+            }
+            return '{}';
+        });
+
+        await bootstrap(['setup', '--editor', 'codex', '--output', 'json']);
+
+        const writeCall = findWritePath('.codex\\config.toml');
+        const codexText = String(writeCall?.[1] ?? '');
+        expect(codexText).toContain('model = "gpt-5.5"');
+        expect(codexText).toContain('[mcp_servers.memory]');
+        expect(codexText).toContain("[projects.'\\\\?\\E:\\repo']");
+        expect(codexText).toContain('[mcp_servers.gitnexus]');
+        expect(codexText).toContain('[mcp_servers.openviking]');
+        expect(codexText).toContain('@anthropic-ai/mcp-remote');
+        expect(codexText).not.toContain('command = "legacy"');
+        expect(codexText).not.toContain('TOKEN = "legacy"');
+        expect(codexText.match(/\[mcp_servers\.openviking\]/g)).toHaveLength(1);
+    });
+
+    it('应该拒绝覆盖非对象类型的 JSON mcpServers 配置', async () => {
+        setStateFile(buildStateFile({
+            apiKey: 'ov-sk-demo',
+        }));
+        const claudePath = 'C:\\Users\\tester\\.claude.json';
+        mockExistsSync.mockImplementation((filePath: unknown) => {
+            const normalized = normalizePath(filePath);
+            return normalized === AUTH_STATE_PATH
+                || normalized === claudePath
+                || normalized.includes(SKILL_ASSET_SEGMENT);
+        });
+        mockReadFileSync.mockImplementation((filePath: unknown) => {
+            const normalized = normalizePath(filePath);
+            if (normalized === AUTH_STATE_PATH) {
+                return currentStateRaw;
+            }
+            if (normalized === claudePath) {
+                return JSON.stringify({ mcpServers: [] });
+            }
+            if (normalized.includes(SKILL_ASSET_SEGMENT)) {
+                return SAMPLE_SKILL_CONTENT;
+            }
+            return '{}';
+        });
+
+        await expect(bootstrap(['setup', '--editor', 'claude', '--output', 'json']))
+            .rejects.toThrow('mcpServers 不是 JSON object');
+        expect(findWritePath('.claude.json')).toBeFalsy();
+    });
+
     it('应该通过 init 生成 capability 快照与提示词注入块', async () => {
         setStateFile(buildStateFile({
             apiKey: 'ov-sk-demo',

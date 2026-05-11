@@ -18,6 +18,8 @@ const OPENVIKING_SECTION_END = '<!-- openviking:end -->';
 const DEFAULT_CLIENT_KEY_NAME = 'ova-mcp';
 const DEFAULT_CREDENTIAL_KIND = 'api-key';
 const DEFAULT_OUTPUT_PATH = '.openviking/capabilities.json';
+const TOML_SECTION_HEADER_RE = /^\s*\[[^\]]+\]\s*$/;
+const OPENVIKING_MCP_SECTION_HEADER_RE = /^\s*\[(mcp_servers\.openviking(?:\.env)?)\]\s*$/;
 const SUPPORTED_EDITORS = ['claude', 'cursor', 'codex'] as const;
 const LOCAL_SKILL_TARGETS = [
     '.claude/skills/openviking-admin/SKILL.md',
@@ -421,26 +423,47 @@ function buildMcpEntry(mcpUrl: string) {
 
 function upsertJsonMcpConfig(filePath: string, mcpEntry: { command: string; args: string[] }) {
     const current = readJsonObject(filePath);
-    const mcpServers = getRecord(current, 'mcpServers');
+    const mcpServers = getRecord(current, 'mcpServers', filePath);
     mcpServers[OPENVIKING_SERVER_NAME] = mcpEntry;
     current.mcpServers = mcpServers;
     writeJson(filePath, current);
 }
 
 function upsertTomlMcpConfig(filePath: string, mcpUrl: string) {
-    const section = [
+    const raw = existsSync(filePath) ? readFileSync(filePath, 'utf8') : '';
+    const cleaned = removeOpenVikingTomlSections(raw).trimEnd();
+    const section = buildTomlMcpSection(mcpUrl);
+    const nextContent = cleaned ? `${cleaned}\n\n${section}\n` : `${section}\n`;
+    ensureDir(dirname(filePath));
+    writeFileSync(filePath, nextContent, 'utf8');
+}
+
+function buildTomlMcpSection(mcpUrl: string) {
+    return [
         '[mcp_servers.openviking]',
         'command = "npx"',
         `args = ["-y", "@anthropic-ai/mcp-remote", "--url", ${JSON.stringify(mcpUrl)}]`,
     ].join('\n');
-    const raw = existsSync(filePath) ? readFileSync(filePath, 'utf8') : '';
-    const nextContent = /\[mcp_servers\.openviking\][\s\S]*?(?=\n\[|$)/m.test(raw)
-        ? raw.replace(/\[mcp_servers\.openviking\][\s\S]*?(?=\n\[|$)/m, section)
-        : raw.trim().length > 0
-          ? `${raw.trimEnd()}\n\n${section}\n`
-          : `${section}\n`;
-    ensureDir(dirname(filePath));
-    writeFileSync(filePath, nextContent, 'utf8');
+}
+
+function removeOpenVikingTomlSections(content: string) {
+    const keptLines: string[] = [];
+    let skipping = false;
+
+    for (const line of content.split(/\r?\n/)) {
+        if (OPENVIKING_MCP_SECTION_HEADER_RE.test(line)) {
+            skipping = true;
+            continue;
+        }
+        if (skipping && TOML_SECTION_HEADER_RE.test(line)) {
+            skipping = false;
+        }
+        if (!skipping) {
+            keptLines.push(line);
+        }
+    }
+
+    return keptLines.join('\n');
 }
 
 function readJsonObject(filePath: string): Record<string, unknown> {
@@ -463,10 +486,13 @@ function writeJson(filePath: string, payload: Record<string, unknown>) {
     writeFileSync(filePath, JSON.stringify(payload, null, 2), 'utf8');
 }
 
-function getRecord(payload: Record<string, unknown>, key: string) {
+function getRecord(payload: Record<string, unknown>, key: string, filePath: string) {
     const candidate = payload[key];
-    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
+    if (candidate === undefined || candidate === null) {
         return {} as Record<string, unknown>;
+    }
+    if (typeof candidate !== 'object' || Array.isArray(candidate)) {
+        throw new Error(`${filePath} 中的 ${key} 不是 JSON object，已拒绝覆盖现有配置`);
     }
     return { ...(candidate as Record<string, unknown>) };
 }

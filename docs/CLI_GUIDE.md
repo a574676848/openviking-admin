@@ -76,6 +76,8 @@ ova setup --credential session-key
 - `~/.cursor/skills/openviking-admin/SKILL.md`
 - `~/.agents/skills/openviking-admin/SKILL.md`
 
+MCP 配置按固定 server 名 `openviking` 增量合并：重复执行只刷新同名 `openviking` 配置，不会删除其他 MCP server、Codex 的 `[projects.*]` 配置或客户端的其他顶层配置。如果 JSON 配置中的 `mcpServers` 已存在但不是对象，CLI 会拒绝写入，避免覆盖异常结构。
+
 ### `ova init`
 
 `init` 负责仓库级初始化：
