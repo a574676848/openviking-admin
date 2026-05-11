@@ -41,9 +41,10 @@ src/
 pnpm install
 cp .env.example .env
 pnpm typeorm migration:run -d src/data-source.ts
-node seed-admin.js
 pnpm start:dev
 ```
+
+数据库迁移会创建基础表结构，并初始化平台超管账号 `admin / Admin@2026`。首次登录后请立即修改默认密码。
 
 服务默认地址：`http://localhost:6001/api`。
 

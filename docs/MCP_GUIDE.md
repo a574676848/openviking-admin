@@ -133,6 +133,13 @@ args = ["-y", "@anthropic-ai/mcp-remote", "--url", "http://localhost:6001/api/v1
 
 ## 协议流转
 
+MCP 消息遵循 JSON-RPC 2.0：
+
+- 请求必须包含 `jsonrpc: "2.0"`、字符串或整数 `id`、字符串 `method`。
+- notification 不包含 `id`，服务端会执行可识别的 notification，但不会写入 JSON-RPC 响应事件。
+- 响应事件只包含 `result` 或 `error` 其中之一；协议级错误使用 JSON-RPC 标准错误码，例如 `-32600`、`-32601`、`-32602`、`-32603`。
+- 当前服务端初始化响应的 `protocolVersion` 为 `2025-11-25`。
+
 ```text
 MCP 客户端
   -> GET /api/v1/mcp/sse?key=...

@@ -123,7 +123,6 @@ GRANT CREATE ON DATABASE openviking_admin TO postgres;
 cd apps/server
 cp .env.example .env
 pnpm migration:run
-node seed-admin.js
 pnpm start:dev
 ```
 
@@ -133,6 +132,8 @@ pnpm start:dev
 pnpm server:migration:run
 pnpm server:dev
 ```
+
+数据库迁移会创建基础表结构，并初始化平台超管账号 `admin / Admin@2026`。首次登录后请立即修改默认密码。
 
 后端默认地址：`http://localhost:6001/api/v1`，控制台与脚本都应使用 `/api/v1/*` 作为稳定入口。
 

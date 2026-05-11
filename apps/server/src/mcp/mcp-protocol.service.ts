@@ -1,6 +1,8 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { McpSessionService } from './mcp-session.service';
 import type {
+  JsonRpcId,
+  JsonRpcParams,
   JsonRpcRequest,
   McpCredential,
   McpMessageQuery,
@@ -11,14 +13,43 @@ import { CapabilityObservabilityService } from '../capabilities/application/capa
 import { CapabilityCredentialService } from '../capabilities/infrastructure/capability-credential.service';
 import type { CapabilityId } from '../capabilities/domain/capability.types';
 
-const MCP_PROTOCOL_VERSION = '2024-11-05';
+const MCP_PROTOCOL_VERSION = '2025-11-25';
 const MCP_SERVER_INFO = {
   name: 'openviking-server',
   version: '1.0.0',
 } as const;
 const JSON_RPC_VERSION = '2.0';
+const JSON_RPC_INVALID_REQUEST_CODE = -32600;
+const JSON_RPC_METHOD_NOT_FOUND_CODE = -32601;
+const JSON_RPC_INVALID_PARAMS_CODE = -32602;
 const MCP_INTERNAL_ERROR_CODE = -32603;
+const JSON_RPC_INVALID_REQUEST_MESSAGE = 'Invalid Request';
+const JSON_RPC_METHOD_NOT_FOUND_MESSAGE = 'Method not found';
+const JSON_RPC_INVALID_PARAMS_MESSAGE = 'Invalid params';
 const MCP_FALLBACK_ERROR_MESSAGE = '未知错误';
+const MCP_INITIALIZED_NOTIFICATION_METHOD = 'notifications/initialized';
+
+type ValidatedJsonRpcMessage = {
+  method: string;
+  params?: JsonRpcParams;
+} & (
+  | {
+      id: JsonRpcId;
+      isNotification: false;
+    }
+  | {
+      isNotification: true;
+    }
+);
+
+class McpJsonRpcError extends Error {
+  constructor(
+    readonly code: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
 
 @Injectable()
 export class McpProtocolService {
@@ -39,7 +70,10 @@ export class McpProtocolService {
   }
 
   async handleMessage(query: McpMessageQuery, body: JsonRpcRequest) {
-    const credential = await this.resolveCredential(query.key, query.sessionKey);
+    const credential = await this.resolveCredential(
+      query.key,
+      query.sessionKey,
+    );
     await this.mcpSessionService.validateSession(
       query.sessionId,
       credential.value,
@@ -47,32 +81,153 @@ export class McpProtocolService {
     );
 
     try {
-      const result = await this.resolveRpcResult(credential, body);
-      await this.mcpSessionService.enqueueEvent(
-        query.sessionId,
-        JSON.stringify({
-          jsonrpc: JSON_RPC_VERSION,
-          id: body.id,
-          result,
-        }),
-      );
+      const message = this.validateJsonRpcMessage(body);
+      const result = await this.resolveRpcResult(credential, message);
+      if (message.isNotification) {
+        return { status: 'accepted' };
+      }
+
+      await this.enqueueJsonRpcResult(query.sessionId, message.id, result);
       return { status: 'ok' };
     } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : MCP_FALLBACK_ERROR_MESSAGE;
-      await this.mcpSessionService.enqueueEvent(
+      const error = this.toJsonRpcError(err);
+      if (this.isJsonRpcNotification(body)) {
+        return { status: 'error', message: error.message };
+      }
+
+      await this.enqueueJsonRpcError(
         query.sessionId,
-        JSON.stringify({
-          jsonrpc: JSON_RPC_VERSION,
-          id: body.id,
-          error: {
-            code: MCP_INTERNAL_ERROR_CODE,
-            message,
-          },
-        }),
+        this.resolveJsonRpcErrorId(body),
+        error,
       );
-      return { status: 'error', message };
+      return { status: 'error', message: error.message };
     }
+  }
+
+  private validateJsonRpcMessage(
+    body: JsonRpcRequest,
+  ): ValidatedJsonRpcMessage {
+    if (!this.isRecord(body) || Array.isArray(body)) {
+      throw new McpJsonRpcError(
+        JSON_RPC_INVALID_REQUEST_CODE,
+        JSON_RPC_INVALID_REQUEST_MESSAGE,
+      );
+    }
+
+    if (body.jsonrpc !== JSON_RPC_VERSION || typeof body.method !== 'string') {
+      throw new McpJsonRpcError(
+        JSON_RPC_INVALID_REQUEST_CODE,
+        JSON_RPC_INVALID_REQUEST_MESSAGE,
+      );
+    }
+
+    const hasId = Object.prototype.hasOwnProperty.call(body, 'id');
+    if (!hasId) {
+      return {
+        isNotification: true,
+        method: body.method,
+        params: this.normalizeJsonRpcParams(body.params),
+      };
+    }
+
+    if (!this.isValidJsonRpcId(body.id)) {
+      throw new McpJsonRpcError(
+        JSON_RPC_INVALID_REQUEST_CODE,
+        JSON_RPC_INVALID_REQUEST_MESSAGE,
+      );
+    }
+
+    return {
+      id: body.id,
+      isNotification: false,
+      method: body.method,
+      params: this.normalizeJsonRpcParams(body.params),
+    };
+  }
+
+  private normalizeJsonRpcParams(params: unknown): JsonRpcParams | undefined {
+    if (params === undefined) {
+      return undefined;
+    }
+
+    if (this.isRecord(params) && !Array.isArray(params)) {
+      return params;
+    }
+
+    throw new McpJsonRpcError(
+      JSON_RPC_INVALID_PARAMS_CODE,
+      JSON_RPC_INVALID_PARAMS_MESSAGE,
+    );
+  }
+
+  private isValidJsonRpcId(id: unknown): id is JsonRpcId {
+    return (
+      typeof id === 'string' || (typeof id === 'number' && Number.isInteger(id))
+    );
+  }
+
+  private isJsonRpcNotification(body: JsonRpcRequest) {
+    return (
+      this.isRecord(body) &&
+      !Object.prototype.hasOwnProperty.call(body, 'id') &&
+      body.jsonrpc === JSON_RPC_VERSION &&
+      typeof body.method === 'string'
+    );
+  }
+
+  private resolveJsonRpcErrorId(body: JsonRpcRequest): JsonRpcId | null {
+    if (this.isRecord(body) && this.isValidJsonRpcId(body.id)) {
+      return body.id;
+    }
+
+    return null;
+  }
+
+  private toJsonRpcError(err: unknown) {
+    if (err instanceof McpJsonRpcError) {
+      return err;
+    }
+
+    const message =
+      err instanceof Error ? err.message : MCP_FALLBACK_ERROR_MESSAGE;
+    return new McpJsonRpcError(MCP_INTERNAL_ERROR_CODE, message);
+  }
+
+  private async enqueueJsonRpcResult(
+    sessionId: string,
+    id: JsonRpcId,
+    result: unknown,
+  ) {
+    await this.mcpSessionService.enqueueEvent(
+      sessionId,
+      JSON.stringify({
+        jsonrpc: JSON_RPC_VERSION,
+        id,
+        result,
+      }),
+    );
+  }
+
+  private async enqueueJsonRpcError(
+    sessionId: string,
+    id: JsonRpcId | null,
+    error: McpJsonRpcError,
+  ) {
+    await this.mcpSessionService.enqueueEvent(
+      sessionId,
+      JSON.stringify({
+        jsonrpc: JSON_RPC_VERSION,
+        id,
+        error: {
+          code: error.code,
+          message: error.message,
+        },
+      }),
+    );
+  }
+
+  private isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null;
   }
 
   private async resolveCredential(
@@ -114,7 +269,7 @@ export class McpProtocolService {
 
   private async resolveRpcResult(
     credential: McpCredential,
-    body: JsonRpcRequest,
+    body: ValidatedJsonRpcMessage,
   ) {
     const { method, params } = body;
 
@@ -123,7 +278,14 @@ export class McpProtocolService {
     }
 
     if (method === 'tools/call') {
-      const capabilityId = params?.name as CapabilityId;
+      if (typeof params?.name !== 'string') {
+        throw new McpJsonRpcError(
+          JSON_RPC_INVALID_PARAMS_CODE,
+          JSON_RPC_INVALID_PARAMS_MESSAGE,
+        );
+      }
+
+      const capabilityId = params.name as CapabilityId;
       const principal = await this.resolvePrincipalFromCredential(credential);
       const trace = this.capabilityObservabilityService.createTraceContext({
         capability: capabilityId,
@@ -151,7 +313,14 @@ export class McpProtocolService {
       };
     }
 
-    return {};
+    if (method === MCP_INITIALIZED_NOTIFICATION_METHOD) {
+      return {};
+    }
+
+    throw new McpJsonRpcError(
+      JSON_RPC_METHOD_NOT_FOUND_CODE,
+      JSON_RPC_METHOD_NOT_FOUND_MESSAGE,
+    );
   }
 
   private toMcpToolResult(

@@ -163,7 +163,7 @@
    node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
    ```
 
-3. **修改 seed-admin.js**: 移除硬编码的数据库连接参数，使用环境变量
+3. **修改默认管理员密码**: 初始化账号 `admin / Admin@2026` 仅用于首次登录，生产部署后必须立即修改
 
 4. **HTTPS**: 生产环境必须启用 HTTPS，JWT Token 在 HTTP 下可被中间人截获
 
@@ -191,7 +191,7 @@
 | LDAP Provider 模拟实现 | 未使用真实 LDAP 库 | 生产环境需安装 `ldapjs` |
 | 飞书 Provider 硬编码 Token | `app_access_token` 为 mock | 生产环境需实现完整 OAuth 流程 |
 | TypeORM synchronize | integrations/capability_keys 曾依赖自动建表 | 生产环境应关闭 synchronize，使用迁移 |
-| seed-admin.js 硬编码连接串 | 包含明文数据库密码 | 仅用于开发环境，生产需修改 |
+| 默认管理员密码 | 初始化账号用于首次登录 | 生产部署后立即修改密码 |
 | 默认 rate limit store 为内存 | 多实例间不会共享计数 | 生产环境改接 Redis / 分布式 KV |
 
 ---

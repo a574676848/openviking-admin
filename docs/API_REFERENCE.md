@@ -502,6 +502,8 @@ Capability 与 CLI 导入入口的 `sourceType` 支持 `local`、`url`、`manife
 
 MCP JSON-RPC 消息接口。
 
+请求体必须遵循 JSON-RPC 2.0。请求需要包含 `jsonrpc: "2.0"`、字符串或整数 `id`、字符串 `method`；notification 不能包含 `id`，服务端不会为 notification 写入 JSON-RPC 响应事件。协议错误通过 SSE 事件返回 JSON-RPC 标准错误对象，常见错误码包括 `-32600`、`-32601`、`-32602` 和 `-32603`。
+
 查询参数：
 
 | 参数           | 说明                       |

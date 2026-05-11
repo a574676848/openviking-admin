@@ -1,10 +1,12 @@
+export type JsonRpcId = string | number;
+
+export type JsonRpcParams = Record<string, unknown>;
+
 export interface JsonRpcRequest {
-  id?: string | number | null;
-  method?: string;
-  params?: {
-    name?: string;
-    arguments?: unknown;
-  };
+  jsonrpc?: unknown;
+  id?: unknown;
+  method?: unknown;
+  params?: unknown;
 }
 
 export type McpCredential =

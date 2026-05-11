@@ -90,14 +90,23 @@ describe('Capability Platform (e2e)', () => {
     recordCredentialExchange: jest.fn(),
     snapshot: jest.fn(() => ({
       metrics: {
-        counters: [{ key: 'capability=knowledge.search|outcome=success', value: 1 }],
+        counters: [
+          { key: 'capability=knowledge.search|outcome=success', value: 1 },
+        ],
         latency: [],
       },
       rateLimit: {
         rules: [{ scope: 'tenant', limit: 120, windowMs: 60000 }],
         activeBuckets: [],
       },
-      alerts: [{ code: 'CAPABILITY_FAILURE_RATE', severity: 'ok', triggered: false, value: 0 }],
+      alerts: [
+        {
+          code: 'CAPABILITY_FAILURE_RATE',
+          severity: 'ok',
+          triggered: false,
+          value: 0,
+        },
+      ],
     })),
   };
   const credentialService = {
@@ -139,7 +148,10 @@ describe('Capability Platform (e2e)', () => {
     closeSession: jest.fn(),
   };
   const prometheusExporterService = {
-    render: jest.fn(() => '# HELP capability_invocations_total Total capability invocations by outcome.\n'),
+    render: jest.fn(
+      () =>
+        '# HELP capability_invocations_total Total capability invocations by outcome.\n',
+    ),
   };
   const auditService = {
     log: jest.fn(),
@@ -160,10 +172,16 @@ describe('Capability Platform (e2e)', () => {
         { provide: CapabilityDiscoveryService, useValue: discoveryService },
         { provide: CapabilityCatalogService, useValue: catalogService },
         { provide: CapabilityExecutionService, useValue: executionService },
-        { provide: CapabilityObservabilityService, useValue: observabilityService },
+        {
+          provide: CapabilityObservabilityService,
+          useValue: observabilityService,
+        },
         { provide: CapabilityCredentialService, useValue: credentialService },
         { provide: CredentialExchangeService, useValue: exchangeService },
-        { provide: CapabilityPrometheusExporterService, useValue: prometheusExporterService },
+        {
+          provide: CapabilityPrometheusExporterService,
+          useValue: prometheusExporterService,
+        },
         { provide: McpService, useValue: mcpService },
         { provide: McpSessionService, useValue: mcpSessionService },
         McpProtocolService,
@@ -267,9 +285,11 @@ describe('Capability Platform (e2e)', () => {
     expect(response.body.meta.flow).toBe('token.exchange');
     expect(response.body.meta.requestId).toBe('request-token-1');
     expect(response.headers['x-request-id']).toBe('request-token-1');
+    expect(response.body.traceId).toEqual(expect.any(String));
+    expect(response.headers['x-trace-id']).toBe(response.body.traceId);
     expect(exchangeService.exchangeAccessToken).toHaveBeenCalledWith(
       principal,
-      'trace-http-1',
+      response.body.traceId,
       'request-token-1',
       3600,
     );
@@ -299,7 +319,9 @@ describe('Capability Platform (e2e)', () => {
 
   it('MCP tools/list 应映射 capability discovery', async () => {
     await request(app.getHttpServer())
-      .post('/api/mcp/message?sessionId=s-1&sessionToken=t-1&sessionKey=session-key')
+      .post(
+        '/api/mcp/message?sessionId=s-1&sessionToken=t-1&sessionKey=session-key',
+      )
       .send({
         jsonrpc: '2.0',
         id: '1',
@@ -323,7 +345,9 @@ describe('Capability Platform (e2e)', () => {
 
   it('MCP tools/call 应映射 capability execution', async () => {
     await request(app.getHttpServer())
-      .post('/api/mcp/message?sessionId=s-1&sessionToken=t-1&sessionKey=session-key')
+      .post(
+        '/api/mcp/message?sessionId=s-1&sessionToken=t-1&sessionKey=session-key',
+      )
       .send({
         jsonrpc: '2.0',
         id: '2',

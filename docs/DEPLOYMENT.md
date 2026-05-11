@@ -7,6 +7,9 @@
 - 根目录 `Dockerfile.server`：后端生产镜像
 - 根目录 `Dockerfile.web`：前端生产镜像
 - 根目录 `docker-compose.yml`：单机生产编排基线
+- `scripts/docker-db-migrate-init.ps1`：Windows PowerShell 环境下的一键建库、增量迁移与基础数据初始化脚本
+- `scripts/docker-db-migrate-init.sh`：Linux / macOS 环境下的一键建库、增量迁移与基础数据初始化脚本
+- `scripts/db-migrate.env.example`：数据库迁移脚本配置模板，真实配置应写入本地 ignored 文件或环境变量
 - `.github/workflows/ci.yml`：install、typecheck、lint、test、docs/env check
 - `scripts/check-env-example.mjs`：校验后端 `.env.example` 是否覆盖关键变量
 
@@ -60,6 +63,49 @@ CAPABILITY_RATE_LIMIT_REDIS_URL=redis://redis:6379/0
 
 ## 数据库准备
 
+### Docker 一键初始化
+
+已使用 Docker 部署时，推荐直接使用脚本完成建库、启用扩展、执行增量 migration 和基础账号兜底初始化。脚本不保存真实数据库地址、用户名和密码，敏感信息通过环境变量或本地 ignored 配置文件提供。
+
+```powershell
+$env:OPENVIKING_DB_HOST="postgres.example.internal"
+$env:OPENVIKING_DB_USER="openviking_admin"
+$env:OPENVIKING_DB_PASS="replace_with_real_password"
+$env:OPENVIKING_DB_NAME="openviking_admin"
+.\scripts\docker-db-migrate-init.ps1
+```
+
+Linux / macOS：
+
+```bash
+cp scripts/db-migrate.env.example scripts/db-migrate.local.env
+vim scripts/db-migrate.local.env
+chmod +x scripts/docker-db-migrate-init.sh
+./scripts/docker-db-migrate-init.sh
+```
+
+`scripts/db-migrate.local.env` 和 `scripts/db-migrate.local.ps1` 已加入 `.gitignore`，不要提交真实连接信息。PowerShell 如需长期保存本机配置，可创建 `scripts/db-migrate.local.ps1`：
+
+```powershell
+$DbHost = "postgres.example.internal"
+$DbUser = "openviking_admin"
+$DbPassword = "replace_with_real_password"
+$DbName = "openviking_admin"
+```
+
+脚本默认使用本机 `pnpm` 执行 `pnpm --filter server run migration:run`，避免 Docker 镜像构建拖慢初始化；重复执行时 TypeORM 只会执行尚未落库的 migration。若部署机没有 Node.js / pnpm，可设置 `OPENVIKING_MIGRATION_RUNNER=docker-image`，并在需要自动构建镜像时设置 `OPENVIKING_BUILD_SERVER_IMAGE=true`。
+
+脚本不会覆盖已有平台管理员。若平台 `admin` 不存在，会按初始化 migration 的默认值补建：
+
+```text
+username: admin
+password: Admin@2026
+```
+
+首次登录后必须立即修改默认密码。
+
+### 手工初始化
+
 ```sql
 CREATE DATABASE openviking_admin;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -88,6 +134,7 @@ ENCRYPTION_KEY=replace_with_random_string_at_least_32_chars
 OV_BASE_URL=https://ov.example.internal
 OV_API_KEY=replace_with_real_ov_api_key
 FRONTEND_URL=https://admin.example.com
+LOCAL_IMPORT_UPLOAD_DIR=/data/openviking/import-uploads
 CAPABILITY_RATE_LIMIT_STORE_DRIVER=redis
 CAPABILITY_RATE_LIMIT_REDIS_URL=redis://redis:6379/0
 ```
@@ -142,7 +189,7 @@ server {
 - [ ] `JWT_SECRET` 已替换为 32+ 位随机字符串
 - [ ] `ENCRYPTION_KEY` 已替换为 32+ 位随机字符串
 - [ ] `FRONTEND_URL` 已改为真实生产域名，CORS 不再使用 localhost
-- [ ] `DB_SYNCHRONIZE=false`，且已执行 `pnpm migration:run`
+- [ ] `DB_SYNCHRONIZE=false`，且已通过 `scripts/docker-db-migrate-init.ps1` / `scripts/docker-db-migrate-init.sh` 或 `pnpm migration:run` 完成迁移
 - [ ] `LOCAL_IMPORT_UPLOAD_DIR` 已配置为 Admin 服务可写的绝对路径
 - [ ] PostgreSQL 已开启持久化备份策略
 - [ ] 应用日志已接入宿主机日志采集或容器日志平台

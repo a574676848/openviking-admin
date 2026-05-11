@@ -39,7 +39,7 @@ openviking-knowdge/
 │   │   │   ├── common/        # 全局基础设施 (守卫/拦截器/加密)
 │   │   │   └── migrations/    # 数据库迁移
 │   │   ├── test/              # E2E 测试
-│   │   └── seed-admin.js      # 初始管理员种子脚本
+│   │   └── seed-admin.js      # 旧版开发种子脚本，生产初始化使用 migration
 │   └── web/             # Next.js 前端 (端口 6002)
 │       ├── app/               # App Router 路由
 │       │   ├── platform/      # 超管平台
@@ -101,14 +101,9 @@ pnpm migration:run
 
 ### 3.5 初始管理员账号
 
-```bash
-cd apps/server
-node seed-admin.js
-```
+数据库迁移会自动初始化平台超管账号。
 
-> **注意**: `seed-admin.js` 中硬编码了数据库连接参数，使用前需修改为实际值。
-
-默认超管账号: `admin` / `admin123`
+默认超管账号: `admin` / `Admin@2026`
 
 租户初始管理员账号: `admin` / `{tenantId}@123`
 
