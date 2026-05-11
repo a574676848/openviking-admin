@@ -10,6 +10,8 @@ import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
+import { Tenant } from '../../tenant/entities/tenant.entity';
+import { buildTenantIdentityWhere } from '../../tenant/tenant-identity.util';
 import { CapabilityKey } from '../entities/capability-key.entity';
 import { OvConfigResolverService } from '../../settings/ov-config-resolver.service';
 import {
@@ -30,8 +32,7 @@ interface JwtLikePayload {
 }
 
 const DEFAULT_OPENVIKING_ACCOUNT = 'default';
-const OPENVIKING_CONFIG_MISSING_MESSAGE =
-  '该租户未配置 OpenViking 引擎连接';
+const OPENVIKING_CONFIG_MISSING_MESSAGE = '该租户未配置 OpenViking 引擎连接';
 
 @Injectable()
 export class CapabilityCredentialService {
@@ -40,6 +41,8 @@ export class CapabilityCredentialService {
     private readonly keyRepo: Repository<CapabilityKey>,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
+    @InjectRepository(Tenant)
+    private readonly tenantRepo: Repository<Tenant>,
     private readonly jwtService: JwtService,
     private readonly ovConfigResolver: OvConfigResolverService,
   ) {}
@@ -62,11 +65,12 @@ export class CapabilityCredentialService {
       where: { id: keyRecord.userId, tenantId: keyRecord.tenantId },
     });
     const ovConfig = await this.loadOvConfigForTenant(keyRecord.tenantId);
+    const tenantScope = await this.resolveTenantScope(keyRecord.tenantId);
 
     return {
       userId: keyRecord.userId,
       username: user?.username,
-      tenantId: keyRecord.tenantId,
+      tenantId: tenantScope,
       role: user?.role,
       scope: 'tenant',
       credentialType: 'api_key',
@@ -94,6 +98,7 @@ export class CapabilityCredentialService {
     }
 
     const ovConfig = await this.loadOvConfigForTenant(payload.tenantId);
+    const tenantScope = await this.resolveTenantScope(payload.tenantId);
     const tokenType = payload.tokenType ?? 'jwt_access_token';
     const credentialType: CredentialType =
       tokenType === 'capability_access_token'
@@ -105,7 +110,7 @@ export class CapabilityCredentialService {
     return {
       userId: payload.sub,
       username: payload.username,
-      tenantId: payload.tenantId,
+      tenantId: tenantScope,
       role: payload.role,
       scope: payload.scope ?? 'tenant',
       credentialType,
@@ -132,7 +137,7 @@ export class CapabilityCredentialService {
     return {
       userId: user.id,
       username: user.username,
-      tenantId: user.tenantId,
+      tenantId: await this.resolveTenantScope(user.tenantId),
       role: user.role,
       scope: user.scope ?? 'tenant',
       credentialType,
@@ -200,6 +205,18 @@ export class CapabilityCredentialService {
 
     await this.keyRepo.remove(key);
     return { success: true };
+  }
+
+  private async resolveTenantScope(tenantId: string): Promise<string> {
+    const tenant = await this.tenantRepo.findOne({
+      where: buildTenantIdentityWhere(tenantId),
+    });
+
+    if (!tenant) {
+      throw new NotFoundException('租户不存在或不可用');
+    }
+
+    return tenant.tenantId;
   }
 
   private async loadOvConfigForTenant(

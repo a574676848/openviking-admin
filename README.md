@@ -43,7 +43,7 @@ OpenViking Admin 的设计目标，是把这些问题作为平台能力解决，
 
 ### 自动化加工流水线
 
-![企业数字资产自动化加工流水线](<./docs/images/企业数字资产自动化加工流水线.png>)
+![企业数字资产自动化加工流水线](./docs/images/企业数字资产自动化加工流水线.png)
 
 导入任务负责连接飞书、钉钉、GitHub/GitLab 等来源，把非结构化内容转化为可检索、可权限控制、可被 Agent 调用的知识资产。
 
@@ -51,55 +51,55 @@ OpenViking Admin 的设计目标，是把这些问题作为平台能力解决，
 
 ### 企业管理平台
 
-| 能力 | 说明 |
-|------|------|
-| 租户管理 | 支持不同隔离等级、租户配置和配额 |
-| 用户与角色 | 支持超管、租户管理员、操作员、只读用户 |
-| 知识库与知识树 | 管理企业知识结构、ACL 和资源 URI |
-| 导入任务 | 支持多源知识导入、任务同步和后台处理 |
-| SSO 集成 | 支持飞书、钉钉、OIDC、LDAP 等企业登录方式 |
-| 审计与观测 | 记录登录、换证、能力调用、失败和拒绝事件 |
+| 能力           | 说明                                      |
+| -------------- | ----------------------------------------- |
+| 租户管理       | 支持不同隔离等级、租户配置和配额          |
+| 用户与角色     | 支持超管、租户管理员、操作员、只读用户    |
+| 知识库与知识树 | 管理企业知识结构、ACL 和资源 URI          |
+| 导入任务       | 支持多源知识导入、任务同步和后台处理      |
+| SSO 集成       | 支持飞书、钉钉、OIDC、LDAP 等企业登录方式 |
+| 审计与观测     | 记录登录、换证、能力调用、失败和拒绝事件  |
 
 ### 能力平台
 
 同一组知识能力通过四种平级入口开放，客户端按自身环境选择接入方式。
 
-| 入口 | 适合场景 | 说明 |
-|------|------|------|
-| HTTP | 后端系统、网关、脚本、无本地 CLI 的 Agent | 直接调用 RESTful capability 接口 |
-| CLI | 开发者、本地运维、CI、Agent 宿主机 | 使用独立 `ova` 命令行，支持 profile 和自动刷新 |
-| MCP | Claude、Cursor、IDE 等 MCP 客户端 | 标准 `tools/list` 和 `tools/call` |
-| Skill | Codex、Claude Skills、自研 Agent 平台 | 轻量编排 HTTP 或 CLI，不发明新协议 |
+| 入口  | 适合场景                                  | 说明                                           |
+| ----- | ----------------------------------------- | ---------------------------------------------- |
+| HTTP  | 后端系统、网关、脚本、无本地 CLI 的 Agent | 直接调用 RESTful capability 接口               |
+| CLI   | 开发者、本地运维、CI、Agent 宿主机        | 使用独立 `ova` 命令行，支持 profile 和自动刷新 |
+| MCP   | Claude、Cursor、IDE 等 MCP 客户端         | 标准 `tools/list` 和 `tools/call`              |
+| Skill | Codex、Claude Skills、自研 Agent 平台     | 轻量编排 HTTP 或 CLI，不发明新协议             |
 
 当前首批开放能力：
 
-| Capability | HTTP | CLI | MCP Tool |
-|------|------|------|------|
-| `knowledge.search` | `POST /api/v1/knowledge/search` | `ova knowledge search` | `knowledge.search` |
-| `knowledge.grep` | `POST /api/v1/knowledge/grep` | `ova knowledge grep` | `knowledge.grep` |
-| `resources.list` | `GET /api/v1/resources` | `ova resources list` | `resources.list` |
-| `resources.tree` | `GET /api/v1/resources/tree` | `ova resources tree` | `resources.tree` |
-| `knowledgeBases.list` | `GET /api/v1/knowledge-bases` | `ova kb list` | `knowledgeBases.list` |
-| `knowledgeBases.detail` | `GET /api/v1/knowledge-bases/:id` | `ova kb detail` | `knowledgeBases.detail` |
-| `knowledgeTree.list` | `GET /api/v1/knowledge-bases/:id/tree` | `ova tree list` | `knowledgeTree.list` |
-| `knowledgeTree.detail` | `GET /api/v1/knowledge-tree/:id` | `ova tree detail` | `knowledgeTree.detail` |
-| `documents.import.create` | `POST /api/v1/import-tasks/documents` | `ova documents import` | `documents.import.create` |
-| `documents.import.status` | `GET /api/v1/import-tasks/:id` | `ova documents import status` | `documents.import.status` |
-| `documents.import.list` | `GET /api/v1/import-tasks` | `ova documents import list` | `documents.import.list` |
-| `documents.import.cancel` | `POST /api/v1/import-tasks/:id/cancel` | `ova documents import cancel` | `documents.import.cancel` |
-| `documents.import.retry` | `POST /api/v1/import-tasks/:id/retry` | `ova documents import retry` | `documents.import.retry` |
-| `documents.import.events` | `GET /api/v1/import-tasks/:id/events` | `ova documents import status --watch` | `documents.import.events` |
+| Capability                | HTTP                                              | CLI                                   | MCP Tool                  |
+| ------------------------- | ------------------------------------------------- | ------------------------------------- | ------------------------- |
+| `knowledge.search`        | `POST /api/v1/knowledge/search`                   | `ova knowledge search`                | `knowledge.search`        |
+| `knowledge.grep`          | `POST /api/v1/knowledge/grep`                     | `ova knowledge grep`                  | `knowledge.grep`          |
+| `resources.list`          | `GET /api/v1/resources`                           | `ova resources list`                  | `resources.list`          |
+| `resources.tree`          | `GET /api/v1/resources/tree`                      | `ova resources tree`                  | `resources.tree`          |
+| `knowledgeBases.list`     | `GET /api/v1/capability/knowledge-bases`          | `ova kb list`                         | `knowledgeBases.list`     |
+| `knowledgeBases.detail`   | `GET /api/v1/capability/knowledge-bases/:id`      | `ova kb detail`                       | `knowledgeBases.detail`   |
+| `knowledgeTree.list`      | `GET /api/v1/capability/knowledge-bases/:id/tree` | `ova tree list`                       | `knowledgeTree.list`      |
+| `knowledgeTree.detail`    | `GET /api/v1/capability/knowledge-tree/:id`       | `ova tree detail`                     | `knowledgeTree.detail`    |
+| `documents.import.create` | `POST /api/v1/capability/import-tasks/documents`  | `ova documents import`                | `documents.import.create` |
+| `documents.import.status` | `GET /api/v1/capability/import-tasks/:id`         | `ova documents import status`         | `documents.import.status` |
+| `documents.import.list`   | `GET /api/v1/capability/import-tasks`             | `ova documents import list`           | `documents.import.list`   |
+| `documents.import.cancel` | `POST /api/v1/capability/import-tasks/:id/cancel` | `ova documents import cancel`         | `documents.import.cancel` |
+| `documents.import.retry`  | `POST /api/v1/capability/import-tasks/:id/retry`  | `ova documents import retry`          | `documents.import.retry`  |
+| `documents.import.events` | `GET /api/v1/capability/import-tasks/:id/events`  | `ova documents import status --watch` | `documents.import.events` |
 
 ## 快速开始
 
 ### 环境要求
 
-| 依赖 | 最低版本 | 说明 |
-|------|----------|------|
-| Node.js | 20 | 运行时环境 |
-| pnpm | 8 | 包管理器 |
-| PostgreSQL | 14 | 数据库，需要 `uuid-ossp` 扩展 |
-| OpenViking | 当前稳定版 | 语义检索与资源索引引擎 |
+| 依赖       | 最低版本   | 说明                          |
+| ---------- | ---------- | ----------------------------- |
+| Node.js    | 20         | 运行时环境                    |
+| pnpm       | 8          | 包管理器                      |
+| PostgreSQL | 14         | 数据库，需要 `uuid-ossp` 扩展 |
+| OpenViking | 当前稳定版 | 语义检索与资源索引引擎        |
 
 ### 安装依赖
 
@@ -216,32 +216,32 @@ Skill 不定义新协议，只负责在 Agent 运行环境中发现 capability�
 
 ## 文档导航
 
-| 文档 | 说明 |
-|------|------|
-| [文档首页](./docs/README.md) | 文档组织、阅读路径和图片资产 |
-| [架构文档](./docs/ARCHITECTURE.md) | 洋葱架构、核心链路、能力平台分层 |
-| [能力平台](./docs/CAPABILITIES.md) | capability 契约、权限、四入口映射和扩展规则 |
-| [API 参考](./docs/API_REFERENCE.md) | HTTP 端点、认证方式、响应格式和错误语义 |
-| [CLI 指南](./docs/CLI_GUIDE.md) | `ova` 安装、登录、profile、换证和命令参考 |
-| [MCP 指南](./docs/MCP_GUIDE.md) | MCP 客户端配置、工具调用和调试 |
-| [Skill 集成指南](./docs/SKILL_GUIDE.md) | Agent Skill 集成模式、内置 Skill 和模板约束 |
+| 文档                                         | 说明                                        |
+| -------------------------------------------- | ------------------------------------------- |
+| [文档首页](./docs/README.md)                 | 文档组织、阅读路径和图片资产                |
+| [架构文档](./docs/ARCHITECTURE.md)           | 洋葱架构、核心链路、能力平台分层            |
+| [能力平台](./docs/CAPABILITIES.md)           | capability 契约、权限、四入口映射和扩展规则 |
+| [API 参考](./docs/API_REFERENCE.md)          | HTTP 端点、认证方式、响应格式和错误语义     |
+| [CLI 指南](./docs/CLI_GUIDE.md)              | `ova` 安装、登录、profile、换证和命令参考   |
+| [MCP 指南](./docs/MCP_GUIDE.md)              | MCP 客户端配置、工具调用和调试              |
+| [Skill 集成指南](./docs/SKILL_GUIDE.md)      | Agent Skill 集成模式、内置 Skill 和模板约束 |
 | [认证与凭证](./docs/AUTH_AND_CREDENTIALS.md) | 登录、SSO、refresh token 和 capability 凭证 |
-| [部署指南](./docs/DEPLOYMENT.md) | 本地、Docker、Nginx 和生产部署 |
-| [安全策略](./docs/SECURITY.md) | 威胁模型、权限边界和生产安全建议 |
-| [可观测性](./docs/OBSERVABILITY.md) | 指标、追踪、审计和 Prometheus 接入准备 |
-| [测试指南](./docs/TESTING.md) | 单元测试、E2E 和覆盖率策略 |
-| [故障排查](./docs/TROUBLESHOOTING.md) | 常见问题、诊断命令和修复建议 |
+| [部署指南](./docs/DEPLOYMENT.md)             | 本地、Docker、Nginx 和生产部署              |
+| [安全策略](./docs/SECURITY.md)               | 威胁模型、权限边界和生产安全建议            |
+| [可观测性](./docs/OBSERVABILITY.md)          | 指标、追踪、审计和 Prometheus 接入准备      |
+| [测试指南](./docs/TESTING.md)                | 单元测试、E2E 和覆盖率策略                  |
+| [故障排查](./docs/TROUBLESHOOTING.md)        | 常见问题、诊断命令和修复建议                |
 
 ## 示例代码
 
 `examples/` 提供当前四种入口的最小可运行样例：
 
-| 目录 | 说明 |
-|------|------|
-| [examples/http](./examples/http) | curl 登录、换证、能力调用和文档导入 |
-| [examples/cli](./examples/cli) | `ova` 登录、搜索、知识库选择、文档导入、签发 key、诊断 |
-| [examples/mcp](./examples/mcp) | Claude Desktop / MCP remote 配置与 JSON-RPC 调试 |
-| [examples/skill](./examples/skill) | Skill 模板和 HTTP/CLI 回退策略 |
+| 目录                               | 说明                                                   |
+| ---------------------------------- | ------------------------------------------------------ |
+| [examples/http](./examples/http)   | curl 登录、换证、能力调用和文档导入                    |
+| [examples/cli](./examples/cli)     | `ova` 登录、搜索、知识库选择、文档导入、签发 key、诊断 |
+| [examples/mcp](./examples/mcp)     | Claude Desktop / MCP remote 配置与 JSON-RPC 调试       |
+| [examples/skill](./examples/skill) | Skill 模板和 HTTP/CLI 回退策略                         |
 
 ## 贡献
 

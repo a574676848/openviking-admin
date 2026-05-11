@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from '../users/entities/user.entity';
+import { Tenant } from '../tenant/entities/tenant.entity';
 import { CapabilityKey } from './entities/capability-key.entity';
 import { CapabilitiesController } from './capabilities.controller';
 import { CapabilityAuthController } from './capability-auth.controller';
@@ -49,7 +50,7 @@ const CAPABILITY_RATE_LIMIT_ENV = {
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([CapabilityKey, User]),
+    TypeOrmModule.forFeature([CapabilityKey, User, Tenant]),
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
@@ -88,8 +89,9 @@ const CAPABILITY_RATE_LIMIT_ENV = {
       inject: [ConfigService],
       useFactory: (config: ConfigService): CapabilityRateLimitStoreOptions => ({
         driver:
-          config.get<string>(CAPABILITY_RATE_LIMIT_ENV.DRIVER)?.toLowerCase() ===
-          CAPABILITY_RATE_LIMIT_STORE_DRIVER.REDIS
+          config
+            .get<string>(CAPABILITY_RATE_LIMIT_ENV.DRIVER)
+            ?.toLowerCase() === CAPABILITY_RATE_LIMIT_STORE_DRIVER.REDIS
             ? CAPABILITY_RATE_LIMIT_STORE_DRIVER.REDIS
             : CAPABILITY_RATE_LIMIT_STORE_DRIVER.MEMORY,
         redisUrl: config.get<string>(CAPABILITY_RATE_LIMIT_ENV.REDIS_URL),
@@ -103,7 +105,9 @@ const CAPABILITY_RATE_LIMIT_ENV = {
         redisDb: Number(
           config.get<string>(CAPABILITY_RATE_LIMIT_ENV.REDIS_DB, '0'),
         ),
-        redisPassword: config.get<string>(CAPABILITY_RATE_LIMIT_ENV.REDIS_PASSWORD),
+        redisPassword: config.get<string>(
+          CAPABILITY_RATE_LIMIT_ENV.REDIS_PASSWORD,
+        ),
         redisTls:
           config.get<string>(CAPABILITY_RATE_LIMIT_ENV.REDIS_TLS, 'false') ===
           'true',

@@ -246,6 +246,28 @@ describe('Capability Platform (e2e)', () => {
       .expect(401);
   });
 
+  it('命名空间化能力接口应避开业务路由并支持 API Key', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/capability/knowledge-bases')
+      .set('x-capability-key', 'ov-sk-test')
+      .expect(200);
+
+    expect(response.body.data.capabilityId).toBe('knowledgeBases.list');
+    expect(credentialService.resolvePrincipalFromApiKey).toHaveBeenCalledWith(
+      'ov-sk-test',
+      'service',
+    );
+    expect(executionService.execute).toHaveBeenCalledWith(
+      'knowledgeBases.list',
+      {},
+      expect.objectContaining({
+        principal: expect.objectContaining({
+          credentialType: 'api_key',
+        }),
+      }),
+    );
+  });
+
   it('凭证发现接口应返回统一换证选项', async () => {
     const response = await request(app.getHttpServer())
       .get('/api/auth/credential-options')

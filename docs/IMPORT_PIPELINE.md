@@ -250,7 +250,7 @@ curl -X POST "$ADMIN_BASE_URL/api/v1/import-tasks/local-upload" \
 ### 通过 capability 或 CLI 创建文档导入
 
 ```bash
-POST /api/v1/import-tasks/documents
+POST /api/v1/capability/import-tasks/documents
 {
   "sourceType": "url",
   "knowledgeBaseId": "knowledge_base_uuid",
@@ -274,13 +274,13 @@ Capability 与 CLI 导入入口面向不依赖平台集成凭证的来源，`sou
 ### 查看任务列表
 
 ```bash
-GET /api/v1/import-tasks
+GET /api/v1/capability/import-tasks
 ```
 
 ### 查看任务详情
 
 ```bash
-GET /api/v1/import-tasks/:id
+GET /api/v1/capability/import-tasks/:id
 ```
 
 CLI：
@@ -308,7 +308,7 @@ ova documents import status --task <taskId>
 ### 查看进度事件
 
 ```bash
-GET /api/v1/import-tasks/:id/events
+GET /api/v1/capability/import-tasks/:id/events
 ```
 
 响应中的 `events` 当前提供任务进度快照，便于 CLI、MCP 和 Skill 统一展示导入状态。

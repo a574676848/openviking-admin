@@ -15,11 +15,7 @@ import { CapabilityDiscoveryService } from './application/capability-discovery.s
 import { CapabilityExecutionService } from './application/capability-execution.service';
 import { CapabilityObservabilityService } from './application/capability-observability.service';
 import { CapabilityCredentialService } from './infrastructure/capability-credential.service';
-import {
-  CapabilityId,
-  ClientType,
-  Principal,
-} from './domain/capability.types';
+import { CapabilityId, ClientType, Principal } from './domain/capability.types';
 import { ensureRequestTrace } from '../common/request-trace';
 
 @Controller()
@@ -117,7 +113,7 @@ export class CapabilitiesController {
   ) {
     return this.executeCapability(
       'resources.tree',
-      query,
+      this.normalizeNumericQuery(query, ['depth']),
       this.resolveClientType('http'),
       req,
       res,
@@ -126,7 +122,7 @@ export class CapabilitiesController {
     );
   }
 
-  @Get('knowledge-bases')
+  @Get('capability/knowledge-bases')
   async listKnowledgeBases(
     @Headers('x-capability-key') capabilityKey: string | undefined,
     @Headers('authorization') authorization: string | undefined,
@@ -144,7 +140,7 @@ export class CapabilitiesController {
     );
   }
 
-  @Get('knowledge-bases/:id')
+  @Get('capability/knowledge-bases/:id')
   async getKnowledgeBaseDetail(
     @Param('id') id: string,
     @Headers('x-capability-key') capabilityKey: string | undefined,
@@ -163,7 +159,7 @@ export class CapabilitiesController {
     );
   }
 
-  @Get('knowledge-bases/:id/tree')
+  @Get('capability/knowledge-bases/:id/tree')
   async listKnowledgeTree(
     @Param('id') id: string,
     @Headers('x-capability-key') capabilityKey: string | undefined,
@@ -182,7 +178,7 @@ export class CapabilitiesController {
     );
   }
 
-  @Get('knowledge-tree/:id')
+  @Get('capability/knowledge-tree/:id')
   async getKnowledgeTreeDetail(
     @Param('id') id: string,
     @Headers('x-capability-key') capabilityKey: string | undefined,
@@ -201,7 +197,7 @@ export class CapabilitiesController {
     );
   }
 
-  @Post('import-tasks/documents')
+  @Post('capability/import-tasks/documents')
   async createDocumentImport(
     @Body() body: Record<string, unknown>,
     @Headers('x-capability-key') capabilityKey: string | undefined,
@@ -220,7 +216,7 @@ export class CapabilitiesController {
     );
   }
 
-  @Get('import-tasks/:id')
+  @Get('capability/import-tasks/:id')
   async getDocumentImportStatus(
     @Param('id') id: string,
     @Headers('x-capability-key') capabilityKey: string | undefined,
@@ -239,7 +235,7 @@ export class CapabilitiesController {
     );
   }
 
-  @Get('import-tasks')
+  @Get('capability/import-tasks')
   async listDocumentImports(
     @Headers('x-capability-key') capabilityKey: string | undefined,
     @Headers('authorization') authorization: string | undefined,
@@ -257,7 +253,7 @@ export class CapabilitiesController {
     );
   }
 
-  @Post('import-tasks/:id/cancel')
+  @Post('capability/import-tasks/:id/cancel')
   async cancelDocumentImport(
     @Param('id') id: string,
     @Headers('x-capability-key') capabilityKey: string | undefined,
@@ -276,7 +272,7 @@ export class CapabilitiesController {
     );
   }
 
-  @Post('import-tasks/:id/retry')
+  @Post('capability/import-tasks/:id/retry')
   async retryDocumentImport(
     @Param('id') id: string,
     @Headers('x-capability-key') capabilityKey: string | undefined,
@@ -295,7 +291,7 @@ export class CapabilitiesController {
     );
   }
 
-  @Get('import-tasks/:id/events')
+  @Get('capability/import-tasks/:id/events')
   async watchDocumentImportEvents(
     @Param('id') id: string,
     @Headers('x-capability-key') capabilityKey: string | undefined,
@@ -381,5 +377,20 @@ export class CapabilitiesController {
 
   private resolveClientType(channel: 'http'): ClientType {
     return channel === 'http' ? 'service' : 'human';
+  }
+
+  private normalizeNumericQuery(
+    query: Record<string, string>,
+    numericKeys: string[],
+  ) {
+    const normalized: Record<string, unknown> = { ...query };
+
+    for (const key of numericKeys) {
+      if (query[key] !== undefined) {
+        normalized[key] = Number(query[key]);
+      }
+    }
+
+    return normalized;
   }
 }

@@ -4,13 +4,17 @@ import { CapabilityCredentialService } from './capability-credential.service';
 describe('CapabilityCredentialService', () => {
   function createService(options?: {
     resolvedOvConfig?: Record<string, string | null>;
+    keyTenantId?: string;
+    tenantCode?: string;
   }) {
+    const keyTenantId = options?.keyTenantId ?? 'tenant-record-1';
+    const tenantCode = options?.tenantCode ?? 'tenant-1';
     const keyRepo = {
       findOne: jest.fn().mockResolvedValue({
         id: 'key-1',
         apiKey: 'ov-sk-test',
         userId: 'user-1',
-        tenantId: 'tenant-1',
+        tenantId: keyTenantId,
         expiresAt: null,
       }),
       update: jest.fn().mockResolvedValue({ affected: 1 }),
@@ -19,12 +23,23 @@ describe('CapabilityCredentialService', () => {
       findOne: jest.fn().mockResolvedValue({
         id: 'user-1',
         username: '张三',
-        tenantId: 'tenant-1',
+        tenantId: keyTenantId,
         role: 'tenant_admin',
       }),
     };
+    const tenantRepo = {
+      findOne: jest.fn().mockResolvedValue({
+        id: keyTenantId,
+        tenantId: tenantCode,
+      }),
+    };
     const jwtService = {
-      verify: jest.fn(),
+      verify: jest.fn().mockReturnValue({
+        sub: 'user-1',
+        username: '张三',
+        tenantId: keyTenantId,
+        role: 'tenant_admin',
+      }),
     };
     const ovConfigResolver = {
       resolve: jest.fn().mockResolvedValue(
@@ -44,16 +59,18 @@ describe('CapabilityCredentialService', () => {
       service: new CapabilityCredentialService(
         keyRepo as never,
         userRepo as never,
+        tenantRepo as never,
         jwtService as never,
         ovConfigResolver as never,
       ),
       keyRepo,
+      tenantRepo,
       ovConfigResolver,
     };
   }
 
-  it('解析 API Key 时应复用统一 OV 配置回退链路', async () => {
-    const { service, keyRepo, ovConfigResolver } = createService();
+  it('解析 API Key 时应复用统一 OV 配置回退链路并归一化租户编码', async () => {
+    const { service, keyRepo, tenantRepo, ovConfigResolver } = createService();
 
     await expect(
       service.resolvePrincipalFromApiKey('ov-sk-test', 'service'),
@@ -70,9 +87,26 @@ describe('CapabilityCredentialService', () => {
       },
     });
 
-    expect(ovConfigResolver.resolve).toHaveBeenCalledWith('tenant-1');
+    expect(ovConfigResolver.resolve).toHaveBeenCalledWith('tenant-record-1');
+    expect(tenantRepo.findOne).toHaveBeenCalledWith({
+      where: [{ tenantId: 'tenant-record-1' }],
+    });
     expect(keyRepo.update).toHaveBeenCalledWith('key-1', {
       lastUsedAt: expect.any(Date),
+    });
+  });
+
+  it('解析 JWT 时应把租户记录主键转换为业务租户编码', async () => {
+    const { service } = createService({
+      keyTenantId: 'c931072d-3c7f-4290-af54-27cf7eaf6f77',
+      tenantCode: 'rag',
+    });
+
+    await expect(
+      service.resolvePrincipalFromJwt('jwt-token', 'service'),
+    ).resolves.toMatchObject({
+      tenantId: 'rag',
+      role: 'tenant_admin',
     });
   });
 

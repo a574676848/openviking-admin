@@ -92,28 +92,28 @@ CLI 模式适合有本地 profile 的 Agent 宿主机。Agent 不需要自己管
 - `knowledge.grep`：优先执行 `ova knowledge grep --output json`，不可用时回退到 `POST /api/v1/knowledge/grep`。
 - `resources.list`：优先执行 `ova resources list --output json`，不可用时回退到 `GET /api/v1/resources`。
 - `resources.tree`：优先执行 `ova resources tree --output json`，不可用时回退到 `GET /api/v1/resources/tree`。
-- `knowledgeBases.list`：优先执行 `ova kb list --output json`，不可用时回退到 `GET /api/v1/knowledge-bases`。
-- `knowledgeBases.detail`：优先执行 `ova kb detail --id <kbId> --output json`，不可用时回退到 `GET /api/v1/knowledge-bases/:id`。
-- `knowledgeTree.list`：优先执行 `ova tree list --kb <kbId> --output json`，不可用时回退到 `GET /api/v1/knowledge-bases/:id/tree`。
-- `knowledgeTree.detail`：优先执行 `ova tree detail --id <nodeId> --output json`，不可用时回退到 `GET /api/v1/knowledge-tree/:id`。
-- `documents.import.create`：优先执行 `ova documents import <url> --kb <kbId> --output json`，不可用时回退到 `POST /api/v1/import-tasks/documents`。
-- `documents.import.status`：优先执行 `ova documents import status --task <taskId> --output json`，不可用时回退到 `GET /api/v1/import-tasks/:id`。
-- `documents.import.list`：优先执行 `ova documents import list --output json`，不可用时回退到 `GET /api/v1/import-tasks`。
-- `documents.import.cancel`：优先执行 `ova documents import cancel --task <taskId> --output json`，不可用时回退到 `POST /api/v1/import-tasks/:id/cancel`。
-- `documents.import.retry`：优先执行 `ova documents import retry --task <taskId> --output json`，不可用时回退到 `POST /api/v1/import-tasks/:id/retry`。
-- `documents.import.events`：优先执行 `ova documents import status --watch --task <taskId> --output json`，不可用时回退到 `GET /api/v1/import-tasks/:id/events`。
+- `knowledgeBases.list`：优先执行 `ova kb list --output json`，不可用时回退到 `GET /api/v1/capability/knowledge-bases`。
+- `knowledgeBases.detail`：优先执行 `ova kb detail --id <kbId> --output json`，不可用时回退到 `GET /api/v1/capability/knowledge-bases/:id`。
+- `knowledgeTree.list`：优先执行 `ova tree list --kb <kbId> --output json`，不可用时回退到 `GET /api/v1/capability/knowledge-bases/:id/tree`。
+- `knowledgeTree.detail`：优先执行 `ova tree detail --id <nodeId> --output json`，不可用时回退到 `GET /api/v1/capability/knowledge-tree/:id`。
+- `documents.import.create`：优先执行 `ova documents import <url> --kb <kbId> --output json`，不可用时回退到 `POST /api/v1/capability/import-tasks/documents`。
+- `documents.import.status`：优先执行 `ova documents import status --task <taskId> --output json`，不可用时回退到 `GET /api/v1/capability/import-tasks/:id`。
+- `documents.import.list`：优先执行 `ova documents import list --output json`，不可用时回退到 `GET /api/v1/capability/import-tasks`。
+- `documents.import.cancel`：优先执行 `ova documents import cancel --task <taskId> --output json`，不可用时回退到 `POST /api/v1/capability/import-tasks/:id/cancel`。
+- `documents.import.retry`：优先执行 `ova documents import retry --task <taskId> --output json`，不可用时回退到 `POST /api/v1/capability/import-tasks/:id/retry`。
+- `documents.import.events`：优先执行 `ova documents import status --watch --task <taskId> --output json`，不可用时回退到 `GET /api/v1/capability/import-tasks/:id/events`。
 
 始终保留响应中的 `traceId`。
 ```
 
 ## 凭证建议
 
-| 场景 | 推荐凭证 |
-|------|------|
+| 场景                 | 推荐凭证                             |
+| -------------------- | ------------------------------------ |
 | Agent 与用户会话绑定 | SSO/JWT 换取 capability access token |
-| 短会话桌面端 | session key |
-| 长期自动化 Agent | 可吊销 API key |
-| 本地开发 Agent | `ova auth login` 管理 profile |
+| 短会话桌面端         | session key                          |
+| 长期自动化 Agent     | 可吊销 API key                       |
+| 本地开发 Agent       | `ova auth login` 管理 profile        |
 
 ## 不推荐做法
 

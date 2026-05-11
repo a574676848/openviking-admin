@@ -31,16 +31,16 @@ WebDAV 不走 `/api/v1` 前缀，根路径为 `/webdav/:tenantId/`。该入口�
 
 ### 支持的方法
 
-| Method     | Path                                             | 说明                                            |
-| ---------- | ------------------------------------------------ | ----------------------------------------------- |
-| `OPTIONS`  | `/webdav/:tenantId/`                             | 返回 `Allow` 与 `DAV` 头                        |
-| `PROPFIND` | `/webdav/:tenantId/`                             | `Depth: 0/1` 返回 `207 Multi-Status` XML        |
-| `GET`      | `/webdav/:tenantId/:kbName/:nodeName...`         | 流式读取叶子文件正文                            |
-| `HEAD`     | `/webdav/:tenantId/:kbName/:nodeName...`         | 返回叶子文件元信息，不读取正文                  |
-| `MKCOL`    | `/webdav/:tenantId/:path.../:name`               | 在租户根创建知识库，或在知识库内创建目录节点    |
-| `PUT`      | `/webdav/:tenantId/:kbName/:nodeName...`         | 新建或覆盖受支持文件，创建本地导入任务          |
-| `DELETE`   | `/webdav/:tenantId/:kbName[/:nodeName...]`       | 删除知识库、叶子文件或空目录，成功返回 `204 No Content` |
-| `MOVE`     | `/webdav/:tenantId/:kbName[/:nodeName...]`       | 重命名知识库，或在同一知识库内重命名/移动文件与目录，成功返回 `201 Created` |
+| Method     | Path                                       | 说明                                                                        |
+| ---------- | ------------------------------------------ | --------------------------------------------------------------------------- |
+| `OPTIONS`  | `/webdav/:tenantId/`                       | 返回 `Allow` 与 `DAV` 头                                                    |
+| `PROPFIND` | `/webdav/:tenantId/`                       | `Depth: 0/1` 返回 `207 Multi-Status` XML                                    |
+| `GET`      | `/webdav/:tenantId/:kbName/:nodeName...`   | 流式读取叶子文件正文                                                        |
+| `HEAD`     | `/webdav/:tenantId/:kbName/:nodeName...`   | 返回叶子文件元信息，不读取正文                                              |
+| `MKCOL`    | `/webdav/:tenantId/:path.../:name`         | 在租户根创建知识库，或在知识库内创建目录节点                                |
+| `PUT`      | `/webdav/:tenantId/:kbName/:nodeName...`   | 新建或覆盖受支持文件，创建本地导入任务                                      |
+| `DELETE`   | `/webdav/:tenantId/:kbName[/:nodeName...]` | 删除知识库、叶子文件或空目录，成功返回 `204 No Content`                     |
+| `MOVE`     | `/webdav/:tenantId/:kbName[/:nodeName...]` | 重命名知识库，或在同一知识库内重命名/移动文件与目录，成功返回 `201 Created` |
 
 WebDAV 响应不使用统一 JSON envelope。知识库始终映射为目录资源，知识树节点分为目录节点（`collection`）与文档叶子（`document`）。`GET` / `HEAD` 仅面向 ACL 允许访问的文档叶子；目录资源仍通过 `PROPFIND` 浏览。文档叶子会同时维护稳定资源容器 URI 与当前正文 `contentUri`，读取正文时优先走 `contentUri`，缺失时再回退到资源容器下探测唯一叶子文件。`MKCOL`、`PUT`、`DELETE` 与 `MOVE` 需要至少 `tenant_operator` 权限；成功后分别写入 `webdav_mkcol`、`webdav_put_create`、`webdav_put_update`、`webdav_delete` 或 `webdav_move` 审计日志。
 
@@ -151,10 +151,10 @@ WebDAV 响应不使用统一 JSON envelope。知识库始终映射为目录资�
 
 发起企业 SSO 认证重定向。
 
-| 参数       | 位置 | 说明                                   |
-| ---------- | ---- | -------------------------------------- |
-| `tenantId` | path | 租户 ID                                |
-| `type`     | path | `feishu`、`dingtalk` 或 `oidc`         |
+| 参数       | 位置 | 说明                           |
+| ---------- | ---- | ------------------------------ |
+| `tenantId` | path | 租户 ID                        |
+| `type`     | path | `feishu`、`dingtalk` 或 `oidc` |
 
 ### GET /api/v1/auth/sso/callback/:tenantId/:type
 
@@ -409,20 +409,20 @@ LDAP / AD 域账号直接登录。服务端会使用租户 LDAP 集成中的 `bi
 
 ### 文档导入相关 capability
 
-文档导入能力用于让 HTTP、CLI、MCP 和 Skill 在同一套契约下完成“选择目标知识库/知识树节点、创建导入任务、查看进度”。这些接口仍走 capability 鉴权，响应保持 `{ data, meta, traceId, error }` 信封。
+文档导入能力用于让 HTTP、CLI、MCP 和 Skill 在同一套契约下完成“选择目标知识库/知识树节点、创建导入任务、查看进度”。这些接口仍走 capability 鉴权，响应保持 `{ data, meta, traceId, error }` 信封。Capability HTTP 入口统一使用 `/api/v1/capability/*` 命名空间，避免与控制台 JWT 业务接口路径冲突。
 
-| Capability                | Method | Path                               | 说明                         |
-| ------------------------- | ------ | ---------------------------------- | ---------------------------- |
-| `knowledgeBases.list`     | `GET`  | `/api/v1/knowledge-bases`          | 列出当前租户可导入的知识库   |
-| `knowledgeBases.detail`   | `GET`  | `/api/v1/knowledge-bases/:id`      | 查看知识库详情与导入根路径   |
-| `knowledgeTree.list`      | `GET`  | `/api/v1/knowledge-bases/:id/tree` | 列出知识库下可导入节点       |
-| `knowledgeTree.detail`    | `GET`  | `/api/v1/knowledge-tree/:id`       | 查看知识树节点详情与导入路径 |
-| `documents.import.create` | `POST` | `/api/v1/import-tasks/documents`   | 创建文档导入任务             |
-| `documents.import.status` | `GET`  | `/api/v1/import-tasks/:id`         | 查看导入进度                 |
-| `documents.import.list`   | `GET`  | `/api/v1/import-tasks`             | 列出导入任务                 |
-| `documents.import.cancel` | `POST` | `/api/v1/import-tasks/:id/cancel`  | 取消排队中的导入任务         |
-| `documents.import.retry`  | `POST` | `/api/v1/import-tasks/:id/retry`   | 重试失败或已取消任务         |
-| `documents.import.events` | `GET`  | `/api/v1/import-tasks/:id/events`  | 查看进度事件快照             |
+| Capability                | Method | Path                                          | 说明                         |
+| ------------------------- | ------ | --------------------------------------------- | ---------------------------- |
+| `knowledgeBases.list`     | `GET`  | `/api/v1/capability/knowledge-bases`          | 列出当前租户可导入的知识库   |
+| `knowledgeBases.detail`   | `GET`  | `/api/v1/capability/knowledge-bases/:id`      | 查看知识库详情与导入根路径   |
+| `knowledgeTree.list`      | `GET`  | `/api/v1/capability/knowledge-bases/:id/tree` | 列出知识库下可导入节点       |
+| `knowledgeTree.detail`    | `GET`  | `/api/v1/capability/knowledge-tree/:id`       | 查看知识树节点详情与导入路径 |
+| `documents.import.create` | `POST` | `/api/v1/capability/import-tasks/documents`   | 创建文档导入任务             |
+| `documents.import.status` | `GET`  | `/api/v1/capability/import-tasks/:id`         | 查看导入进度                 |
+| `documents.import.list`   | `GET`  | `/api/v1/capability/import-tasks`             | 列出导入任务                 |
+| `documents.import.cancel` | `POST` | `/api/v1/capability/import-tasks/:id/cancel`  | 取消排队中的导入任务         |
+| `documents.import.retry`  | `POST` | `/api/v1/capability/import-tasks/:id/retry`   | 重试失败或已取消任务         |
+| `documents.import.events` | `GET`  | `/api/v1/capability/import-tasks/:id/events`  | 查看进度事件快照             |
 
 失败任务的物理删除当前仅提供给控制台/JWT 管理接口，尚未纳入 capability、CLI 和 MCP 契约。
 
@@ -594,14 +594,14 @@ MCP JSON-RPC 消息接口。
 
 需要 JWT 和租户上下文。
 
-| Method   | Path                               | 说明                     |
-| -------- | ---------------------------------- | ------------------------ |
-| `GET`    | `/api/v1/knowledge-bases`          | 获取当前租户未归档知识库 |
-| `GET`    | `/api/v1/knowledge-bases/:id`      | 获取未归档知识库详情     |
+| Method   | Path                               | 说明                       |
+| -------- | ---------------------------------- | -------------------------- |
+| `GET`    | `/api/v1/knowledge-bases`          | 获取当前租户未归档知识库   |
+| `GET`    | `/api/v1/knowledge-bases/:id`      | 获取未归档知识库详情       |
 | `GET`    | `/api/v1/knowledge-bases/:id/tree` | 获取未归档知识库下的知识树 |
-| `POST`   | `/api/v1/knowledge-bases`          | 创建知识库               |
-| `PATCH`  | `/api/v1/knowledge-bases/:id`      | 更新知识库               |
-| `DELETE` | `/api/v1/knowledge-bases/:id`      | 删除知识库               |
+| `POST`   | `/api/v1/knowledge-bases`          | 创建知识库                 |
+| `PATCH`  | `/api/v1/knowledge-bases/:id`      | 更新知识库                 |
+| `DELETE` | `/api/v1/knowledge-bases/:id`      | 删除知识库                 |
 
 删除知识库由服务层统一先清理 OpenViking 资源，再删除 Admin 元数据。服务会先对知识库根 `vikingUri` 调用 OpenViking `/api/v1/fs?recursive=true`，成功或远端 `404` 后再删除知识树节点和知识库记录。已归档知识库默认不会出现在列表、能力选择和 WebDAV 根目录中，详情接口会按不存在处理。
 
@@ -632,18 +632,18 @@ MCP JSON-RPC 消息接口。
 
 需要 JWT 和租户上下文。
 
-| Method | Path                                | 说明                           |
-| ------ | ----------------------------------- | ------------------------------ |
-| `GET`  | `/api/v1/import-tasks`              | 获取导入任务列表               |
-| `GET`  | `/api/v1/import-tasks/:id`          | 获取任务详情                   |
-| `POST` | `/api/v1/import-tasks`              | 创建导入任务                   |
-| `POST` | `/api/v1/import-tasks/documents`    | 创建文档导入任务并返回进度入口 |
-| `POST` | `/api/v1/import-tasks/local-upload` | 上传本地文件并创建导入任务     |
-| `GET`  | `/api/v1/import-tasks/:id/events`   | 查看任务进度事件快照           |
-| `GET`  | `/api/v1/import-tasks/:id/sync`     | 同步任务执行结果               |
-| `POST` | `/api/v1/import-tasks/:id/retry`    | 重试失败或已取消的导入任务     |
-| `POST` | `/api/v1/import-tasks/:id/cancel`   | 取消排队中的导入任务           |
-| `DELETE` | `/api/v1/import-tasks/:id`        | 物理删除失败的导入任务         |
+| Method   | Path                                | 说明                           |
+| -------- | ----------------------------------- | ------------------------------ |
+| `GET`    | `/api/v1/import-tasks`              | 获取导入任务列表               |
+| `GET`    | `/api/v1/import-tasks/:id`          | 获取任务详情                   |
+| `POST`   | `/api/v1/import-tasks`              | 创建导入任务                   |
+| `POST`   | `/api/v1/import-tasks/documents`    | 创建文档导入任务并返回进度入口 |
+| `POST`   | `/api/v1/import-tasks/local-upload` | 上传本地文件并创建导入任务     |
+| `GET`    | `/api/v1/import-tasks/:id/events`   | 查看任务进度事件快照           |
+| `GET`    | `/api/v1/import-tasks/:id/sync`     | 同步任务执行结果               |
+| `POST`   | `/api/v1/import-tasks/:id/retry`    | 重试失败或已取消的导入任务     |
+| `POST`   | `/api/v1/import-tasks/:id/cancel`   | 取消排队中的导入任务           |
+| `DELETE` | `/api/v1/import-tasks/:id`          | 物理删除失败的导入任务         |
 
 导入来源：
 
