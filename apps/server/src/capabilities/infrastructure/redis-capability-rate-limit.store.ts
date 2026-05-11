@@ -67,6 +67,7 @@ interface RedisLikeClient {
   srem(key: string, ...members: string[]): Promise<number>;
   quit(): Promise<unknown>;
   disconnect(): void;
+  on?(event: 'error', listener: (error: Error) => void): RedisLikeClient;
 }
 
 @Injectable()
@@ -76,17 +77,32 @@ export class RedisCapabilityRateLimitStore
   private readonly logger = new Logger(RedisCapabilityRateLimitStore.name);
   private readonly bucketPrefix: string;
   private readonly registryKey: string;
-  private readonly client: RedisLikeClient;
+  private readonly options: CapabilityRateLimitStoreOptions;
+  private _client?: RedisLikeClient;
 
   constructor(
     @Inject(CAPABILITY_RATE_LIMIT_STORE_OPTIONS)
-    private readonly options: CapabilityRateLimitStoreOptions,
+    options: CapabilityRateLimitStoreOptions,
     @Optional()
     client?: RedisLikeClient,
   ) {
+    this.options = options;
     this.bucketPrefix = `${options.redisKeyPrefix}:bucket`;
     this.registryKey = `${options.redisKeyPrefix}:keys`;
-    this.client = client ?? this.createClient(options);
+    this._client = client;
+  }
+
+  private get client(): RedisLikeClient {
+    if (!this._client) {
+      const newClient = this.createClient(this.options);
+      newClient.on?.('error', (err: Error) => {
+        this.logger.warn(
+          `Redis rate limit store 连接错误: ${err.message}`,
+        );
+      });
+      this._client = newClient;
+    }
+    return this._client;
   }
 
   async consume(
@@ -174,15 +190,18 @@ export class RedisCapabilityRateLimitStore
   }
 
   async onModuleDestroy() {
+    if (!this._client) {
+      return;
+    }
     try {
-      await this.client.quit();
+      await this._client.quit();
     } catch (error) {
       this.logger.warn(
-        `redis rate limit store quit failed: ${
+        `redis rate limit store quit 失败: ${
           error instanceof Error ? error.message : 'unknown error'
         }`,
       );
-      this.client.disconnect();
+      this._client.disconnect();
     }
   }
 
@@ -198,21 +217,38 @@ export class RedisCapabilityRateLimitStore
 
   private createClient(options: CapabilityRateLimitStoreOptions) {
     if (options.redisUrl) {
-      return new Redis(options.redisUrl, {
+      const url = options.redisPassword
+        ? this.injectPasswordIntoRedisUrl(options.redisUrl, options.redisPassword)
+        : options.redisUrl;
+      return new Redis(url, {
         connectTimeout: options.redisConnectTimeoutMs,
-        keyPrefix: '',
         tls: options.redisTls ? {} : undefined,
       }) as unknown as RedisLikeClient;
     }
 
-    return new Redis({
+    const redisOptions: Record<string, unknown> = {
       host: options.redisHost,
       port: options.redisPort,
       db: options.redisDb,
-      password: options.redisPassword,
       connectTimeout: options.redisConnectTimeoutMs,
-      keyPrefix: '',
       tls: options.redisTls ? {} : undefined,
-    }) as unknown as RedisLikeClient;
+    };
+    if (options.redisPassword) {
+      redisOptions.password = options.redisPassword;
+    }
+    return new Redis(redisOptions) as unknown as RedisLikeClient;
+  }
+
+  private injectPasswordIntoRedisUrl(url: string, password: string): string {
+    try {
+      const parsed = new URL(url);
+      if (!parsed.password) {
+        parsed.password = encodeURIComponent(password);
+        return parsed.toString();
+      }
+    } catch {
+      // URL 解析失败时不做注入，原样返回
+    }
+    return url;
   }
 }

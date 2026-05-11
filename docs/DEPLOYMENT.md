@@ -138,6 +138,7 @@ OV_API_KEY=replace_with_real_ov_api_key
 FRONTEND_URL=https://admin.example.com
 BACKEND_URL=http://server:6001
 LOCAL_IMPORT_UPLOAD_DIR=/data/openviking/import-uploads
+WEBDAV_ACCESS_LOG_VERBOSE=false
 CAPABILITY_RATE_LIMIT_STORE_DRIVER=redis
 CAPABILITY_RATE_LIMIT_REDIS_URL=redis://redis:6379/0
 ```
@@ -154,6 +155,7 @@ docker compose --profile redis up -d --build
 - `redis` 放在 `redis` profile 下，生产多实例部署时应启用
 - `server` 会等待 `postgres` 健康后再启动
 - `web` 镜像构建期不读取 `BACKEND_URL`；容器运行期由 Next Route Handler 将同源 `/api/*` 请求代理到 `BACKEND_URL`
+- 排查 Obsidian、Remotely Save 等 WebDAV 客户端连接问题时，可临时设置 `WEBDAV_ACCESS_LOG_VERBOSE=true` 并重启 `server`，让成功和失败请求都输出脱敏明细日志
 
 ## 反向代理要求
 

@@ -1,4 +1,9 @@
-import { HttpException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  HttpException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import type { Request } from 'express';
 import { extname } from 'node:path';
 import type { Readable } from 'node:stream';
@@ -41,6 +46,14 @@ const WEBDAV_ALLOWED_FILE_EXTENSIONS: ReadonlySet<string> = new Set(
   LOCAL_IMPORT_UPLOAD_CONFIG.ALLOWED_EXTENSIONS,
 );
 const WEBDAV_ALLOW_EXTENSIONLESS_FILES = true;
+const WEBDAV_FAILURE_LOG_EVENT = 'webdav.request.failure';
+const WEBDAV_AUTH_MISSING_BASIC_REASON = 'missing_basic_authorization';
+const WEBDAV_AUTH_INVALID_BASIC_REASON = 'invalid_basic_authorization';
+const WEBDAV_AUTH_TENANT_MISMATCH_REASON = 'tenant_mismatch';
+const WEBDAV_AUTH_CREDENTIAL_RESOLVE_FAILED_REASON =
+  'credential_resolve_failed';
+const WEBDAV_TENANT_CONTEXT_INIT_FAILED_REASON = 'tenant_context_init_failed';
+const WEBDAV_PROPFIND_FAILED_REASON = 'propfind_failed';
 const WEBDAV_TEXTLIKE_CONTENT_TYPES: Record<string, string> = {
   '.md': 'text/markdown; charset=utf-8',
   '.markdown': 'text/markdown; charset=utf-8',
@@ -139,6 +152,8 @@ type WebdavTarget =
 
 @Injectable()
 export class WebdavService {
+  private readonly logger = new Logger(WebdavService.name);
+
   constructor(
     private readonly capabilityCredentialService: CapabilityCredentialService,
     private readonly tenantCacheService: TenantCacheService,
@@ -169,7 +184,14 @@ export class WebdavService {
         request as AuthenticatedRequest,
         authResult.principal,
       );
-    } catch {
+    } catch (error) {
+      this.logWebdavError(WEBDAV_TENANT_CONTEXT_INIT_FAILED_REASON, error, {
+        method,
+        tenantId,
+        resourcePath: resourcePath ?? null,
+        principalTenantId: authResult.principal.tenantId ?? null,
+        userId: authResult.principal.userId ?? null,
+      });
       return this.createInternalServerErrorResponse(
         'WebDAV 租户上下文初始化失败。',
       );
@@ -347,6 +369,13 @@ export class WebdavService {
         return this.createNotFoundResponse('资源路径不存在。');
       }
 
+      this.logWebdavError(WEBDAV_PROPFIND_FAILED_REASON, error, {
+        method,
+        tenantId,
+        tenantScope,
+        resourcePath: resourcePath ?? null,
+        userId: authResult.principal.userId ?? null,
+      });
       return this.createInternalServerErrorResponse('WebDAV 资源读取失败。');
     }
   }
@@ -359,11 +388,20 @@ export class WebdavService {
   > {
     const authorization = request.header('authorization');
     if (!authorization?.startsWith('Basic ')) {
+      this.logWebdavWarn(WEBDAV_AUTH_MISSING_BASIC_REASON, {
+        method: request.method,
+        tenantId,
+      });
       return { ok: false, response: this.createUnauthorizedResponse() };
     }
 
     const decoded = this.decodeBasicAuthorization(authorization);
     if (!decoded || decoded.username !== tenantId) {
+      this.logWebdavWarn(WEBDAV_AUTH_INVALID_BASIC_REASON, {
+        method: request.method,
+        tenantId,
+        username: decoded?.username ?? null,
+      });
       return { ok: false, response: this.createUnauthorizedResponse() };
     }
 
@@ -375,6 +413,12 @@ export class WebdavService {
         );
 
       if (!principal.tenantId || principal.tenantId !== tenantId) {
+        this.logWebdavWarn(WEBDAV_AUTH_TENANT_MISMATCH_REASON, {
+          method: request.method,
+          tenantId,
+          principalTenantId: principal.tenantId ?? null,
+          userId: principal.userId ?? null,
+        });
         return { ok: false, response: this.createUnauthorizedResponse() };
       }
 
@@ -382,9 +426,50 @@ export class WebdavService {
         ok: true,
         principal,
       };
-    } catch {
+    } catch (error) {
+      this.logWebdavError(WEBDAV_AUTH_CREDENTIAL_RESOLVE_FAILED_REASON, error, {
+        method: request.method,
+        tenantId,
+        username: decoded.username,
+      });
       return { ok: false, response: this.createUnauthorizedResponse() };
     }
+  }
+
+  private logWebdavWarn(reason: string, details: Record<string, unknown>) {
+    this.logger.warn(
+      `${WEBDAV_FAILURE_LOG_EVENT} ${JSON.stringify({ reason, ...details })}`,
+    );
+  }
+
+  private logWebdavError(
+    reason: string,
+    error: unknown,
+    details: Record<string, unknown>,
+  ) {
+    this.logger.error(
+      `${WEBDAV_FAILURE_LOG_EVENT} ${JSON.stringify({
+        reason,
+        ...details,
+        error: this.describeError(error),
+      })}`,
+      error instanceof Error ? error.stack : undefined,
+    );
+  }
+
+  private describeError(error: unknown) {
+    if (error instanceof Error) {
+      return {
+        name: error.name,
+        message: error.message,
+      };
+    }
+
+    if (typeof error === 'string') {
+      return { message: error };
+    }
+
+    return { type: typeof error };
   }
 
   private async attachTenantContext(

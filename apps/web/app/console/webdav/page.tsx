@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Check,
   Copy,
@@ -19,6 +19,7 @@ const DEFAULT_WEBDAV_BASE_URL = "https://viking-engine.local:1933";
 const WEBDAV_MULTI_STATUS = 207;
 const WEBDAV_CHECK_TIMEOUT_MS = 8000;
 const WEBDAV_CHECK_ENDPOINT = "/console/webdav/check";
+const WEBDAV_CONFIG_ENDPOINT = "/console/webdav/config";
 
 type ConnectionCheckState = {
   checking: boolean;
@@ -32,6 +33,10 @@ type ClientPreset = {
   hint: string;
   blockLabel: string;
   buildSnippet: (input: { url: string; tenantId: string }) => string[];
+};
+
+type WebdavConfigPayload = {
+  webdavUrl?: string;
 };
 
 const clientPresets: ClientPreset[] = [
@@ -143,7 +148,16 @@ export default function WebdavConfigPage() {
   const { user } = useApp();
 
   const tenantId = user?.tenantId || "default";
-  const webdavUrl = `${resolveWebdavBaseUrl(process.env.NEXT_PUBLIC_BACKEND_URL)}/webdav/${tenantId}/`;
+  const fallbackWebdavUrl = useMemo(
+    () =>
+      buildWebdavUrl(
+        resolveWebdavBaseUrl(process.env.NEXT_PUBLIC_BACKEND_URL),
+        tenantId,
+      ),
+    [tenantId],
+  );
+  const [runtimeWebdavUrl, setRuntimeWebdavUrl] = useState<string | null>(null);
+  const webdavUrl = runtimeWebdavUrl ?? fallbackWebdavUrl;
 
   const preset = useMemo(() => {
     return (
@@ -153,7 +167,35 @@ export default function WebdavConfigPage() {
 
   const snippetLines = preset.buildSnippet({ url: webdavUrl, tenantId });
 
-  async function copyText(text: string, key: string) {
+  useEffect(() => {
+    let shouldIgnore = false;
+
+    async function loadWebdavConfig() {
+      setRuntimeWebdavUrl(null);
+
+      try {
+        const response = await fetch(
+          `${WEBDAV_CONFIG_ENDPOINT}?tenantId=${encodeURIComponent(tenantId)}`,
+          { cache: "no-store" },
+        );
+        const payload = await safeReadWebdavConfigPayload(response);
+
+        if (!shouldIgnore && response.ok && payload.webdavUrl) {
+          setRuntimeWebdavUrl(payload.webdavUrl);
+        }
+      } catch {
+        // 保留构建期配置或本地默认值，避免配置接口异常时页面空白。
+      }
+    }
+
+    void loadWebdavConfig();
+
+    return () => {
+      shouldIgnore = true;
+    };
+  }, [tenantId]);
+
+  async function copyText(text: string) {
     await navigator.clipboard.writeText(text);
     toast.success("已复制到剪贴板");
   }
@@ -345,7 +387,7 @@ export default function WebdavConfigPage() {
         <div className="flex h-full flex-col min-h-[400px]">
           <CodeBlock
             lines={snippetLines}
-            onCopy={() => void copyText(snippetLines.join("\n"), preset.id)}
+            onCopy={() => void copyText(snippetLines.join("\n"))}
             copied={false}
           />
         </div>
@@ -432,10 +474,24 @@ function resolveWebdavBaseUrl(resolvedBaseUrl?: string, fallbackHost?: string) {
     if (fallbackHost) {
       return `${window.location.protocol}//${fallbackHost}`;
     }
-    return window.location.origin;
   }
 
   return fallbackHost ? `https://${fallbackHost}` : DEFAULT_WEBDAV_BASE_URL;
+}
+
+function buildWebdavUrl(baseUrl: string, tenantId: string) {
+  return `${baseUrl}/webdav/${encodeURIComponent(tenantId)}/`;
+}
+
+async function safeReadWebdavConfigPayload(
+  response: Response,
+): Promise<WebdavConfigPayload> {
+  try {
+    const payload = (await response.json()) as WebdavConfigPayload;
+    return payload && typeof payload === "object" ? payload : {};
+  } catch {
+    return {};
+  }
 }
 
 function encodeBasicCredential(username: string, password: string) {

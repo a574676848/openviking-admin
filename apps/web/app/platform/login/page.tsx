@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { LogIn, Lock } from "lucide-react";
+import { LogIn, Lock, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { VikingWatcher } from "@/components/watcher";
 import { ThemeSwitcher } from "@/components/theme-switcher";
@@ -19,6 +19,7 @@ export default function PlatformLoginPage() {
   const { login, setTheme } = useApp();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isTypingPassword, setIsTypingPassword] = useState(false);
   const [shakeKey, setShakeKey] = useState(0);
@@ -114,7 +115,7 @@ export default function PlatformLoginPage() {
             <PlatformField label="身份校验密钥 / SECRET" className="space-y-2">
               <div className="relative">
                 <PlatformInput
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   required
                   value={password}
                   onFocus={() => setIsTypingPassword(true)}
@@ -123,7 +124,14 @@ export default function PlatformLoginPage() {
                   className="w-full bg-[var(--bg-elevated)] px-4 py-4 text-sm font-bold rounded-[var(--radius-base)] focus:ring-2 focus:ring-[var(--brand)] transition-all"
                   placeholder="••••••••"
                 />
-                <Lock className="absolute right-4 top-4 text-black opacity-30" size={18} />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-4 text-black opacity-30 hover:opacity-60 transition-all focus:outline-none"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
               </div>
             </PlatformField>
 

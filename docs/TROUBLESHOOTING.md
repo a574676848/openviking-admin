@@ -290,7 +290,8 @@ cd apps/server && pnpm start:prod > server.log 2>&1
 
 - 常规访问摘要日志事件名是 `http.request`。
 - WebDAV 请求失败时，服务端会额外输出 `http.request.webdav`，其中包含脱敏后的请求头、响应头、租户路径和解码后的资源路径，适合排查 Obsidian 上传、删除、MOVE、条件写入失败等问题。
-- 默认只有失败的 WebDAV 请求才会输出这条明细日志；如果要观察客户端完整方法序列，可在 `apps/server/.env` 中设置 `WEBDAV_ACCESS_LOG_VERBOSE=true` 后重启服务。
+- 默认只有失败的 WebDAV 请求才会输出这条明细日志；如果要观察客户端完整方法序列，本地运行可在 `apps/server/.env` 中设置 `WEBDAV_ACCESS_LOG_VERBOSE=true`，Docker Compose 部署可在根目录 `.env` 中设置同名变量，然后重启后端服务。
+- WebDAV 业务层失败会额外输出 `webdav.request.failure`，用于区分缺少 Basic 鉴权、租户不匹配、凭证解析失败、租户上下文初始化失败和 PROPFIND 内部异常等原因。
 - 明细日志会自动脱敏 `Authorization`、`Cookie`、`Set-Cookie`、`x-api-key` 等敏感头，所以可以直接把日志片段用于排障协作。
 
 ### 查看审计日志

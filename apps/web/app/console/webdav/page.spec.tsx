@@ -54,6 +54,17 @@ describe("WebdavConfigPage", () => {
 
   it("连接自检成功时不在页面回显完整 API key", async () => {
     fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          webdavUrl: "https://backend.example.com/webdav/tenant-demo/",
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      ),
+    );
+    fetchMock.mockResolvedValueOnce(
       new Response(JSON.stringify({ status: 207 }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
@@ -62,7 +73,7 @@ describe("WebdavConfigPage", () => {
 
     await renderPage();
     expect(container.textContent).toContain(
-      '"address": "http://localhost:6001/webdav/tenant-demo/"',
+      '"address": "https://backend.example.com/webdav/tenant-demo/"',
     );
     expect(container.textContent).toContain("OBSIDIAN");
     const input = container.querySelector(
@@ -88,6 +99,12 @@ describe("WebdavConfigPage", () => {
       await Promise.resolve();
     });
 
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/console/webdav/config?tenantId=tenant-demo",
+      expect.objectContaining({
+        cache: "no-store",
+      }),
+    );
     expect(fetchMock).toHaveBeenCalledWith(
       "/console/webdav/check",
       expect.objectContaining({

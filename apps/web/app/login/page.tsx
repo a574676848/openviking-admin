@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { LogIn, Lock, Share2, Globe, ShieldCheck } from "lucide-react";
+import { LogIn, Lock, Share2, Globe, ShieldCheck, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { VikingWatcher } from "@/components/watcher";
 import { ThemeSwitcher } from "@/components/theme-switcher";
@@ -14,6 +14,7 @@ export default function LoginPage() {
   const { login, setTheme } = useApp();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [tenantCode, setTenantCode] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -178,7 +179,7 @@ export default function LoginPage() {
               <label className="block text-xs font-bold text-[var(--text-secondary)]">身份校验密钥 / SECRET</label>
               <div className="relative">
                 <input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   required
                   value={password}
                   onFocus={() => setIsTypingPassword(true)}
@@ -187,7 +188,14 @@ export default function LoginPage() {
                   className="w-full px-4 py-4 border border-[var(--border)] font-sans text-sm font-bold bg-[var(--bg-input)] outline-none rounded-[var(--radius-base)] focus:ring-2 focus:ring-[var(--brand)] transition-all"
                   placeholder="••••••••"
                 />
-                <Lock className="absolute right-4 top-4 text-[var(--text-primary)] opacity-30" size={18} />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-4 text-[var(--text-primary)] opacity-30 hover:opacity-60 transition-all focus:outline-none"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
               </div>
             </div>
 
