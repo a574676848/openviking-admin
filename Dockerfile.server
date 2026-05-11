@@ -15,4 +15,5 @@ RUN pnpm --filter server run build
 
 EXPOSE 6001
 
-CMD ["pnpm", "--filter", "server", "run", "start:prod"]
+WORKDIR /app/apps/server
+CMD ["node", "dist/main"]

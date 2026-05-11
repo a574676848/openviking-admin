@@ -13,4 +13,5 @@ RUN pnpm --filter web run build
 
 EXPOSE 6002
 
-CMD ["pnpm", "--filter", "web", "run", "start"]
+WORKDIR /app/apps/web
+CMD ["node", "node_modules/next/dist/bin/next", "start", "-p", "6002"]

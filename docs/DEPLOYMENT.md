@@ -13,6 +13,8 @@
 - `.github/workflows/ci.yml`：install、typecheck、lint、test、docs/env check
 - `scripts/check-env-example.mjs`：校验后端 `.env.example` 是否覆盖关键变量
 
+生产镜像仅在构建期使用 `pnpm@8.15.9` 安装依赖和构建产物；容器运行期直接通过 `node` 启动已构建应用，不再依赖 Corepack 动态下载包管理器。
+
 ## 生产前置条件
 
 | 组件           | 要求                                      |
