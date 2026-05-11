@@ -77,6 +77,18 @@ export class AuthController {
     return this.ssoTicketService.consume(ticket);
   }
 
+  @Post('sso/ldap/:tenantId')
+  async ldapLogin(
+    @Param('tenantId') tenantId: string,
+    @Body() body: { username?: string; password?: string },
+  ) {
+    const user = await this.ssoService.authenticate(tenantId, IntegrationType.LDAP, {
+      username: body.username,
+      password: body.password,
+    });
+    return this.authService.generateToken(user);
+  }
+
   @Post('refresh')
   refresh(@Body('refreshToken') refreshToken: string) {
     return this.authService.refreshAccessToken(refreshToken);

@@ -33,7 +33,7 @@ export default function LoginPage() {
     if (!ssoTicket) return;
     (async () => {
       try {
-        const result = await fetch(`${API_ENDPOINTS.AUTH.LOGIN}/sso/exchange`, {
+        const result = await fetch(API_ENDPOINTS.AUTH.SSO_EXCHANGE, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ ticket: ssoTicket }),
@@ -78,14 +78,16 @@ export default function LoginPage() {
     const toastId = toast.loading("安全链路握手中...");
 
     try {
-      const res = await fetch(API_ENDPOINTS.AUTH.LOGIN, {
+      const loginEndpoint = ssoConfigs.ldap
+        ? API_ENDPOINTS.AUTH.SSO_LDAP(tenantCode)
+        : API_ENDPOINTS.AUTH.LOGIN;
+      const requestBody = ssoConfigs.ldap
+        ? { username, password }
+        : { username, password, tenantCode };
+      const res = await fetch(loginEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          username, 
-          password, 
-          tenantCode 
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       const payload = await res.json();
@@ -211,7 +213,7 @@ export default function LoginPage() {
                 {isTenantValid && ssoConfigs.feishu && (
                   <button 
                     type="button" 
-                    onClick={() => window.location.assign(`${API_ENDPOINTS.AUTH.LOGIN}/sso/redirect/${tenantCode}/feishu`)}
+                    onClick={() => window.location.assign(API_ENDPOINTS.AUTH.SSO_REDIRECT(tenantCode, "feishu"))}
                     className="w-full py-4 bg-[#3370FF] text-white border border-transparent rounded-[var(--radius-base)] hover:opacity-90 transition-all font-bold text-xs flex items-center justify-center gap-3"
                   >
                     <Share2 size={18} strokeWidth={2.5} /> 飞书扫码一键登录
@@ -220,7 +222,7 @@ export default function LoginPage() {
                 {isTenantValid && ssoConfigs.dingtalk && (
                   <button 
                     type="button" 
-                    onClick={() => window.location.assign(`${API_ENDPOINTS.AUTH.LOGIN}/sso/redirect/${tenantCode}/dingtalk`)}
+                    onClick={() => window.location.assign(API_ENDPOINTS.AUTH.SSO_REDIRECT(tenantCode, "dingtalk"))}
                     className="w-full py-4 bg-[#007FFF] text-white border border-transparent rounded-[var(--radius-base)] hover:opacity-90 transition-all font-bold text-xs flex items-center justify-center gap-3"
                   >
                     <LogIn size={18} strokeWidth={2.5} /> 钉钉账号关联登录
@@ -229,7 +231,7 @@ export default function LoginPage() {
                 {isTenantValid && ssoConfigs.oidc && (
                   <button 
                     type="button" 
-                    onClick={() => window.location.assign(`${API_ENDPOINTS.AUTH.LOGIN}/sso/redirect/${tenantCode}/oidc`)}
+                    onClick={() => window.location.assign(API_ENDPOINTS.AUTH.SSO_REDIRECT(tenantCode, "oidc"))}
                     className="w-full py-4 bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-[var(--border)] rounded-[var(--radius-base)] hover:bg-[var(--bg-base)] transition-all font-bold text-xs flex items-center justify-center gap-3"
                   >
                     <Globe size={18} strokeWidth={2.5} /> 企业单点登录 (OIDC)

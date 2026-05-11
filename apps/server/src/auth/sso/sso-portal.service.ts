@@ -7,10 +7,13 @@ import { LdapProvider } from './providers/ldap.provider';
 import { FeishuSsoProvider } from './providers/feishu-sso.provider';
 import { OidcSsoProvider } from './providers/oidc-sso.provider';
 import { DingTalkSsoProvider } from './providers/dingtalk-sso.provider';
+import { SystemRoles } from '../../users/entities/user.entity';
+import type { UserRole } from '../../users/entities/user.entity';
 
 interface SSOUserResult {
   ssoId: string;
   username: string;
+  role?: UserRole;
   displayName?: string;
 }
 
@@ -30,8 +33,7 @@ export class SSOPortalService {
     type: IntegrationType,
     payload: Record<string, unknown>,
   ): Promise<UserModel> {
-    const integrations = await this.integrationService.findAll(tenantId);
-    const config = integrations.find((i) => i.type === type && i.active);
+    const config = await this.integrationService.findActiveByType(tenantId, type);
 
     if (!config) throw new UnauthorizedException('该租户尚未开启相关企业集成');
 
@@ -68,7 +70,7 @@ export class SSOPortalService {
     if (!user) {
       const created = await this.usersService.create({
         username: ssoUser.username,
-        role: 'tenant_viewer',
+        role: ssoUser.role ?? SystemRoles.TENANT_VIEWER,
         ssoId: ssoUser.ssoId,
         provider,
         tenantId,

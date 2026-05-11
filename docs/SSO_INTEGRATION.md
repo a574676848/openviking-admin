@@ -157,7 +157,17 @@ POST /api/v1/auth/sso/exchange → 返回 JWT Token
     "url": "ldap://ldap.example.com:389",
     "baseDN": "dc=example,dc=com",
     "bindDN": "cn=admin,dc=example,dc=com",
-    "bindPassword": "admin_password"
+    "bindPassword": "admin_password",
+    "userFilter": "(&(objectClass=person)(sAMAccountName={{username}}))",
+    "usernameAttribute": "sAMAccountName",
+    "idAttribute": "objectGUID",
+    "displayNameAttribute": "displayName",
+    "emailAttribute": "mail",
+    "defaultRole": "tenant_viewer",
+    "roleMappings": {
+      "CN=openviking-admins,OU=Groups,DC=example,DC=com": "tenant_admin",
+      "CN=openviking-operators,OU=Groups,DC=example,DC=com": "tenant_operator"
+    }
   },
   "active": true
 }
@@ -170,9 +180,10 @@ LDAP 采用直接绑定验证（非 OAuth 流程）：
 1. 使用 `bindDN` / `bindPassword` 建立管理员连接
 2. 根据 `username` 搜索用户完整 DN
 3. 使用用户 DN + `password` 重新 bind 验证
-4. 验证成功后提取用户属性
+4. 验证成功后提取用户属性、稳定身份标识和 `memberOf` 组
+5. 按 `roleMappings` 将 AD 组映射为项目角色，未命中时使用 `defaultRole`
 
-> **注意**: LDAP Provider 当前为模拟实现，生产环境需安装 `ldapjs` 或 `activedirectory` 库并完善绑定逻辑。
+账号绑定规则为 `provider=ldap` + `ssoId=ldap:{idAttribute 或用户 DN}`。推荐 `idAttribute` 使用 AD 的 `objectGUID`，避免用户改名后产生新账号。
 
 ---
 
@@ -194,9 +205,9 @@ SSO 回调成功后，系统生成一次性 ticket：
 登录页 (`/login`) 自动检测租户可用的 SSO 方式：
 
 1. 用户输入租户标识后，调用 `GET /api/v1/tenants/check-auth/:code`
-2. 根据返回结果渲染对应的 SSO 登录按钮
-3. 点击按钮跳转到 `GET /api/v1/auth/sso/redirect/:tenantId/:type`
-4. SSO 回调后页面接收 `sso_ticket` 参数
+2. 如果启用 LDAP，表单直接提交到 `POST /api/v1/auth/sso/ldap/:tenantId`
+3. 如果启用飞书、钉钉或 OIDC，点击按钮跳转到 `GET /api/v1/auth/sso/redirect/:tenantId/:type`
+4. OAuth 回调后页面接收 `sso_ticket` 参数
 5. 自动调用 `POST /api/v1/auth/sso/exchange` 完成登录
 
 ---
@@ -206,4 +217,4 @@ SSO 回调成功后，系统生成一次性 ticket：
 - 所有 `credentials` 中的敏感字段使用 AES-256-CBC 加密存储
 - 返回前端时自动脱敏（`appSecret`, `clientSecret`, `bindPassword` 显示为 `********`）
 - SSO Ticket 60 秒过期且一次性使用，防止重放攻击
-- JIT 创建的用户默认为 `tenant_viewer` 角色，需管理员手动提权
+- LDAP JIT 创建用户会优先使用 AD 组映射角色，未命中时使用 `defaultRole`，默认 `tenant_viewer`

@@ -154,7 +154,7 @@ WebDAV 响应不使用统一 JSON envelope。知识库始终映射为目录资�
 | 参数       | 位置 | 说明                                   |
 | ---------- | ---- | -------------------------------------- |
 | `tenantId` | path | 租户 ID                                |
-| `type`     | path | `feishu`、`dingtalk`、`oidc` 或 `ldap` |
+| `type`     | path | `feishu`、`dingtalk` 或 `oidc`         |
 
 ### GET /api/v1/auth/sso/callback/:tenantId/:type
 
@@ -169,6 +169,25 @@ SSO Provider 回调入口。认证成功后重定向到前端并携带一次性 
   "ticket": "sso-ticket"
 }
 ```
+
+### POST /api/v1/auth/sso/ldap/:tenantId
+
+LDAP / AD 域账号直接登录。服务端会使用租户 LDAP 集成中的 `bindDN` / `bindPassword` 搜索用户，再使用用户 DN 和用户输入密码执行二次 bind；认证成功后按 `memberOf` 与 `roleMappings` 映射项目角色，并返回 JWT 登录态。
+
+| 参数       | 位置 | 说明    |
+| ---------- | ---- | ------- |
+| `tenantId` | path | 租户 ID |
+
+请求体：
+
+```json
+{
+  "username": "zhangsan",
+  "password": "domain-password"
+}
+```
+
+响应结构与 `POST /api/v1/auth/login` 一致。
 
 ### POST /api/v1/auth/refresh
 

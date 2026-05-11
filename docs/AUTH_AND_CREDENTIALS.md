@@ -6,8 +6,8 @@ OpenViking Admin 将用户登录态、能力调用凭证和机器凭证分层管
 
 | 凭证                    | 获取方式                                                       | 适用入口              | 说明                                                 |
 | ----------------------- | -------------------------------------------------------------- | --------------------- | ---------------------------------------------------- |
-| JWT access token        | `/api/v1/auth/login`、`/api/v1/auth/sso/exchange`              | Web、HTTP、CLI 登录态 | 用户身份凭证，默认短期有效                           |
-| JWT refresh token       | `/api/v1/auth/login`、`/api/v1/auth/sso/exchange`              | Web、CLI              | 仅用于 `/api/v1/auth/refresh`，不直接调用 capability |
+| JWT access token        | `/api/v1/auth/login`、`/api/v1/auth/sso/exchange`、`/api/v1/auth/sso/ldap/:tenantId` | Web、HTTP、CLI 登录态 | 用户身份凭证，默认短期有效                           |
+| JWT refresh token       | `/api/v1/auth/login`、`/api/v1/auth/sso/exchange`、`/api/v1/auth/sso/ldap/:tenantId` | Web、CLI              | 仅用于 `/api/v1/auth/refresh`，不直接调用 capability |
 | Capability access token | `/api/v1/auth/token/exchange`                                  | HTTP、Skill、服务集成 | 面向能力调用的短中期 token                           |
 | Session key             | `/api/v1/auth/session/exchange`                                | MCP、短会话 Agent     | 更短生命周期，适合会话型连接                         |
 | API key                 | `/api/v1/capability/keys` 或 `/api/v1/auth/client-credentials` | CLI、MCP、自动化任务  | 可吊销机器凭证，适合长期配置                         |
@@ -17,7 +17,7 @@ OpenViking Admin 将用户登录态、能力调用凭证和机器凭证分层管
 ### Web 控制台或企业 SSO
 
 ```text
-SSO Provider / 本地登录
+SSO Provider / LDAP 直接绑定 / 本地登录
   -> accessToken + refreshToken
   -> 浏览器调用业务接口
   -> 只有需要能力调用时才换取能力凭证

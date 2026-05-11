@@ -58,6 +58,14 @@ type IntegrationForm = {
 };
 
 type IntegrationTone = "brand" | "warning" | "success" | "info";
+type IntegrationField = {
+  key: string;
+  label: string;
+  placeholder: string;
+  secret?: boolean;
+  multiline?: boolean;
+  span?: "full";
+};
 
 const DEFAULT_FORM: IntegrationForm = {
   name: "",
@@ -72,7 +80,7 @@ const TYPE_META: Record<
     icon: LucideIcon;
     description: string;
     tone: IntegrationTone;
-    fields: Array<{ key: string; label: string; placeholder: string; secret?: boolean }>;
+    fields: IntegrationField[];
   }
 > = {
   github: {
@@ -150,6 +158,25 @@ const TYPE_META: Record<
       { key: "baseDN", label: "Base DN", placeholder: "dc=corp,dc=local" },
       { key: "bindDN", label: "Bind DN", placeholder: "cn=admin,dc=corp,dc=local" },
       { key: "bindPassword", label: "Bind Password", placeholder: "******", secret: true },
+      {
+        key: "userFilter",
+        label: "User Filter",
+        placeholder: "(&(objectClass=person)(sAMAccountName={{username}}))",
+        span: "full",
+      },
+      { key: "usernameAttribute", label: "Username Attribute", placeholder: "sAMAccountName" },
+      { key: "idAttribute", label: "ID Attribute", placeholder: "objectGUID" },
+      { key: "displayNameAttribute", label: "Display Name Attribute", placeholder: "displayName" },
+      { key: "emailAttribute", label: "Email Attribute", placeholder: "mail" },
+      { key: "defaultRole", label: "Default Role", placeholder: "tenant_viewer" },
+      {
+        key: "roleMappings",
+        label: "Role Mappings JSON",
+        placeholder:
+          '{\n  "CN=openviking-admins,OU=Groups,DC=corp,DC=local": "tenant_admin",\n  "CN=openviking-operators,OU=Groups,DC=corp,DC=local": "tenant_operator"\n}',
+        multiline: true,
+        span: "full",
+      },
     ],
   },
 };
@@ -219,22 +246,44 @@ function IntegrationFormFields({
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         {activeMeta.fields.map((field) => (
-          <PlatformField key={field.key} label={field.label} className="gap-2">
-            <PlatformInput
-              type={field.secret ? "password" : "text"}
-              value={form.credentials[field.key] ?? ""}
-              onChange={(event) =>
-                onChange({
-                  ...form,
-                  credentials: {
-                    ...form.credentials,
-                    [field.key]: event.target.value,
-                  },
-                })
-              }
-              placeholder={field.placeholder}
-              className="bg-[var(--bg-input)]"
-            />
+          <PlatformField
+            key={field.key}
+            label={field.label}
+            className={field.span === "full" ? "gap-2 md:col-span-2" : "gap-2"}
+          >
+            {field.multiline ? (
+              <textarea
+                value={form.credentials[field.key] ?? ""}
+                onChange={(event) =>
+                  onChange({
+                    ...form,
+                    credentials: {
+                      ...form.credentials,
+                      [field.key]: event.target.value,
+                    },
+                  })
+                }
+                placeholder={field.placeholder}
+                rows={5}
+                className="w-full rounded-[var(--radius-base)] border border-[var(--border)] bg-[var(--bg-input)] px-4 py-3 text-sm font-semibold text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--brand)]"
+              />
+            ) : (
+              <PlatformInput
+                type={field.secret ? "password" : "text"}
+                value={form.credentials[field.key] ?? ""}
+                onChange={(event) =>
+                  onChange({
+                    ...form,
+                    credentials: {
+                      ...form.credentials,
+                      [field.key]: event.target.value,
+                    },
+                  })
+                }
+                placeholder={field.placeholder}
+                className="bg-[var(--bg-input)]"
+              />
+            )}
           </PlatformField>
         ))}
       </div>

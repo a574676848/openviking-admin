@@ -6,6 +6,7 @@ import type {
   UpdateIntegrationInput,
 } from './domain/integration-input.model';
 import type { IntegrationModel } from './domain/integration.model';
+import type { IntegrationType } from '../common/constants/system.enum';
 
 @Injectable()
 export class IntegrationService {
@@ -18,6 +19,13 @@ export class IntegrationService {
   findAll(tenantId: string | null) {
     const where = tenantId ? { tenantId } : {};
     return this.repo.find({ where, order: { createdAt: 'DESC' } });
+  }
+
+  async findActiveByType(tenantId: string, type: IntegrationType) {
+    const item = await this.repo.findOne({
+      where: { tenantId, type, active: true },
+    });
+    return item ? this.decryptItem(item) : null;
   }
 
   async findOne(id: string, tenantId: string | null) {
@@ -52,6 +60,7 @@ export class IntegrationService {
   private readonly SENSITIVE_KEYS = [
     'token',
     'password',
+    'bindPassword',
     'appSecret',
     'clientSecret',
   ];

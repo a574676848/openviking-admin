@@ -1,7 +1,13 @@
 /** 全局 API 路径中心 */
 export const API_ENDPOINTS = {
   AUTH: {
+    BASE: '/api/v1/auth',
     LOGIN: '/api/v1/auth/login',
+    SSO_EXCHANGE: '/api/v1/auth/sso/exchange',
+    SSO_LDAP: (tenantId: string) =>
+      `/api/v1/auth/sso/ldap/${encodeURIComponent(tenantId)}`,
+    SSO_REDIRECT: (tenantId: string, type: 'feishu' | 'dingtalk' | 'oidc') =>
+      `/api/v1/auth/sso/redirect/${encodeURIComponent(tenantId)}/${type}`,
     SWITCH_ROLE: '/api/v1/auth/switch-role',
   },
   TENANTS: '/api/v1/tenants',

@@ -199,10 +199,22 @@
     "url": "ldap://ldap.example.com:389",
     "baseDN": "dc=example,dc=com",
     "bindDN": "cn=admin,dc=example,dc=com",
-    "bindPassword": "admin_password"
+    "bindPassword": "admin_password",
+    "userFilter": "(&(objectClass=person)(sAMAccountName={{username}}))",
+    "usernameAttribute": "sAMAccountName",
+    "idAttribute": "objectGUID",
+    "displayNameAttribute": "displayName",
+    "emailAttribute": "mail",
+    "defaultRole": "tenant_viewer",
+    "roleMappings": {
+      "CN=openviking-admins,OU=Groups,DC=example,DC=com": "tenant_admin",
+      "CN=openviking-operators,OU=Groups,DC=example,DC=com": "tenant_operator"
+    }
   }
 }
 ```
+
+LDAP 登录会先使用 `bindDN / bindPassword` 搜索用户，再使用用户 DN 和用户输入密码进行二次 bind。项目账号按 `provider=ldap` 与 `ssoId=ldap:{idAttribute 或用户 DN}` 绑定；`memberOf` 命中的 `roleMappings` 决定项目角色，未命中时使用 `defaultRole`，默认 `tenant_viewer`。
 
 ### Git (`type: github` / `gitlab`)
 

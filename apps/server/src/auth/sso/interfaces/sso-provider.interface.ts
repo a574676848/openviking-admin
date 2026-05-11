@@ -1,9 +1,11 @@
 import { Integration } from '../../../tenant/entities/integration.entity';
+import type { UserRole } from '../../../users/entities/user.entity';
 
 /** 统一 SSO 用户信息结构 */
 export interface SSOUser {
   ssoId: string;
   username: string;
+  role?: UserRole;
   email?: string;
   displayName?: string;
   raw?: any;

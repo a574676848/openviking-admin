@@ -188,7 +188,7 @@
 | 限制 | 说明 | 缓解措施 |
 |------|------|----------|
 | SSO Ticket 内存存储 | 服务重启后 Ticket 丢失 | 60 秒过期，影响范围有限 |
-| LDAP Provider 模拟实现 | 未使用真实 LDAP 库 | 生产环境需安装 `ldapjs` |
+| LDAP / AD 登录 | 使用服务账号搜索用户，再用用户 DN 二次 bind 验证密码 | 推荐启用 LDAPS 并使用只读服务账号 |
 | 飞书 Provider 硬编码 Token | `app_access_token` 为 mock | 生产环境需实现完整 OAuth 流程 |
 | TypeORM synchronize | integrations/capability_keys 曾依赖自动建表 | 生产环境应关闭 synchronize，使用迁移 |
 | 默认管理员密码 | 初始化账号用于首次登录 | 生产部署后立即修改密码 |
