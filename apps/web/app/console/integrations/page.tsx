@@ -89,9 +89,9 @@ const TYPE_META: Record<
     description: "源码仓库知识同步",
     tone: "brand",
     fields: [
-      { key: "token", label: "Access Token", placeholder: "ghp_xxx", secret: true },
-      { key: "username", label: "Username", placeholder: "自托管服务账号，可选" },
-      { key: "baseUrl", label: "Base URL", placeholder: "https://api.github.com" },
+      { key: "token", label: "访问令牌", placeholder: "ghp_xxx", secret: true },
+      { key: "username", label: "用户名", placeholder: "自托管服务账号，可选" },
+      { key: "baseUrl", label: "服务地址", placeholder: "https://api.github.com" },
     ],
   },
   gitlab: {
@@ -100,9 +100,9 @@ const TYPE_META: Record<
     description: "私有或托管 GitLab 仓库",
     tone: "warning",
     fields: [
-      { key: "token", label: "Access Token", placeholder: "glpat-xxx", secret: true },
-      { key: "username", label: "Username", placeholder: "GitLab 用户名，可选" },
-      { key: "baseUrl", label: "Base URL", placeholder: "https://gitlab.com" },
+      { key: "token", label: "访问令牌", placeholder: "glpat-xxx", secret: true },
+      { key: "username", label: "用户名", placeholder: "GitLab 用户名，可选" },
+      { key: "baseUrl", label: "服务地址", placeholder: "https://gitlab.com" },
     ],
   },
   webdav: {
@@ -111,9 +111,9 @@ const TYPE_META: Record<
     description: "个人知识库与文件系统同步",
     tone: "success",
     fields: [
-      { key: "baseUrl", label: "Endpoint", placeholder: "https://dav.example.com" },
-      { key: "username", label: "Username", placeholder: "tenant-id" },
-      { key: "password", label: "Password", placeholder: "******", secret: true },
+      { key: "baseUrl", label: "服务端点", placeholder: "https://dav.example.com" },
+      { key: "username", label: "用户名", placeholder: "tenant-id" },
+      { key: "password", label: "密码", placeholder: "******", secret: true },
     ],
   },
   feishu: {
@@ -122,8 +122,8 @@ const TYPE_META: Record<
     description: "文档与目录同步",
     tone: "brand",
     fields: [
-      { key: "appId", label: "App ID", placeholder: "cli_xxx" },
-      { key: "appSecret", label: "App Secret", placeholder: "secret", secret: true },
+      { key: "appId", label: "应用 ID", placeholder: "cli_xxx" },
+      { key: "appSecret", label: "应用密钥", placeholder: "secret", secret: true },
     ],
   },
   dingtalk: {
@@ -132,9 +132,9 @@ const TYPE_META: Record<
     description: "钉钉文档与身份集成",
     tone: "brand",
     fields: [
-      { key: "appId", label: "App ID", placeholder: "dingxxx" },
-      { key: "appSecret", label: "App Secret", placeholder: "secret", secret: true },
-      { key: "operatorId", label: "Operator ID", placeholder: "有文档权限的 unionId" },
+      { key: "appId", label: "应用 ID", placeholder: "dingxxx" },
+      { key: "appSecret", label: "应用密钥", placeholder: "secret", secret: true },
+      { key: "operatorId", label: "操作人 ID", placeholder: "有文档权限的 unionId" },
     ],
   },
   oidc: {
@@ -143,9 +143,9 @@ const TYPE_META: Record<
     description: "标准单点登录联邦",
     tone: "info",
     fields: [
-      { key: "issuer", label: "Issuer", placeholder: "https://sso.example.com" },
-      { key: "clientId", label: "Client ID", placeholder: "client_id" },
-      { key: "clientSecret", label: "Client Secret", placeholder: "secret", secret: true },
+      { key: "issuer", label: "签发方地址", placeholder: "https://sso.example.com" },
+      { key: "clientId", label: "客户端 ID", placeholder: "client_id" },
+      { key: "clientSecret", label: "客户端密钥", placeholder: "secret", secret: true },
     ],
   },
   ldap: {
@@ -154,24 +154,24 @@ const TYPE_META: Record<
     description: "企业目录与域控集成",
     tone: "warning",
     fields: [
-      { key: "url", label: "LDAP URL", placeholder: "ldap://ad.example.com:389" },
-      { key: "baseDN", label: "Base DN", placeholder: "dc=corp,dc=local" },
-      { key: "bindDN", label: "Bind DN", placeholder: "cn=admin,dc=corp,dc=local" },
-      { key: "bindPassword", label: "Bind Password", placeholder: "******", secret: true },
+      { key: "url", label: "LDAP 服务地址", placeholder: "ldap://ad.example.com:389" },
+      { key: "baseDN", label: "搜索根 DN", placeholder: "dc=corp,dc=local" },
+      { key: "bindDN", label: "绑定 DN", placeholder: "cn=admin,dc=corp,dc=local" },
+      { key: "bindPassword", label: "绑定密码", placeholder: "******", secret: true },
       {
         key: "userFilter",
-        label: "User Filter",
+        label: "用户过滤器",
         placeholder: "(&(objectClass=person)(sAMAccountName={{username}}))",
         span: "full",
       },
-      { key: "usernameAttribute", label: "Username Attribute", placeholder: "sAMAccountName" },
-      { key: "idAttribute", label: "ID Attribute", placeholder: "objectGUID" },
-      { key: "displayNameAttribute", label: "Display Name Attribute", placeholder: "displayName" },
-      { key: "emailAttribute", label: "Email Attribute", placeholder: "mail" },
-      { key: "defaultRole", label: "Default Role", placeholder: "tenant_viewer" },
+      { key: "usernameAttribute", label: "用户名属性", placeholder: "sAMAccountName" },
+      { key: "idAttribute", label: "用户 ID 属性", placeholder: "objectGUID" },
+      { key: "displayNameAttribute", label: "显示名属性", placeholder: "displayName" },
+      { key: "emailAttribute", label: "邮箱属性", placeholder: "mail" },
+      { key: "defaultRole", label: "默认角色", placeholder: "tenant_viewer" },
       {
         key: "roleMappings",
-        label: "Role Mappings JSON",
+        label: "角色映射 JSON",
         placeholder:
           '{\n  "CN=openviking-admins,OU=Groups,DC=corp,DC=local": "tenant_admin",\n  "CN=openviking-operators,OU=Groups,DC=corp,DC=local": "tenant_operator"\n}',
         multiline: true,
