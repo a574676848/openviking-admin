@@ -253,6 +253,7 @@ users (1) ────< (N) capability_keys
 | `AddMissingTables` | 1745100000000 | 创建 tenants, knowledge_nodes, system_configs |
 | `FixSchemaInconsistencies` | 1745200000000 | 添加 SSO 字段 (sso_id, provider)、隔离等级字段、修复列类型 |
 | `ScopeUsernamesPerTenant` | 1746400000000 | 将 users.username 调整为平台全局唯一 + 租户内唯一 |
+| `RepairSchemaDrift` | 1746700000000 | 补齐 audit_logs、import_tasks、knowledge_nodes、search_logs、integrations 的历史 schema 漂移 |
 
 ---
 
@@ -260,8 +261,4 @@ users (1) ────< (N) capability_keys
 
 > **注意**: Entity 定义与迁移 DDL 存在以下差异，生产环境建议补充正式迁移修复。
 
-1. **audit_logs**: Entity 定义了 `username`, `target`, `meta`, `ip`, `success` 列，但 InitSchema 迁移中对应列为 `resource`, `detail`，且缺少 `ip`, `success`, `username`
-2. **search_logs**: Entity 定义了 `feedback`, `feedback_note`, `meta` 列，InitSchema 中不存在
-3. **import_tasks**: Entity 定义了 `tenant_id`, `integration_id` 列，InitSchema 中不存在
-4. **knowledge_nodes**: Entity 中 `acl` 为 `jsonb`，AddMissingTables 中定义为 `VARCHAR(255)`
-5. **integrations** 和 **capability_keys**: 旧版本曾依赖 TypeORM `synchronize: true` 自动建表，当前已补 capability key 迁移
+当前已知不一致均已通过正式 migration 覆盖。若未来新增实体字段，必须同步补充 migration，禁止依赖生产环境 `synchronize` 自动改表。
