@@ -139,4 +139,30 @@ describe("DataTable", () => {
     expect(filteredRows).toHaveLength(1);
     expect(filteredRows[0]).toContain("Gamma");
   });
+
+  it("默认按分页展示列表数据", async () => {
+    const rows = Array.from({ length: 12 }, (_, index) => ({
+      name: `文档${index + 1}`,
+      status: "完成",
+    }));
+
+    await renderTable(<DataTable data={rows} columns={columns} />);
+
+    let visibleRows = Array.from(container.querySelectorAll("tbody tr")).map((row) => row.textContent ?? "");
+    expect(visibleRows).toHaveLength(10);
+    expect(container.textContent).toContain("显示 1-10 条，共 12 条");
+
+    const nextButton = Array.from(container.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("下一页"),
+    );
+
+    await act(async () => {
+      nextButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    visibleRows = Array.from(container.querySelectorAll("tbody tr")).map((row) => row.textContent ?? "");
+    expect(visibleRows).toHaveLength(2);
+    expect(visibleRows[0]).toContain("文档11");
+    expect(container.textContent).toContain("显示 11-12 条，共 12 条");
+  });
 });

@@ -20,6 +20,7 @@ export interface ImportTaskModel {
   kbId: string;
   sourceType: ImportTaskSourceType;
   sourceUrl: string;
+  sourceName: string | null;
   targetUri: string;
   status: ImportTaskStatus;
   nodeCount: number;

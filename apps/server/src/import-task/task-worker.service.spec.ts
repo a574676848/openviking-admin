@@ -24,6 +24,7 @@ describe('TaskWorkerService', () => {
       kbId: 'kb-1',
       sourceType: 'feishu',
       sourceUrl: 'https://feishu.example/doc',
+      sourceName: null,
       targetUri: `viking://resources/${tenantId}/kb-1/imports/feishu/`,
       status,
       nodeCount: 0,
@@ -348,6 +349,10 @@ describe('TaskWorkerService', () => {
       { serviceLabel: 'OpenViking Resources' },
     );
     expect(taskRepo.update).toHaveBeenNthCalledWith(2, 'large-task', {
+      sourceName: '飞书文档.md',
+      updatedAt: expect.any(Date),
+    });
+    expect(taskRepo.update).toHaveBeenNthCalledWith(3, 'large-task', {
       status: TaskStatus.DONE,
       updatedAt: expect.any(Date),
     });
@@ -360,6 +365,7 @@ describe('TaskWorkerService', () => {
       integrationId: '',
       sourceType: 'local',
       sourceUrl: 'file:///data/openviking/imports/manual.md',
+      sourceName: '产品手册.md',
       targetUri: 'viking://resources/small-a/kb-1/imports/local/',
     } as ImportTaskModel;
     const tenantRepo = {
@@ -425,7 +431,7 @@ describe('TaskWorkerService', () => {
       expect.objectContaining({ account: 'small-a' }),
       '/api/v1/resources/temp_upload',
       {
-        fileName: 'manual.md',
+        fileName: '产品手册.md',
         buffer: expect.any(Buffer),
         mimeType: null,
       },

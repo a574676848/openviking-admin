@@ -17,6 +17,7 @@ import {
   LocalImportStorageService,
   type LocalImportUploadFile,
 } from './local-import-storage.service';
+import { IMPORT_TASK_FIELD_LIMITS } from './constants';
 import { TaskStatus } from '../common/constants/system.enum';
 import { KNOWLEDGE_BASE_REPOSITORY } from '../knowledge-base/domain/repositories/knowledge-base.repository.interface';
 import type { IKnowledgeBaseRepository } from '../knowledge-base/domain/repositories/knowledge-base.repository.interface';
@@ -34,6 +35,11 @@ const AUTO_TARGET_SEGMENTS: Record<string, string> = {
 };
 const RESOURCE_URI_PREFIX = 'viking://resources/';
 const TENANT_RESOURCE_PREFIX = 'viking://resources/tenants/';
+const GIT_REPOSITORY_SUFFIX = '.git';
+
+type CreateImportTaskInput = CreateImportTaskDto & {
+  sourceNames?: string[];
+};
 
 @Injectable()
 export class ImportTaskService {
@@ -61,7 +67,7 @@ export class ImportTaskService {
     return task;
   }
 
-  async create(dto: CreateImportTaskDto, tenantId: string) {
+  async create(dto: CreateImportTaskInput, tenantId: string) {
     if (['git', 'feishu', 'dingtalk'].includes(dto.sourceType) && !dto.integrationId) {
       throw new BadRequestException('该来源类型必须选择集成凭证');
     }
@@ -73,10 +79,11 @@ export class ImportTaskService {
     this.assertLocalSources(dto.sourceType, sourceUrls);
     const targetUri = await this.resolveTargetUri(dto, tenantId);
 
-    const dispatch = sourceUrls.map((sourceUrl) =>
+    const dispatch = sourceUrls.map((sourceUrl, index) =>
       this.taskRepo.create({
         ...dto,
         sourceUrl,
+        sourceName: this.resolveSourceName(dto, sourceUrl, index),
         targetUri,
         tenantId,
         status: TaskStatus.PENDING,
@@ -109,6 +116,7 @@ export class ImportTaskService {
           kbId: dto.kbId,
           sourceType: 'local',
           sourceUrls: storedFiles.map((file) => file.sourceUrl),
+          sourceNames: storedFiles.map((file) => file.originalName),
           targetUri: dto.targetUri,
         },
         tenantId,
@@ -210,6 +218,62 @@ export class ImportTaskService {
       return [dto.sourceUrl.trim()];
     }
     return [];
+  }
+
+  private resolveSourceName(
+    dto: CreateImportTaskInput,
+    sourceUrl: string,
+    index: number,
+  ) {
+    const explicitName = dto.sourceNames?.[index]?.trim();
+    if (explicitName) {
+      return this.truncateSourceName(explicitName);
+    }
+
+    if (dto.sourceType === 'git') {
+      return this.resolveGitRepositoryName(sourceUrl);
+    }
+
+    return null;
+  }
+
+  private resolveGitRepositoryName(sourceUrl: string) {
+    const sourcePath = this.resolveSourcePath(sourceUrl);
+    const repositoryName = sourcePath
+      .split(/[\\/]/)
+      .filter(Boolean)
+      .at(-1)
+      ?.trim();
+    if (!repositoryName) {
+      return null;
+    }
+
+    const decodedName = this.decodePathSegment(repositoryName);
+    const displayName = decodedName.toLowerCase().endsWith(GIT_REPOSITORY_SUFFIX)
+      ? decodedName.slice(0, -GIT_REPOSITORY_SUFFIX.length)
+      : decodedName;
+    return this.truncateSourceName(displayName);
+  }
+
+  private resolveSourcePath(sourceUrl: string) {
+    const trimmed = sourceUrl.trim().replace(/[?#].*$/, '').replace(/\/+$/, '');
+    try {
+      return new URL(trimmed).pathname;
+    } catch {
+      return trimmed;
+    }
+  }
+
+  private decodePathSegment(segment: string) {
+    try {
+      return decodeURIComponent(segment);
+    } catch {
+      return segment;
+    }
+  }
+
+  private truncateSourceName(value: string) {
+    return value.slice(0, IMPORT_TASK_FIELD_LIMITS.SOURCE_NAME_MAX_LENGTH);
   }
 
   private assertLocalSources(sourceType: string, sourceUrls: string[]) {

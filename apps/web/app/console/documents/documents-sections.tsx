@@ -112,7 +112,7 @@ export function DocumentsFiltersPanel({
             <input
               value={searchQuery}
               onChange={(event) => onSearchChange(event.target.value)}
-              placeholder="搜索 URI / KB ID"
+              placeholder="搜索文件名 / URI / KB ID"
               className="h-9 w-52 bg-[var(--bg-elevated)] border border-[var(--border)] rounded-[var(--radius-pill)] pl-9 pr-3 text-xs font-sans font-medium focus:outline-none focus:border-[var(--brand)] transition-all"
             />
           </div>
@@ -226,10 +226,11 @@ function SourceMappingCell({
 }) {
   const [expanded, setExpanded] = useState(false);
   const SourceIcon = DOCUMENT_SOURCE_ICONS[sourceType] ?? FileText;
+  const sourceTitle = sourceUrl || "stream://stdin";
 
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation();
-    void navigator.clipboard.writeText(`Source: ${sourceUrl || ""}\nTarget: ${targetUri || ""}\nKB ID: ${kbId || ""}`);
+    void navigator.clipboard.writeText(`来源: ${sourceUrl || ""}\n目标: ${targetUri || ""}\nKB ID: ${kbId || ""}`);
     toast.success("资源映射信息已复制");
   };
 
@@ -250,8 +251,8 @@ function SourceMappingCell({
             <p className={cx(
               "font-sans text-sm font-bold text-[var(--text-primary)]",
               !expanded && "truncate"
-            )} title={sourceUrl}>
-              {sourceUrl || "stream://stdin"}
+            )} title={sourceTitle}>
+              {sourceTitle}
             </p>
             <button 
               onClick={handleCopy}
@@ -275,6 +276,33 @@ function SourceMappingCell({
       {!expanded && (
         <div className="absolute bottom-0 left-0 right-0 h-4 bg-gradient-to-t from-[var(--bg-elevated)] to-transparent pointer-events-none" />
       )}
+    </div>
+  );
+}
+
+function SourceNameCell({ task }: { task: ImportTask }) {
+  const SourceIcon = DOCUMENT_SOURCE_ICONS[task.sourceType] ?? FileText;
+  const hasSourceName = Boolean(task.sourceName?.trim());
+
+  return (
+    <div className="flex items-center gap-3">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--text-secondary)]">
+        <SourceIcon size={14} strokeWidth={2.6} />
+      </div>
+      <div className="min-w-0">
+        <p
+          className={cx(
+            "max-w-[150px] truncate font-sans text-sm font-bold",
+            hasSourceName ? "text-[var(--text-primary)]" : "text-[var(--text-muted)]",
+          )}
+          title={task.sourceName || "未记录来源名称"}
+        >
+          {task.sourceName || "未记录来源名称"}
+        </p>
+        <p className="mt-0.5 font-sans text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+          {task.sourceType}
+        </p>
+      </div>
     </div>
   );
 }
@@ -372,6 +400,15 @@ export function DocumentsTasksTable({
           {new Date(task.createdAt).toLocaleString("zh-CN", { hour12: false })}
         </span>
       ),
+    },
+    {
+      key: "sourceName",
+      header: "来源名称",
+      headerClassName: "w-[180px] whitespace-nowrap",
+      cellClassName: "w-[180px]",
+      sortable: true,
+      sortValue: (task) => task.sourceName ?? "",
+      cell: (task) => <SourceNameCell task={task} />,
     },
     {
       key: "source",

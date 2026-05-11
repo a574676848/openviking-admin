@@ -346,6 +346,7 @@ export default function AuditPage() {
           emptyMessage="当前筛选条件下没有匹配的审计记录"
           tableLabel="租户审计日志表"
           searchConfig={{ placeholder: "搜索操作人 / 事件类型 / 目标对象..." }}
+          paginationConfig={{ enabled: false }}
           className="border-0 shadow-none rounded-none"
           rowClassName={() => "hover:bg-[var(--bg-elevated)] transition-colors"}
         />

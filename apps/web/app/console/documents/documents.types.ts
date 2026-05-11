@@ -16,6 +16,7 @@ export interface ImportTask {
   kbId: string;
   sourceType: string;
   sourceUrl: string;
+  sourceName?: string | null;
   targetUri: string;
   status: string;
   nodeCount: number;

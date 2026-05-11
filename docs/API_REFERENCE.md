@@ -437,6 +437,8 @@ LDAP / AD 域账号直接登录。服务端会使用租户 LDAP 集成中的 `bi
 }
 ```
 
+导入任务响应中的 `sourceName` 用于展示来源名称。Git 来源保存仓库名，飞书、钉钉等企业文档保存解析后的文档名，本地上传保存用户上传时的原文件名。历史任务或无法解析名称的来源可能返回 `null`，调用端应回退展示 `sourceUrl`。
+
 Capability 与 CLI 导入入口的 `sourceType` 支持 `local`、`url`、`manifest`。飞书、钉钉、Git 等需要集成凭证的来源走导入任务 API 或控制台集成流程，并提供 `integrationId`。`parentNodeId` 可省略，省略时导入到知识库根路径。
 
 ## 可观测性接口
@@ -661,6 +663,7 @@ MCP JSON-RPC 消息接口。
 - `sourceType=git` 建议提供 `integrationId`，用于读取平台凭证、分支和路径配置
 - `sourceType=local` 只能由 `/api/v1/import-tasks/local-upload` 生成，不能直接提交任意 `file://` 路径
 - `/api/v1/import-tasks/local-upload` 使用 `multipart/form-data`，字段为 `kbId`、可选 `targetUri`，以及 `files`
+- 导入任务会在响应中返回 `sourceName`，用于控制台和调用端展示仓库名、企业文档名或本地上传原文件名
 - WebDAV `PUT` 会复用本地上传链路，但不把 WebDAV 注册为新的 `sourceType`；导入任务仍以 `sourceType=local` 入队
 - `DELETE /api/v1/import-tasks/:id` 仅允许删除 `failed` 状态的任务；若任务来源是受控本地上传文件，服务端会一并清理暂存文件
 - 控制台默认不再传 `targetUri`，服务端会按知识库 `vikingUri` 自动生成导入目标路径

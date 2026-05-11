@@ -182,6 +182,11 @@ export class TaskWorkerService implements OnModuleInit {
               integration,
               task.sourceUrl,
             );
+            await this.rememberTaskSourceName(
+              context,
+              task,
+              this.resolvePlatformSourceName(resolved),
+            );
             if (resolved.tempFile) {
               injectBody.temp_file_id = await this.uploadPlatformTempFile(
                 conn,
@@ -274,6 +279,26 @@ export class TaskWorkerService implements OnModuleInit {
     }
 
     await this.localImportStorage.deleteBySourceUrl(task.sourceUrl);
+  }
+
+  private resolvePlatformSourceName(resolved: PlatformInjectConfig) {
+    return resolved.tempFile?.fileName ?? null;
+  }
+
+  private async rememberTaskSourceName(
+    context: TenantTaskContext,
+    task: ImportTaskModel,
+    sourceName: string | null,
+  ) {
+    if (task.sourceName || !sourceName) {
+      return;
+    }
+
+    task.sourceName = sourceName;
+    await context.taskRepo.update(task.id, {
+      sourceName,
+      updatedAt: new Date(),
+    });
   }
 
   private async fetchResourceStats(
@@ -517,7 +542,7 @@ export class TaskWorkerService implements OnModuleInit {
       conn,
       OPENVIKING_RESOURCE_ENDPOINTS.TEMP_UPLOAD,
       {
-        fileName: file.fileName,
+        fileName: task.sourceName || file.fileName,
         buffer: file.buffer,
         mimeType: file.mimeType,
       },
@@ -780,6 +805,7 @@ export class TaskWorkerService implements OnModuleInit {
       kbId: entity.kbId,
       sourceType: entity.sourceType,
       sourceUrl: entity.sourceUrl,
+      sourceName: entity.sourceName ?? null,
       targetUri: entity.targetUri,
       status: entity.status,
       nodeCount: entity.nodeCount,

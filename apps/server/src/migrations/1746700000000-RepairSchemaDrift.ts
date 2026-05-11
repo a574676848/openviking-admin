@@ -141,6 +141,10 @@ export class RepairSchemaDrift1746700000000 implements MigrationInterface {
         ALTER TABLE ${this.tableName(schema, IMPORT_TASKS_TABLE)}
         ADD COLUMN IF NOT EXISTS "integration_id" VARCHAR
       `);
+      await queryRunner.query(`
+        ALTER TABLE ${this.tableName(schema, IMPORT_TASKS_TABLE)}
+        ADD COLUMN IF NOT EXISTS "source_name" VARCHAR(255)
+      `);
     }
 
     const knowledgeNodeSchemas = await this.resolveSchemasWithTable(

@@ -191,11 +191,13 @@ describe('ImportTaskService', () => {
     expect(taskRepo.save).toHaveBeenCalledWith([
       expect.objectContaining({
         sourceUrl: 'https://example.com/repo-a.git',
+        sourceName: 'repo-a',
         targetUri: 'viking://resources/tenants/tenant-a/kb-1/imports/git/',
         tenantId: 'tenant-a',
       }),
       expect.objectContaining({
         sourceUrl: 'https://example.com/repo-b.git',
+        sourceName: 'repo-b',
         targetUri: 'viking://resources/tenants/tenant-a/kb-1/imports/git/',
         tenantId: 'tenant-a',
       }),
@@ -340,12 +342,14 @@ describe('ImportTaskService', () => {
       expect.objectContaining({
         sourceType: 'local',
         sourceUrl: 'file:///data/openviking/imports/manual.md',
+        sourceName: '产品手册.md',
         targetUri: 'viking://resources/tenants/tenant-a/kb-1/imports/local/',
       }),
     );
     expect(result).toEqual(
       expect.objectContaining({
         sourceUrl: 'file:///data/openviking/imports/manual.md',
+        sourceName: '产品手册.md',
       }),
     );
   });

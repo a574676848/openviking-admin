@@ -45,6 +45,11 @@ export const LOCAL_IMPORT_UPLOAD_CONFIG = {
   ],
 } as const;
 
+/** 导入任务字段长度 */
+export const IMPORT_TASK_FIELD_LIMITS = {
+  SOURCE_NAME_MAX_LENGTH: 255,
+} as const;
+
 /** OpenViking 资源接口路径 */
 export const OPENVIKING_RESOURCE_ENDPOINTS = {
   TEMP_UPLOAD: '/api/v1/resources/temp_upload',

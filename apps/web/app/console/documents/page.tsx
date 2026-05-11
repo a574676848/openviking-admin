@@ -69,6 +69,7 @@ export default function DocumentsPage() {
       }
 
       return (
+        task.sourceName?.toLowerCase().includes(keyword) ||
         task.sourceUrl?.toLowerCase().includes(keyword) ||
         task.targetUri?.toLowerCase().includes(keyword) ||
         task.kbId?.toLowerCase().includes(keyword)

@@ -116,6 +116,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 | `kb_id` | UUID | NOT NULL | — | 所属知识库 |
 | `source_type` | VARCHAR(20) | NOT NULL | — | `url` / `git` / `local` / `manifest` / `feishu` / `dingtalk` |
 | `source_url` | VARCHAR(2048) | NULLABLE | — | 来源 URL |
+| `source_name` | VARCHAR(255) | NULLABLE | — | 来源展示名称；Git 为仓库名，企业文档和本地上传为文档或文件名 |
 | `target_uri` | VARCHAR(2048) | NOT NULL | — | 目标 URI |
 | `status` | VARCHAR(20) | NOT NULL | `'pending'` | `pending` / `running` / `done` / `failed` |
 | `node_count` | INTEGER | NOT NULL | `0` | 节点数量 |

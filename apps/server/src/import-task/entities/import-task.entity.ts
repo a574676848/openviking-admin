@@ -5,6 +5,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { IMPORT_TASK_FIELD_LIMITS } from '../constants';
 
 export type TaskStatus = 'pending' | 'running' | 'done' | 'failed' | 'cancelled';
 export type SourceType =
@@ -35,6 +36,14 @@ export class ImportTask {
 
   @Column({ name: 'source_url', nullable: true })
   sourceUrl: string;
+
+  @Column({
+    name: 'source_name',
+    type: 'varchar',
+    nullable: true,
+    length: IMPORT_TASK_FIELD_LIMITS.SOURCE_NAME_MAX_LENGTH,
+  })
+  sourceName: string | null;
 
   @Column({ name: 'target_uri' })
   targetUri: string;

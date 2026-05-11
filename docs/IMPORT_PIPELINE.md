@@ -213,6 +213,7 @@ LOCAL_IMPORT_KEEP_FILES_AFTER_DONE=false
 
 - `LOCAL_IMPORT_UPLOAD_DIR` 是 Admin 服务的上传暂存目录；生产环境必须显式配置。
 - 上传接口生成的临时文件会写入 `LOCAL_IMPORT_UPLOAD_DIR/managed`，Worker 只读取该受控子目录下的文件。
+- 导入任务会保存来源展示名称到 `sourceName`：Git 来源保存仓库名，飞书、钉钉等企业文档保存解析后的文档名，本地上传保存用户上传时的原文件名；历史任务或无法解析名称时回退展示 `sourceUrl`。
 - 本地文件统一转成 OpenViking `temp_file_id` 后再注入，不向 OpenViking 传递 `file://` 路径。
 - 默认导入成功后会删除暂存文件；失败任务会保留文件，便于排查和重试。
 - WebDAV `PUT` 复用同一条受控上传链路：WebDAV adapter 接收请求正文，新建白名单内文件时创建文档叶子节点并分配稳定资源容器 URI，覆盖已有白名单文件时保留原节点和资源容器 URI，并用目标叶子的资源容器 URI 创建 `sourceType=local` 导入任务。Worker 导入成功后会把当前正文叶子的实际 `contentUri` 回写到知识树节点。WebDAV 本身仍是同步 adapter，不新增独立导入来源。

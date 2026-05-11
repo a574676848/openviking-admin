@@ -45,6 +45,7 @@ export class InitSchema1745000000000 implements MigrationInterface {
         "kb_id"       UUID NOT NULL,
         "source_type" VARCHAR(20) NOT NULL,
         "source_url"  VARCHAR(2048),
+        "source_name" VARCHAR(255),
         "target_uri"  VARCHAR(2048) NOT NULL,
         "status"      VARCHAR(20) NOT NULL DEFAULT 'pending',
         "node_count"  INTEGER NOT NULL DEFAULT 0,
