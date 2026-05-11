@@ -47,10 +47,10 @@
 
 ### 前端 (`apps/web/.env.local`)
 
-| 变量                   | 类型   | 默认值                  | 必填 | 说明          |
-| ---------------------- | ------ | ----------------------- | ---- | ------------- |
-| `BACKEND_URL`          | string | `http://localhost:6001` | 是   | 后端 API 地址 |
-| `NEXT_PUBLIC_APP_NAME` | string | `OpenViking Admin`      | 否   | 应用显示名称  |
+| 变量                   | 类型   | 默认值                  | 必填 | 说明 |
+| ---------------------- | ------ | ----------------------- | ---- | ---- |
+| `BACKEND_URL`          | string | `http://localhost:6001` | 运行期必填 | Web 服务端 API 代理目标地址；Docker 镜像构建期不需要，容器启动后由 `/api/*` Route Handler 读取 |
+| `NEXT_PUBLIC_APP_NAME` | string | `OpenViking Admin`      | 否   | 应用显示名称 |
 
 ---
 

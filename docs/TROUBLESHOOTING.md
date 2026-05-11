@@ -236,8 +236,8 @@ cat apps/server/.env | grep OV_
 **解决**:
 
 - 检查浏览器 Console 是否有 API 请求报错
-- 确认 `apps/web/.env.local` 中 `BACKEND_URL` 指向正确的后端地址
-- 开发模式下 `next.config.ts` 的 rewrite 代理自动转发 `/api/v1/*` 到后端
+- 确认 Web 进程运行期环境变量 `BACKEND_URL` 指向正确的后端地址
+- `/api/v1/*` 会由 Next Route Handler 代理到 `BACKEND_URL`；Docker 镜像构建期不需要注入该变量
 
 ### 19. 主题切换不生效
 
