@@ -8,6 +8,15 @@ import type {
 import type { IntegrationModel } from './domain/integration.model';
 import type { IntegrationType } from '../common/constants/system.enum';
 
+const MASKED_SECRET_PLACEHOLDER = '********';
+const SENSITIVE_CREDENTIAL_KEYS = [
+  'token',
+  'password',
+  'bindPassword',
+  'appSecret',
+  'clientSecret',
+] as const;
+
 @Injectable()
 export class IntegrationService {
   constructor(
@@ -46,8 +55,12 @@ export class IntegrationService {
     input: UpdateIntegrationInput,
     tenantId: string | null,
   ) {
-    const item = await this.findOne(id, tenantId);
-    const encrypted = this.encryptCredentials(input);
+    const where: Record<string, string> = { id };
+    if (tenantId) where.tenantId = tenantId;
+    const item = await this.repo.findOne({ where });
+    if (!item) throw new NotFoundException('集成配置不存在');
+
+    const encrypted = this.encryptCredentials(input, item.credentials);
     Object.assign(item, encrypted);
     return this.repo.save(item);
   }
@@ -57,19 +70,16 @@ export class IntegrationService {
     return this.repo.remove(item);
   }
 
-  private readonly SENSITIVE_KEYS = [
-    'token',
-    'password',
-    'bindPassword',
-    'appSecret',
-    'clientSecret',
-  ];
-
   mask(item: IntegrationModel) {
-    const masked = { ...item };
+    const masked = {
+      ...item,
+      credentials: { ...(item.credentials ?? {}) },
+    };
     if (masked.credentials) {
-      this.SENSITIVE_KEYS.forEach((k) => {
-        if (masked.credentials[k]) masked.credentials[k] = '********';
+      SENSITIVE_CREDENTIAL_KEYS.forEach((k) => {
+        if (masked.credentials[k]) {
+          masked.credentials[k] = MASKED_SECRET_PLACEHOLDER;
+        }
       });
     }
     return masked;
@@ -77,21 +87,32 @@ export class IntegrationService {
 
   private encryptCredentials(
     input: CreateIntegrationInput | UpdateIntegrationInput,
+    existingCredentials?: Record<string, string>,
   ): Record<string, unknown> {
     const result: Record<string, unknown> = { ...input };
     if (!result.credentials) return result;
-    const creds = result.credentials as Record<string, string>;
-    this.SENSITIVE_KEYS.forEach((k) => {
-      if (creds[k] && creds[k] !== '********') {
-        creds[k] = this.encryption.encrypt(creds[k]);
+    const creds = { ...(result.credentials as Record<string, string>) };
+    SENSITIVE_CREDENTIAL_KEYS.forEach((k) => {
+      if (!creds[k]) {
+        return;
       }
+      if (creds[k] === MASKED_SECRET_PLACEHOLDER) {
+        if (existingCredentials?.[k]) {
+          creds[k] = existingCredentials[k];
+        } else {
+          delete creds[k];
+        }
+        return;
+      }
+      creds[k] = this.encryption.encrypt(creds[k]);
     });
+    result.credentials = creds;
     return result;
   }
 
   private decryptItem(item: IntegrationModel) {
     if (!item.credentials) return item;
-    this.SENSITIVE_KEYS.forEach((k) => {
+    SENSITIVE_CREDENTIAL_KEYS.forEach((k) => {
       if (item.credentials[k]) {
         item.credentials[k] = this.encryption.decrypt(item.credentials[k]);
       }
