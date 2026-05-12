@@ -497,6 +497,8 @@ Capability 与 CLI 导入入口的 `sourceType` 支持 `local`、`url`、`manife
 - `GET /api/v1/mcp/sse?key=<apiKey>`
 - `GET /api/v1/mcp/sse?sessionKey=<session-key>`
 
+成功建立连接后，服务端保持 `text/event-stream` 长连接，并先发送 `event: endpoint`。该事件的 `data` 是后续 JSON-RPC POST 消息端点。后续 JSON-RPC 响应统一通过 `event: message` 返回。
+
 ### POST /api/v1/capability/keys
 
 为当前租户内指定用户创建 capability API key。需要 JWT。
@@ -524,6 +526,8 @@ Capability 与 CLI 导入入口的 `sourceType` 支持 `local`、`url`、`manife
 MCP JSON-RPC 消息接口。
 
 请求体必须遵循 JSON-RPC 2.0。请求需要包含 `jsonrpc: "2.0"`、字符串或整数 `id`、字符串 `method`；notification 不能包含 `id`，服务端不会为 notification 写入 JSON-RPC 响应事件。协议错误通过 SSE 事件返回 JSON-RPC 标准错误对象，常见错误码包括 `-32600`、`-32601`、`-32602` 和 `-32603`。
+
+接口成功接收消息后返回 `202 Accepted`。JSON-RPC `result` 或 `error` 不在该 HTTP 响应体中返回，而是写入同一会话的 SSE `event: message`。
 
 查询参数：
 

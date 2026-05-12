@@ -1,14 +1,14 @@
 import {
   Controller,
+  Get,
+  HttpCode,
   Post,
   Query,
   Req,
-  MessageEvent,
-  Sse,
+  Res,
   Body,
 } from '@nestjs/common';
-import type { Request } from 'express';
-import { Observable } from 'rxjs';
+import type { Request, Response } from 'express';
 import { McpProtocolService } from './mcp-protocol.service';
 import { McpSseService } from './mcp-sse.service';
 import type { JsonRpcRequest } from './mcp.types';
@@ -20,20 +20,22 @@ export class McpController {
     private readonly mcpSseService: McpSseService,
   ) {}
 
-  @Sse('sse')
+  @Get('sse')
   async sse(
     @Query('key') key: string | undefined,
     @Query('sessionKey') sessionKey: string | undefined,
     @Req() req: Request,
-  ): Promise<Observable<MessageEvent>> {
+    @Res() res: Response,
+  ): Promise<void> {
     const session = await this.mcpProtocolService.createSessionConnection(
       key,
       sessionKey,
     );
-    return this.mcpSseService.createEventStream(req, session);
+    this.mcpSseService.writeEventStream(req, res, session);
   }
 
   @Post('message')
+  @HttpCode(202)
   async handleMessage(
     @Query('sessionId') sessionId: string,
     @Query('sessionToken') sessionToken: string,

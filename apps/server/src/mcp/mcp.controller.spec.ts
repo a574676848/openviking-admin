@@ -1,3 +1,4 @@
+import 'reflect-metadata';
 import { McpController } from './mcp.controller';
 
 describe('McpController', () => {
@@ -7,6 +8,7 @@ describe('McpController', () => {
   };
   const mcpSseService = {
     createEventStream: jest.fn(),
+    writeEventStream: jest.fn(),
   };
   const controller = new McpController(
     mcpProtocolService as never,
@@ -32,6 +34,31 @@ describe('McpController', () => {
         sessionKey: undefined,
       },
       body,
+    );
+  });
+
+  it('MCP message 入口应使用官方 SSE transport 的 202 Accepted 语义', () => {
+    const httpCode = Reflect.getMetadata(
+      '__httpCode__',
+      McpController.prototype.handleMessage,
+    );
+
+    expect(httpCode).toBe(202);
+  });
+
+  it('MCP SSE 入口应先创建会话再写入事件流', async () => {
+    const request = {};
+    const response = {};
+    const session = { sessionId: 'session-1', endpoint: '/api/v1/mcp/message' };
+    mcpProtocolService.createSessionConnection.mockResolvedValue(session);
+
+    await controller.sse('api-key', undefined, request as never, response as never);
+
+    expect(mcpProtocolService.createSessionConnection).toHaveBeenCalledWith('api-key', undefined);
+    expect(mcpSseService.writeEventStream).toHaveBeenCalledWith(
+      request,
+      response,
+      session,
     );
   });
 });

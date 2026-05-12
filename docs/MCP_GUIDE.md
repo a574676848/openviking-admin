@@ -149,12 +149,15 @@ MCP 消息遵循 JSON-RPC 2.0：
 ```text
 MCP 客户端
   -> GET /api/v1/mcp/sse?key=...
-  -> 接收消息端点地址
+  -> 接收 event: endpoint，data 为消息端点地址
   -> 向 POST /api/v1/mcp/message 发送 JSON-RPC
+  -> POST 返回 202 Accepted
   -> MCP controller 映射 tools/list 或 tools/call
   -> CapabilityExecutionService 执行 capability
-  -> 响应格式化为 MCP content[]
+  -> 响应通过 SSE event: message 返回
 ```
+
+SSE 兼容官方 HTTP+SSE transport：初始连接只发送 `event: endpoint`，后续 JSON-RPC 响应必须通过 `event: message` 投递；`POST /api/v1/mcp/message` 只表示消息已接收，不直接承载 JSON-RPC 响应体。
 
 ## 调试 SSE
 
@@ -162,7 +165,7 @@ MCP 客户端
 curl -N "http://localhost:6001/api/v1/mcp/sse?key=<ov-sk-...>"
 ```
 
-预期会返回 SSE 消息端点信息，客户端随后向该消息端点发送 JSON-RPC 请求。
+预期会返回 `event: endpoint` 和消息端点信息，客户端随后向该消息端点发送 JSON-RPC 请求。
 
 ## 调试 tools/list
 
