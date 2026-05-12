@@ -18,12 +18,27 @@ import { handleSetup } from './commands/setup';
 import { handleInit } from './commands/init';
 import { handleBootstrap } from './commands/bootstrap';
 
+const packageMetadata = require('../package.json') as { name: string; version: string };
 const credentialStore = new FileCredentialStore();
+
+function isHelpArg(value?: string) {
+    return value === 'help' || value === '--help' || value === '-h';
+}
+
+function isVersionArg(value?: string) {
+    return value === 'version' || value === '--version' || value === '-v';
+}
+
+function printVersion() {
+    printText(`${packageMetadata.name} ${packageMetadata.version}`);
+}
 
 function printUsage() {
     printText(`OVA CLI
 
 用法:
+  ova --help | ova -h | ova help
+  ova --version | ova -v | ova version
   ova auth login --server http://localhost:6001 --username admin --password admin123 --tenant-code acme [--profile dev]
   ova auth sso --ticket sso-ticket [--profile dev]
   ova auth whoami [--profile dev] [--output json|jsonl]
@@ -53,14 +68,24 @@ function printUsage() {
   ova config show [--profile dev] [--output json|jsonl]
   ova config set --server http://localhost:6001 [--profile dev] [--output json|jsonl]
   ova config use --profile dev [--output json|jsonl]
-    ova doctor [--profile dev] [--output json|jsonl]
-    ova setup [--profile dev] [--server http://localhost:6001] [--credential api-key|session-key] [--editor claude,cursor,codex] [--output json|jsonl]
-    ova init [--path <repoPath>] [--profile dev] [--output json|jsonl]
-    ova bootstrap [--path <repoPath>] [--profile dev] [--editor claude,cursor,codex] [--skip-setup] [--skip-init] [--output json|jsonl]`);
+  ova doctor [--profile dev] [--output json|jsonl]
+  ova setup [--profile dev] [--server http://localhost:6001] [--credential api-key|session-key] [--editor claude,cursor,codex] [--output json|jsonl]
+  ova init [--path <repoPath>] [--profile dev] [--output json|jsonl]
+  ova bootstrap [--path <repoPath>] [--profile dev] [--editor claude,cursor,codex] [--skip-setup] [--skip-init] [--output json|jsonl]`);
 }
 
 export async function bootstrap(argv = process.argv.slice(2)) {
     const { group, command, options } = parseOptions(argv);
+
+    if (isHelpArg(group)) {
+        printUsage();
+        return;
+    }
+
+    if (isVersionArg(group)) {
+        printVersion();
+        return;
+    }
 
     if (!group) {
         printUsage();

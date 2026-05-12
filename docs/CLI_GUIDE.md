@@ -17,6 +17,10 @@ npm run ova -- <group> <command> [options]
 ```bash
 npm install -g @openviking-admin/ova-cli
 ova <group> <command> [options]
+ova --version
+ova -v
+ova --help
+ova -h
 ```
 
 一键安装或更新：
@@ -43,6 +47,26 @@ ova bootstrap --path <repo>
 - 仓库级 `init`：生成 capability 快照、落盘本地 Skill、向 `AGENTS.md` / `CLAUDE.md` 注入 OpenViking 调用规则。
 
 如果只想安装 CLI 而不初始化环境，可直接使用 `npm install -g @openviking-admin/ova-cli`。
+
+## 常用顶层命令
+
+```bash
+ova --version
+ova version
+ova --help
+ova help
+ova doctor
+ova config show
+ova auth status
+```
+
+说明：
+
+- `ova --version` / `ova -v` / `ova version` 输出当前安装的 npm 包名和版本号。
+- `ova --help` / `ova -h` / `ova help` 输出完整命令清单。
+- `ova doctor` 检查本地 profile、服务端 capability 入口和登录态。
+- `ova config show` 查看当前 profile 配置。
+- `ova auth status` 查看当前认证状态。
 
 ## 环境初始化
 
@@ -333,6 +357,10 @@ ova doctor --output jsonl
 ## 命令参考
 
 ```text
+ova --version
+ova -v
+ova --help
+ova -h
 ova auth login --server <url> --username <name> --password <password> --tenant-code <tenant>
 ova auth sso --ticket <ticket>
 ova auth whoami

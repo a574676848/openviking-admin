@@ -18,6 +18,15 @@ npm install -g @openviking-admin/ova-cli
 ova setup --server http://localhost:6001 --api-key <YOUR_API_KEY>
 ```
 
+确认安装版本：
+
+```bash
+ova --version
+ova -v
+ova --help
+ova -h
+```
+
 仓库提供可重复执行的一键安装脚本，重复运行会更新全局 `ova`：
 
 ```bash
@@ -52,6 +61,16 @@ npm run ova -- <group> <command> [options]
 ```
 
 ## 初始化命令
+
+常用顶层命令：
+
+```bash
+ova --version
+ova version
+ova --help
+ova help
+ova doctor
+```
 
 用户级初始化：
 
@@ -199,10 +218,10 @@ npm access ls-packages
 在当前目录发布：
 
 ```bash
-npm version patch
-npm publish
+npm version patch --no-git-tag-version
+npm publish --access public
 ```
 
-由于 `package.json` 已声明 `publishConfig.access=public`，首次发布到 npm 公网时也会按公开包处理。
+由于 `package.json` 已声明 `publishConfig.access=public`，直接执行 `npm publish` 也会按公开包处理；发布 scoped 公共包时仍建议显式使用 `--access public`。
 
 完整用户文档见 `docs/CLI_GUIDE.md`。

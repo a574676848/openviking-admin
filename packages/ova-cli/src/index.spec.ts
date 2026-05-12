@@ -26,6 +26,10 @@ jest.mock("child_process", () => ({
 }));
 
 const { bootstrap } = require("./index") as typeof import("./index");
+const packageMetadata = require("../package.json") as {
+  name: string;
+  version: string;
+};
 
 describe("ova cli", () => {
   const stdoutWrite = jest
@@ -82,6 +86,37 @@ describe("ova cli", () => {
 
   afterAll(() => {
     stdoutWrite.mockRestore();
+  });
+
+  it("应该输出版本号", async () => {
+    await bootstrap(["--version"]);
+
+    expect(stdoutWrite).toHaveBeenCalledWith(
+      expect.stringContaining(
+        `${packageMetadata.name} ${packageMetadata.version}`,
+      ),
+    );
+  });
+
+  it("应该兼容版本号别名", async () => {
+    await bootstrap(["-v"]);
+
+    expect(stdoutWrite).toHaveBeenCalledWith(
+      expect.stringContaining(
+        `${packageMetadata.name} ${packageMetadata.version}`,
+      ),
+    );
+  });
+
+  it("应该输出帮助信息", async () => {
+    await bootstrap(["--help"]);
+
+    expect(stdoutWrite).toHaveBeenCalledWith(
+      expect.stringContaining("ova --version"),
+    );
+    expect(stdoutWrite).toHaveBeenCalledWith(
+      expect.stringContaining("ova bootstrap [--path <repoPath>]"),
+    );
   });
 
   it("应该在 whoami 前自动刷新过期 access token", async () => {
