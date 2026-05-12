@@ -466,9 +466,13 @@ export class TaskWorkerService implements OnModuleInit {
             (item as { isDir?: unknown }).isDir === false,
         ),
     );
-    if (leafResources.length !== 1) {
+    if (leafResources.length === 0) {
+      this.logger.warn(`文档叶子 ${node.id} 的内容资源数量为 0。`);
+      return;
+    }
+    if (leafResources.length > 1) {
       this.logger.warn(
-        `文档叶子 ${node.id} 的内容资源数量异常，期望 1 个，实际 ${leafResources.length} 个。`,
+        `文档叶子 ${node.id} 的内容资源数量异常，期望 1 个，实际 ${leafResources.length} 个。可能处于协作保存并发状态或存在孤儿文件，跳过 contentUri 覆盖。`,
       );
       return;
     }

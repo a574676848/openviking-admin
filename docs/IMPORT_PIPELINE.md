@@ -216,7 +216,7 @@ LOCAL_IMPORT_KEEP_FILES_AFTER_DONE=false
 - 导入任务会保存来源展示名称到 `sourceName`：Git 来源保存仓库名，飞书、钉钉等企业文档保存解析后的文档名，本地上传保存用户上传时的原文件名；历史任务或无法解析名称时回退展示 `sourceUrl`。
 - 本地文件统一转成 OpenViking `temp_file_id` 后再注入，不向 OpenViking 传递 `file://` 路径。
 - 默认导入成功后会删除暂存文件；失败任务会保留文件，便于排查和重试。
-- WebDAV `PUT` 复用同一条受控上传链路：WebDAV adapter 接收请求正文，新建白名单内文件时创建文档叶子节点并分配稳定资源容器 URI，覆盖已有白名单文件时保留原节点和资源容器 URI，并用目标叶子的资源容器 URI 创建 `sourceType=local` 导入任务。Worker 导入成功后会把当前正文叶子的实际 `contentUri` 回写到知识树节点。WebDAV 本身仍是同步 adapter，不新增独立导入来源。
+- WebDAV `PUT` 新建文件时复用受控上传链路：WebDAV adapter 接收请求正文，新建白名单内文件时创建文档叶子节点并分配稳定资源容器 URI，并创建 `sourceType=local` 导入任务。Worker 导入成功后会把当前正文叶子的实际 `contentUri` 回写到知识树节点。覆盖已有白名单文件时，直接替换目标叶子的 `contentUri` 内容（Atomic Swap），不再创建导入任务，也不清空容器，以此保护媒体附件。WebDAV 本身仍是同步 adapter，不新增独立导入来源。
 - WebDAV `DELETE` 不创建导入任务；它复用知识树服务层删除语义，对带 `vikingUri` 的叶子文件或空目录先调用 OpenViking `/api/v1/fs` 删除资源和向量，再删除 Admin 侧知识树节点。控制台知识树和知识库删除同样走这条服务层语义，避免只删 Admin 元数据。
 - WebDAV `MOVE` 不创建导入任务，也不触发 OpenViking 移动或重索引；它只更新 Admin 侧知识树节点名称、父节点、排序和展示路径，保持稳定资源容器 URI 不变。
 

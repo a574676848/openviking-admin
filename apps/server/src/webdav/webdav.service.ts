@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { Request } from 'express';
+import { randomUUID } from 'node:crypto';
 import { extname } from 'node:path';
 import type { Readable } from 'node:stream';
 import { DataSource } from 'typeorm';
@@ -35,6 +36,14 @@ const WEBDAV_XML_CONTENT_TYPE = 'application/xml; charset=utf-8';
 const WEBDAV_MARKDOWN_CONTENT_TYPE = 'text/markdown; charset=utf-8';
 const WEBDAV_CONTENT_DOWNLOAD_PATH = '/api/v1/content/download';
 const WEBDAV_FS_TREE_PATH = '/api/v1/fs/tree';
+const WEBDAV_FS_PATH = '/api/v1/fs';
+const WEBDAV_RESOURCES_PATH = '/api/v1/resources';
+const WEBDAV_TEMP_UPLOAD_PATH = '/api/v1/resources/temp_upload';
+const WEBDAV_RESOURCE_SERVICE_LABEL = 'OpenViking Resources';
+const WEBDAV_RESOURCE_DELETE_LABEL = 'OpenViking 资源删除';
+const WEBDAV_OVERWRITE_REASON = 'webdav-put-overwrite';
+const WEBDAV_OVERWRITE_FILE_PREFIX = 'webdav-overwrite';
+const WEBDAV_FILE_TIMESTAMP_RADIX = 36;
 const WEBDAV_SUCCESS_STATUS = 'HTTP/1.1 200 OK';
 const WEBDAV_DIRECTORY_URI_SUFFIX = '/';
 const WEBDAV_MAX_PATH_SEGMENT_LENGTH = 255;
@@ -296,13 +305,16 @@ export class WebdavService {
         ]);
       }
 
-      const knowledgeBases = await this.knowledgeBaseService.findAll(tenantScope);
+      const knowledgeBases =
+        await this.knowledgeBaseService.findAll(tenantScope);
       const knowledgeBase = this.resolveKnowledgeBaseByPathSegment(
         target.knowledgeBaseId,
         knowledgeBases,
       );
       if (!knowledgeBase) {
-        throw new NotFoundException(`知识库 ${target.knowledgeBaseId} 不存在或无权访问`);
+        throw new NotFoundException(
+          `知识库 ${target.knowledgeBaseId} 不存在或无权访问`,
+        );
       }
       const knowledgeNodes = await this.knowledgeTreeService.findByKb(
         knowledgeBase.id,
@@ -396,23 +408,33 @@ export class WebdavService {
     }
 
     const decoded = this.decodeBasicAuthorization(authorization);
-    if (!decoded || decoded.username !== tenantId) {
-      this.logWebdavWarn(WEBDAV_AUTH_INVALID_BASIC_REASON, {
-        method: request.method,
-        tenantId,
-        username: decoded?.username ?? null,
-      });
+    if (!decoded) {
+      this.logInvalidBasicAuthorization(request, tenantId, null);
       return { ok: false, response: this.createUnauthorizedResponse() };
     }
 
     try {
+      const requestedTenantScope = await this.resolveRequestedTenantScope(
+        request,
+        tenantId,
+        decoded.username,
+      );
+      if (!requestedTenantScope) {
+        return { ok: false, response: this.createUnauthorizedResponse() };
+      }
+
       const principal =
         await this.capabilityCredentialService.resolvePrincipalFromApiKey(
           decoded.password,
           'service',
         );
+      const principalTenantScope =
+        await this.resolvePrincipalTenantScope(principal);
 
-      if (!principal.tenantId || principal.tenantId !== tenantId) {
+      if (
+        !principalTenantScope ||
+        principalTenantScope !== requestedTenantScope
+      ) {
         this.logWebdavWarn(WEBDAV_AUTH_TENANT_MISMATCH_REASON, {
           method: request.method,
           tenantId,
@@ -424,7 +446,10 @@ export class WebdavService {
 
       return {
         ok: true,
-        principal,
+        principal: {
+          ...principal,
+          tenantId: principalTenantScope,
+        },
       };
     } catch (error) {
       this.logWebdavError(WEBDAV_AUTH_CREDENTIAL_RESOLVE_FAILED_REASON, error, {
@@ -434,6 +459,73 @@ export class WebdavService {
       });
       return { ok: false, response: this.createUnauthorizedResponse() };
     }
+  }
+
+  private async resolveRequestedTenantScope(
+    request: Request,
+    tenantId: string,
+    username: string,
+  ) {
+    const requestedTenantScope =
+      await this.resolveTenantScopeByIdentifier(tenantId);
+    if (
+      !requestedTenantScope ||
+      !(await this.isSameTenantIdentifier(
+        username,
+        tenantId,
+        requestedTenantScope,
+      ))
+    ) {
+      this.logInvalidBasicAuthorization(request, tenantId, username);
+      return null;
+    }
+
+    return requestedTenantScope;
+  }
+
+  private async resolvePrincipalTenantScope(principal: Principal) {
+    if (!principal.tenantId) {
+      return null;
+    }
+
+    return this.resolveTenantScopeByIdentifier(principal.tenantId);
+  }
+
+  private async isSameTenantIdentifier(
+    identifier: string,
+    requestedIdentifier: string,
+    requestedTenantScope: string,
+  ) {
+    if (
+      identifier === requestedIdentifier ||
+      identifier === requestedTenantScope
+    ) {
+      return true;
+    }
+
+    const identifierTenantScope =
+      await this.resolveTenantScopeByIdentifier(identifier);
+    return identifierTenantScope === requestedTenantScope;
+  }
+
+  private async resolveTenantScopeByIdentifier(identifier: string) {
+    const config =
+      await this.tenantCacheService.getIsolationConfigByTenantRecordId(
+        identifier,
+      );
+    return config?.tenantId ?? null;
+  }
+
+  private logInvalidBasicAuthorization(
+    request: Request,
+    tenantId: string,
+    username: string | null,
+  ) {
+    this.logWebdavWarn(WEBDAV_AUTH_INVALID_BASIC_REASON, {
+      method: request.method,
+      tenantId,
+      username,
+    });
   }
 
   private logWebdavWarn(reason: string, details: Record<string, unknown>) {
@@ -1342,7 +1434,7 @@ export class WebdavService {
       if (error instanceof HttpException) {
         return this.createConflictResponse(error.message);
       }
-      return this.createInternalServerErrorResponse('WebDAV 文件创建失败。');
+      return this.createInternalServerErrorResponse('WebDAV 文件写入失败。');
     }
   }
 
@@ -1381,9 +1473,10 @@ export class WebdavService {
     if (this.resolveWritableFileExtension(nodeResolution.node.name) === null) {
       return {
         ok: false,
-        response: this.createUnsupportedMediaTypeResponse(
-          'WebDAV 当前不支持该文件格式。',
-        ),
+        response:
+          this.createUnsupportedMediaTypeResponse(
+            'WebDAV 当前不支持该文件格式。',
+          ),
       };
     }
 
@@ -1399,17 +1492,33 @@ export class WebdavService {
     node: WebdavKnowledgeNode;
     body: Buffer;
   }): Promise<WebdavResponse> {
-    const task = await this.importTaskService.createLocalUpload(
-      {
-        kbId: input.knowledgeBaseId,
-        targetUri: input.node.vikingUri ?? undefined,
-      },
-      [this.createLocalImportFile(input.node.name, input.body)],
+    const containerUri = this.resolveDocumentContainerUri(input.node);
+    if (!containerUri) {
+      return this.createConflictResponse('目标文件缺少资源容器 URI。');
+    }
+
+    const connection = await this.resolveOpenVikingConnection(input.principal);
+    const oldContentUri = this.resolveCurrentContentUri(input.node);
+    const newFileName = this.createOverwriteLeafFileName(input.node.name);
+    const tempFileId = await this.uploadOverwriteTempFile(
+      connection,
+      input.node.name,
+      newFileName,
+      input.body,
+    );
+    await this.injectOverwriteLeaf(connection, containerUri, tempFileId);
+
+    const newContentUri = `${containerUri}${newFileName}`;
+    const touched = await this.knowledgeTreeService.syncContentUri(
+      input.node.id,
+      newContentUri,
       input.tenantScope,
     );
-    const touched = await this.knowledgeTreeService.touch(
-      input.node.id,
-      input.tenantScope,
+
+    void this.deleteOldContentLeaf(
+      connection,
+      oldContentUri,
+      newContentUri,
     );
 
     await this.auditService.log({
@@ -1419,12 +1528,13 @@ export class WebdavService {
       action: 'webdav_put_update',
       target: input.node.id,
       meta: {
-        taskId: task.id,
         kbId: input.knowledgeBaseId,
         parentId: input.node.parentId,
         name: input.node.name,
         path: input.resourcePath ?? '',
         vikingUri: input.node.vikingUri,
+        contentUri: newContentUri,
+        previousContentUri: oldContentUri,
         updatedAt: touched.updatedAt.toISOString(),
         credentialType: input.principal.credentialType,
         clientType: input.principal.clientType,
@@ -1433,9 +1543,144 @@ export class WebdavService {
       ip: input.request.ip,
     });
 
-    return this.createNoContentResponse({
-      'X-OpenViking-Import-Task-Id': task.id,
-    });
+    return this.createNoContentResponse();
+  }
+
+  private resolveDocumentContainerUri(node: WebdavKnowledgeNode) {
+    if (node.vikingUri?.endsWith(WEBDAV_DIRECTORY_URI_SUFFIX)) {
+      return node.vikingUri;
+    }
+
+    const leafUri = node.contentUri ?? node.vikingUri;
+    return leafUri ? this.resolveParentResourceUri(leafUri) : null;
+  }
+
+  private resolveCurrentContentUri(node: WebdavKnowledgeNode) {
+    if (node.contentUri) {
+      return node.contentUri;
+    }
+    if (node.vikingUri && !node.vikingUri.endsWith(WEBDAV_DIRECTORY_URI_SUFFIX)) {
+      return node.vikingUri;
+    }
+    return null;
+  }
+
+  private resolveParentResourceUri(uri: string) {
+    const lastSeparatorIndex = uri.lastIndexOf(WEBDAV_DIRECTORY_URI_SUFFIX);
+    if (lastSeparatorIndex < 0) {
+      return null;
+    }
+    return uri.slice(0, lastSeparatorIndex + 1);
+  }
+
+  private createOverwriteLeafFileName(originalName: string) {
+    const extension = extname(originalName).toLowerCase();
+    const timestamp = Date.now().toString(WEBDAV_FILE_TIMESTAMP_RADIX);
+    return `${WEBDAV_OVERWRITE_FILE_PREFIX}-${timestamp}-${randomUUID()}${extension}`;
+  }
+
+  private async uploadOverwriteTempFile(
+    connection: WebdavOVConnection,
+    originalName: string,
+    fileName: string,
+    body: Buffer,
+  ) {
+    const uploadFile = this.createLocalImportFile(originalName, body);
+    const response = await this.ovClientService.uploadTempFile(
+      connection,
+      WEBDAV_TEMP_UPLOAD_PATH,
+      {
+        fileName,
+        buffer: body,
+        mimeType: uploadFile.mimetype,
+      },
+      connection.user ? { user: connection.user } : undefined,
+      { serviceLabel: WEBDAV_RESOURCE_SERVICE_LABEL },
+    );
+    return this.extractTempFileId(response);
+  }
+
+  private async injectOverwriteLeaf(
+    connection: WebdavOVConnection,
+    containerUri: string,
+    tempFileId: string,
+  ) {
+    const response = await this.ovClientService.request(
+      connection,
+      WEBDAV_RESOURCES_PATH,
+      'POST',
+      {
+        temp_file_id: tempFileId,
+        to: containerUri,
+        reason: WEBDAV_OVERWRITE_REASON,
+        wait: true,
+      },
+      connection.user ? { user: connection.user } : undefined,
+      { serviceLabel: WEBDAV_RESOURCE_SERVICE_LABEL },
+    );
+    this.assertOpenVikingSuccess(response, 'OpenViking 资源注入失败');
+  }
+
+  private async deleteOldContentLeaf(
+    connection: WebdavOVConnection,
+    oldContentUri: string | null,
+    newContentUri: string,
+  ) {
+    if (!oldContentUri || oldContentUri === newContentUri) {
+      return;
+    }
+
+    try {
+      await this.ovClientService.request(
+        connection,
+        `${WEBDAV_FS_PATH}?uri=${encodeURIComponent(oldContentUri)}&recursive=false`,
+        'DELETE',
+        undefined,
+        connection.user ? { user: connection.user } : undefined,
+        { serviceLabel: WEBDAV_RESOURCE_DELETE_LABEL },
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '未知错误';
+      this.logger.warn(`WebDAV 覆盖写入清理旧正文叶子失败: ${message}`);
+    }
+  }
+
+  private extractTempFileId(response: unknown) {
+    const result =
+      response && typeof response === 'object'
+        ? (response as { result?: unknown }).result
+        : null;
+    const tempFileId =
+      result && typeof result === 'object'
+        ? (result as { temp_file_id?: unknown }).temp_file_id
+        : null;
+    if (typeof tempFileId !== 'string' || tempFileId.trim().length === 0) {
+      throw new Error('OpenViking 临时文件上传未返回 temp_file_id');
+    }
+    return tempFileId;
+  }
+
+  private assertOpenVikingSuccess(response: unknown, fallbackMessage: string) {
+    const result =
+      response && typeof response === 'object'
+        ? (response as { result?: unknown }).result
+        : null;
+    const status =
+      result && typeof result === 'object'
+        ? (result as { status?: unknown }).status
+        : null;
+    if (status !== 'error') {
+      return;
+    }
+
+    const errors =
+      result && typeof result === 'object'
+        ? (result as { errors?: unknown }).errors
+        : null;
+    if (Array.isArray(errors) && errors.length > 0) {
+      throw new Error(errors.map((item) => String(item)).join('; '));
+    }
+    throw new Error(fallbackMessage);
   }
 
   private async buildDeleteResponse(
@@ -1863,9 +2108,11 @@ export class WebdavService {
       return preconditionResponse;
     }
 
-    const normalizedSourcePath = this.normalizePathSegments(resourcePath).join('/');
-    const normalizedDestinationPath =
-      this.normalizePathSegments(destinationResourcePath).join('/');
+    const normalizedSourcePath =
+      this.normalizePathSegments(resourcePath).join('/');
+    const normalizedDestinationPath = this.normalizePathSegments(
+      destinationResourcePath,
+    ).join('/');
     const destinationKnowledgeBase = this.resolveKnowledgeBaseByPathSegment(
       destinationTarget.knowledgeBaseId,
       knowledgeBases,
@@ -2034,7 +2281,9 @@ export class WebdavService {
     segment: string,
     knowledgeBases: WebdavKnowledgeBaseLike[],
   ) {
-    const byId = knowledgeBases.find((knowledgeBase) => knowledgeBase.id === segment);
+    const byId = knowledgeBases.find(
+      (knowledgeBase) => knowledgeBase.id === segment,
+    );
     if (byId) {
       return byId;
     }
@@ -2076,7 +2325,9 @@ export class WebdavService {
     let parentId = node.parentId;
 
     while (parentId) {
-      const parent = knowledgeNodes.find((candidate) => candidate.id === parentId);
+      const parent = knowledgeNodes.find(
+        (candidate) => candidate.id === parentId,
+      );
       if (!parent) {
         break;
       }
@@ -2183,7 +2434,9 @@ export class WebdavService {
       return false;
     }
 
-    return Boolean(node.vikingUri && !this.isDirectoryVikingUri(node.vikingUri));
+    return Boolean(
+      node.vikingUri && !this.isDirectoryVikingUri(node.vikingUri),
+    );
   }
 
   private isDescendantParent(
@@ -2343,8 +2596,7 @@ export class WebdavService {
     ) {
       return {
         ok: false,
-        response:
-          this.createPayloadTooLargeResponse('上传文件超过大小限制。'),
+        response: this.createPayloadTooLargeResponse('上传文件超过大小限制。'),
       };
     }
 
@@ -2449,9 +2701,9 @@ export class WebdavService {
         (entry): entry is { uri: string; isDir?: boolean } =>
           Boolean(
             entry &&
-              typeof entry === 'object' &&
-              typeof (entry as { uri?: unknown }).uri === 'string' &&
-              (entry as { isDir?: unknown }).isDir === false,
+            typeof entry === 'object' &&
+            typeof (entry as { uri?: unknown }).uri === 'string' &&
+            (entry as { isDir?: unknown }).isDir === false,
           ),
       );
       return leaf?.uri ?? null;

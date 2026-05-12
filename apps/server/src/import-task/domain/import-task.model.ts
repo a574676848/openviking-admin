@@ -10,6 +10,7 @@ export type ImportTaskSourceType =
   | 'git'
   | 'local'
   | 'webdav'
+  | 'manifest'
   | 'feishu'
   | 'dingtalk';
 

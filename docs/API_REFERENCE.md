@@ -21,13 +21,13 @@
 
 ## WebDAV 入口
 
-WebDAV 不走 `/api/v1` 前缀，根路径为 `/webdav/:tenantId/`。该入口用于标准 WebDAV 客户端访问租户知识资源，当前开放 `OPTIONS`、`PROPFIND`、`GET`、`HEAD`、`MKCOL`、`PUT`、`DELETE` 与 `MOVE`。
+WebDAV 不走 `/api/v1` 前缀，根路径为 `/webdav/:tenantId/`。`:tenantId` 支持租户记录 UUID 或租户唯一标识。该入口用于标准 WebDAV 客户端访问租户知识资源，当前开放 `OPTIONS`、`PROPFIND`、`GET`、`HEAD`、`MKCOL`、`PUT`、`DELETE` 与 `MOVE`。
 
 ### 认证方式
 
-| 方式                                           | 说明                                                            |
-| ---------------------------------------------- | --------------------------------------------------------------- |
-| `Authorization: Basic base64(tenantId:apiKey)` | `username` 必须等于租户标识，`password` 使用 capability API key |
+| 方式                                           | 说明                                                                                                    |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `Authorization: Basic base64(tenantId:apiKey)` | `username` 可使用租户记录 UUID 或租户唯一标识，且必须与路径租户解析到同一租户；`password` 使用 capability API key |
 
 ### 支持的方法
 
@@ -38,7 +38,7 @@ WebDAV 不走 `/api/v1` 前缀，根路径为 `/webdav/:tenantId/`。该入口�
 | `GET`      | `/webdav/:tenantId/:kbName/:nodeName...`   | 流式读取叶子文件正文                                                        |
 | `HEAD`     | `/webdav/:tenantId/:kbName/:nodeName...`   | 返回叶子文件元信息，不读取正文                                              |
 | `MKCOL`    | `/webdav/:tenantId/:path.../:name`         | 在租户根创建知识库，或在知识库内创建目录节点                                |
-| `PUT`      | `/webdav/:tenantId/:kbName/:nodeName...`   | 新建或覆盖受支持文件，创建本地导入任务                                      |
+| `PUT`      | `/webdav/:tenantId/:kbName/:nodeName...`   | 新建或覆盖受支持文件                                                        |
 | `DELETE`   | `/webdav/:tenantId/:kbName[/:nodeName...]` | 删除知识库、叶子文件或空目录，成功返回 `204 No Content`                     |
 | `MOVE`     | `/webdav/:tenantId/:kbName[/:nodeName...]` | 重命名知识库，或在同一知识库内重命名/移动文件与目录，成功返回 `201 Created` |
 
@@ -55,8 +55,8 @@ WebDAV 响应不使用统一 JSON envelope。知识库始终映射为目录资�
 - 当前读侧 `href` 对外使用知识库名和节点名路径，便于标准 WebDAV 客户端直接挂载租户根目录并浏览全部可访问知识库。
 - 为兼容 `sunmagicshow/obsidian-webdav` 一类客户端的写权限探测，只要 `PUT` 或 `DELETE` 目标路径最后一段命中 `.webdav_write_test_*` 前缀，服务端都会直接返回合成成功响应，不会读取正文、持久化任何资源，也不会创建导入任务或删除真实节点。
 - `PUT` 当前支持与本地导入白名单一致的文件扩展名，默认包括 `.md`、`.markdown`、`.txt`、`.json`、`.canvas`、`.css`、`.js`、`.pdf`、`.doc`、`.docx` 与 `.zip`。新建文件时服务端会先创建文档叶子节点，并为该叶子分配稳定资源容器 URI，再通过受控本地上传链路写入正文内容，成功返回 `201 Created`。
-- `PUT` 命中已有文档叶子 `href` 时，会保留原节点与稳定资源容器 URI，刷新节点更新时间并创建新的本地导入任务覆盖该叶子的正文内容，成功返回 `204 No Content`。
-- `PUT` 响应头会返回 `X-OpenViking-Import-Task-Id`，用于关联后续导入任务进度。
+- `PUT` 命中已有文档叶子 `href` 时，会保留原节点与稳定资源容器 URI，直接替换该叶子的 `contentUri` 正文内容，不再创建本地导入任务，成功返回 `204 No Content`。
+- `PUT` 新建文件时响应头会返回 `X-OpenViking-Import-Task-Id`，用于关联后续导入任务进度。覆盖写入因直接替换叶子而无此头。
 - `DELETE /webdav/:tenantId/:kbName` 会映射为知识库递归删除，并复用知识库服务层与 OpenViking 资源清理逻辑；`DELETE /webdav/:tenantId/:kbName/:nodeName...` 仍只删除叶子文件或空目录，非空目录返回 `409 Conflict`，无 ACL 权限的节点按不存在处理。
 - `DELETE` 对带资源容器 URI 的节点会进入知识树服务层：目录节点会递归删除资源容器；文档叶子会删除该叶子的资源容器与正文内容。OpenViking 返回 `404` 时按幂等删除处理。
 - `MOVE /webdav/:tenantId/:kbName` 会把租户根目录下的知识库目录重命名为新的知识库名，只更新 Admin 侧知识库名称，不修改系统生成的 `vikingUri`，也不调用 OpenViking 移动接口。
@@ -66,7 +66,7 @@ WebDAV 响应不使用统一 JSON envelope。知识库始终映射为目录资�
 - 当前未实现 `LOCK` / `UNLOCK`。Obsidian Remotely Save 的 WebDAV 主链路不强依赖锁方法，常规同步通过目录探测、目录创建、文件写入、删除与 `MOVE` 完成。
 - 写入阶段同一父目录下不允许同名同类型资源；新建 `PUT`、`MKCOL` 或 `MOVE` 产生同名冲突时返回 `409 Conflict`。
 - 路径单段名称不能是空名称、`.`、`..`，不能包含 `/` 或 `\` 分隔符，单段长度不能超过 255 个字符；非法路径返回 `400 text/plain`。
-- `MKCOL` 在租户根目录下创建知识库，在知识库内创建目录节点；两种场景都不触发导入任务或索引重建。`PUT` 会触发异步导入任务，检索索引更新以导入任务完成为准。
+- `MKCOL` 在租户根目录下创建知识库，在知识库内创建目录节点；两种场景都不触发导入任务或索引重建。`PUT` 新建文件会触发异步导入任务，检索索引更新以导入任务完成为准；覆盖已有文件直接替换 `contentUri` 正文叶子。
 
 ### 成功响应
 
@@ -668,7 +668,7 @@ MCP JSON-RPC 消息接口。
 - `sourceType=local` 只能由 `/api/v1/import-tasks/local-upload` 生成，不能直接提交任意 `file://` 路径
 - `/api/v1/import-tasks/local-upload` 使用 `multipart/form-data`，字段为 `kbId`、可选 `targetUri`，以及 `files`
 - 导入任务会在响应中返回 `sourceName`，用于控制台和调用端展示仓库名、企业文档名或本地上传原文件名
-- WebDAV `PUT` 会复用本地上传链路，但不把 WebDAV 注册为新的 `sourceType`；导入任务仍以 `sourceType=local` 入队
+- WebDAV `PUT` 新建文件时会复用本地上传链路，但不把 WebDAV 注册为新的 `sourceType`；导入任务仍以 `sourceType=local` 入队。覆盖文件时直接替换叶子内容，不创建导入任务。
 - `DELETE /api/v1/import-tasks/:id` 仅允许删除 `failed` 状态的任务；若任务来源是受控本地上传文件，服务端会一并清理暂存文件
 - 控制台默认不再传 `targetUri`，服务端会按知识库 `vikingUri` 自动生成导入目标路径
 - OpenViking 资源接口只接收 `path` 或 `temp_file_id`；平台 Token 不会作为 `config` 透传给 OpenViking

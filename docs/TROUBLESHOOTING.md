@@ -200,13 +200,13 @@ cat apps/server/.env | grep OV_
 
 ### 16. Obsidian Remotely Save 连接失败
 
-**原因**: WebDAV 地址、租户用户名或 capability API key 不匹配。OpenViking Admin 的 WebDAV 根路径不带 `/api/v1` 前缀，地址格式为 `/webdav/:tenantId/`。
+**原因**: WebDAV 地址、租户用户名或 capability API key 不匹配。OpenViking Admin 的 WebDAV 根路径不带 `/api/v1` 前缀，地址格式为 `/webdav/:tenantId/`，其中 `:tenantId` 可以是租户记录 UUID 或租户唯一标识。
 
 **解决**:
 
 - 在控制台 WebDAV 配置页复制服务地址，确认地址以 `/webdav/<tenantId>/` 结尾
-- `username` 填租户标识，`password` 填当前租户签发且未过期的 capability API key
-- 确认 capability API key 绑定的租户与 URL 中的 `tenantId` 一致
+- `username` 可填租户记录 UUID 或租户唯一标识，`password` 填当前租户签发且未过期的 capability API key
+- 确认 URL 中的 `tenantId`、`username` 和 capability API key 绑定的租户能解析到同一租户
 - 初次连接先用 `PROPFIND Depth: 0` 验证根路径是否返回 `207 Multi-Status`
 - 写入、删除或重命名失败时，确认 API key 至少具备 `tenant_operator` 权限
 - 如果客户端在租户根目录对知识库目录执行 `MOVE`，服务端会把它映射为知识库重命名；目标路径必须仍位于 `/webdav/<tenantId>/` 根下，且不能与已有知识库同名

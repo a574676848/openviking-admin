@@ -12,9 +12,17 @@ describe('WebdavService 日志', () => {
       resolvePrincipalFromApiKey: jest.fn(),
       ...overrides,
     };
+    const tenantCacheService = {
+      getIsolationConfigByTenantRecordId: jest.fn(
+        async (identifier: string) => ({
+          tenantId: identifier,
+          level: 'small',
+        }),
+      ),
+    };
     const service = new WebdavService(
       capabilityCredentialService as never,
-      {} as never,
+      tenantCacheService as never,
       {} as never,
       {} as never,
       {} as never,

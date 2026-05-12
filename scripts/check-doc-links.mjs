@@ -27,7 +27,9 @@ const broken = [];
 const markdownLinkPattern = /\[[^\]]+\]\((?!https?:\/\/|mailto:|#)([^)]+)\)/g;
 
 for (const file of markdownFiles) {
-  const content = fs.readFileSync(file, 'utf8');
+  const raw = fs.readFileSync(file, 'utf8');
+  // 移除 fenced code blocks，避免将代码示例中的路径误判为文档链接
+  const content = raw.replace(/^(`{3,})[^\n]*\n[\s\S]*?\n\1\s*$/gm, '');
   let match;
   while ((match = markdownLinkPattern.exec(content)) !== null) {
     const rawTarget = match[1].replace(/^<|>$/g, '');

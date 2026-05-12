@@ -174,6 +174,42 @@ describe('KnowledgeTreeService', () => {
     );
   });
 
+  it('syncContentUri 应通过内部入口更新正文叶子 URI', async () => {
+    nodeRepo.findOne.mockResolvedValue({
+      id: 'node-1',
+      tenantId: 'tenant-alpha',
+      kbId: 'kb-1',
+      name: '说明.md',
+      kind: 'document',
+      vikingUri: 'viking://resources/tenants/tenant-alpha/kb-1/node-1/',
+      contentUri:
+        'viking://resources/tenants/tenant-alpha/kb-1/node-1/old.md',
+      updatedAt: new Date('2026-05-01T00:00:00.000Z'),
+    });
+    nodeRepo.save.mockImplementation(async (node) => node);
+
+    const updated = await service.syncContentUri(
+      'node-1',
+      'viking://resources/tenants/tenant-alpha/kb-1/node-1/new.md',
+      'tenant-alpha',
+    );
+
+    expect(nodeRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'node-1',
+        contentUri:
+          'viking://resources/tenants/tenant-alpha/kb-1/node-1/new.md',
+        updatedAt: expect.any(Date),
+      }),
+    );
+    expect(updated).toEqual(
+      expect.objectContaining({
+        contentUri:
+          'viking://resources/tenants/tenant-alpha/kb-1/node-1/new.md',
+      }),
+    );
+  });
+
   it('remove 应先删除 OpenViking 资源再删除节点元数据', async () => {
     nodeRepo.findOne.mockResolvedValue({
       id: 'node-file',

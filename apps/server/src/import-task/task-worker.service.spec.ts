@@ -475,6 +475,138 @@ describe('TaskWorkerService', () => {
     );
   });
 
+  it('文档导入成功后仅在唯一正文叶子存在时回写 contentUri', async () => {
+    const nodeRepo = {
+      update: jest.fn(),
+    };
+    const ovClient = {
+      request: jest.fn().mockResolvedValue({
+        result: [
+          {
+            uri: 'viking://resources/tenants/small-a/kb-1/node-file/content.md',
+            isDir: false,
+          },
+          {
+            uri: 'viking://resources/tenants/small-a/kb-1/node-file/assets/',
+            isDir: true,
+          },
+        ],
+      }),
+      uploadTempFile: jest.fn(),
+    };
+    const service = createService({
+      defaultDataSource: { getRepository: jest.fn() },
+      ovClient,
+    });
+
+    await (
+      service as unknown as {
+        syncDocumentContentUri(
+          context: { nodeRepo: typeof nodeRepo },
+          conn: {
+            baseUrl: string;
+            apiKey: string;
+            account: string;
+            user: string;
+          },
+          node: { id: string },
+          targetUri: string,
+        ): Promise<void>;
+      }
+    ).syncDocumentContentUri(
+      { nodeRepo },
+      {
+        baseUrl: 'http://ov.local',
+        apiKey: 'ov-key',
+        account: 'small-a',
+        user: 'worker-user',
+      },
+      { id: 'node-file' },
+      'viking://resources/small-a/kb-1/node-file/',
+    );
+
+    expect(ovClient.request).toHaveBeenCalledWith(
+      expect.objectContaining({ account: 'small-a' }),
+      '/api/v1/fs/tree?uri=' +
+        encodeURIComponent(
+          'viking://resources/tenants/small-a/kb-1/node-file/',
+        ) +
+        '&depth=1',
+      'GET',
+      undefined,
+      { user: 'worker-user' },
+      { serviceLabel: 'OpenViking 资源树' },
+    );
+    expect(nodeRepo.update).toHaveBeenCalledWith('node-file', {
+      contentUri: 'viking://resources/tenants/small-a/kb-1/node-file/content.md',
+      updatedAt: expect.any(Date),
+    });
+  });
+
+  it('文档正文叶子数量为 0 或多个时应跳过 contentUri 回写', async () => {
+    const cases = [
+      {
+        result: [],
+        label: '0 个正文叶子',
+      },
+      {
+        result: [
+          {
+            uri: 'viking://resources/tenants/small-a/kb-1/node-file/old.md',
+            isDir: false,
+          },
+          {
+            uri: 'viking://resources/tenants/small-a/kb-1/node-file/new.md',
+            isDir: false,
+          },
+        ],
+        label: '多个正文叶子',
+      },
+    ];
+
+    for (const item of cases) {
+      const nodeRepo = {
+        update: jest.fn(),
+      };
+      const ovClient = {
+        request: jest.fn().mockResolvedValue({ result: item.result }),
+        uploadTempFile: jest.fn(),
+      };
+      const service = createService({
+        defaultDataSource: { getRepository: jest.fn() },
+        ovClient,
+      });
+
+      await (
+        service as unknown as {
+          syncDocumentContentUri(
+            context: { nodeRepo: typeof nodeRepo },
+            conn: {
+              baseUrl: string;
+              apiKey: string;
+              account: string;
+              user: string;
+            },
+            node: { id: string },
+            targetUri: string,
+          ): Promise<void>;
+        }
+      ).syncDocumentContentUri(
+        { nodeRepo },
+        {
+          baseUrl: 'http://ov.local',
+          apiKey: 'ov-key',
+          account: 'small-a',
+          user: 'worker-user',
+        },
+        { id: `node-file-${item.label}` },
+        'viking://resources/tenants/small-a/kb-1/node-file/',
+      );
+
+      expect(nodeRepo.update).not.toHaveBeenCalled();
+    }
+  });
+
   it('OpenViking 返回业务失败时应标记任务失败', async () => {
     const tenant = createTenant('test3', TenantIsolationLevel.SMALL);
     const task = {

@@ -13,6 +13,7 @@ export type SourceType =
   | 'git'
   | 'local'
   | 'webdav'
+  | 'manifest'
   | 'feishu'
   | 'dingtalk';
 

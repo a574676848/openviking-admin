@@ -2,7 +2,10 @@
   "name": "openviking-admin",
   "private": true,
   "packageManager": "pnpm@8.15.9",
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "dev": "pnpm --parallel --filter server --filter web run dev",
     "build": "pnpm -r --if-present run build",
@@ -18,6 +21,7 @@
     "server:lint": "pnpm --filter server run lint",
     "server:migration:run": "pnpm --filter server run migration:run",
     "server:migration:revert": "pnpm --filter server run migration:revert",
+    "tenant-storage:upgrade": "pnpm --filter server run tenant-storage:upgrade --",
     "web:dev": "pnpm --filter web run dev",
     "web:build": "pnpm --filter web run build",
     "web:lint": "pnpm --filter web run lint",

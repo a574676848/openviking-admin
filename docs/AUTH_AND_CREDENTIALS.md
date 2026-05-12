@@ -51,9 +51,9 @@ ova auth login
 ### WebDAV 客户端
 
 ```text
-租户标识作为 username
+租户记录 UUID 或租户唯一标识作为 username
   -> capability API key 作为 password
-  -> 通过 /webdav/:tenantId/ 访问知识资源
+  -> 通过 /webdav/:tenantId/ 访问知识资源，:tenantId 同样支持租户记录 UUID 或租户唯一标识
   -> 叶子文件 GET 由 OpenViking content/download 流式返回
   -> MKCOL、PUT、DELETE 与 MOVE 至少需要 tenant_operator 权限并写入 WebDAV 审计日志
 ```
@@ -134,7 +134,7 @@ Agent 运行环境
 - 访问租户范围外 URI 时，服务端返回显式拒绝。
 - API key 与用户和租户绑定，不能跨租户使用。
 - 凭证中心的 API key 列表、创建和吊销接口使用 `/api/v1/capability/keys`，MCP 路径仅保留 SSE 与 JSON-RPC 协议入口。
-- WebDAV 入口复用 capability API key，不额外引入第二套凭证体系；`username` 使用租户标识，`password` 使用 capability API key。
+- WebDAV 入口复用 capability API key，不额外引入第二套凭证体系；`:tenantId` 与 `username` 均支持租户记录 UUID 或租户唯一标识，但必须解析到同一租户，`password` 使用 capability API key。
 
 ## 客户端存储建议
 

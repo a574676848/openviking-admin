@@ -138,6 +138,19 @@ export class KnowledgeTreeService {
     return this.nodeRepo.save({ ...node, updatedAt: new Date() });
   }
 
+  async syncContentUri(
+    id: string,
+    contentUri: string,
+    tenantId: string | null,
+  ): Promise<KnowledgeNodeModel> {
+    const node = await this.findOne(id, tenantId);
+    return this.nodeRepo.save({
+      ...node,
+      contentUri,
+      updatedAt: new Date(),
+    });
+  }
+
   async remove(
     id: string,
     tenantId: string | null,

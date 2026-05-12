@@ -106,6 +106,23 @@ password: Admin@2026
 
 首次登录后必须立即修改默认密码。
 
+### 租户存储升级
+
+`migration:run` 只针对 `openviking_admin` 控制库执行 TypeORM migration，并覆盖其中的 `public` 与 `tenant_%` schema。若系统存在 LARGE 租户，业务表位于租户独立数据库内，需要在控制库迁移后额外执行租户存储升级脚本。该脚本会读取控制库 `tenants` 列表，幂等升级 MEDIUM 租户独立 schema 与 LARGE 租户独立库。
+
+```bash
+pnpm tenant-storage:upgrade -- --env apps/server/.env --dry-run
+pnpm tenant-storage:upgrade -- --env apps/server/.env
+```
+
+也可以不使用 `.env`，直接传入控制库连接：
+
+```bash
+pnpm tenant-storage:upgrade -- --db-host postgres.example.internal --db-port 5432 --db-user openviking_admin --db-pass replace_with_real_password --db-name openviking_admin
+```
+
+脚本当前会补齐租户业务表中的 `import_tasks.source_name`、`knowledge_nodes.kind/content_uri`、`knowledge_nodes.acl` JSONB 类型和缺失的 `integrations` 表。重复执行是安全的；生产环境建议先使用 `--dry-run` 确认目标租户范围。
+
 ### 手工初始化
 
 ```sql

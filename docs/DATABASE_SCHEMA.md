@@ -58,6 +58,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 | `description` | TEXT | NULLABLE | — | 描述 |
 | `created_at` | TIMESTAMP | NOT NULL | `now()` | 创建时间 |
 | `updated_at` | TIMESTAMP | NOT NULL | `now()` | 更新时间 |
+| `deleted_at` | TIMESTAMP | NULLABLE | — | 软删除时间戳（TypeORM `@DeleteDateColumn`） |
 
 ---
 
@@ -96,7 +97,9 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 | `path` | TEXT | NULLABLE | — | 路径 |
 | `sort_order` | INTEGER | NOT NULL | `0` | 排序顺序 |
 | `acl` | JSONB | NULLABLE | — | `{ roles, users, isPublic }` |
-| `viking_uri` | VARCHAR(512) | NULLABLE | — | OpenViking URI |
+| `kind` | VARCHAR(20) | NULLABLE | — | `collection`（目录）或 `document`（文档） |
+| `viking_uri` | VARCHAR(512) | NULLABLE | — | OpenViking 资源容器 URI，以 `/` 结尾 |
+| `content_uri` | VARCHAR(2048) | NULLABLE | — | 正文叶子资源 URI，导入完成后由 Worker 回写 |
 | `created_at` | TIMESTAMP | NOT NULL | `now()` | 创建时间 |
 | `updated_at` | TIMESTAMP | NOT NULL | `now()` | 更新时间 |
 
@@ -114,11 +117,11 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 | `tenant_id` | VARCHAR(64) | NULLABLE | — | 所属租户 |
 | `integration_id` | VARCHAR(255) | NULLABLE | — | 关联的集成凭证 |
 | `kb_id` | UUID | NOT NULL | — | 所属知识库 |
-| `source_type` | VARCHAR(20) | NOT NULL | — | `url` / `git` / `local` / `manifest` / `feishu` / `dingtalk` |
+| `source_type` | VARCHAR(20) | NOT NULL | — | `url` / `git` / `local` / `webdav` / `manifest` / `feishu` / `dingtalk` (注：`webdav` 为遗留历史值) |
 | `source_url` | VARCHAR(2048) | NULLABLE | — | 来源 URL |
 | `source_name` | VARCHAR(255) | NULLABLE | — | 来源展示名称；Git 为仓库名，企业文档和本地上传为文档或文件名 |
 | `target_uri` | VARCHAR(2048) | NOT NULL | — | 目标 URI |
-| `status` | VARCHAR(20) | NOT NULL | `'pending'` | `pending` / `running` / `done` / `failed` |
+| `status` | VARCHAR(20) | NOT NULL | `'pending'` | `pending` / `running` / `done` / `failed` / `cancelled` |
 | `node_count` | INTEGER | NOT NULL | `0` | 节点数量 |
 | `vector_count` | INTEGER | NOT NULL | `0` | 向量数量 |
 | `error_msg` | TEXT | NULLABLE | — | 错误信息 |
@@ -131,7 +134,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 ### search_logs
 
-检索日志表，记录所有检索请求。
+检索日志表，记录所有检索请求。该表统一保留在公共库，不随租户隔离等级拆分到租户 schema 或独立库，以保证平台分析能读取所有租户的日志。`tenant_id` 只是逻辑关联，不表示该表存在于每个租户的数据域。
 
 | 列名 | 类型 | 约束 | 默认值 | 说明 |
 |------|------|------|--------|------|
@@ -217,8 +220,46 @@ Capability Key 表。
 | `user_id` | VARCHAR(255) | NOT NULL | — | 用户 ID |
 | `tenant_id` | VARCHAR(255) | NOT NULL | — | 租户 ID |
 | `last_used_at` | TIMESTAMP | NULLABLE | — | 最后使用时间 |
+| `expires_at` | TIMESTAMP | NULLABLE | — | 过期时间 |
 | `created_at` | TIMESTAMP | NOT NULL | `now()` | 创建时间 |
 | `updated_at` | TIMESTAMP | NOT NULL | `now()` | 更新时间 |
+
+---
+
+### mcp_sessions
+
+MCP 会话表，管理 Streamable HTTP MCP 协议的认证会话。
+
+| 列名 | 类型 | 约束 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `session_id` | VARCHAR(36) | PK, NOT NULL | — | 会话 ID |
+| `credential_hash` | VARCHAR(64) | NOT NULL | — | Capability Key 哈希（SHA-256） |
+| `session_token_hash` | VARCHAR(64) | NOT NULL | — | 会话令牌哈希 |
+| `expires_at` | TIMESTAMP | NOT NULL | — | 会话过期时间 |
+| `last_seen_at` | TIMESTAMP | NOT NULL | — | 最后活跃时间 |
+| `closed_at` | TIMESTAMP | NULLABLE | — | 会话关闭时间 |
+| `created_at` | TIMESTAMP | NOT NULL | `now()` | 创建时间 |
+| `updated_at` | TIMESTAMP | NOT NULL | `now()` | 更新时间 |
+
+**索引**: `idx_mcp_sessions_credential_hash` ON `(credential_hash)`, `idx_mcp_sessions_expires_at` ON `(expires_at)`
+
+---
+
+### mcp_session_events
+
+MCP 会话事件表，存储待推送给客户端的 SSE 事件。
+
+| 列名 | 类型 | 约束 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `id` | UUID | PK, NOT NULL | `uuid_generate_v4()` | 主键 |
+| `session_id` | VARCHAR(36) | NOT NULL | — | 关联会话 ID |
+| `event_type` | VARCHAR(32) | NULLABLE | — | 事件类型 |
+| `payload` | TEXT | NOT NULL | — | 事件载荷（JSON 字符串） |
+| `delivered_at` | TIMESTAMP | NULLABLE | — | 已投递时间 |
+| `expires_at` | TIMESTAMP | NOT NULL | — | 事件过期时间 |
+| `created_at` | TIMESTAMP | NOT NULL | `now()` | 创建时间 |
+
+**索引**: `idx_mcp_session_events_pending` ON `(session_id, delivered_at, created_at)`
 
 ---
 
@@ -228,7 +269,7 @@ Capability Key 表。
 tenants (1) ────< (N) users
 tenants (1) ────< (N) knowledge_bases
 tenants (1) ────< (N) integrations
-tenants (1) ────< (N) search_logs
+tenants (1) ────< (N) search_logs          (逻辑关联，search_logs 统一存储在公共库)
 tenants (1) ────< (N) audit_logs
 tenants (1) ────< (N) import_tasks
 tenants (1) ────< (N) capability_keys
@@ -242,6 +283,8 @@ integrations (1) ────< (N) import_tasks
 
 users (1) ────< (N) audit_logs
 users (1) ────< (N) capability_keys
+
+mcp_sessions (1) ────< (N) mcp_session_events
 ```
 
 ---
@@ -253,8 +296,16 @@ users (1) ────< (N) capability_keys
 | `InitSchema` | 1745000000000 | 创建 users, knowledge_bases, import_tasks, search_logs, audit_logs + 初始管理员 |
 | `AddMissingTables` | 1745100000000 | 创建 tenants, knowledge_nodes, system_configs |
 | `FixSchemaInconsistencies` | 1745200000000 | 添加 SSO 字段 (sso_id, provider)、隔离等级字段、修复列类型 |
+| `AddMcpSessions` | 1746000000000 | 创建 mcp_sessions, mcp_session_events 表 |
+| `RenameUserMcpKeysToCapabilityKeys` | 1746100000000 | 重命名 user_mcp_keys → capability_keys |
+| `AddCapabilityKeyExpiresAt` | 1746180000000 | capability_keys 添加 expires_at 列 |
+| `RenameMcpSessionCredentialHash` | 1746200000000 | mcp_sessions 重命名凭证哈希列 |
+| `AddTenantSoftDelete` | 1746300000000 | tenants 添加 deleted_at 软删除列 |
 | `ScopeUsernamesPerTenant` | 1746400000000 | 将 users.username 调整为平台全局唯一 + 租户内唯一 |
+| `RepairScopedUsernameConstraints` | 1746500000000 | 修复部分唯一索引约束 |
+| `AddKnowledgeNodeKindAndContentUri` | 1746600000000 | knowledge_nodes 添加 kind, content_uri 列 |
 | `RepairSchemaDrift` | 1746700000000 | 补齐 audit_logs、import_tasks、knowledge_nodes、search_logs、integrations 的历史 schema 漂移 |
+| `AddImportTaskSourceName` | 1746800000000 | import_tasks 添加 source_name 列 |
 
 ---
 
