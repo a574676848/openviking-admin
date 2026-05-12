@@ -1,7 +1,6 @@
 import {
   Controller,
   Get,
-  HttpCode,
   Post,
   Query,
   Req,
@@ -35,15 +34,15 @@ export class McpController {
   }
 
   @Post('message')
-  @HttpCode(202)
   async handleMessage(
     @Query('sessionId') sessionId: string,
     @Query('sessionToken') sessionToken: string,
     @Query('key') key: string | undefined,
     @Query('sessionKey') sessionKey: string | undefined,
     @Body() body: JsonRpcRequest,
-  ) {
-    return this.mcpProtocolService.handleMessage(
+    @Res() res: Response,
+  ): Promise<void> {
+    await this.mcpProtocolService.handleMessage(
       {
         sessionId,
         sessionToken,
@@ -52,5 +51,6 @@ export class McpController {
       },
       body,
     );
+    res.status(202).send('Accepted');
   }
 }
