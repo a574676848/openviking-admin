@@ -18,8 +18,13 @@ const OPENVIKING_SECTION_END = '<!-- openviking:end -->';
 const DEFAULT_CLIENT_KEY_NAME = 'ova-mcp';
 const DEFAULT_CREDENTIAL_KIND = 'api-key';
 const DEFAULT_OUTPUT_PATH = '.openviking/capabilities.json';
-const TOML_SECTION_HEADER_RE = /^\s*\[[^\]]+\]\s*$/;
-const OPENVIKING_MCP_SECTION_HEADER_RE = /^\s*\[(mcp_servers\.openviking(?:\.env)?)\]\s*$/;
+const MCP_REMOTE_PACKAGE_NAME = 'mcp-remote';
+const MCP_REMOTE_TRANSPORT_FLAG = '--transport';
+const MCP_REMOTE_SSE_ONLY_TRANSPORT = 'sse-only';
+const CODEX_MCP_SERVER_TYPE = 'stdio';
+const TOML_SECTION_HEADER_RE = /^\s*\[\[?.+\]\]?\s*(?:#.*)?$/;
+const TOML_SECTION_NAME_RE = /^\s*\[\[?\s*([^\]]+?)\s*\]\]?\s*(?:#.*)?$/;
+const OPENVIKING_MCP_SECTION_NAME = 'mcp_servers.openviking';
 const SUPPORTED_EDITORS = ['claude', 'cursor', 'codex'] as const;
 const LOCAL_SKILL_TARGETS = [
     '.claude/skills/openviking-admin/SKILL.md',
@@ -417,7 +422,7 @@ function configureEditor(editor: SupportedEditor, mcpUrl: string): EditorWriteRe
 function buildMcpEntry(mcpUrl: string) {
     return {
         command: 'npx',
-        args: ['-y', '@anthropic-ai/mcp-remote', '--url', mcpUrl],
+        args: buildMcpRemoteArgs(mcpUrl),
     };
 }
 
@@ -441,9 +446,20 @@ function upsertTomlMcpConfig(filePath: string, mcpUrl: string) {
 function buildTomlMcpSection(mcpUrl: string) {
     return [
         '[mcp_servers.openviking]',
+        `type = "${CODEX_MCP_SERVER_TYPE}"`,
         'command = "npx"',
-        `args = ["-y", "@anthropic-ai/mcp-remote", "--url", ${JSON.stringify(mcpUrl)}]`,
+        `args = ${JSON.stringify(buildMcpRemoteArgs(mcpUrl))}`,
     ].join('\n');
+}
+
+function buildMcpRemoteArgs(mcpUrl: string) {
+    return [
+        '-y',
+        MCP_REMOTE_PACKAGE_NAME,
+        mcpUrl,
+        MCP_REMOTE_TRANSPORT_FLAG,
+        MCP_REMOTE_SSE_ONLY_TRANSPORT,
+    ];
 }
 
 function removeOpenVikingTomlSections(content: string) {
@@ -451,12 +467,11 @@ function removeOpenVikingTomlSections(content: string) {
     let skipping = false;
 
     for (const line of content.split(/\r?\n/)) {
-        if (OPENVIKING_MCP_SECTION_HEADER_RE.test(line)) {
-            skipping = true;
-            continue;
-        }
-        if (skipping && TOML_SECTION_HEADER_RE.test(line)) {
-            skipping = false;
+        if (TOML_SECTION_HEADER_RE.test(line)) {
+            skipping = isOpenVikingTomlSection(line);
+            if (skipping) {
+                continue;
+            }
         }
         if (!skipping) {
             keptLines.push(line);
@@ -464,6 +479,14 @@ function removeOpenVikingTomlSections(content: string) {
     }
 
     return keptLines.join('\n');
+}
+
+function isOpenVikingTomlSection(line: string) {
+    const sectionName = line.match(TOML_SECTION_NAME_RE)?.[1]?.trim();
+    return (
+        sectionName === OPENVIKING_MCP_SECTION_NAME ||
+        sectionName?.startsWith(`${OPENVIKING_MCP_SECTION_NAME}.`) === true
+    );
 }
 
 function readJsonObject(filePath: string): Record<string, unknown> {

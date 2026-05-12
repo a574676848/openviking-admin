@@ -201,9 +201,11 @@ ova bootstrap --path <repo>
     "openviking": {
       "command": "npx",
       "args": [
-        "@anthropic-ai/mcp-remote",
-        "--url",
-        "http://localhost:6001/api/v1/mcp/sse?key=<ov-sk-...>"
+        "-y",
+        "mcp-remote",
+        "http://localhost:6001/api/v1/mcp/sse?key=<ov-sk-...>",
+        "--transport",
+        "sse-only"
       ]
     }
   }

@@ -13,6 +13,7 @@ type PendingEvent = {
 
 const SESSION_TTL_MS = 30 * 60 * 1000;
 const EVENT_TTL_MS = 10 * 60 * 1000;
+const MCP_MESSAGE_ENDPOINT = '/api/v1/mcp/message';
 
 @Injectable()
 export class McpSessionService {
@@ -47,7 +48,7 @@ export class McpSessionService {
     return {
       sessionId,
       sessionToken,
-      endpoint: `/api/mcp/message?sessionId=${sessionId}&sessionToken=${sessionToken}&${credentialQueryName}=${encodeURIComponent(credential)}`,
+      endpoint: `${MCP_MESSAGE_ENDPOINT}?sessionId=${sessionId}&sessionToken=${sessionToken}&${credentialQueryName}=${encodeURIComponent(credential)}`,
     };
   }
 

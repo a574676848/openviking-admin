@@ -79,9 +79,11 @@ ova bootstrap --path <repo>
     "openviking": {
       "command": "npx",
       "args": [
-        "@anthropic-ai/mcp-remote",
-        "--url",
-        "http://localhost:6001/api/v1/mcp/sse?key=<ov-sk-...>"
+        "-y",
+        "mcp-remote",
+        "http://localhost:6001/api/v1/mcp/sse?key=<ov-sk-...>",
+        "--transport",
+        "sse-only"
       ]
     }
   }
@@ -96,9 +98,11 @@ ova bootstrap --path <repo>
     "openviking": {
       "command": "npx",
       "args": [
-        "@anthropic-ai/mcp-remote",
-        "--url",
-        "http://localhost:6001/api/v1/mcp/sse?sessionKey=<session-key>"
+        "-y",
+        "mcp-remote",
+        "http://localhost:6001/api/v1/mcp/sse?sessionKey=<session-key>",
+        "--transport",
+        "sse-only"
       ]
     }
   }
@@ -114,9 +118,10 @@ ova bootstrap --path <repo>
       "command": "npx",
       "args": [
         "-y",
-        "@anthropic-ai/mcp-remote",
-        "--url",
-        "http://localhost:6001/api/v1/mcp/sse?key=<ov-sk-...>"
+        "mcp-remote",
+        "http://localhost:6001/api/v1/mcp/sse?key=<ov-sk-...>",
+        "--transport",
+        "sse-only"
       ]
     }
   }
@@ -127,8 +132,9 @@ ova bootstrap --path <repo>
 
 ```toml
 [mcp_servers.openviking]
+type = "stdio"
 command = "npx"
-args = ["-y", "@anthropic-ai/mcp-remote", "--url", "http://localhost:6001/api/v1/mcp/sse?key=<ov-sk-...>"]
+args = ["-y", "mcp-remote", "http://localhost:6001/api/v1/mcp/sse?key=<ov-sk-...>", "--transport", "sse-only"]
 ```
 
 ## 协议流转

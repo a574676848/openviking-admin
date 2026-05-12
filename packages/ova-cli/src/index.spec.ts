@@ -531,7 +531,13 @@ describe("ova cli", () => {
         return [
           'model = "gpt-5.5"',
           "",
+          "[features]",
+          "goals = true",
+          "",
+          "[mcp_servers]",
+          "",
           "[mcp_servers.memory]",
+          'type = "stdio"',
           'command = "npx"',
           'args = ["-y", "@modelcontextprotocol/server-memory"]',
           "",
@@ -562,14 +568,91 @@ describe("ova cli", () => {
     const writeCall = findWritePath(".codex\\config.toml");
     const codexText = String(writeCall?.[1] ?? "");
     expect(codexText).toContain('model = "gpt-5.5"');
+    expect(codexText).toContain("[features]");
+    expect(codexText).toContain("[mcp_servers]");
     expect(codexText).toContain("[mcp_servers.memory]");
+    expect(codexText).toContain('type = "stdio"');
     expect(codexText).toContain("[projects.'\\\\?\\E:\\repo']");
     expect(codexText).toContain("[mcp_servers.gitnexus]");
     expect(codexText).toContain("[mcp_servers.openviking]");
-    expect(codexText).toContain("@anthropic-ai/mcp-remote");
+    expect(codexText).toContain('type = "stdio"');
+    expect(codexText).toContain("mcp-remote");
+    expect(codexText).toContain('"--transport","sse-only"');
+    expect(codexText).not.toContain('"--url"');
+    expect(codexText).not.toContain("@anthropic-ai/mcp-remote");
     expect(codexText).not.toContain('command = "legacy"');
     expect(codexText).not.toContain('TOKEN = "legacy"');
     expect(codexText.match(/\[mcp_servers\.openviking\]/g)).toHaveLength(1);
+  });
+
+  it("应该稳妥替换带注释和子段的 Codex openviking 配置", async () => {
+    setStateFile(
+      buildStateFile({
+        apiKey: "ov-sk-demo",
+      }),
+    );
+    const codexPath = "C:\\Users\\tester\\.codex\\config.toml";
+    mockExistsSync.mockImplementation((filePath: unknown) => {
+      const normalized = normalizePath(filePath);
+      return (
+        normalized === AUTH_STATE_PATH ||
+        normalized === codexPath ||
+        normalized.includes(SKILL_ASSET_SEGMENT)
+      );
+    });
+    mockReadFileSync.mockImplementation((filePath: unknown) => {
+      const normalized = normalizePath(filePath);
+      if (normalized === AUTH_STATE_PATH) {
+        return currentStateRaw;
+      }
+      if (normalized === codexPath) {
+        return [
+          'approval_policy = "never"',
+          "",
+          "[mcp_servers]",
+          "",
+          "[mcp_servers.memory]",
+          'type = "stdio"',
+          'command = "cmd"',
+          'args = ["/c", "npx", "-y", "@modelcontextprotocol/server-memory"]',
+          "",
+          "[mcp_servers.openviking] # 旧配置",
+          'type = "stdio"',
+          'command = "legacy"',
+          "",
+          "[mcp_servers.openviking.env] # 旧环境变量",
+          'TOKEN = "legacy"',
+          "",
+          "[[profiles]]",
+          'name = "daily"',
+          "",
+          "[projects.'E:\\\\repo'] # 项目信任配置",
+          'trust_level = "trusted"',
+          "",
+        ].join("\n");
+      }
+      if (normalized.includes(SKILL_ASSET_SEGMENT)) {
+        return SAMPLE_SKILL_CONTENT;
+      }
+      return "{}";
+    });
+
+    await bootstrap(["setup", "--editor", "codex", "--output", "json"]);
+
+    const writeCall = findWritePath(".codex\\config.toml");
+    const codexText = String(writeCall?.[1] ?? "");
+    expect(codexText).toContain('approval_policy = "never"');
+    expect(codexText).toContain("[mcp_servers]");
+    expect(codexText).toContain("[mcp_servers.memory]");
+    expect(codexText).toContain('args = ["/c", "npx", "-y", "@modelcontextprotocol/server-memory"]');
+    expect(codexText).toContain("[[profiles]]");
+    expect(codexText).toContain("[projects.'E:\\\\repo']");
+    expect(codexText).toContain("[mcp_servers.openviking]");
+    expect(codexText).toContain('type = "stdio"');
+    expect(codexText).toContain('"--transport","sse-only"');
+    expect(codexText).not.toContain('"--url"');
+    expect(codexText).not.toContain('command = "legacy"');
+    expect(codexText).not.toContain('TOKEN = "legacy"');
   });
 
   it("应该拒绝覆盖非对象类型的 JSON mcpServers 配置", async () => {
