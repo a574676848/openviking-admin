@@ -10,6 +10,11 @@ describe('KnowledgeTreeService', () => {
     createFileWithGeneratedUri: jest.fn(),
     remove: jest.fn(),
     findAllowedUris: jest.fn(),
+    aggregateKnowledgeBaseStats: jest.fn(),
+  };
+  const kbRepo = {
+    findById: jest.fn(),
+    save: jest.fn(),
   };
   const settingsService = {
     resolveOVConfig: jest.fn(),
@@ -23,6 +28,7 @@ describe('KnowledgeTreeService', () => {
 
   const service = new KnowledgeTreeService(
     nodeRepo as never,
+    kbRepo as never,
     settingsService as never,
     ovClientService as never,
     documentSessionRegistry as never,
@@ -34,6 +40,18 @@ describe('KnowledgeTreeService', () => {
     documentSessionRegistry.assertNoActiveSessionInNodes.mockImplementation(
       () => undefined,
     );
+    kbRepo.findById.mockResolvedValue({
+      id: 'kb-1',
+      tenantId: 'tenant-alpha',
+      docCount: 2,
+      vectorCount: 8,
+      updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+    });
+    kbRepo.save.mockImplementation(async (payload) => payload);
+    nodeRepo.aggregateKnowledgeBaseStats.mockResolvedValue({
+      docCount: 1,
+      vectorCount: 4,
+    });
     settingsService.resolveOVConfig.mockResolvedValue({
       baseUrl: 'https://ov.example.com',
       apiKey: 'ov-sk-test',
@@ -382,6 +400,38 @@ describe('KnowledgeTreeService', () => {
     expect(ovClientService.request.mock.invocationCallOrder[0]).toBeLessThan(
       nodeRepo.remove.mock.invocationCallOrder[0],
     );
+    expect(nodeRepo.aggregateKnowledgeBaseStats).toHaveBeenCalledWith(
+      'kb-1',
+      'tenant-alpha',
+    );
+    expect(kbRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'kb-1',
+        docCount: 1,
+        vectorCount: 4,
+        updatedAt: expect.any(Date),
+      }),
+    );
+  });
+
+  it('remove 允许跳过知识库统计刷新', async () => {
+    nodeRepo.findOne.mockResolvedValue({
+      id: 'node-file',
+      tenantId: 'tenant-alpha',
+      kbId: 'kb-1',
+      parentId: null,
+      name: '说明.md',
+      vikingUri: 'viking://resources/tenants/tenant-alpha/kb-1/node-file.md',
+    });
+    nodeRepo.find.mockResolvedValue([]);
+    ovClientService.request.mockResolvedValue({});
+
+    await service.remove('node-file', 'tenant-alpha', {
+      skipKnowledgeBaseStatsRefresh: true,
+    });
+
+    expect(nodeRepo.aggregateKnowledgeBaseStats).not.toHaveBeenCalled();
+    expect(kbRepo.save).not.toHaveBeenCalled();
   });
 
   it('remove 删除前应检查目标子树活跃协作会话', async () => {

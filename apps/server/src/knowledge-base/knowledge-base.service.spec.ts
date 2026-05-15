@@ -256,6 +256,7 @@ describe('KnowledgeBaseService', () => {
         },
         user: 'admin',
         skipOpenViking: true,
+        skipKnowledgeBaseStatsRefresh: true,
       },
     );
     expect(knowledgeTreeService.remove).not.toHaveBeenCalledWith(

@@ -165,6 +165,7 @@ export class KnowledgeBaseService {
         ovConfig,
         user: ovConfig.user,
         skipOpenViking: true,
+        skipKnowledgeBaseStatsRefresh: true,
       });
     }
 

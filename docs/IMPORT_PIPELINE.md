@@ -218,10 +218,10 @@ LOCAL_IMPORT_KEEP_FILES_AFTER_DONE=false
 - 本地上传文件名会在服务端统一规范化为 UTF-8 后写入 `sourceName`，避免浏览器 multipart 文件名被中间件按 Latin-1 解析后在文档处理中心显示乱码。
 - 本地文件统一转成 OpenViking `temp_file_id` 后再注入，不向 OpenViking 传递 `file://` 路径。
 - 默认导入成功后会删除暂存文件；失败任务会保留文件，便于排查和重试。
-- 由导入中心自动创建的文档节点会记录到任务的 `autoCreatedNodeId`。自动文档节点和导入任务在 Admin 数据库内同事务提交，避免任务保存失败时残留孤儿知识树节点。失败任务被物理删除时，服务端会同步删除该自动文档节点；手工选择的既有目录节点不会被删除。
+- 由导入中心自动创建的文档节点会记录到任务的 `autoCreatedNodeId`。自动文档节点和导入任务在 Admin 数据库内同事务提交，避免任务保存失败时残留孤儿知识树节点。失败任务被物理删除时，服务端会同步删除该自动文档节点，并按当前知识树重新聚合知识库 `docCount/vectorCount`；手工选择的既有目录节点不会被删除。
 - 自动创建的新文档节点首次导入时，Worker 不会先递归删除该节点的 OpenViking 稳定资源容器，避免刚创建的资源仍在处理时触发 `409 Resource is being processed`。只有目标文档节点已存在 `contentUri`，即明确属于覆盖已有正文时，Worker 才会在导入前清空目标容器。
 - WebDAV `PUT` 新建文件时复用受控上传链路：WebDAV adapter 接收请求正文，新建白名单内文件时创建文档叶子节点并分配稳定资源容器 URI，并创建 `sourceType=local` 导入任务。Worker 导入成功后会把当前正文叶子的实际 `contentUri` 回写到知识树节点。覆盖已有白名单文件时，只保存 Admin 侧最新草稿并把文档节点索引状态标记为 `dirty`，不再创建导入任务，也不主动触发 OpenViking 语义化或向量化；需要用户在编辑器或 capability 中显式执行 `documents.index.rebuild`。WebDAV 本身仍是同步 adapter，不新增独立导入来源。
-- WebDAV `DELETE` 不创建导入任务；它复用知识树服务层删除语义，对带 `vikingUri` 的叶子文件或空目录先调用 OpenViking `/api/v1/fs` 删除资源和向量，再删除 Admin 侧知识树节点。控制台知识树和知识库删除同样走这条服务层语义，避免只删 Admin 元数据。
+- WebDAV `DELETE` 不创建导入任务；它复用知识树服务层删除语义，对带 `vikingUri` 的叶子文件或空目录先调用 OpenViking `/api/v1/fs` 删除资源和向量，再删除 Admin 侧知识树节点，并刷新知识库 `docCount/vectorCount`。控制台知识树删除同样走这条服务层语义，避免只删 Admin 元数据；知识库整体删除会删除知识库记录本身，不再额外刷新该知识库统计。
 - WebDAV `MOVE` 不创建导入任务，也不触发 OpenViking 移动或重索引；它只更新 Admin 侧知识树节点名称、父节点、排序和展示路径，保持稳定资源容器 URI 不变。
 
 ### 创建导入任务

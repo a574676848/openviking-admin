@@ -15,6 +15,8 @@ import type {
   KnowledgeNodeKind,
   KnowledgeNodeModel,
 } from './domain/knowledge-node.model';
+import { KNOWLEDGE_BASE_REPOSITORY } from '../knowledge-base/domain/repositories/knowledge-base.repository.interface';
+import type { IKnowledgeBaseRepository } from '../knowledge-base/domain/repositories/knowledge-base.repository.interface';
 import { SettingsService } from '../settings/settings.service';
 import { DynamicDataSourceService } from '../common/dynamic-datasource.service';
 import { TenantIsolationLevel } from '../common/constants/system.enum';
@@ -39,6 +41,7 @@ export interface OpenVikingDeleteContext {
   ovConfig?: OpenVikingDeleteConfig | null;
   user?: string | null;
   skipOpenViking?: boolean;
+  skipKnowledgeBaseStatsRefresh?: boolean;
 }
 
 const OPENVIKING_FS_PATH = '/api/v1/fs';
@@ -58,6 +61,8 @@ export class KnowledgeTreeService {
   constructor(
     @Inject(IKnowledgeNodeRepository)
     private readonly nodeRepo: IKnowledgeNodeRepository,
+    @Inject(KNOWLEDGE_BASE_REPOSITORY)
+    private readonly kbRepo: IKnowledgeBaseRepository,
     private readonly settingsService: SettingsService,
     private readonly ovClientService: OVClientService,
     private readonly documentSessionRegistry: DocumentSessionRegistry,
@@ -363,12 +368,15 @@ export class KnowledgeTreeService {
     tenantId: string | null,
     context?: OpenVikingDeleteContext,
   ): Promise<void> {
-    await this.findOne(id, tenantId);
+    const node = await this.findOne(id, tenantId);
     const nodeIds = await this.collectSubtreeNodeIds(id, tenantId);
     this.documentSessionRegistry.assertNoActiveSessionInNodes(nodeIds);
 
     const ovConfig = await this.resolveOpenVikingConfig(tenantId, context);
     await this.removeNode(id, tenantId, ovConfig, context?.skipOpenViking);
+    if (!context?.skipKnowledgeBaseStatsRefresh) {
+      await this.refreshKnowledgeBaseStats(node.kbId, tenantId);
+    }
   }
 
   private isSubtreeAffectingUpdate(
@@ -432,6 +440,24 @@ export class KnowledgeTreeService {
       );
     }
     await this.nodeRepo.remove(node);
+  }
+
+  private async refreshKnowledgeBaseStats(
+    kbId: string,
+    tenantId: string | null,
+  ): Promise<void> {
+    const kb = await this.kbRepo.findById(kbId, tenantId);
+    if (!kb) {
+      return;
+    }
+
+    const stats = await this.aggregateKnowledgeBaseStats(kbId, tenantId);
+    await this.kbRepo.save({
+      ...kb,
+      docCount: stats.docCount,
+      vectorCount: stats.vectorCount,
+      updatedAt: new Date(),
+    });
   }
 
   private shouldDeleteRecursively(node: KnowledgeNodeModel): boolean {

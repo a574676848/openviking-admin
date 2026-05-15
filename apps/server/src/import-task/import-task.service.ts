@@ -593,7 +593,7 @@ export class ImportTaskService {
     return task;
   }
 
-  private async deleteAutoCreatedNode(task: ImportTaskModel) {
+  private async deleteAutoCreatedNode(task: ImportTaskModel): Promise<void> {
     if (!task.autoCreatedNodeId) {
       return;
     }
