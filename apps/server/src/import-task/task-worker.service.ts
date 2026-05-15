@@ -41,6 +41,9 @@ interface TargetKnowledgeNode {
   contentUri: string | null;
 }
 
+const FALLBACK_ERROR_PREVIEW_LIMIT = 240;
+const MASKED_URL_CREDENTIAL = '***';
+
 @Injectable()
 export class TaskWorkerService implements OnModuleInit {
   private readonly logger = new Logger(TaskWorkerService.name);
@@ -516,6 +519,7 @@ export class TaskWorkerService implements OnModuleInit {
       typeof injectBody.path === 'string' ? injectBody.path : null;
     const paths = firstPath ? [firstPath, ...fallbackPaths] : [null];
     let lastError: unknown = null;
+    const fallbackErrors: string[] = [];
 
     for (const path of paths) {
       const body = { ...injectBody };
@@ -528,6 +532,7 @@ export class TaskWorkerService implements OnModuleInit {
         })
         .catch((error) => {
           lastError = error;
+          fallbackErrors.push(this.formatFallbackError(path, error));
           return null;
         });
 
@@ -540,12 +545,54 @@ export class TaskWorkerService implements OnModuleInit {
         return;
       } catch (error) {
         lastError = error;
+        fallbackErrors.push(this.formatFallbackError(path, error));
       }
+    }
+
+    if (fallbackErrors.length > 1) {
+      throw new Error(
+        `OpenViking 资源注入失败，已尝试 ${fallbackErrors.length} 个来源：${fallbackErrors.join('；')}`,
+      );
     }
 
     throw lastError instanceof Error
       ? lastError
       : new Error('OpenViking 资源注入失败');
+  }
+
+  private formatFallbackError(path: string | null, error: unknown) {
+    const source = path ? this.maskSensitiveUrl(path) : 'temp_file_id';
+    const message = this.toFallbackErrorMessage(error);
+    return `${source} -> ${message}`;
+  }
+
+  private toFallbackErrorMessage(error: unknown) {
+    const rawMessage =
+      error instanceof Error ? error.message : String(error ?? '未知错误');
+    return this.maskSensitiveText(rawMessage).slice(
+      0,
+      FALLBACK_ERROR_PREVIEW_LIMIT,
+    );
+  }
+
+  private maskSensitiveUrl(value: string) {
+    try {
+      const url = new URL(value);
+      if (url.username || url.password) {
+        url.username = MASKED_URL_CREDENTIAL;
+        url.password = '';
+      }
+      return url.toString();
+    } catch {
+      return this.maskSensitiveText(value);
+    }
+  }
+
+  private maskSensitiveText(value: string) {
+    return value.replace(
+      /(https?:\/\/)([^@\s/]+)@/g,
+      `$1${MASKED_URL_CREDENTIAL}@`,
+    );
   }
 
   private async uploadLocalTempFile(

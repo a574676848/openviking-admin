@@ -162,7 +162,15 @@ Worker 会先通过钉钉应用 Token 调用 `queryByUrl` 解析文档链接，�
 | `config.branch`        | `main`                   | 目标分支                      |
 | `config.path`          | `/docs`                  | 文档目录 (可选)               |
 
-自托管 Git 服务会由 Worker 先拼出可直接克隆的凭证 URL，再按 GitLab 兼容规则追加 `oauth2:token`、`username:token`、`token` 等 fallback；如果仓库返回 `Parse error: Git command failed`，通常说明当前凭证无法通过目标 Git 服务器的账号或协议校验，需要切换到可用的集成凭证重新导入。
+Git 仓库导入按三段式降级处理：
+
+1. 优先调用平台 Archive API 下载源码包，再通过 `temp_upload` 注入 OpenViking。GitLab 使用 `/api/v4/projects/:id/repository/archive.zip`，GitHub 使用 `/repos/{owner}/{repo}/zipball/{ref}`，token 通过 HTTP Header 传递，不拼入 URL。自托管 GitLab 的 archive 下载使用 Node 原生 HTTP 客户端，避免部分实例对 Node `fetch` 返回 `406 Not Acceptable`。
+2. Archive API 失败时，Worker 会检测对应 CLI 是否可用。GitLab 使用 `glab`，GitHub 使用 `gh`，并把租户集成 token 写入 CLI 进程环境变量。CLI 失败会记录脱敏日志，然后继续降级。
+3. API 与 CLI 都不可用或失败时，才回退到 OpenViking 原生 Git URL 注入。GitLab 兼容服务只使用 `oauth2:token` 与 `username:token` 这类 HTTP Basic 形态，不再生成 `token@host` 这种缺少用户名的 URL，避免 Git 在非交互环境下报 `could not read Username`。
+
+每一层失败都会输出脱敏日志，最终任务失败时还会聚合 OpenViking Git URL fallback 的失败原因，方便判断是 API 权限、CLI 环境、协议、用户名还是 token 权限问题。
+
+Git 导入不是 Admin 侧事务。OpenViking 在克隆、解析、写入资源和向量化的某个中间阶段失败时，目标目录可能已经产生部分资源；失败任务的 `nodeCount` 或 `vectorCount` 若非零，应先清理目标目录或换新目录后再重试，避免残留内容影响后续导入结果。
 
 ### 创建导入任务
 

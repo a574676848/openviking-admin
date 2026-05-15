@@ -1201,6 +1201,107 @@ describe('TaskWorkerService', () => {
     );
   });
 
+  it('Git fallback 全部失败时应保留每次尝试的脱敏错误', async () => {
+    const tenant = createTenant('test3', TenantIsolationLevel.MEDIUM);
+    const task = {
+      ...createTask('git-fallback-failed-task', 'test3'),
+      sourceType: 'git',
+      sourceUrl:
+        'https://git.exexm.com/epaas-product/exe-cloud-business-center',
+      targetUri: 'viking://resources/tenants/test3/kb-1/imports/git/',
+    } as ImportTaskModel;
+    const tenantRepo = {
+      findOne: jest.fn().mockResolvedValue(tenant),
+    };
+    const taskRepo = {
+      update: jest.fn(),
+    };
+    const integrationRepo = {
+      findOne: jest.fn().mockResolvedValue({
+        id: 'integration-1',
+        tenantId: 'test3',
+        name: 'GitLab',
+        type: IntegrationType.GITLAB,
+        credentials: { token: 'encrypted-token' },
+        config: null,
+        active: true,
+        createdAt: new Date('2026-04-29T00:00:00.000Z'),
+        updatedAt: new Date('2026-04-29T00:00:00.000Z'),
+      }),
+    };
+    const queryRunner = {
+      isReleased: false,
+      connect: jest.fn(),
+      query: jest.fn(),
+      release: jest.fn(),
+      manager: {
+        getRepository: jest.fn((entity) =>
+          entity === ImportTask ? taskRepo : integrationRepo,
+        ),
+      },
+    };
+    const defaultDataSource = {
+      getRepository: jest.fn((entity) => {
+        if (entity === Tenant) return tenantRepo;
+        throw new Error('unexpected repository');
+      }),
+      createQueryRunner: jest.fn(() => queryRunner),
+    };
+    const ovConfigResolver = {
+      resolve: jest.fn().mockResolvedValue({
+        baseUrl: 'http://ov.local',
+        apiKey: 'ov-key',
+        account: 'test3',
+        user: 'worker-user',
+      }),
+    };
+    const ovClient = {
+      request: jest
+        .fn()
+        .mockRejectedValueOnce(
+          new Error(
+            'Parse error: git clone http://oauth2:plain-token@git.exexm.com/repo failed',
+          ),
+        )
+        .mockRejectedValueOnce(
+          new Error(
+            'Parse error: git clone https://oauth2:plain-token@git.exexm.com/repo failed',
+          ),
+        ),
+    };
+    const git = {
+      supports: jest.fn((type) => type === IntegrationType.GITLAB),
+      resolveConfig: jest.fn().mockResolvedValue({
+        path: 'http://oauth2:plain-token@git.exexm.com/epaas-product/exe-cloud-business-center',
+        fallbackPaths: [
+          'https://oauth2:plain-token@git.exexm.com/epaas-product/exe-cloud-business-center',
+        ],
+      }),
+    };
+    const service = createService({
+      defaultDataSource,
+      ovConfigResolver,
+      ovClient,
+      git,
+    });
+
+    await (
+      service as unknown as {
+        processTask(task: ImportTaskModel): Promise<void>;
+      }
+    ).processTask(task);
+
+    const failedUpdate = taskRepo.update.mock.calls.find(
+      ([, payload]) => payload.status === TaskStatus.FAILED,
+    );
+    expect(failedUpdate?.[1].errorMsg).toContain(
+      'OpenViking 资源注入失败，已尝试 2 个来源',
+    );
+    expect(failedUpdate?.[1].errorMsg).toContain('http://***@git.exexm.com');
+    expect(failedUpdate?.[1].errorMsg).toContain('https://***@git.exexm.com');
+    expect(failedUpdate?.[1].errorMsg).not.toContain('plain-token');
+  });
+
   it('网页提取任务应直接把 URL 注入 OpenViking 资源接口', async () => {
     const tenant = createTenant('small-a', TenantIsolationLevel.SMALL);
     const task = {
