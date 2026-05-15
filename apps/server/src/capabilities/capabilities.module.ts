@@ -36,6 +36,7 @@ import { ImportTaskModule } from '../import-task/import-task.module';
 import { RedisCapabilityRateLimitStore } from './infrastructure/redis-capability-rate-limit.store';
 import { SettingsModule } from '../settings/settings.module';
 import { DocumentModule } from '../document/document.module';
+import { AuditModule } from '../audit/audit.module';
 
 const CAPABILITY_RATE_LIMIT_ENV = {
   DRIVER: 'CAPABILITY_RATE_LIMIT_STORE_DRIVER',
@@ -64,6 +65,7 @@ const CAPABILITY_RATE_LIMIT_ENV = {
     ImportTaskModule,
     SettingsModule,
     DocumentModule,
+    AuditModule,
   ],
   controllers: [
     CapabilitiesController,

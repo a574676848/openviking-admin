@@ -168,9 +168,15 @@ Git 仓库导入按三段式降级处理：
 2. Archive API 失败时，Worker 会检测对应 CLI 是否可用。GitLab 使用 `glab`，GitHub 使用 `gh`，并把租户集成 token 写入 CLI 进程环境变量。CLI 失败会记录脱敏日志，然后继续降级。
 3. API 与 CLI 都不可用或失败时，才回退到 OpenViking 原生 Git URL 注入。GitLab 兼容服务只使用 `oauth2:token` 与 `username:token` 这类 HTTP Basic 形态，不再生成 `token@host` 这种缺少用户名的 URL，避免 Git 在非交互环境下报 `could not read Username`。
 
+Git zip 注入会等待 OpenViking 完成处理后再回写任务统计，避免源码包已解包出节点但向量统计仍为 0。飞书、钉钉等平台文档在新建任务首次导入时同样等待处理完成；非首次处理可继续使用非等待模式，避免单文档语义化队列较慢时长期阻塞 Worker。
+
 每一层失败都会输出脱敏日志，最终任务失败时还会聚合 OpenViking Git URL fallback 的失败原因，方便判断是 API 权限、CLI 环境、协议、用户名还是 token 权限问题。
 
 Git 导入不是 Admin 侧事务。OpenViking 在克隆、解析、写入资源和向量化的某个中间阶段失败时，目标目录可能已经产生部分资源；失败任务的 `nodeCount` 或 `vectorCount` 若非零，应先清理目标目录或换新目录后再重试，避免残留内容影响后续导入结果。
+
+文档处理中心的“同步”会先刷新单个任务的节点数与向量数，再按知识库根资源 URI 聚合刷新知识库管理中的文档数与向量数，保证任务详情和知识库列表看到的是同一份 OpenViking 资源状态。
+
+对于非等待模式完成的任务，Worker 会做后台延迟同步补偿：任务完成后若状态为成功且向量数仍为 0，会按延迟阶梯重新同步任务和知识库统计；服务启动后也会扫描最近 24 小时内 `done + vectorCount=0` 的 Git、飞书、钉钉和本地导入任务，补偿进程重启期间丢失的内存调度。
 
 ### 创建导入任务
 

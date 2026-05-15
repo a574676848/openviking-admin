@@ -19,6 +19,7 @@ describe('ImportTaskService', () => {
   };
   const kbRepo = {
     findById: jest.fn(),
+    save: jest.fn(),
   };
   const nodeRepo = {
     find: jest.fn(),
@@ -61,6 +62,8 @@ describe('ImportTaskService', () => {
     queryRunner.isReleased = false;
     request.tenantQueryRunner = queryRunner;
     request.tenantDataSource = undefined;
+    kbRepo.findById.mockResolvedValue(null);
+    kbRepo.save.mockImplementation(async (kb) => kb);
     nodeRepo.find.mockResolvedValue([]);
     nodeRepo.findOne.mockResolvedValue(null);
     nodeRepo.createFileWithGeneratedUri.mockImplementation(
@@ -923,6 +926,55 @@ describe('ImportTaskService', () => {
       nodeCount: 2,
       vectorCount: 19,
     });
+  });
+
+  it('同步导入结果后应按知识库根资源刷新知识库统计', async () => {
+    settings.resolveOVConfig.mockResolvedValue({
+      baseUrl: 'http://ov.local',
+      apiKey: 'ov-key',
+      account: 'tenant-a',
+      user: 'worker-user',
+      rerankEndpoint: null,
+      rerankModel: null,
+    });
+    taskRepo.findById.mockResolvedValueOnce({
+      id: 'task-sync-kb',
+      tenantId: 'tenant-a',
+      kbId: 'kb-1',
+      targetUri: 'viking://resources/tenants/tenant-a/kb-1/imports/git/',
+    });
+    kbRepo.findById.mockResolvedValueOnce({
+      id: 'kb-1',
+      tenantId: 'tenant-a',
+      vikingUri: 'viking://resources/tenant-a/kb-1/',
+      docCount: 0,
+      vectorCount: 0,
+      updatedAt: new Date('2026-04-29T00:00:00.000Z'),
+    });
+    ovClient.request
+      .mockResolvedValueOnce({
+        result: { children_count: 3, descendant_count: 4 },
+      })
+      .mockResolvedValueOnce({ result: { count: 9 } })
+      .mockResolvedValueOnce({
+        result: { children_count: 40, descendant_count: 6 },
+      })
+      .mockResolvedValueOnce({ result: { count: 540 } });
+
+    await service.syncResult('task-sync-kb', 'tenant-a');
+
+    expect(taskRepo.update).toHaveBeenCalledWith('task-sync-kb', {
+      nodeCount: 7,
+      vectorCount: 9,
+    });
+    expect(kbRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'kb-1',
+        docCount: 46,
+        vectorCount: 540,
+        updatedAt: expect.any(Date),
+      }),
+    );
   });
 
   it('显式 targetUri 指向当前知识库节点时允许创建', async () => {

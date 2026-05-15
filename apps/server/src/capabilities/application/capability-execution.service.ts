@@ -1,6 +1,7 @@
 import {
   Injectable,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { CapabilityCatalogService } from './capability-catalog.service';
@@ -19,6 +20,8 @@ import { CapabilitySchemaValidatorService } from './capability-schema-validator.
 
 @Injectable()
 export class CapabilityExecutionService {
+  private readonly logger = new Logger(CapabilityExecutionService.name);
+
   constructor(
     private readonly capabilityCatalogService: CapabilityCatalogService,
     private readonly capabilityAuthorizationService: CapabilityAuthorizationService,
@@ -88,11 +91,17 @@ export class CapabilityExecutionService {
         throw error;
       }
 
-      await this.capabilityObservabilityService.recordFailure(
-        context.trace,
-        context.principal,
-        error,
-      );
+      try {
+        await this.capabilityObservabilityService.recordFailure(
+          context.trace,
+          context.principal,
+          error,
+        );
+      } catch (observabilityError) {
+        this.logger.error(
+          `capability.failure.record_failed traceId=${context.trace.traceId}: ${observabilityError instanceof Error ? observabilityError.message : '未知错误'}`,
+        );
+      }
 
       if (error instanceof Error) {
         throw error;

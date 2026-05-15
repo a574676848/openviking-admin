@@ -10,6 +10,7 @@ export interface PlatformInjectConfig {
   path?: string;
   fallbackPaths?: string[];
   tempFile?: PlatformTempFile;
+  waitForCompletion?: boolean;
 }
 
 export interface IPlatformIntegrator {

@@ -482,6 +482,7 @@ export class ImportTaskService {
       const vectorCount = this.toNonNegativeNumber(vecResult?.count);
 
       await this.taskRepo.update(id, { nodeCount, vectorCount });
+      await this.refreshKnowledgeBaseStatsFromOpenViking(task, conn);
       return this.taskRepo.findById(id, tenantId);
     } catch (err) {
       const message = err instanceof Error ? err.message : '未知错误';
@@ -512,6 +513,76 @@ export class ImportTaskService {
 
   private countTreeItems(result: unknown) {
     return Array.isArray(result) ? result.length : 0;
+  }
+
+  private async refreshKnowledgeBaseStatsFromOpenViking(
+    task: ImportTaskModel,
+    conn: {
+      baseUrl: string;
+      apiKey: string;
+      account: string;
+      user: string;
+    },
+  ) {
+    const kb = await this.kbRepo.findById(task.kbId, task.tenantId);
+    if (!kb?.vikingUri) {
+      return;
+    }
+
+    const stats = await this.fetchResourceStats(
+      conn,
+      this.toEngineResourceUri(kb.vikingUri),
+    );
+    await this.kbRepo.save({
+      ...kb,
+      docCount: stats.nodeCount,
+      vectorCount: stats.vectorCount,
+      updatedAt: new Date(),
+    });
+  }
+
+  private async fetchResourceStats(
+    conn: {
+      baseUrl: string;
+      apiKey: string;
+      account: string;
+      user: string;
+    },
+    targetUri: string,
+  ) {
+    const statData = await this.ovClient.request(
+      conn,
+      `/api/v1/fs/stat?uri=${encodeURIComponent(targetUri)}`,
+      'GET',
+      undefined,
+      { user: conn.user || undefined },
+    );
+    const statResult = statData?.result as Record<string, unknown> | undefined;
+    let nodeCount = this.resolveNodeCountFromStat(statResult);
+    if (nodeCount === null) {
+      const treeData = await this.ovClient.request(
+        conn,
+        `/api/v1/fs/tree?uri=${encodeURIComponent(targetUri)}&depth=2`,
+        'GET',
+        undefined,
+        { user: conn.user || undefined },
+      );
+      nodeCount = this.countTreeItems(treeData?.result);
+    }
+
+    const vecData = await this.ovClient.request(
+      conn,
+      `/api/v1/debug/vector/count?uri=${encodeURIComponent(targetUri)}`,
+      'GET',
+      undefined,
+      { user: conn.user || undefined },
+    );
+    const vecResult = vecData?.result as Record<string, unknown> | undefined;
+
+    return {
+      nodeCount,
+      vectorCount: this.toNonNegativeNumber(vecResult?.count),
+    };
   }
 
   async retry(

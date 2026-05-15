@@ -24,6 +24,7 @@ class CliSuccessGitIntegrator extends GitIntegrator {
         buffer: Buffer.from('cli-zip'),
         mimeType: 'application/zip',
       },
+      waitForCompletion: true,
     };
   }
 }
@@ -79,6 +80,7 @@ describe('GitIntegrator', () => {
       buffer: Buffer.from('api-zip'),
       mimeType: 'application/zip',
     });
+    expect(result.waitForCompletion).toBe(true);
   });
 
   it('GitLab 应通过 API archive 下载 zip 并注入 tempFile', async () => {
@@ -107,6 +109,7 @@ describe('GitIntegrator', () => {
       buffer: Buffer.from('gitlab-api-zip'),
       mimeType: 'application/zip',
     });
+    expect(result.waitForCompletion).toBe(true);
   });
 
   it('API 失败后应尝试 CLI archive', async () => {
@@ -123,6 +126,7 @@ describe('GitIntegrator', () => {
       buffer: Buffer.from('cli-zip'),
       mimeType: 'application/zip',
     });
+    expect(result.waitForCompletion).toBe(true);
   });
 
   it('GitLab 凭证应生成 OpenViking 可 clone 的 oauth2 URL', async () => {

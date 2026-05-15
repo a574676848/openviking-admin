@@ -115,15 +115,26 @@ export class CapabilityObservabilityService {
       credentialType: credentialType ?? trace.credentialType,
       outcome: 'failure',
     });
-    await this.auditService.log({
-      tenantId: principal?.tenantId ?? undefined,
-      userId: principal?.userId,
-      username: principal?.username,
-      action: 'capability.invoke',
-      target: trace.capability,
-      success: false,
-      meta: payload,
-    });
+    try {
+      await this.auditService.log({
+        tenantId: principal?.tenantId ?? undefined,
+        userId: principal?.userId,
+        username: principal?.username,
+        action: 'capability.invoke',
+        target: trace.capability,
+        success: false,
+        meta: payload,
+      });
+    } catch (auditError) {
+      this.logger.error(
+        `capability.failure.audit_failed ${JSON.stringify({
+          traceId: trace.traceId,
+          requestId: trace.requestId,
+          capability: trace.capability,
+          error: auditError instanceof Error ? auditError.message : '未知错误',
+        })}`,
+      );
+    }
   }
 
   async recordRejected(

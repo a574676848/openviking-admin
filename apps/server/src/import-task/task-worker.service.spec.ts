@@ -3,6 +3,7 @@ import { ImportTask } from './entities/import-task.entity';
 import { Integration } from '../tenant/entities/integration.entity';
 import { Tenant } from '../tenant/entities/tenant.entity';
 import { KnowledgeNode } from '../knowledge-tree/entities/knowledge-node.entity';
+import { KnowledgeBase } from '../knowledge-base/entities/knowledge-base.entity';
 import { DocumentSessionRegistry } from '../common/document-session-registry';
 import {
   IntegrationType,
@@ -190,6 +191,62 @@ describe('TaskWorkerService', () => {
     });
   });
 
+  it('启动补偿扫描应只调度成功但向量数为 0 的近期任务', async () => {
+    const tenant = createTenant('small-a', TenantIsolationLevel.SMALL);
+    const candidate = {
+      ...createTask('stats-sync-task', 'small-a', TaskStatus.DONE),
+      sourceType: 'git',
+      nodeCount: 0,
+      vectorCount: 0,
+      updatedAt: new Date(),
+    } as ImportTask;
+    const tenantRepo = {
+      find: jest.fn().mockResolvedValue([tenant]),
+    };
+    const taskRepo = {
+      find: jest.fn().mockResolvedValue([candidate]),
+    };
+    const defaultDataSource = {
+      getRepository: jest.fn((entity) => {
+        if (entity === Tenant) return tenantRepo;
+        if (entity === ImportTask) return taskRepo;
+        if (entity === Integration) return { findOne: jest.fn() };
+        if (entity === KnowledgeNode) return { findOne: jest.fn() };
+        if (entity === KnowledgeBase) return { findOne: jest.fn() };
+        throw new Error('unexpected repository');
+      }),
+    };
+    const service = createService({ defaultDataSource });
+    const scheduleSpy = jest
+      .spyOn(
+        service as unknown as {
+          scheduleDelayedStatsSync(task: Pick<ImportTask, 'id' | 'tenantId'>): void;
+        },
+        'scheduleDelayedStatsSync',
+      )
+      .mockImplementation(() => undefined);
+
+    await (
+      service as unknown as {
+        recoverStatsSyncTasks(): Promise<void>;
+      }
+    ).recoverStatsSyncTasks();
+
+    expect(taskRepo.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: TaskStatus.DONE,
+          vectorCount: 0,
+        }),
+        order: { updatedAt: 'DESC' },
+        take: 50,
+      }),
+    );
+    expect(scheduleSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'stats-sync-task' }),
+    );
+  });
+
   it('轮询入口应吞掉单次轮询异常，避免未处理拒绝退出进程', async () => {
     const service = createService({
       defaultDataSource: { getRepository: jest.fn() },
@@ -327,7 +384,7 @@ describe('TaskWorkerService', () => {
       expect.objectContaining({
         temp_file_id: 'platform_feishu.md',
         to: 'viking://resources/tenants/large-a/kb-1/imports/feishu/',
-        wait: false,
+        wait: true,
       }),
       { user: 'worker-user' },
     );
@@ -1090,6 +1147,184 @@ describe('TaskWorkerService', () => {
       expect.not.objectContaining({ config: expect.anything() }),
       { user: 'worker-user' },
     );
+  });
+
+  it('Git zip 导入应等待 OpenViking 完成处理后再统计向量', async () => {
+    const tenant = createTenant('test3', TenantIsolationLevel.MEDIUM);
+    const task = {
+      ...createTask('git-zip-task', 'test3'),
+      sourceType: 'git',
+      sourceUrl: 'https://git.example.com/org/repo',
+      targetUri: 'viking://resources/tenants/test3/kb-1/imports/git/',
+    } as ImportTaskModel;
+    const tenantRepo = {
+      findOne: jest.fn().mockResolvedValue(tenant),
+    };
+    const taskRepo = {
+      update: jest.fn(),
+    };
+    const integrationRepo = {
+      findOne: jest.fn().mockResolvedValue({
+        id: 'integration-1',
+        tenantId: 'test3',
+        name: 'GitLab',
+        type: IntegrationType.GITLAB,
+        credentials: { token: 'encrypted-token' },
+        config: null,
+        active: true,
+        createdAt: new Date('2026-04-29T00:00:00.000Z'),
+        updatedAt: new Date('2026-04-29T00:00:00.000Z'),
+      }),
+    };
+    const queryRunner = {
+      isReleased: false,
+      connect: jest.fn(),
+      query: jest.fn(),
+      release: jest.fn(),
+      manager: {
+        getRepository: jest.fn((entity) =>
+          entity === ImportTask ? taskRepo : integrationRepo,
+        ),
+      },
+    };
+    const defaultDataSource = {
+      getRepository: jest.fn((entity) => {
+        if (entity === Tenant) return tenantRepo;
+        throw new Error('unexpected repository');
+      }),
+      createQueryRunner: jest.fn(() => queryRunner),
+    };
+    const ovConfigResolver = {
+      resolve: jest.fn().mockResolvedValue({
+        baseUrl: 'http://ov.local',
+        apiKey: 'ov-key',
+        account: 'test3',
+        user: 'worker-user',
+      }),
+    };
+    const ovClient = {
+      request: jest.fn().mockResolvedValue({ ok: true }),
+      uploadTempFile: jest.fn().mockResolvedValue({
+        result: { temp_file_id: 'git-repo.zip' },
+      }),
+    };
+    const git = {
+      supports: jest.fn((type) => type === IntegrationType.GITLAB),
+      resolveConfig: jest.fn().mockResolvedValue({
+        tempFile: {
+          fileName: 'repo-main.zip',
+          buffer: Buffer.from('zip'),
+          mimeType: 'application/zip',
+        },
+        waitForCompletion: true,
+      }),
+    };
+    const service = createService({
+      defaultDataSource,
+      ovConfigResolver,
+      ovClient,
+      git,
+    });
+
+    await (
+      service as unknown as {
+        processTask(task: ImportTaskModel): Promise<void>;
+      }
+    ).processTask(task);
+
+    expect(ovClient.request).toHaveBeenCalledWith(
+      expect.objectContaining({ account: 'test3' }),
+      '/api/v1/resources',
+      'POST',
+      expect.objectContaining({
+        temp_file_id: 'git-repo.zip',
+        to: 'viking://resources/tenants/test3/kb-1/imports/git/',
+        wait: true,
+      }),
+      { user: 'worker-user' },
+    );
+  });
+
+  it('延迟统计同步应刷新任务和知识库聚合指标', async () => {
+    const tenant = createTenant('test3', TenantIsolationLevel.SMALL);
+    const task = {
+      ...createTask('delayed-sync-task', 'test3', TaskStatus.DONE),
+      sourceType: 'git',
+      targetUri: 'viking://resources/tenants/test3/kb-1/imports/git/',
+      nodeCount: 1,
+      vectorCount: 0,
+    } as ImportTask;
+    const tenantRepo = {
+      findOne: jest.fn().mockResolvedValue(tenant),
+    };
+    const taskRepo = {
+      findOne: jest.fn().mockResolvedValue(task),
+      update: jest.fn(),
+    };
+    const kbRepo = {
+      findOne: jest.fn().mockResolvedValue({
+        id: 'kb-1',
+        tenantId: 'test3',
+        vikingUri: 'viking://resources/test3/kb-1/',
+      }),
+      update: jest.fn(),
+    };
+    const defaultDataSource = {
+      getRepository: jest.fn((entity) => {
+        if (entity === Tenant) return tenantRepo;
+        if (entity === ImportTask) return taskRepo;
+        if (entity === Integration) return { findOne: jest.fn() };
+        if (entity === KnowledgeNode) return { findOne: jest.fn() };
+        if (entity === KnowledgeBase) return kbRepo;
+        throw new Error('unexpected repository');
+      }),
+    };
+    const ovConfigResolver = {
+      resolve: jest.fn().mockResolvedValue({
+        baseUrl: 'http://ov.local',
+        apiKey: 'ov-key',
+        account: 'test3',
+        user: 'worker-user',
+      }),
+    };
+    const ovClient = {
+      request: jest
+        .fn()
+        .mockResolvedValueOnce({
+          result: { children_count: 3, descendant_count: 4 },
+        })
+        .mockResolvedValueOnce({ result: { count: 9 } })
+        .mockResolvedValueOnce({
+          result: { children_count: 40, descendant_count: 6 },
+        })
+        .mockResolvedValueOnce({ result: { count: 540 } }),
+      uploadTempFile: jest.fn(),
+    };
+    const service = createService({
+      defaultDataSource,
+      ovConfigResolver,
+      ovClient,
+    });
+
+    await (
+      service as unknown as {
+        syncDelayedTaskStats(
+          task: Pick<ImportTaskModel, 'id' | 'tenantId'>,
+          attempt: number,
+        ): Promise<void>;
+      }
+    ).syncDelayedTaskStats({ id: task.id, tenantId: task.tenantId }, 0);
+
+    expect(taskRepo.update).toHaveBeenCalledWith(task.id, {
+      nodeCount: 7,
+      vectorCount: 9,
+      updatedAt: expect.any(Date),
+    });
+    expect(kbRepo.update).toHaveBeenCalledWith('kb-1', {
+      docCount: 46,
+      vectorCount: 540,
+      updatedAt: expect.any(Date),
+    });
   });
 
   it('OpenViking 返回注入失败时应继续尝试 Git fallback path', async () => {

@@ -110,7 +110,7 @@ export class DashboardImportTaskStatsService {
       await queryRunner.query(
         `SET search_path TO "${this.buildTenantSchemaName(tenantId)}", public`,
       );
-      return this.resolveRepoStats(
+      return this.resolveRepoStatsSequentially(
         queryRunner.manager.getRepository(ImportTask),
         {},
       );
@@ -159,6 +159,29 @@ export class DashboardImportTaskStatsService {
         take: DASHBOARD_RECENT_TASK_LIMIT,
       }),
     ]);
+
+    return { total, failed, running, recentTasks };
+  }
+
+  private async resolveRepoStatsSequentially(
+    repo: {
+      count(options?: { where?: Record<string, unknown> }): Promise<number>;
+      find(options?: {
+        where?: Record<string, unknown>;
+        order?: Record<string, 'ASC' | 'DESC'>;
+        take?: number;
+      }): Promise<ImportTask[]>;
+    },
+    where: Record<string, unknown>,
+  ): Promise<PlatformImportTaskStats> {
+    const total = await repo.count({ where });
+    const failed = await repo.count({ where: { ...where, status: 'failed' } });
+    const running = await repo.count({ where: { ...where, status: 'running' } });
+    const recentTasks = await repo.find({
+      where,
+      order: { createdAt: 'DESC' },
+      take: DASHBOARD_RECENT_TASK_LIMIT,
+    });
 
     return { total, failed, running, recentTasks };
   }

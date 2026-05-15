@@ -124,6 +124,30 @@ describe('CapabilityExecutionService', () => {
     );
   });
 
+  it('should preserve original gateway error when failure recording fails', async () => {
+    rateLimit.assertAllowed = jest.fn();
+    gateway.grep = jest.fn().mockRejectedValue(new Error('OV timeout'));
+    observability.recordFailure = jest
+      .fn()
+      .mockRejectedValue(new TypeError("Cannot read properties of undefined (reading 'error')"));
+
+    await expect(
+      service.execute(
+        'knowledge.grep',
+        { pattern: 'tenant' },
+        {
+          ...context,
+          trace: {
+            ...context.trace,
+            capability: 'knowledge.grep',
+          },
+        },
+      ),
+    ).rejects.toThrow('OV timeout');
+
+    expect((observability.recordFailure as jest.Mock).mock.calls.length).toBe(1);
+  });
+
   it('should record rejection when rate limit is hit', async () => {
     rateLimit.assertAllowed = jest.fn(() => {
       throw new CapabilityRateLimitException({

@@ -79,6 +79,38 @@ describe('CapabilityObservabilityService', () => {
     );
   });
 
+  it('should not throw when failure audit logging fails', async () => {
+    (auditService.log as jest.Mock).mockRejectedValueOnce(
+      new TypeError("Cannot read properties of undefined (reading 'error')"),
+    );
+
+    await expect(
+      service.recordFailure(
+        {
+          traceId: 'trace-failure-1',
+          spanId: 'span-failure-1',
+          requestId: 'request-failure-1',
+          tenantId: 'tenant-1',
+          userId: 'user-1',
+          channel: 'http',
+          clientType: 'service',
+          credentialType: 'capability_access_token',
+          capability: 'knowledge.search',
+        },
+        null,
+        new Error('OV timeout'),
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(auditService.log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'capability.invoke',
+        success: false,
+        target: 'knowledge.search',
+      }),
+    );
+  });
+
   it('should expose metrics and rate limit snapshot', async () => {
     await service.recordCredentialExchange({
       traceId: 'trace-credential-1',

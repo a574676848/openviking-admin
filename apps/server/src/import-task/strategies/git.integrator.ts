@@ -118,6 +118,7 @@ export class GitIntegrator implements IPlatformIntegrator {
         buffer,
         mimeType: ARCHIVE_MIME_TYPE,
       },
+      waitForCompletion: true,
     };
   }
 
@@ -225,6 +226,7 @@ export class GitIntegrator implements IPlatformIntegrator {
         buffer: output,
         mimeType: ARCHIVE_MIME_TYPE,
       },
+      waitForCompletion: true,
     };
   }
 

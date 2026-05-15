@@ -1,5 +1,11 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { DataSource, Repository, type QueryRunner } from 'typeorm';
+import {
+  DataSource,
+  In,
+  MoreThanOrEqual,
+  Repository,
+  type QueryRunner,
+} from 'typeorm';
 import { OPENVIKING_RESOURCE_ENDPOINTS, QUEUE_CONFIG } from './constants';
 import { OVClientService } from '../common/ov-client.service';
 import { DynamicDataSourceService } from '../common/dynamic-datasource.service';
@@ -8,6 +14,7 @@ import { FeishuIntegrator } from './strategies/feishu.integrator';
 import { DingTalkIntegrator } from './strategies/dingtalk.integrator';
 import { GitIntegrator } from './strategies/git.integrator';
 import { ImportTask } from './entities/import-task.entity';
+import { KnowledgeBase } from '../knowledge-base/entities/knowledge-base.entity';
 import type { ImportTaskModel } from './domain/import-task.model';
 import type { PlatformInjectConfig } from './strategies/platform-integrator.interface';
 import { Integration } from '../tenant/entities/integration.entity';
@@ -29,6 +36,7 @@ interface TenantTaskContext {
   taskRepo: Repository<ImportTask>;
   integrationRepo: Repository<Integration>;
   nodeRepo: Repository<KnowledgeNode>;
+  getKbRepo: () => Repository<KnowledgeBase>;
   release: () => Promise<void>;
 }
 
@@ -43,12 +51,19 @@ interface TargetKnowledgeNode {
 
 const FALLBACK_ERROR_PREVIEW_LIMIT = 240;
 const MASKED_URL_CREDENTIAL = '***';
+const INITIAL_TASK_TIMESTAMP_TOLERANCE_MS = 1000;
+const DELAYED_STATS_SYNC_DELAYS_MS = [10_000, 30_000, 90_000, 180_000, 300_000];
+const STATS_SYNC_SCAN_INTERVAL_MS = 5 * 60_000;
+const STATS_SYNC_LOOKBACK_MS = 24 * 60 * 60_000;
+const STATS_SYNC_SOURCE_TYPES = ['git', 'feishu', 'dingtalk', 'local'] as const;
 
 @Injectable()
 export class TaskWorkerService implements OnModuleInit {
   private readonly logger = new Logger(TaskWorkerService.name);
   private currentConcurrency = 0;
   private isPolling = false;
+  private isStatsSyncScanning = false;
+  private readonly scheduledStatsSyncTaskIds = new Set<string>();
   private readonly SENSITIVE_KEYS = [
     'token',
     'password',
@@ -72,6 +87,7 @@ export class TaskWorkerService implements OnModuleInit {
   async onModuleInit() {
     this.logger.log('Initializing TaskWorker: Running cleanup...');
     await this.recoverZombieTasks();
+    await this.recoverStatsSyncTasks();
     this.startWorker();
   }
 
@@ -93,6 +109,9 @@ export class TaskWorkerService implements OnModuleInit {
     setInterval(() => {
       this.runPollSafely();
     }, QUEUE_CONFIG.POLLING_INTERVAL_MS);
+    setInterval(() => {
+      this.runStatsSyncScanSafely();
+    }, STATS_SYNC_SCAN_INTERVAL_MS);
   }
 
   private runPollSafely() {
@@ -131,6 +150,7 @@ export class TaskWorkerService implements OnModuleInit {
   private async processTask(task: ImportTaskModel) {
     this.currentConcurrency++;
     let tenant: TenantModel | null = null;
+    let shouldScheduleStatsSync = false;
 
     try {
       const currentTenant = await this.findTenantForTask(task);
@@ -202,7 +222,8 @@ export class TaskWorkerService implements OnModuleInit {
                 conn,
                 resolved.tempFile,
               );
-              injectBody.wait = false;
+              injectBody.wait =
+                resolved.waitForCompletion ?? this.isInitialImportTask(task);
               delete injectBody.path;
             } else if (resolved.path) {
               injectBody.path = resolved.path;
@@ -239,8 +260,16 @@ export class TaskWorkerService implements OnModuleInit {
           ...resourceStats,
           updatedAt: new Date(),
         });
+        shouldScheduleStatsSync = this.shouldScheduleStatsSync(
+          task,
+          injectBody.wait,
+          resourceStats,
+        );
         await this.cleanupLocalFileAfterDone(task);
       });
+      if (shouldScheduleStatsSync) {
+        this.scheduleDelayedStatsSync(task);
+      }
       this.logger.log(
         `<< [Task:${task.id.slice(0, 8)}] Successfully ingested.`,
       );
@@ -281,6 +310,57 @@ export class TaskWorkerService implements OnModuleInit {
     return tasks;
   }
 
+  private runStatsSyncScanSafely() {
+    void this.recoverStatsSyncTasks().catch((error) => {
+      const message = error instanceof Error ? error.message : '未知错误';
+      this.logger.warn(`扫描导入任务延迟统计同步失败: ${message}`);
+    });
+  }
+
+  private async recoverStatsSyncTasks() {
+    if (this.isStatsSyncScanning) {
+      return;
+    }
+    this.isStatsSyncScanning = true;
+    try {
+      const candidates = await this.findStatsSyncCandidates();
+      for (const task of candidates) {
+        this.scheduleDelayedStatsSync(task);
+      }
+    } finally {
+      this.isStatsSyncScanning = false;
+    }
+  }
+
+  private async findStatsSyncCandidates(): Promise<ImportTaskModel[]> {
+    const since = new Date(Date.now() - STATS_SYNC_LOOKBACK_MS);
+    const tenants = await this.findActiveTenants();
+    const tasks: ImportTaskModel[] = [];
+
+    for (const tenant of tenants) {
+      await this.withTenantTaskContext(tenant, async (context) => {
+        const items = await context.taskRepo.find({
+          where: {
+            status: TaskStatus.DONE,
+            sourceType: In([...STATS_SYNC_SOURCE_TYPES]),
+            vectorCount: 0,
+            updatedAt: MoreThanOrEqual(since),
+          },
+          order: { updatedAt: 'DESC' },
+          take: 50,
+        });
+        tasks.push(...items.map((item) => this.toTaskModel(item)));
+      }).catch((error) => {
+        const message = error instanceof Error ? error.message : '未知错误';
+        this.logger.warn(
+          `Skip import task stats sync scan for tenant [${tenant.tenantId}]: ${message}`,
+        );
+      });
+    }
+
+    return tasks;
+  }
+
   private async cleanupLocalFileAfterDone(task: ImportTaskModel) {
     if (
       task.sourceType !== 'local' ||
@@ -291,6 +371,118 @@ export class TaskWorkerService implements OnModuleInit {
     }
 
     await this.localImportStorage.deleteBySourceUrl(task.sourceUrl);
+  }
+
+  private isInitialImportTask(task: ImportTaskModel) {
+    const createdAt = task.createdAt?.getTime?.() ?? 0;
+    const updatedAt = task.updatedAt?.getTime?.() ?? 0;
+    return (
+      !task.errorMsg &&
+      task.nodeCount === 0 &&
+      task.vectorCount === 0 &&
+      Math.abs(updatedAt - createdAt) <= INITIAL_TASK_TIMESTAMP_TOLERANCE_MS
+    );
+  }
+
+  private shouldScheduleStatsSync(
+    task: ImportTaskModel,
+    wait: unknown,
+    stats: Partial<Pick<ImportTaskModel, 'nodeCount' | 'vectorCount'>>,
+  ) {
+    return (
+      wait === false &&
+      STATS_SYNC_SOURCE_TYPES.includes(
+        task.sourceType as (typeof STATS_SYNC_SOURCE_TYPES)[number],
+      ) &&
+      (stats.vectorCount ?? 0) === 0
+    );
+  }
+
+  private scheduleDelayedStatsSync(task: Pick<ImportTaskModel, 'id' | 'tenantId'>) {
+    if (this.scheduledStatsSyncTaskIds.has(task.id)) {
+      return;
+    }
+    this.scheduledStatsSyncTaskIds.add(task.id);
+    this.scheduleDelayedStatsSyncAttempt(task, 0);
+  }
+
+  private scheduleDelayedStatsSyncAttempt(
+    task: Pick<ImportTaskModel, 'id' | 'tenantId'>,
+    attempt: number,
+  ) {
+    const delayMs = DELAYED_STATS_SYNC_DELAYS_MS[attempt];
+    if (delayMs === undefined) {
+      this.scheduledStatsSyncTaskIds.delete(task.id);
+      this.logger.warn(
+        `导入任务 ${task.id} 延迟统计同步已达到最大重试次数，停止补偿。`,
+      );
+      return;
+    }
+
+    setTimeout(() => {
+      void this.syncDelayedTaskStats(task, attempt).catch((error) => {
+        const message = error instanceof Error ? error.message : '未知错误';
+        this.logger.warn(
+          `导入任务 ${task.id} 延迟统计同步失败: ${message}`,
+        );
+        this.scheduleDelayedStatsSyncAttempt(task, attempt + 1);
+      });
+    }, delayMs);
+  }
+
+  private async syncDelayedTaskStats(
+    taskRef: Pick<ImportTaskModel, 'id' | 'tenantId'>,
+    attempt: number,
+  ) {
+    const tenant = await this.findTenantForTask(taskRef as ImportTaskModel);
+    const shouldContinue = await this.withTenantTaskContext(
+      tenant,
+      async (context) => {
+        const task = await context.taskRepo.findOne({
+          where: { id: taskRef.id, tenantId: taskRef.tenantId },
+        });
+        if (!task || !this.shouldSyncStatsCandidate(this.toTaskModel(task))) {
+          this.scheduledStatsSyncTaskIds.delete(taskRef.id);
+          return false;
+        }
+
+        const rawConn = await this.ovConfigResolver.resolve(tenant.tenantId);
+        const conn = {
+          baseUrl: rawConn.baseUrl || '',
+          apiKey: rawConn.apiKey || '',
+          account: rawConn.account || 'default',
+          user: rawConn.user || '',
+        };
+        const taskStats = await this.fetchResourceStats(
+          conn,
+          this.toEngineResourceUri(task.targetUri),
+        );
+        await context.taskRepo.update(task.id, {
+          ...taskStats,
+          updatedAt: new Date(),
+        });
+        await this.refreshKnowledgeBaseStats(context, conn, this.toTaskModel(task));
+        if ((taskStats.vectorCount ?? 0) > 0) {
+          this.scheduledStatsSyncTaskIds.delete(taskRef.id);
+          return false;
+        }
+        return true;
+      },
+    );
+
+    if (shouldContinue) {
+      this.scheduleDelayedStatsSyncAttempt(taskRef, attempt + 1);
+    }
+  }
+
+  private shouldSyncStatsCandidate(task: ImportTaskModel) {
+    return (
+      task.status === TaskStatus.DONE &&
+      STATS_SYNC_SOURCE_TYPES.includes(
+        task.sourceType as (typeof STATS_SYNC_SOURCE_TYPES)[number],
+      ) &&
+      task.vectorCount === 0
+    );
   }
 
   private resolvePlatformSourceName(resolved: PlatformInjectConfig) {
@@ -367,6 +559,34 @@ export class TaskWorkerService implements OnModuleInit {
       this.logger.warn(`同步导入任务资源统计失败: ${message}`);
       return {};
     }
+  }
+
+  private async refreshKnowledgeBaseStats(
+    context: TenantTaskContext,
+    conn: {
+      baseUrl: string;
+      apiKey: string;
+      account: string;
+      user: string;
+    },
+    task: ImportTaskModel,
+  ) {
+    const kbRepo = context.getKbRepo();
+    const kb = await kbRepo.findOne({
+      where: { id: task.kbId, tenantId: task.tenantId },
+    });
+    if (!kb?.vikingUri) {
+      return;
+    }
+    const stats = await this.fetchResourceStats(
+      conn,
+      this.toEngineResourceUri(kb.vikingUri),
+    );
+    await kbRepo.update(kb.id, {
+      docCount: stats.nodeCount,
+      vectorCount: stats.vectorCount,
+      updatedAt: new Date(),
+    });
   }
 
   private async findTargetNode(
@@ -759,6 +979,7 @@ export class TaskWorkerService implements OnModuleInit {
         taskRepo: dataSource.getRepository(ImportTask),
         integrationRepo: dataSource.getRepository(Integration),
         nodeRepo: dataSource.getRepository(KnowledgeNode),
+        getKbRepo: () => dataSource.getRepository(KnowledgeBase),
         release: async () => undefined,
       };
     }
@@ -776,6 +997,7 @@ export class TaskWorkerService implements OnModuleInit {
       taskRepo: this.defaultDataSource.getRepository(ImportTask),
       integrationRepo: this.defaultDataSource.getRepository(Integration),
       nodeRepo: this.defaultDataSource.getRepository(KnowledgeNode),
+      getKbRepo: () => this.defaultDataSource.getRepository(KnowledgeBase),
       release: async () => undefined,
     };
   }
@@ -787,6 +1009,7 @@ export class TaskWorkerService implements OnModuleInit {
       taskRepo: queryRunner.manager.getRepository(ImportTask),
       integrationRepo: queryRunner.manager.getRepository(Integration),
       nodeRepo: queryRunner.manager.getRepository(KnowledgeNode),
+      getKbRepo: () => queryRunner.manager.getRepository(KnowledgeBase),
       release: async () => {
         if (queryRunner.isReleased) {
           return;
