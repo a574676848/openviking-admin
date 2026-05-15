@@ -23,9 +23,12 @@ import type {
 @Injectable({ scope: Scope.REQUEST })
 export class KnowledgeNodeRepositoryImpl implements IKnowledgeNodeRepository {
   private static readonly RESOURCE_URI_PREFIX = 'viking://resources';
-  private static readonly DEFAULT_INDEX_STATUS: KnowledgeNodeIndexStatus = 'clean';
+  private static readonly DEFAULT_INDEX_STATUS: KnowledgeNodeIndexStatus =
+    'clean';
 
-  private inferKind(entity: Pick<KnowledgeNode, 'kind' | 'vikingUri'>): KnowledgeNodeKind {
+  private inferKind(
+    entity: Pick<KnowledgeNode, 'kind' | 'vikingUri'>,
+  ): KnowledgeNodeKind {
     if (entity.kind === 'collection' || entity.kind === 'document') {
       return entity.kind;
     }
@@ -33,12 +36,18 @@ export class KnowledgeNodeRepositoryImpl implements IKnowledgeNodeRepository {
     return entity.vikingUri?.endsWith('/') ? 'collection' : 'document';
   }
 
-  private inferContentUri(entity: Pick<KnowledgeNode, 'contentUri' | 'vikingUri' | 'kind'>) {
+  private inferContentUri(
+    entity: Pick<KnowledgeNode, 'contentUri' | 'vikingUri' | 'kind'>,
+  ) {
     if (entity.contentUri) {
       return entity.contentUri;
     }
 
-    if (this.inferKind(entity) === 'document' && entity.vikingUri && !entity.vikingUri.endsWith('/')) {
+    if (
+      this.inferKind(entity) === 'document' &&
+      entity.vikingUri &&
+      !entity.vikingUri.endsWith('/')
+    ) {
       return entity.vikingUri;
     }
 
@@ -76,7 +85,8 @@ export class KnowledgeNodeRepositoryImpl implements IKnowledgeNodeRepository {
       kind: this.inferKind(entity),
       vikingUri: entity.vikingUri,
       contentUri: this.inferContentUri(entity),
-      indexStatus: entity.indexStatus ?? KnowledgeNodeRepositoryImpl.DEFAULT_INDEX_STATUS,
+      indexStatus:
+        entity.indexStatus ?? KnowledgeNodeRepositoryImpl.DEFAULT_INDEX_STATUS,
       draftVersion: entity.draftVersion ?? 0,
       indexedVersion: entity.indexedVersion ?? 0,
       vectorCount: entity.vectorCount ?? null,
@@ -119,8 +129,10 @@ export class KnowledgeNodeRepositoryImpl implements IKnowledgeNodeRepository {
       indexStatus: node.indexStatus ?? undefined,
       draftVersion: node.draftVersion ?? undefined,
       indexedVersion: node.indexedVersion ?? undefined,
-      vectorCount: node.vectorCount === undefined ? undefined : node.vectorCount,
-      lastIndexedAt: node.lastIndexedAt === undefined ? undefined : node.lastIndexedAt,
+      vectorCount:
+        node.vectorCount === undefined ? undefined : node.vectorCount,
+      lastIndexedAt:
+        node.lastIndexedAt === undefined ? undefined : node.lastIndexedAt,
       indexError: node.indexError === undefined ? undefined : node.indexError,
       createdById: node.createdById ?? undefined,
       createdByName: node.createdByName ?? undefined,
@@ -342,8 +354,8 @@ export class KnowledgeNodeRepositoryImpl implements IKnowledgeNodeRepository {
     return Array.from(
       new Set(
         nodes.flatMap((node) =>
-          [node.vikingUri, node.contentUri].filter(
-            (uri): uri is string => Boolean(uri),
+          [node.vikingUri, node.contentUri].filter((uri): uri is string =>
+            Boolean(uri),
           ),
         ),
       ),
@@ -376,7 +388,9 @@ export class KnowledgeNodeRepositoryImpl implements IKnowledgeNodeRepository {
     };
   }
 
-  private toNonNegativeInteger(value: string | number | null | undefined): number {
+  private toNonNegativeInteger(
+    value: string | number | null | undefined,
+  ): number {
     const parsed = Number(value ?? 0);
     if (!Number.isFinite(parsed) || parsed < 0) {
       return 0;
@@ -403,19 +417,22 @@ export class KnowledgeNodeRepositoryImpl implements IKnowledgeNodeRepository {
     if (nodes.length === 0) return [];
 
     const nodeIds = nodes.map((n) => n.id);
-    
-    const countQuery = this.repo.createQueryBuilder('child')
+
+    const countQuery = this.repo
+      .createQueryBuilder('child')
       .select('child.parentId', 'parentId')
       .addSelect('COUNT(child.id)', 'count')
       .where('child.parentId IN (:...nodeIds)', { nodeIds })
       .groupBy('child.parentId');
-      
+
     if (tenantId) {
       countQuery.andWhere('child.tenantId = :tenantId', { tenantId });
     }
 
     const counts = await countQuery.getRawMany();
-    const countMap = new Map(counts.map((c) => [c.parentId, parseInt(c.count, 10)]));
+    const countMap = new Map(
+      counts.map((c) => [c.parentId, parseInt(c.count, 10)]),
+    );
 
     return nodes.map((node) => ({
       ...this.toModel(node),
@@ -436,16 +453,20 @@ export class KnowledgeNodeRepositoryImpl implements IKnowledgeNodeRepository {
     while (currentId) {
       const where: Record<string, any> = { id: currentId, kbId };
       if (tenantId) where.tenantId = tenantId;
-      
-      const node = await this.repo.findOne({ where, select: ['id', 'parentId'] });
+
+      const node = await this.repo.findOne({
+        where,
+        select: ['id', 'parentId'],
+      });
       if (!node) break;
-      
+
       parentIdsToLoad.add(node.parentId);
       currentId = node.parentId;
     }
 
     // 2. Load all nodes whose parentId is in the set
-    const queryBuilder = this.repo.createQueryBuilder('node')
+    const queryBuilder = this.repo
+      .createQueryBuilder('node')
       .where('node.kbId = :kbId', { kbId });
 
     if (tenantId) {
@@ -454,35 +475,45 @@ export class KnowledgeNodeRepositoryImpl implements IKnowledgeNodeRepository {
 
     const parentIdsArray = Array.from(parentIdsToLoad);
     const hasNull = parentIdsArray.includes(null);
-    const nonNullParentIds = parentIdsArray.filter(id => id !== null);
+    const nonNullParentIds = parentIdsArray.filter((id) => id !== null);
 
     if (hasNull && nonNullParentIds.length > 0) {
-      queryBuilder.andWhere('(node.parentId IS NULL OR node.parentId IN (:...nonNullParentIds))', { nonNullParentIds });
+      queryBuilder.andWhere(
+        '(node.parentId IS NULL OR node.parentId IN (:...nonNullParentIds))',
+        { nonNullParentIds },
+      );
     } else if (hasNull) {
       queryBuilder.andWhere('node.parentId IS NULL');
     } else {
-      queryBuilder.andWhere('node.parentId IN (:...nonNullParentIds)', { nonNullParentIds });
+      queryBuilder.andWhere('node.parentId IN (:...nonNullParentIds)', {
+        nonNullParentIds,
+      });
     }
 
-    queryBuilder.orderBy('node.sortOrder', 'ASC').addOrderBy('node.createdAt', 'ASC');
+    queryBuilder
+      .orderBy('node.sortOrder', 'ASC')
+      .addOrderBy('node.createdAt', 'ASC');
 
     const nodes = await queryBuilder.getMany();
     if (nodes.length === 0) return [];
 
     // 3. Compute children count
     const nodeIds = nodes.map((n) => n.id);
-    const countQuery = this.repo.createQueryBuilder('child')
+    const countQuery = this.repo
+      .createQueryBuilder('child')
       .select('child.parentId', 'parentId')
       .addSelect('COUNT(child.id)', 'count')
       .where('child.parentId IN (:...nodeIds)', { nodeIds })
       .groupBy('child.parentId');
-      
+
     if (tenantId) {
       countQuery.andWhere('child.tenantId = :tenantId', { tenantId });
     }
 
     const counts = await countQuery.getRawMany();
-    const countMap = new Map(counts.map((c) => [c.parentId, parseInt(c.count, 10)]));
+    const countMap = new Map(
+      counts.map((c) => [c.parentId, parseInt(c.count, 10)]),
+    );
 
     return nodes.map((node) => ({
       ...this.toModel(node),

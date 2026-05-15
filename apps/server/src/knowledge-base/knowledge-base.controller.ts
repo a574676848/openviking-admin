@@ -45,7 +45,10 @@ export class KnowledgeBaseController {
     @Query('q') q?: string,
   ) {
     const parsedPage = Math.max(1, page ? parseInt(page, 10) : 1);
-    const parsedPageSize = Math.max(1, Math.min(100, pageSize ? parseInt(pageSize, 10) : 6));
+    const parsedPageSize = Math.max(
+      1,
+      Math.min(100, pageSize ? parseInt(pageSize, 10) : 6),
+    );
     const { items, total } = await this.kbService.findAllPaginated(
       req.tenantScope,
       parsedPage,

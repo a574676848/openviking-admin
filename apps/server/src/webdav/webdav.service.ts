@@ -1506,9 +1506,7 @@ export class WebdavService {
     node: WebdavKnowledgeNode;
     body: Buffer;
   }): Promise<WebdavResponse> {
-    const lockResponse = this.assertNoActiveWriteSessionResponse(
-      input.node.id,
-    );
+    const lockResponse = this.assertNoActiveWriteSessionResponse(input.node.id);
     if (lockResponse) {
       return lockResponse;
     }
@@ -2415,12 +2413,9 @@ export class WebdavService {
     throw error;
   }
 
-  private isDocumentSessionLockedError(
-    error: unknown,
-  ): error is HttpException {
+  private isDocumentSessionLockedError(error: unknown): error is HttpException {
     return (
-      error instanceof HttpException &&
-      error.getStatus() === HttpStatus.LOCKED
+      error instanceof HttpException && error.getStatus() === HttpStatus.LOCKED
     );
   }
 

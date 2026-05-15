@@ -190,7 +190,13 @@ describe('DocumentContentCodec', () => {
       {
         type: 'codeBlock',
         props: expect.objectContaining({ language: 'mermaid' }),
-        content: [{ type: 'text', text: 'flowchart TD\n  A[开始] --> B[结束]', styles: {} }],
+        content: [
+          {
+            type: 'text',
+            text: 'flowchart TD\n  A[开始] --> B[结束]',
+            styles: {},
+          },
+        ],
       },
     ]);
     expect(codec.blocksToMarkdown(blocks)).toBe(markdown);

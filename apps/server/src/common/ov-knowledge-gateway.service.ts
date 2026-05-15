@@ -113,11 +113,7 @@ export class OVKnowledgeGatewayService {
     );
   }
 
-  listResources(
-    connection: OVConnection,
-    uri: string,
-    meta?: OVRequestMeta,
-  ) {
+  listResources(connection: OVConnection, uri: string, meta?: OVRequestMeta) {
     return this.ovClient.request(
       connection,
       `${RESOURCES_LIST_PATH}?uri=${encodeURIComponent(uri)}`,

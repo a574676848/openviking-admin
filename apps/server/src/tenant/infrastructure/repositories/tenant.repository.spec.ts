@@ -76,7 +76,7 @@ describe('TenantRepository', () => {
       create: jest.fn(),
     };
 
-    const repository = new TenantRepository({} as never, defaultRepo as never);
+    const repository = new TenantRepository({}, defaultRepo as never);
 
     const result = await repository.findById('mem');
 

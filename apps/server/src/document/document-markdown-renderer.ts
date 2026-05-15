@@ -118,17 +118,23 @@ export class DocumentMarkdownRenderer {
     }
 
     const headerRow = rows[0];
-    const headerLine = this.renderTableRow(headerRow.cells.map((cell) =>
-      this.inlineContentToPlainText(cell.content),
-    ));
-    const alignmentLine = this.renderTableAlignmentRow(headerRow.cells.map((cell) =>
-      this.resolveTableAlignment(cell.props?.textAlignment),
-    ));
-    const bodyLines = rows.slice(1).map((row) =>
-      this.renderTableRow(
-        row.cells.map((cell) => this.inlineContentToPlainText(cell.content)),
+    const headerLine = this.renderTableRow(
+      headerRow.cells.map((cell) =>
+        this.inlineContentToPlainText(cell.content),
       ),
     );
+    const alignmentLine = this.renderTableAlignmentRow(
+      headerRow.cells.map((cell) =>
+        this.resolveTableAlignment(cell.props?.textAlignment),
+      ),
+    );
+    const bodyLines = rows
+      .slice(1)
+      .map((row) =>
+        this.renderTableRow(
+          row.cells.map((cell) => this.inlineContentToPlainText(cell.content)),
+        ),
+      );
 
     return [headerLine, alignmentLine, ...bodyLines].join(LINE_BREAK);
   }
@@ -303,11 +309,11 @@ export class DocumentMarkdownRenderer {
   ): content is DocumentTableContent {
     return Boolean(
       content &&
-        typeof content === 'object' &&
-        'type' in content &&
-        content.type === 'tableContent' &&
-        'rows' in content &&
-        Array.isArray(content.rows),
+      typeof content === 'object' &&
+      'type' in content &&
+      content.type === 'tableContent' &&
+      'rows' in content &&
+      Array.isArray(content.rows),
     );
   }
 

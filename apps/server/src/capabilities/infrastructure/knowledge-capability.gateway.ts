@@ -1,7 +1,5 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
-import {
-  OVConnection,
-} from '../../common/ov-client.service';
+import { OVConnection } from '../../common/ov-client.service';
 import { OVKnowledgeGatewayService } from '../../common/ov-knowledge-gateway.service';
 import { KnowledgeBaseService } from '../../knowledge-base/knowledge-base.service';
 import { KnowledgeTreeService } from '../../knowledge-tree/knowledge-tree.service';
@@ -67,15 +65,15 @@ export class KnowledgeCapabilityGateway {
       this.toMeta(trace),
     );
 
-    const items =
-      ((response.result as { resources?: SearchResource[] } | undefined)
-        ?.resources ?? [])
-        .map((resource) => ({
-          uri: resource.uri,
-          score: resource.score,
-          abstract: resource.abstract ?? null,
-          title: resource.title ?? null,
-        }));
+    const items = (
+      (response.result as { resources?: SearchResource[] } | undefined)
+        ?.resources ?? []
+    ).map((resource) => ({
+      uri: resource.uri,
+      score: resource.score,
+      abstract: resource.abstract ?? null,
+      title: resource.title ?? null,
+    }));
 
     return { items };
   }
@@ -101,13 +99,13 @@ export class KnowledgeCapabilityGateway {
       this.toMeta(trace),
     );
 
-    const items =
-      ((response.result as { matches?: GrepMatch[] } | undefined)?.matches ??
-        []).map((match) => ({
-        line: match.line,
-        uri: match.uri,
-        content: match.content,
-      }));
+    const items = (
+      (response.result as { matches?: GrepMatch[] } | undefined)?.matches ?? []
+    ).map((match) => ({
+      line: match.line,
+      uri: match.uri,
+      content: match.content,
+    }));
 
     return { items };
   }
@@ -162,7 +160,8 @@ export class KnowledgeCapabilityGateway {
 
     const renderedTree = items
       .map((node) => {
-        const level = (node.relPath ?? '').split('/').filter(Boolean).length - 1;
+        const level =
+          (node.relPath ?? '').split('/').filter(Boolean).length - 1;
         const icon = node.isDir ? '[DIR]' : '[FILE]';
         const name = node.uri.split('/').pop() || node.uri;
         return `${'  '.repeat(Math.max(level, 0))}${icon} ${name}`;
@@ -223,11 +222,14 @@ export class KnowledgeCapabilityGateway {
     const tenantId = this.requireTenantId(principal);
     const parentNodeId = input.parentNodeId ? String(input.parentNodeId) : null;
     const targetUri = parentNodeId
-      ? (await this.knowledgeTreeService.findOne(parentNodeId, tenantId)).vikingUri
-      : (await this.knowledgeBaseService.findOne(
-          String(input.knowledgeBaseId),
-          tenantId,
-        )).vikingUri;
+      ? (await this.knowledgeTreeService.findOne(parentNodeId, tenantId))
+          .vikingUri
+      : (
+          await this.knowledgeBaseService.findOne(
+            String(input.knowledgeBaseId),
+            tenantId,
+          )
+        ).vikingUri;
     const task = await this.importTaskService.create(
       {
         kbId: String(input.knowledgeBaseId),
@@ -261,7 +263,9 @@ export class KnowledgeCapabilityGateway {
   }
 
   async listDocumentImports(principal: Principal) {
-    const items = await this.importTaskService.findAll(this.requireTenantId(principal));
+    const items = await this.importTaskService.findAll(
+      this.requireTenantId(principal),
+    );
     return { items: items.map((item) => this.toImportTaskItem(item)) };
   }
 
@@ -354,7 +358,11 @@ export class KnowledgeCapabilityGateway {
       input.caseInsensitive === undefined
         ? true
         : Boolean(input.caseInsensitive);
-    const matches = this.grepMarkdown(snapshot.markdown, pattern, caseInsensitive);
+    const matches = this.grepMarkdown(
+      snapshot.markdown,
+      pattern,
+      caseInsensitive,
+    );
 
     return {
       items: matches.map((match) => ({
@@ -460,12 +468,14 @@ export class KnowledgeCapabilityGateway {
       if (!haystack.includes(needle)) {
         return [];
       }
-      return [{
-        line: index + 1,
-        content: line,
-        before: lines.slice(Math.max(index - 2, 0), index),
-        after: lines.slice(index + 1, index + 3),
-      }];
+      return [
+        {
+          line: index + 1,
+          content: line,
+          before: lines.slice(Math.max(index - 2, 0), index),
+          after: lines.slice(index + 1, index + 3),
+        },
+      ];
     });
   }
 
@@ -503,7 +513,9 @@ export class KnowledgeCapabilityGateway {
 
   private toStringArray(value: unknown) {
     return Array.isArray(value)
-      ? value.map((item) => String(item)).filter((item) => item.trim().length > 0)
+      ? value
+          .map((item) => String(item))
+          .filter((item) => item.trim().length > 0)
       : undefined;
   }
 

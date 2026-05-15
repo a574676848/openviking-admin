@@ -48,6 +48,7 @@ const KNOWLEDGE_BASES_TABLE = 'knowledge_bases';
 const INTEGRATIONS_TABLE = 'integrations';
 const DOCUMENT_DRAFTS_TABLE = 'document_drafts';
 const SOURCE_NAME_MAX_LENGTH = 255;
+const AUTO_CREATED_NODE_ID_MAX_LENGTH = 36;
 const NODE_KIND_MAX_LENGTH = 20;
 const CONTENT_URI_MAX_LENGTH = 2048;
 const INTEGRATION_NAME_MAX_LENGTH = 64;
@@ -61,7 +62,10 @@ const ACTOR_FIELD_NAMES = [
   'updated_by_name',
 ] as const;
 const KNOWLEDGE_NODE_INDEX_COLUMNS = [
-  ['index_status', `VARCHAR(${INDEX_STATUS_MAX_LENGTH}) NOT NULL DEFAULT 'clean'`],
+  [
+    'index_status',
+    `VARCHAR(${INDEX_STATUS_MAX_LENGTH}) NOT NULL DEFAULT 'clean'`,
+  ],
   ['draft_version', 'INTEGER NOT NULL DEFAULT 0'],
   ['indexed_version', 'INTEGER NOT NULL DEFAULT 0'],
   ['vector_count', 'INTEGER'],
@@ -327,14 +331,14 @@ async function loadTenantRows(dataSource: DataSource): Promise<TenantRow[]> {
     'deleted_at',
   );
   const deletedFilter = hasDeletedAt ? 'WHERE "deleted_at" IS NULL' : '';
-  const rows = (await dataSource.query(`
+  const rows = await dataSource.query(`
     SELECT "tenant_id" AS "tenantId",
            "isolation_level" AS "isolationLevel",
            "db_config" AS "dbConfig"
     FROM "tenants"
     ${deletedFilter}
     ORDER BY "tenant_id"
-  `)) as TenantRow[];
+  `);
 
   return rows;
 }
@@ -449,6 +453,14 @@ async function ensureImportTasks(
     `
       ALTER TABLE ${tableName(schema, IMPORT_TASKS_TABLE)}
       ADD COLUMN IF NOT EXISTS "source_name" VARCHAR(${SOURCE_NAME_MAX_LENGTH})
+    `,
+  );
+  await runSql(
+    dataSource,
+    context,
+    `
+      ALTER TABLE ${tableName(schema, IMPORT_TASKS_TABLE)}
+      ADD COLUMN IF NOT EXISTS "auto_created_node_id" VARCHAR(${AUTO_CREATED_NODE_ID_MAX_LENGTH})
     `,
   );
   await ensureActorColumns(dataSource, schema, IMPORT_TASKS_TABLE, context);
@@ -638,7 +650,7 @@ async function ensureKnowledgeNodeAclJsonb(
   schema: string,
   context: UpgradeContext,
 ) {
-  const rows = (await dataSource.query(
+  const rows = await dataSource.query(
     `
       SELECT data_type
       FROM information_schema.columns
@@ -647,7 +659,7 @@ async function ensureKnowledgeNodeAclJsonb(
         AND column_name = 'acl'
     `,
     [schema, KNOWLEDGE_NODES_TABLE],
-  )) as Array<{ data_type: string }>;
+  );
 
   if (!rows[0] || rows[0].data_type === 'jsonb') {
     return;
@@ -707,7 +719,7 @@ async function ensureIntegrations(
 }
 
 async function schemaExists(dataSource: DataSource, schema: string) {
-  const rows = (await dataSource.query(
+  const rows = await dataSource.query(
     `
       SELECT 1
       FROM information_schema.schemata
@@ -715,7 +727,7 @@ async function schemaExists(dataSource: DataSource, schema: string) {
       LIMIT 1
     `,
     [schema],
-  )) as Array<Record<string, unknown>>;
+  );
 
   return rows.length > 0;
 }
@@ -725,7 +737,7 @@ async function tableExists(
   schema: string,
   table: string,
 ) {
-  const rows = (await dataSource.query(
+  const rows = await dataSource.query(
     `
       SELECT 1
       FROM information_schema.tables
@@ -734,7 +746,7 @@ async function tableExists(
       LIMIT 1
     `,
     [schema, table],
-  )) as Array<Record<string, unknown>>;
+  );
 
   return rows.length > 0;
 }
@@ -745,7 +757,7 @@ async function columnExists(
   table: string,
   column: string,
 ) {
-  const rows = (await dataSource.query(
+  const rows = await dataSource.query(
     `
       SELECT 1
       FROM information_schema.columns
@@ -755,7 +767,7 @@ async function columnExists(
       LIMIT 1
     `,
     [schema, table, column],
-  )) as Array<Record<string, unknown>>;
+  );
 
   return rows.length > 0;
 }

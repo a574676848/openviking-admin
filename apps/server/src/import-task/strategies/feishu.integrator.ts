@@ -24,7 +24,10 @@ export class FeishuIntegrator implements IPlatformIntegrator {
   ): Promise<PlatformInjectConfig> {
     const { appId, appSecret } = integration.credentials;
     const docToken = this.extractDocToken(sourceUrl);
-    const tenantAccessToken = await this.fetchTenantAccessToken(appId, appSecret);
+    const tenantAccessToken = await this.fetchTenantAccessToken(
+      appId,
+      appSecret,
+    );
     const info = await this.fetchDocumentInfo(docToken, tenantAccessToken);
     const content = await this.fetchRawContent(docToken, tenantAccessToken);
 
@@ -46,7 +49,8 @@ export class FeishuIntegrator implements IPlatformIntegrator {
     });
 
     const data = (await res.json()) as FeishuAppTokenResponse;
-    if (!res.ok || data.code !== 0) throw new Error(`飞书鉴权失败: ${data.msg}`);
+    if (!res.ok || data.code !== 0)
+      throw new Error(`飞书鉴权失败: ${data.msg}`);
     return data.tenant_access_token;
   }
 

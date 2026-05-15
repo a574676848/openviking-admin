@@ -96,9 +96,7 @@ export class RedisCapabilityRateLimitStore
     if (!this._client) {
       const newClient = this.createClient(this.options);
       newClient.on?.('error', (err: Error) => {
-        this.logger.warn(
-          `Redis rate limit store 连接错误: ${err.message}`,
-        );
+        this.logger.warn(`Redis rate limit store 连接错误: ${err.message}`);
       });
       this._client = newClient;
     }
@@ -159,7 +157,8 @@ export class RedisCapabilityRateLimitStore
       const bucketKey = bucketKeys[index];
       const hashResponse = responses[index * 2]?.[1] as string[] | undefined;
       const ttlResponse = responses[index * 2 + 1]?.[1];
-      const ttl = typeof ttlResponse === 'number' ? ttlResponse : Number(ttlResponse);
+      const ttl =
+        typeof ttlResponse === 'number' ? ttlResponse : Number(ttlResponse);
 
       if (!hashResponse || ttl <= 0) {
         staleKeys.push(bucketKey);
@@ -218,7 +217,10 @@ export class RedisCapabilityRateLimitStore
   private createClient(options: CapabilityRateLimitStoreOptions) {
     if (options.redisUrl) {
       const url = options.redisPassword
-        ? this.injectPasswordIntoRedisUrl(options.redisUrl, options.redisPassword)
+        ? this.injectPasswordIntoRedisUrl(
+            options.redisUrl,
+            options.redisPassword,
+          )
         : options.redisUrl;
       return new Redis(url, {
         connectTimeout: options.redisConnectTimeoutMs,

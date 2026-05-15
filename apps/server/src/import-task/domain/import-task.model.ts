@@ -25,6 +25,7 @@ export interface ImportTaskModel {
   sourceUrl: string;
   sourceName: string | null;
   targetUri: string;
+  autoCreatedNodeId: string | null;
   status: ImportTaskStatus;
   nodeCount: number;
   vectorCount: number;

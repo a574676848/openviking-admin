@@ -327,8 +327,8 @@ export class McpProtocolService {
     capabilityId: CapabilityId,
     data: Record<string, unknown>,
   ) {
-    const items = ((data.items as Array<Record<string, unknown>> | undefined) ??
-      []) as Array<Record<string, unknown>>;
+    const items =
+      (data.items as Array<Record<string, unknown>> | undefined) ?? [];
 
     switch (capabilityId) {
       case 'knowledge.search':

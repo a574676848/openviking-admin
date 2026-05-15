@@ -58,4 +58,3 @@ export function resolveRequestIp(request: Request) {
 
   return request.ip ?? null;
 }
-

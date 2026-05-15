@@ -35,7 +35,9 @@ export class AuditClientLogController {
   @Post('client-log')
   @HttpCode(202)
   async ingest(@Body() body: ClientLogBody, @Req() req: Request) {
-    const level = SAFE_LEVELS.has(String(body.level)) ? String(body.level) : 'error';
+    const level = SAFE_LEVELS.has(String(body.level))
+      ? String(body.level)
+      : 'error';
 
     await this.auditService.log({
       action: 'client.error',
@@ -63,4 +65,3 @@ export class AuditClientLogController {
     };
   }
 }
-

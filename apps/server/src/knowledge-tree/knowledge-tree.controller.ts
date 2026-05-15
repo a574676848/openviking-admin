@@ -36,15 +36,15 @@ export class KnowledgeTreeController {
 
   @Get()
   findByKb(
-    @Query('kbId') kbId: string, 
+    @Query('kbId') kbId: string,
     @Query('parentId') parentId: string | undefined,
-    @Req() req: AuthenticatedRequest
+    @Req() req: AuthenticatedRequest,
   ) {
     if (parentId !== undefined) {
       return this.treeService.findChildrenWithCount(
-        kbId, 
-        parentId === 'root' ? null : parentId, 
-        req.tenantScope
+        kbId,
+        parentId === 'root' ? null : parentId,
+        req.tenantScope,
       );
     }
     return this.treeService.findByKb(kbId, req.tenantScope);
@@ -54,7 +54,7 @@ export class KnowledgeTreeController {
   findLineage(
     @Param('id') id: string,
     @Query('kbId') kbId: string,
-    @Req() req: AuthenticatedRequest
+    @Req() req: AuthenticatedRequest,
   ) {
     return this.treeService.findLineageWithSiblings(kbId, id, req.tenantScope);
   }

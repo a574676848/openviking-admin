@@ -102,7 +102,9 @@ export class RepairSchemaDrift1746700000000 implements MigrationInterface {
     }
   }
 
-  private async ensureIntegrationsTable(queryRunner: QueryRunner): Promise<void> {
+  private async ensureIntegrationsTable(
+    queryRunner: QueryRunner,
+  ): Promise<void> {
     await queryRunner.query(`
       CREATE TABLE IF NOT EXISTS "${INTEGRATIONS_TABLE}" (
         "id" UUID NOT NULL DEFAULT uuid_generate_v4(),
@@ -219,7 +221,9 @@ export class RepairSchemaDrift1746700000000 implements MigrationInterface {
     `);
   }
 
-  private async resolveTenantSchemas(queryRunner: QueryRunner): Promise<string[]> {
+  private async resolveTenantSchemas(
+    queryRunner: QueryRunner,
+  ): Promise<string[]> {
     const rows = (await queryRunner.query(`
       SELECT schema_name
       FROM information_schema.schemata

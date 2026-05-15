@@ -13,9 +13,7 @@ const SENSITIVE_LOG_HEADERS = new Set([
   'x-api-key',
 ]);
 
-function normalizeLoggedHeaderValue(
-  value: unknown,
-): string | string[] | null {
+function normalizeLoggedHeaderValue(value: unknown): string | string[] | null {
   if (Array.isArray(value)) {
     return value
       .map((item) => normalizeLoggedHeaderValue(item))
@@ -88,7 +86,10 @@ export class RequestTraceMiddleware implements NestMiddleware {
         path,
         statusCode: response.statusCode,
         durationMs: Date.now() - startedAt,
-        tenantId: authenticatedRequest.tenantScope ?? authenticatedRequest.user?.tenantId ?? null,
+        tenantId:
+          authenticatedRequest.tenantScope ??
+          authenticatedRequest.user?.tenantId ??
+          null,
         userId: authenticatedRequest.user?.id ?? null,
         username: authenticatedRequest.user?.username ?? null,
         ip: resolveRequestIp(request),
@@ -129,7 +130,7 @@ export class RequestTraceMiddleware implements NestMiddleware {
       tenantIdFromPath,
       resourcePath,
       decodedResourcePath,
-      requestHeaders: sanitizeHeaders(request.headers as Record<string, unknown>),
+      requestHeaders: sanitizeHeaders(request.headers),
       responseHeaders: sanitizeHeaders(response.getHeaders()),
     };
 
@@ -152,8 +153,7 @@ export class RequestTraceMiddleware implements NestMiddleware {
     }
 
     return (
-      statusCode >= 400 ||
-      process.env[WEBDAV_VERBOSE_ACCESS_LOG_ENV] === 'true'
+      statusCode >= 400 || process.env[WEBDAV_VERBOSE_ACCESS_LOG_ENV] === 'true'
     );
   }
 
@@ -169,4 +169,3 @@ export class RequestTraceMiddleware implements NestMiddleware {
     };
   }
 }
-

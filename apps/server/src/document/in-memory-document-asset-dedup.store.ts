@@ -5,9 +5,7 @@ import {
 } from './document-asset-dedup.store';
 
 @Injectable()
-export class InMemoryDocumentAssetDedupStore
-  implements DocumentAssetDedupStore
-{
+export class InMemoryDocumentAssetDedupStore implements DocumentAssetDedupStore {
   private readonly entries = new Map<string, Map<string, string>>();
 
   async get(nodeId: string, hash: string): Promise<string | null> {

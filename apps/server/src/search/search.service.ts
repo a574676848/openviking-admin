@@ -3,10 +3,7 @@ import { SEARCH_LOG_REPOSITORY } from './domain/repositories/search-log.reposito
 import type { ISearchLogRepository } from './domain/repositories/search-log.repository.interface';
 import { IKnowledgeNodeRepository } from '../knowledge-tree/domain/repositories/knowledge-node.repository.interface';
 import { SettingsService } from '../settings/settings.service';
-import {
-  OVRequestMeta,
-  OVConnection,
-} from '../common/ov-client.service';
+import { OVRequestMeta, OVConnection } from '../common/ov-client.service';
 import { OVKnowledgeGatewayService } from '../common/ov-knowledge-gateway.service';
 
 export interface FindParams {
@@ -84,7 +81,8 @@ export class SearchService {
 
     const allowedUris = await this.nodeRepo.findAllowedUris(tenantId, user);
 
-    const shouldUseRerank = params.useRerank !== false && !!config.rerankEndpoint;
+    const shouldUseRerank =
+      params.useRerank !== false && !!config.rerankEndpoint;
     const stage1TopK = shouldUseRerank ? 20 : params.topK || 5;
 
     const connection = this.toConnection({
@@ -179,7 +177,7 @@ export class SearchService {
         baseUrl: config.baseUrl || '',
         apiKey: config.apiKey || '',
         account: config.account || 'default',
-      user: config.user || undefined,
+        user: config.user || undefined,
       }),
       { pattern, uri, caseInsensitive: true },
       meta,

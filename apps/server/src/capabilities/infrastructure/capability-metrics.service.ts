@@ -69,10 +69,12 @@ export class CapabilityMetricsService {
   }
 
   snapshot() {
-    const counters = Array.from(this.counters.entries()).map(([key, value]) => ({
-      key,
-      value,
-    }));
+    const counters = Array.from(this.counters.entries()).map(
+      ([key, value]) => ({
+        key,
+        value,
+      }),
+    );
     const latency = Array.from(this.latencySamples.entries()).map(
       ([key, values]) => ({
         key,

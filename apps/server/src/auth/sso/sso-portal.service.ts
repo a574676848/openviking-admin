@@ -33,7 +33,10 @@ export class SSOPortalService {
     type: IntegrationType,
     payload: Record<string, unknown>,
   ): Promise<UserModel> {
-    const config = await this.integrationService.findActiveByType(tenantId, type);
+    const config = await this.integrationService.findActiveByType(
+      tenantId,
+      type,
+    );
 
     if (!config) throw new UnauthorizedException('该租户尚未开启相关企业集成');
 

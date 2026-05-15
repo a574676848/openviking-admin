@@ -48,7 +48,9 @@ describe('TypeOrmKnowledgeBaseRepository', () => {
       status: 'active',
     });
 
-    expect(defaultRepo.manager.connection.createQueryRunner).not.toHaveBeenCalled();
+    expect(
+      defaultRepo.manager.connection.createQueryRunner,
+    ).not.toHaveBeenCalled();
     expect(tenantQueryRunner.manager.create).toHaveBeenCalledWith(
       KnowledgeBase,
       expect.objectContaining({ tenantId: 'test3' }),
@@ -87,7 +89,9 @@ describe('TypeOrmKnowledgeBaseRepository', () => {
     });
 
     expect(tenantDataSource.createQueryRunner).toHaveBeenCalledTimes(1);
-    expect(defaultRepo.manager.connection.createQueryRunner).not.toHaveBeenCalled();
+    expect(
+      defaultRepo.manager.connection.createQueryRunner,
+    ).not.toHaveBeenCalled();
     expect(tenantQueryRunner.connect).toHaveBeenCalledTimes(1);
     expect(tenantQueryRunner.release).toHaveBeenCalledTimes(1);
   });

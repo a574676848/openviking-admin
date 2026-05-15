@@ -6,9 +6,7 @@ import {
 } from './capability-rate-limit.store';
 
 @Injectable()
-export class InMemoryCapabilityRateLimitStore
-  implements CapabilityRateLimitStore
-{
+export class InMemoryCapabilityRateLimitStore implements CapabilityRateLimitStore {
   private readonly buckets = new Map<string, RateLimitBucketState>();
 
   async consume(

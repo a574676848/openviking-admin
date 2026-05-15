@@ -45,7 +45,9 @@ export class AddDocumentDraftsAndIndexState1747000000000 implements MigrationInt
   }
 
   async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`DROP INDEX IF EXISTS "idx_document_drafts_tenant_node"`);
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "idx_document_drafts_tenant_node"`,
+    );
     await queryRunner.query(`DROP TABLE IF EXISTS "document_drafts"`);
 
     for (const [column] of [...KNOWLEDGE_NODE_INDEX_COLUMNS].reverse()) {

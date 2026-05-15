@@ -1,12 +1,4 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Query,
-  Req,
-  Res,
-  Body,
-} from '@nestjs/common';
+import { Controller, Get, Post, Query, Req, Res, Body } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { McpProtocolService } from './mcp-protocol.service';
 import { McpSseService } from './mcp-sse.service';

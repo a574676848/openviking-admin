@@ -82,7 +82,9 @@ export class IntegrationRepositoryImpl implements IIntegrationRepository {
   async findOne(
     options: RepositoryFindOneQuery<IntegrationModel>,
   ): Promise<IntegrationModel | null> {
-    const item = await this.repo.findOne(options as FindOneOptions<Integration>);
+    const item = await this.repo.findOne(
+      options as FindOneOptions<Integration>,
+    );
     return item ? this.toModel(item) : null;
   }
 

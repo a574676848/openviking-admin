@@ -1,4 +1,10 @@
-import { IsString, IsNotEmpty, MaxLength, ValidateIf, IsIn } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  MaxLength,
+  ValidateIf,
+  IsIn,
+} from 'class-validator';
 import { CREDENTIAL_TTL_POLICIES } from '../domain/credential-ttl.policy';
 
 const API_KEY_TTL_VALUES = CREDENTIAL_TTL_POLICIES.api_key.options

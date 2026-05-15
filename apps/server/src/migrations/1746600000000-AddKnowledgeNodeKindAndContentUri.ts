@@ -4,9 +4,7 @@ const KNOWLEDGE_NODE_TABLE = 'knowledge_nodes';
 const KIND_COLUMN = 'kind';
 const CONTENT_URI_COLUMN = 'content_uri';
 
-export class AddKnowledgeNodeKindAndContentUri1746600000000
-  implements MigrationInterface
-{
+export class AddKnowledgeNodeKindAndContentUri1746600000000 implements MigrationInterface {
   name = 'AddKnowledgeNodeKindAndContentUri1746600000000';
 
   async up(queryRunner: QueryRunner): Promise<void> {

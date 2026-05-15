@@ -5,6 +5,26 @@ import { USER_REPOSITORY } from './domain/repositories/user.repository.interface
 import type { IUserRepository } from './domain/repositories/user.repository.interface';
 import { UsersService } from './users.service';
 import { Tenant } from '../tenant/entities/tenant.entity';
+import { TenantIsolationLevel } from '../common/constants/system.enum';
+
+function createTenant(overrides: Partial<Tenant> = {}): Tenant {
+  return {
+    id: 'tenant-record-1',
+    tenantId: 'mem',
+    displayName: 'Memory',
+    status: 'active',
+    isolationLevel: TenantIsolationLevel.SMALL,
+    dbConfig: null,
+    vikingAccount: '',
+    quota: null,
+    ovConfig: null,
+    description: '',
+    createdAt: new Date('2026-05-15T00:00:00.000Z'),
+    updatedAt: new Date('2026-05-15T00:00:00.000Z'),
+    deletedAt: null,
+    ...overrides,
+  };
+}
 
 describe('UsersService', () => {
   let service: UsersService;
@@ -37,10 +57,7 @@ describe('UsersService', () => {
   });
 
   it('应该先按租户标识解析到租户记录 ID 再查询成员列表', async () => {
-    tenantRepo.findOne.mockResolvedValue({
-      id: 'tenant-record-1',
-      tenantId: 'mem',
-    } as Tenant);
+    tenantRepo.findOne.mockResolvedValue(createTenant());
     userRepo.findAll.mockResolvedValue([]);
 
     await service.findAll('mem');
@@ -52,10 +69,10 @@ describe('UsersService', () => {
   });
 
   it('tenantScope 是 UUID 时应该同时支持按租户记录 ID 和租户标识解析', async () => {
-    tenantRepo.findOne.mockResolvedValue({
+    tenantRepo.findOne.mockResolvedValue(createTenant({
       id: '4de41489-ffd3-4148-8d55-15610ad1673a',
       tenantId: 'mem',
-    } as Tenant);
+    }));
     userRepo.findAll.mockResolvedValue([]);
 
     await service.findAll('4de41489-ffd3-4148-8d55-15610ad1673a');
@@ -66,14 +83,13 @@ describe('UsersService', () => {
         { tenantId: '4de41489-ffd3-4148-8d55-15610ad1673a' },
       ],
     });
-    expect(userRepo.findAll).toHaveBeenCalledWith('4de41489-ffd3-4148-8d55-15610ad1673a');
+    expect(userRepo.findAll).toHaveBeenCalledWith(
+      '4de41489-ffd3-4148-8d55-15610ad1673a',
+    );
   });
 
   it('应该在创建成员时把租户标识转成租户记录 ID 再落库', async () => {
-    tenantRepo.findOne.mockResolvedValue({
-      id: 'tenant-record-1',
-      tenantId: 'mem',
-    } as Tenant);
+    tenantRepo.findOne.mockResolvedValue(createTenant());
     userRepo.findByUsername.mockResolvedValue(null);
     userRepo.create.mockImplementation((input) => input as never);
     userRepo.save.mockResolvedValue({
@@ -96,7 +112,10 @@ describe('UsersService', () => {
       tenantId: 'mem',
     });
 
-    expect(userRepo.findByUsername).toHaveBeenCalledWith('alice', 'tenant-record-1');
+    expect(userRepo.findByUsername).toHaveBeenCalledWith(
+      'alice',
+      'tenant-record-1',
+    );
     expect(userRepo.create).toHaveBeenCalledWith(
       expect.objectContaining({
         tenantId: 'tenant-record-1',

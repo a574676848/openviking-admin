@@ -1,8 +1,5 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
-import {
-  CapabilityContract,
-  Principal,
-} from '../domain/capability.types';
+import { CapabilityContract, Principal } from '../domain/capability.types';
 import { SystemRoles, type UserRole } from '../../users/entities/user.entity';
 
 const ROLE_WEIGHT: Record<UserRole, number> = {
@@ -23,7 +20,8 @@ export class CapabilityAuthorizationService {
       return;
     }
 
-    const principalRole = (principal.role ?? SystemRoles.TENANT_VIEWER) as UserRole;
+    const principalRole = (principal.role ??
+      SystemRoles.TENANT_VIEWER) as UserRole;
     if ((ROLE_WEIGHT[principalRole] ?? 0) < ROLE_WEIGHT[contract.minimumRole]) {
       throw new ForbiddenException(
         `当前 capability 至少需要 ${contract.minimumRole} 权限`,

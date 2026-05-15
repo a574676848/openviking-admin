@@ -1,8 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import {
-  CapabilityContract,
-  CapabilityId,
-} from '../domain/capability.types';
+import { CapabilityContract, CapabilityId } from '../domain/capability.types';
 import {
   getCapabilityContracts,
   getCapabilityRegistryEntry,

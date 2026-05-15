@@ -18,6 +18,7 @@ export interface ImportTask {
   sourceUrl: string;
   sourceName?: string | null;
   targetUri: string;
+  autoCreatedNodeId?: string | null;
   status: string;
   nodeCount: number;
   vectorCount: number;

@@ -38,10 +38,12 @@ describe('SearchService', () => {
       'viking://b',
       'viking://resources/default/',
     ]);
-    logRepo.save.mockImplementation(async (payload: Record<string, unknown>) => ({
-      id: 'log-1',
-      ...payload,
-    }));
+    logRepo.save.mockImplementation(
+      async (payload: Record<string, unknown>) => ({
+        id: 'log-1',
+        ...payload,
+      }),
+    );
   });
 
   it('关闭 rerank 时保留基础召回并返回日志标识', async () => {
@@ -55,7 +57,9 @@ describe('SearchService', () => {
     });
     ovKnowledgeGateway.findKnowledge.mockResolvedValue({
       result: {
-        resources: [{ uri: 'viking://a', score: 0.61, content: 'WebDAV 配置说明' }],
+        resources: [
+          { uri: 'viking://a', score: 0.61, content: 'WebDAV 配置说明' },
+        ],
       },
     });
 
@@ -110,10 +114,10 @@ describe('SearchService', () => {
       },
     });
     ovKnowledgeGateway.rerank.mockResolvedValue({
-        results: [
-          { index: 0, relevance_score: 0.4 },
-          { index: 1, relevance_score: 0.9 },
-        ],
+      results: [
+        { index: 0, relevance_score: 0.4 },
+        { index: 1, relevance_score: 0.9 },
+      ],
     });
 
     const result = await service.find(
@@ -199,14 +203,11 @@ describe('SearchService', () => {
         user: 'user-1',
       },
     );
-    expect(ovKnowledgeGateway.rerank).toHaveBeenCalledWith(
-      expect.anything(),
-      {
-        traceId: 'trace-1',
-        requestId: 'request-1',
-        user: 'user-1',
-      },
-    );
+    expect(ovKnowledgeGateway.rerank).toHaveBeenCalledWith(expect.anything(), {
+      traceId: 'trace-1',
+      requestId: 'request-1',
+      user: 'user-1',
+    });
   });
 
   it('rerank 失败时应回退到 stage1 结果', async () => {

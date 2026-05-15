@@ -9,8 +9,7 @@ export const PLATFORM_ENDPOINTS = {
   DINGTALK: {
     AUTH_URL: 'https://api.dingtalk.com/v1.0/oauth2/accessToken',
     QUERY_BY_URL_URL: 'https://api.dingtalk.com/v2.0/wiki/nodes/queryByUrl',
-    DOCUMENT_BLOCKS_URL:
-      'https://api.dingtalk.com/v1.0/doc/suites/documents',
+    DOCUMENT_BLOCKS_URL: 'https://api.dingtalk.com/v1.0/doc/suites/documents',
   },
 };
 

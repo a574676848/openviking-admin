@@ -43,7 +43,9 @@ export class TenantController {
       oidc: items.some((i) => (i.type as string) === 'oidc' && i.active),
       feishu: items.some((i) => (i.type as string) === 'feishu' && i.active),
       ldap: items.some((i) => (i.type as string) === 'ldap' && i.active),
-      dingtalk: items.some((i) => (i.type as string) === 'dingtalk' && i.active),
+      dingtalk: items.some(
+        (i) => (i.type as string) === 'dingtalk' && i.active,
+      ),
     };
   }
 

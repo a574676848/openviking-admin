@@ -2,7 +2,10 @@ import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { Client } from 'ldapts';
 import { ISSOProvider, SSOUser } from '../interfaces/sso-provider.interface';
 import { Integration } from '../../../tenant/entities/integration.entity';
-import { SystemRoles, type UserRole } from '../../../users/entities/user.entity';
+import {
+  SystemRoles,
+  type UserRole,
+} from '../../../users/entities/user.entity';
 
 interface LdapCredentials {
   url?: string;
@@ -69,7 +72,12 @@ export class LdapProvider implements ISSOProvider {
     const searchClient = this.createClient(credentials);
     try {
       await searchClient.bind(bindDN, bindPassword);
-      const userEntry = await this.findUser(searchClient, credentials, baseDN, username);
+      const userEntry = await this.findUser(
+        searchClient,
+        credentials,
+        baseDN,
+        username,
+      );
       const userDN = userEntry.dn;
 
       if (!userDN) {
@@ -98,7 +106,8 @@ export class LdapProvider implements ISSOProvider {
     baseDN: string,
     username: string,
   ): Promise<LdapEntry> {
-    const filterTemplate = credentials.userFilter?.trim() || DEFAULT_USER_FILTER;
+    const filterTemplate =
+      credentials.userFilter?.trim() || DEFAULT_USER_FILTER;
     const filter = filterTemplate.replaceAll(
       '{{username}}',
       this.escapeFilterValue(username),
@@ -119,7 +128,7 @@ export class LdapProvider implements ISSOProvider {
       throw new UnauthorizedException('LDAP 用户匹配结果不唯一');
     }
 
-    return searchEntries[0] as LdapEntry;
+    return searchEntries[0];
   }
 
   private async verifyUserPassword(
@@ -145,10 +154,12 @@ export class LdapProvider implements ISSOProvider {
       credentials.usernameAttribute?.trim() || DEFAULT_USERNAME_ATTRIBUTE;
     const idAttribute = credentials.idAttribute?.trim() || DEFAULT_ID_ATTRIBUTE;
     const displayNameAttribute =
-      credentials.displayNameAttribute?.trim() || DEFAULT_DISPLAY_NAME_ATTRIBUTE;
+      credentials.displayNameAttribute?.trim() ||
+      DEFAULT_DISPLAY_NAME_ATTRIBUTE;
     const emailAttribute =
       credentials.emailAttribute?.trim() || DEFAULT_EMAIL_ATTRIBUTE;
-    const username = this.firstString(entry[usernameAttribute]) ?? inputUsername;
+    const username =
+      this.firstString(entry[usernameAttribute]) ?? inputUsername;
     const identityValue = this.firstString(entry[idAttribute]) ?? userDN;
     const groups = this.stringList(entry.memberOf).map((group) =>
       group.toLowerCase(),
@@ -181,7 +192,9 @@ export class LdapProvider implements ISSOProvider {
       }
     }
 
-    return this.normalizeRole(credentials.defaultRole) ?? SystemRoles.TENANT_VIEWER;
+    return (
+      this.normalizeRole(credentials.defaultRole) ?? SystemRoles.TENANT_VIEWER
+    );
   }
 
   private parseRoleMappings(
@@ -192,7 +205,9 @@ export class LdapProvider implements ISSOProvider {
     }
 
     const parsed =
-      typeof mappings === 'string' ? this.parseRoleMappingString(mappings) : mappings;
+      typeof mappings === 'string'
+        ? this.parseRoleMappingString(mappings)
+        : mappings;
     const result: Record<string, UserRole> = {};
 
     for (const [groupDN, role] of Object.entries(parsed)) {
@@ -233,7 +248,8 @@ export class LdapProvider implements ISSOProvider {
         'memberOf',
         credentials.usernameAttribute?.trim() || DEFAULT_USERNAME_ATTRIBUTE,
         credentials.idAttribute?.trim() || DEFAULT_ID_ATTRIBUTE,
-        credentials.displayNameAttribute?.trim() || DEFAULT_DISPLAY_NAME_ATTRIBUTE,
+        credentials.displayNameAttribute?.trim() ||
+          DEFAULT_DISPLAY_NAME_ATTRIBUTE,
         credentials.emailAttribute?.trim() || DEFAULT_EMAIL_ATTRIBUTE,
       ]),
     );

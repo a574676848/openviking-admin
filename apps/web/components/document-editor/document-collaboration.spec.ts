@@ -60,13 +60,13 @@ const {
     readSessionTokenMock: vi.fn(),
     readSessionUserMock: vi.fn(),
     hocuspocusProviderMock: vi.fn(
-      (config: MockHocuspocusProviderConfig) => {
+      function mockHocuspocusProvider(config: MockHocuspocusProviderConfig) {
         const provider = new MockHocuspocusProvider(config);
         providerInstances.push(provider);
         return provider;
       },
     ),
-    yDocMock: vi.fn(() => {
+    yDocMock: vi.fn(function mockYDoc() {
       const doc = new MockYDoc();
       docInstances.push(doc);
       return doc;

@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class ScopeUsernamesPerTenant1746400000000
-  implements MigrationInterface
-{
+export class ScopeUsernamesPerTenant1746400000000 implements MigrationInterface {
   name = 'ScopeUsernamesPerTenant1746400000000';
 
   async up(queryRunner: QueryRunner): Promise<void> {
@@ -15,9 +13,7 @@ export class ScopeUsernamesPerTenant1746400000000
     await queryRunner.query(
       `DROP INDEX IF EXISTS "uq_users_platform_username"`,
     );
-    await queryRunner.query(
-      `DROP INDEX IF EXISTS "uq_users_tenant_username"`,
-    );
+    await queryRunner.query(`DROP INDEX IF EXISTS "uq_users_tenant_username"`);
     await queryRunner.query(`
       CREATE UNIQUE INDEX "uq_users_platform_username"
       ON "users" ("username")
@@ -31,9 +27,7 @@ export class ScopeUsernamesPerTenant1746400000000
   }
 
   async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(
-      `DROP INDEX IF EXISTS "uq_users_tenant_username"`,
-    );
+    await queryRunner.query(`DROP INDEX IF EXISTS "uq_users_tenant_username"`);
     await queryRunner.query(
       `DROP INDEX IF EXISTS "uq_users_platform_username"`,
     );

@@ -325,8 +325,7 @@ describe('KnowledgeTreeService', () => {
       name: '说明.md',
       kind: 'document',
       vikingUri: 'viking://resources/tenants/tenant-alpha/kb-1/node-1/',
-      contentUri:
-        'viking://resources/tenants/tenant-alpha/kb-1/node-1/old.md',
+      contentUri: 'viking://resources/tenants/tenant-alpha/kb-1/node-1/old.md',
       updatedAt: new Date('2026-05-01T00:00:00.000Z'),
     });
     nodeRepo.save.mockImplementation(async (node) => node);
@@ -402,8 +401,7 @@ describe('KnowledgeTreeService', () => {
           kbId: 'kb-1',
           parentId: 'node-dir',
           name: '子文档',
-          vikingUri:
-            'viking://resources/tenants/tenant-alpha/kb-1/child-doc/',
+          vikingUri: 'viking://resources/tenants/tenant-alpha/kb-1/child-doc/',
         },
       ])
       .mockResolvedValueOnce([]);
@@ -413,9 +411,9 @@ describe('KnowledgeTreeService', () => {
       },
     );
 
-    await expect(service.remove('node-dir', 'tenant-alpha')).rejects.toMatchObject(
-      { status: 423 },
-    );
+    await expect(
+      service.remove('node-dir', 'tenant-alpha'),
+    ).rejects.toMatchObject({ status: 423 });
 
     expect(
       documentSessionRegistry.assertNoActiveSessionInNodes,

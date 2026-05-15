@@ -35,7 +35,7 @@ export class McpSessionService {
     const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
 
     await this.sessionRepo.save(
-        this.sessionRepo.create({
+      this.sessionRepo.create({
         sessionId,
         credentialHash: this.hashValue(credential),
         sessionTokenHash: this.hashValue(sessionToken),

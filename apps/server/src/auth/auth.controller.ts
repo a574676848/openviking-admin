@@ -82,10 +82,14 @@ export class AuthController {
     @Param('tenantId') tenantId: string,
     @Body() body: { username?: string; password?: string },
   ) {
-    const user = await this.ssoService.authenticate(tenantId, IntegrationType.LDAP, {
-      username: body.username,
-      password: body.password,
-    });
+    const user = await this.ssoService.authenticate(
+      tenantId,
+      IntegrationType.LDAP,
+      {
+        username: body.username,
+        password: body.password,
+      },
+    );
     return this.authService.generateToken(user);
   }
 

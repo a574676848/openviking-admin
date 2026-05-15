@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class RenameMcpSessionCredentialHash1746200000000
-  implements MigrationInterface
-{
+export class RenameMcpSessionCredentialHash1746200000000 implements MigrationInterface {
   name = 'RenameMcpSessionCredentialHash1746200000000';
 
   async up(queryRunner: QueryRunner): Promise<void> {

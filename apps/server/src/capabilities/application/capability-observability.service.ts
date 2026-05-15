@@ -191,7 +191,9 @@ export class CapabilityObservabilityService {
     if (params.success) {
       this.logger.log(`credential.exchange.success ${JSON.stringify(payload)}`);
     } else {
-      this.logger.error(`credential.exchange.failure ${JSON.stringify(payload)}`);
+      this.logger.error(
+        `credential.exchange.failure ${JSON.stringify(payload)}`,
+      );
     }
 
     this.capabilityMetricsService.incrementCounter({
@@ -242,7 +244,8 @@ export class CapabilityObservabilityService {
     const recent = [...invocations.items, ...credentialIssues.items]
       .sort(
         (left, right) =>
-          new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+          new Date(right.createdAt).getTime() -
+          new Date(left.createdAt).getTime(),
       )
       .slice(0, pageSize)
       .map((item) => ({
@@ -267,7 +270,9 @@ export class CapabilityObservabilityService {
             ? item.meta.channel
             : null,
         flow:
-          item.meta && typeof item.meta.flow === 'string' ? item.meta.flow : null,
+          item.meta && typeof item.meta.flow === 'string'
+            ? item.meta.flow
+            : null,
         clientType:
           item.meta && typeof item.meta.clientType === 'string'
             ? item.meta.clientType
@@ -281,7 +286,9 @@ export class CapabilityObservabilityService {
             ? item.meta.durationMs
             : null,
         error:
-          item.meta && typeof item.meta.error === 'string' ? item.meta.error : null,
+          item.meta && typeof item.meta.error === 'string'
+            ? item.meta.error
+            : null,
       }));
 
     return {

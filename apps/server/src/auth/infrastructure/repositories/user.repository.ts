@@ -67,7 +67,9 @@ export class UserRepository implements IUserRepository {
   }
 
   async find(options?: RepositoryFindQuery<UserModel>): Promise<UserModel[]> {
-    const items = await this.repo.find((options ?? {}) as FindManyOptions<User>);
+    const items = await this.repo.find(
+      (options ?? {}) as FindManyOptions<User>,
+    );
     return items.map((item) => this.toModel(item));
   }
 

@@ -34,7 +34,10 @@ describe('WebdavService 日志', () => {
         assertNoActiveSessionInNodes: jest.fn(),
         hasActiveSessionInKb: jest.fn(() => false),
       };
-    const documentService = (overrides.documentService as Record<string, unknown>) ?? {
+    const documentService = (overrides.documentService as Record<
+      string,
+      unknown
+    >) ?? {
       saveMarkdownContent: jest.fn().mockResolvedValue({
         contentUri: 'viking://resources/tenant-a/kb-1/node-1/content.md',
         draftVersion: 1,
@@ -268,7 +271,13 @@ describe('WebdavService 日志', () => {
     ).toHaveBeenCalledWith('node-doc');
     expect(ovClientService.uploadTempFile).not.toHaveBeenCalled();
     expect(ovClientService.request).not.toHaveBeenCalled();
-    expect((service as unknown as { documentService: { saveMarkdownContent: jest.Mock } }).documentService.saveMarkdownContent).toHaveBeenCalledWith(
+    expect(
+      (
+        service as unknown as {
+          documentService: { saveMarkdownContent: jest.Mock };
+        }
+      ).documentService.saveMarkdownContent,
+    ).toHaveBeenCalledWith(
       'node-doc',
       'tenant-a',
       '新正文',

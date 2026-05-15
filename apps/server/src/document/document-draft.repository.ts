@@ -26,7 +26,9 @@ export class DocumentDraftRepository {
 
   private get repo(): Repository<DocumentDraft> {
     if (this.request?.tenantQueryRunner) {
-      return this.request.tenantQueryRunner.manager.getRepository(DocumentDraft);
+      return this.request.tenantQueryRunner.manager.getRepository(
+        DocumentDraft,
+      );
     }
     if (this.request?.tenantDataSource) {
       return this.request.tenantDataSource.getRepository(DocumentDraft);

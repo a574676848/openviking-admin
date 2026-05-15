@@ -6,6 +6,8 @@ import {
   Inject,
   Logger,
 } from '@nestjs/common';
+import { REQUEST } from '@nestjs/core';
+import { DataSource, type QueryRunner } from 'typeorm';
 import type { ImportTaskModel } from './domain/import-task.model';
 import { CreateImportTaskDto } from './dto/create-import-task.dto';
 import { SettingsService } from '../settings/settings.service';
@@ -24,11 +26,13 @@ import type { IKnowledgeBaseRepository } from '../knowledge-base/domain/reposito
 import { IKnowledgeNodeRepository } from '../knowledge-tree/domain/repositories/knowledge-node.repository.interface';
 import type { KnowledgeNodeModel } from '../knowledge-tree/domain/knowledge-node.model';
 import type { IKnowledgeNodeRepository as IKnowledgeNodeRepositoryType } from '../knowledge-tree/domain/repositories/knowledge-node.repository.interface';
+import { KnowledgeTreeService } from '../knowledge-tree/knowledge-tree.service';
 import {
   applyCreatedAuditActor,
   applyUpdatedAuditActor,
   type AuditActorSnapshot,
 } from '../common/audit-actor.types';
+import type { RepositoryRequest } from '../common/repository-request.interface';
 
 const AUTO_TARGET_SEGMENTS: Record<string, string> = {
   git: 'imports/git',
@@ -41,6 +45,9 @@ const AUTO_TARGET_SEGMENTS: Record<string, string> = {
 const RESOURCE_URI_PREFIX = 'viking://resources/';
 const TENANT_RESOURCE_PREFIX = 'viking://resources/tenants/';
 const GIT_REPOSITORY_SUFFIX = '.git';
+const AUTO_DOCUMENT_SOURCE_TYPES = ['local', 'url', 'feishu', 'dingtalk'];
+const DEFAULT_IMPORT_DOCUMENT_EXTENSION = '.md';
+const DOCUMENT_NAME_EXTENSION_PATTERN = /\.[^./\\]+$/;
 
 @Injectable()
 export class ImportTaskService {
@@ -56,6 +63,9 @@ export class ImportTaskService {
     private readonly settings: SettingsService,
     private readonly ovClient: OVClientService,
     private readonly localImportStorage: LocalImportStorageService,
+    private readonly knowledgeTreeService: KnowledgeTreeService,
+    private readonly defaultDataSource: DataSource,
+    @Inject(REQUEST) private readonly request: RepositoryRequest,
   ) {}
 
   findAll(tenantId: string | null) {
@@ -73,7 +83,10 @@ export class ImportTaskService {
     tenantId: string,
     actor?: AuditActorSnapshot | null,
   ) {
-    if (['git', 'feishu', 'dingtalk'].includes(dto.sourceType) && !dto.integrationId) {
+    if (
+      ['git', 'feishu', 'dingtalk'].includes(dto.sourceType) &&
+      !dto.integrationId
+    ) {
       throw new BadRequestException('该来源类型必须选择集成凭证');
     }
 
@@ -82,28 +95,46 @@ export class ImportTaskService {
       throw new BadRequestException('请至少提供一个来源地址');
     }
     this.assertLocalSources(dto.sourceType, sourceUrls);
-    const targetUri = await this.resolveTargetUri(dto, tenantId);
-    const { sourceName: _sourceName, sourceNames: _sourceNames, ...taskDto } = dto;
+    return this.runInTenantTransaction(async () => {
+      const baseTargetUri = await this.resolveTargetUri(dto, tenantId);
+      const {
+        sourceName: _sourceName,
+        sourceNames: _sourceNames,
+        ...taskDto
+      } = dto;
 
-    const dispatch = sourceUrls.map((sourceUrl, index) =>
-      this.taskRepo.create(
-        applyCreatedAuditActor(
-          {
-            ...taskDto,
+      const dispatch = await Promise.all(
+        sourceUrls.map(async (sourceUrl, index) => {
+          const sourceName = this.resolveSourceName(dto, sourceUrl, index);
+          const autoNode = await this.createAutoDocumentNode(
+            dto,
+            sourceName,
             sourceUrl,
-            sourceName: this.resolveSourceName(dto, sourceUrl, index),
-            targetUri,
+            baseTargetUri,
             tenantId,
-            status: TaskStatus.PENDING,
-          } as Partial<ImportTaskModel>,
-          actor,
-        ),
-      ),
-    );
-    const saved = await this.taskRepo.save(
-      dispatch.length === 1 ? dispatch[0] : dispatch,
-    );
-    return Array.isArray(saved) ? saved[0] : saved;
+            actor,
+          );
+          return this.taskRepo.create(
+            applyCreatedAuditActor(
+              {
+                ...taskDto,
+                sourceUrl,
+                sourceName,
+                targetUri: autoNode?.vikingUri ?? baseTargetUri,
+                autoCreatedNodeId: autoNode?.id ?? null,
+                tenantId,
+                status: TaskStatus.PENDING,
+              } as Partial<ImportTaskModel>,
+              actor,
+            ),
+          );
+        }),
+      );
+      const saved = await this.taskRepo.save(
+        dispatch.length === 1 ? dispatch[0] : dispatch,
+      );
+      return Array.isArray(saved) ? saved[0] : saved;
+    });
   }
 
   async createLocalUpload(
@@ -271,6 +302,71 @@ export class ImportTaskService {
     return ['local', 'url', 'manifest'].includes(sourceType);
   }
 
+  private shouldAutoCreateDocumentNode(sourceType: string) {
+    return AUTO_DOCUMENT_SOURCE_TYPES.includes(sourceType);
+  }
+
+  private async createAutoDocumentNode(
+    dto: CreateImportTaskDto,
+    sourceName: string | null,
+    sourceUrl: string,
+    baseTargetUri: string,
+    tenantId: string,
+    actor?: AuditActorSnapshot | null,
+  ): Promise<KnowledgeNodeModel | null> {
+    if (!this.shouldAutoCreateDocumentNode(dto.sourceType)) {
+      return null;
+    }
+
+    const parentNode = await this.findTargetCollectionNode(
+      dto.kbId,
+      tenantId,
+      baseTargetUri,
+    );
+    return this.nodeRepo.createFileWithGeneratedUri(
+      applyCreatedAuditActor(
+        {
+          tenantId,
+          kbId: dto.kbId,
+          parentId: parentNode?.id ?? null,
+          name: this.resolveAutoDocumentNodeName(sourceName, sourceUrl),
+          sortOrder: 0,
+          kind: 'document',
+          indexStatus: 'pending',
+          fileExtension: DEFAULT_IMPORT_DOCUMENT_EXTENSION,
+        },
+        actor,
+      ),
+    );
+  }
+
+  private async findTargetCollectionNode(
+    kbId: string,
+    tenantId: string,
+    targetUri: string,
+  ) {
+    const node = await this.nodeRepo.findOne({
+      where: {
+        kbId,
+        tenantId,
+        vikingUri: targetUri,
+      },
+    });
+    return node?.kind === 'collection' ? node : null;
+  }
+
+  private resolveAutoDocumentNodeName(
+    sourceName: string | null,
+    sourceUrl: string,
+  ) {
+    const name = sourceName?.trim() || this.resolvePathSourceName(sourceUrl);
+    const displayName = name || '导入文档';
+    const documentName = DOCUMENT_NAME_EXTENSION_PATTERN.test(displayName)
+      ? displayName
+      : `${displayName}${DEFAULT_IMPORT_DOCUMENT_EXTENSION}`;
+    return this.truncateSourceName(documentName);
+  }
+
   private resolveGitRepositoryName(sourceUrl: string) {
     const sourcePath = this.resolveSourcePath(sourceUrl);
     const repositoryName = sourcePath
@@ -283,7 +379,9 @@ export class ImportTaskService {
     }
 
     const decodedName = this.decodePathSegment(repositoryName);
-    const displayName = decodedName.toLowerCase().endsWith(GIT_REPOSITORY_SUFFIX)
+    const displayName = decodedName
+      .toLowerCase()
+      .endsWith(GIT_REPOSITORY_SUFFIX)
       ? decodedName.slice(0, -GIT_REPOSITORY_SUFFIX.length)
       : decodedName;
     return this.truncateSourceName(displayName);
@@ -291,11 +389,7 @@ export class ImportTaskService {
 
   private resolvePathSourceName(sourceUrl: string) {
     const sourcePath = this.resolveSourcePath(sourceUrl);
-    const fileName = sourcePath
-      .split(/[\\/]/)
-      .filter(Boolean)
-      .at(-1)
-      ?.trim();
+    const fileName = sourcePath.split(/[\\/]/).filter(Boolean).at(-1)?.trim();
     if (!fileName) {
       return null;
     }
@@ -304,7 +398,10 @@ export class ImportTaskService {
   }
 
   private resolveSourcePath(sourceUrl: string) {
-    const trimmed = sourceUrl.trim().replace(/[?#].*$/, '').replace(/\/+$/, '');
+    const trimmed = sourceUrl
+      .trim()
+      .replace(/[?#].*$/, '')
+      .replace(/\/+$/, '');
     try {
       return new URL(trimmed).pathname;
     } catch {
@@ -430,12 +527,18 @@ export class ImportTaskService {
       throw new ConflictException('只有失败或已取消的任务才能重试');
     }
 
+    if (task.status === TaskStatus.FAILED) {
+      await this.clearRetryTargetResources(task);
+    }
+
     await this.taskRepo.update(
       id,
       applyUpdatedAuditActor(
         {
           status: TaskStatus.PENDING,
           errorMsg: null,
+          nodeCount: 0,
+          vectorCount: 0,
           updatedAt: new Date(),
         },
         actor,
@@ -483,8 +586,112 @@ export class ImportTaskService {
     if (task.sourceType === 'local') {
       await this.localImportStorage.deleteBySourceUrl(task.sourceUrl);
     }
-
-    await this.taskRepo.delete(id, tenantId);
+    await this.runInTenantTransaction(async () => {
+      await this.deleteAutoCreatedNode(task);
+      await this.taskRepo.delete(id, tenantId);
+    });
     return task;
+  }
+
+  private async deleteAutoCreatedNode(task: ImportTaskModel) {
+    if (!task.autoCreatedNodeId) {
+      return;
+    }
+
+    const node = await this.nodeRepo.findOne({
+      where: {
+        id: task.autoCreatedNodeId,
+        tenantId: task.tenantId,
+        kbId: task.kbId,
+      },
+    });
+    if (!node) {
+      return;
+    }
+
+    await this.knowledgeTreeService.remove(node.id, task.tenantId);
+  }
+
+  private async runInTenantTransaction<T>(operation: () => Promise<T>) {
+    const existingQueryRunner = this.request?.tenantQueryRunner;
+    if (existingQueryRunner) {
+      return this.runWithQueryRunnerTransaction(
+        existingQueryRunner,
+        operation,
+      );
+    }
+
+    const queryRunner = (
+      this.request?.tenantDataSource ?? this.defaultDataSource
+    ).createQueryRunner();
+    await queryRunner.connect();
+
+    const previousQueryRunner = this.request?.tenantQueryRunner;
+    if (this.request) {
+      this.request.tenantQueryRunner = queryRunner;
+    }
+
+    try {
+      return await this.runWithQueryRunnerTransaction(queryRunner, operation);
+    } finally {
+      if (this.request) {
+        this.request.tenantQueryRunner = previousQueryRunner;
+      }
+      if (!queryRunner.isReleased) {
+        await queryRunner.release();
+      }
+    }
+  }
+
+  private async runWithQueryRunnerTransaction<T>(
+    queryRunner: QueryRunner,
+    operation: () => Promise<T>,
+  ) {
+    const shouldManageTransaction = !queryRunner.isTransactionActive;
+    if (shouldManageTransaction) {
+      await queryRunner.startTransaction();
+    }
+
+    try {
+      const result = await operation();
+      if (shouldManageTransaction) {
+        await queryRunner.commitTransaction();
+      }
+      return result;
+    } catch (error) {
+      if (shouldManageTransaction && !queryRunner.isReleased) {
+        await queryRunner.rollbackTransaction();
+      }
+      throw error;
+    }
+  }
+
+  private async clearRetryTargetResources(task: ImportTaskModel) {
+    const rawConn = await this.settings.resolveOVConfig(task.tenantId);
+    const conn = {
+      baseUrl: rawConn.baseUrl || '',
+      apiKey: rawConn.apiKey || '',
+      account: rawConn.account || 'default',
+      user: rawConn.user || '',
+    };
+
+    try {
+      await this.ovClient.request(
+        conn,
+        `/api/v1/fs?uri=${encodeURIComponent(
+          this.toEngineResourceUri(task.targetUri),
+        )}&recursive=true`,
+        'DELETE',
+        undefined,
+        { user: conn.user || undefined },
+        { serviceLabel: 'OpenViking 重试资源清理' },
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '未知错误';
+      if (message.includes('404') || message.includes('NOT_FOUND')) {
+        return;
+      }
+      throw error;
+    }
   }
 }

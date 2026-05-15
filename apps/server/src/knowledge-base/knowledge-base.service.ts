@@ -54,7 +54,12 @@ export class KnowledgeBaseService {
       );
   }
 
-  async findAllPaginated(tenantId: string | null, page: number, pageSize: number, q?: string) {
+  async findAllPaginated(
+    tenantId: string | null,
+    page: number,
+    pageSize: number,
+    q?: string,
+  ) {
     return this.kbRepo.findAllPaginated(tenantId, page, pageSize, q);
   }
 
@@ -144,10 +149,7 @@ export class KnowledgeBaseService {
       throw new NotFoundException(`知识库 ${id} 不存在或无权访问`);
     }
     if (this.documentSessionRegistry.hasActiveSessionInKb(kb.id)) {
-      throw new HttpException(
-        KNOWLEDGE_BASE_LOCK_MESSAGE,
-        HttpStatus.LOCKED,
-      );
+      throw new HttpException(KNOWLEDGE_BASE_LOCK_MESSAGE, HttpStatus.LOCKED);
     }
     const ovConfig = await this.resolveOpenVikingConfig(tenantId, context);
     const nodes = await this.knowledgeTreeService.findByKb(kb.id, tenantId);

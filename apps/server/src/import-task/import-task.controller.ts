@@ -73,9 +73,10 @@ export class ImportTaskController {
     @Query('sync') sync: string | undefined,
     @Req() req: AuthenticatedRequest,
   ) {
-    const task = sync === 'true'
-      ? await this.taskService.syncResult(id, req.tenantScope)
-      : await this.taskService.findOne(id, req.tenantScope);
+    const task =
+      sync === 'true'
+        ? await this.taskService.syncResult(id, req.tenantScope)
+        : await this.taskService.findOne(id, req.tenantScope);
     return {
       events: [
         {

@@ -32,8 +32,12 @@ describe('GitIntegrator', () => {
       'https://git.example.com/group/repo',
     );
 
-    expect(result.fallbackPaths).toContain('http://admin:gl-token@git.example.com/group/repo');
-    expect(result.fallbackPaths).toContain('https://admin:gl-token@git.example.com/group/repo');
+    expect(result.fallbackPaths).toContain(
+      'http://admin:gl-token@git.example.com/group/repo',
+    );
+    expect(result.fallbackPaths).toContain(
+      'https://admin:gl-token@git.example.com/group/repo',
+    );
   });
 
   it('GitHub 凭证保持 token 用户名格式', async () => {

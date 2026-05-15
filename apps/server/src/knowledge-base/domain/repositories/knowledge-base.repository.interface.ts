@@ -16,7 +16,10 @@ export interface IKnowledgeBaseRepository {
     pageSize: number,
     q?: string,
   ): Promise<PaginatedKnowledgeBases>;
-  findById(id: string, tenantId?: string | null): Promise<KnowledgeBaseModel | null>;
+  findById(
+    id: string,
+    tenantId?: string | null,
+  ): Promise<KnowledgeBaseModel | null>;
   count(options?: RepositoryFindQuery<KnowledgeBaseModel>): Promise<number>;
   create(data: Partial<KnowledgeBaseModel>): KnowledgeBaseModel;
   save(kb: KnowledgeBaseModel): Promise<KnowledgeBaseModel>;

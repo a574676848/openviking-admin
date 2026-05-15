@@ -52,7 +52,10 @@ describe('DocumentService', () => {
   let settingsService: MockedSettingsService;
   let knowledgeTreeService: MockedKnowledgeTreeService;
   let documentSessionRegistry: MockedDocumentSessionRegistry;
-  let documentDraftRepository: { findByNode: jest.Mock; saveMarkdown: jest.Mock };
+  let documentDraftRepository: {
+    findByNode: jest.Mock;
+    saveMarkdown: jest.Mock;
+  };
   let knowledgeBaseService: { refreshStatsFromNodes: jest.Mock };
 
   beforeEach(() => {
@@ -76,7 +79,11 @@ describe('DocumentService', () => {
       touch: jest.fn(),
     };
     knowledgeTreeService.syncIndexState.mockImplementation(
-      async (_nodeId: string, _tenantId: string | null, state: Record<string, unknown>) => ({
+      async (
+        _nodeId: string,
+        _tenantId: string | null,
+        state: Record<string, unknown>,
+      ) => ({
         ...createNode({ contentUri: null }),
         ...state,
         updatedAt: UPDATED_AT,
@@ -415,7 +422,11 @@ describe('DocumentService', () => {
       updatedAt: UPDATED_AT,
     });
     knowledgeTreeService.syncIndexState.mockImplementation(
-      async (_nodeId: string, _tenantId: string | null, state: Record<string, unknown>) => ({
+      async (
+        _nodeId: string,
+        _tenantId: string | null,
+        state: Record<string, unknown>,
+      ) => ({
         ...node,
         ...state,
         updatedAt: UPDATED_AT,

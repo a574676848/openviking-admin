@@ -41,6 +41,21 @@ describe('LocalImportStorageService', () => {
     );
   });
 
+  it('会把 multipart 误解码的中文文件名恢复为 UTF-8', async () => {
+    const mojibakeName = Buffer.from('产品手册.md', 'utf8').toString('latin1');
+
+    const [stored] = await service.saveFiles('tenant-a', 'kb-1', [
+      {
+        originalname: mojibakeName,
+        mimetype: 'text/markdown',
+        size: 6,
+        buffer: Buffer.from('手册'),
+      },
+    ]);
+
+    expect(stored.originalName).toBe('产品手册.md');
+  });
+
   it('会拒绝不在白名单内的文件格式', async () => {
     await expect(
       service.saveFiles('tenant-a', 'kb-1', [
@@ -60,10 +75,9 @@ describe('LocalImportStorageService', () => {
     await writeFile(filePath, 'outside');
 
     try {
-      await expect(service.readBySourceUrl(pathToFileURL(filePath).href))
-        .rejects.toThrow(
-          '本地导入文件不在受控上传目录内',
-      );
+      await expect(
+        service.readBySourceUrl(pathToFileURL(filePath).href),
+      ).rejects.toThrow('本地导入文件不在受控上传目录内');
     } finally {
       await rm(outsideDir, { recursive: true, force: true });
     }

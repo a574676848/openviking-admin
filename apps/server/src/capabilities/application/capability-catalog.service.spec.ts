@@ -1,8 +1,5 @@
 import { RequestMethod } from '@nestjs/common';
-import {
-  METHOD_METADATA,
-  PATH_METADATA,
-} from '@nestjs/common/constants';
+import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
 import { CapabilitiesController } from '../capabilities.controller';
 import { CapabilityCatalogService } from './capability-catalog.service';
 
@@ -37,7 +34,10 @@ describe('CapabilityCatalogService', () => {
   it('should keep catalog, HTTP route, CLI command and MCP tool names aligned', () => {
     const service = new CapabilityCatalogService();
     const contracts = service.listCapabilities();
-    const toolNames = service.toMcpTools().map((tool) => tool.name).sort();
+    const toolNames = service
+      .toMcpTools()
+      .map((tool) => tool.name)
+      .sort();
     const controllerRoutes = {
       'knowledge.search': {
         path: Reflect.getMetadata(
@@ -216,7 +216,9 @@ describe('CapabilityCatalogService', () => {
     for (const contract of contracts) {
       const controllerRoute = controllerRoutes[contract.id];
       const expectedHttpMethod =
-        contract.http.method === 'POST' ? RequestMethod.POST : RequestMethod.GET;
+        contract.http.method === 'POST'
+          ? RequestMethod.POST
+          : RequestMethod.GET;
 
       expect(controllerRoute).toEqual(
         expect.objectContaining({

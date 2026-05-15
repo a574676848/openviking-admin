@@ -41,7 +41,11 @@ describe('AllExceptionsFilter', () => {
       host,
     );
 
-    expect(setHeader).toHaveBeenCalledWith(expect.anything(), 'x-request-id', 'request-1');
+    expect(setHeader).toHaveBeenCalledWith(
+      expect.anything(),
+      'x-request-id',
+      'request-1',
+    );
     expect(reply).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({

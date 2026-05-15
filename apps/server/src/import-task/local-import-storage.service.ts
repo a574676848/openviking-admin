@@ -6,6 +6,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { LOCAL_IMPORT_UPLOAD_CONFIG } from './constants';
 
+const MOJIBAKE_PATTERN = /[ÃÂ�]/;
+const CJK_CHARACTER_PATTERN = /[\u3400-\u9fff]/;
+
 export interface LocalImportUploadFile {
   originalname: string;
   mimetype?: string;
@@ -47,7 +50,12 @@ export class LocalImportStorageService {
       );
     }
 
-    for (const file of files) {
+    const normalizedFiles = files.map((file) => ({
+      ...file,
+      originalname: this.normalizeUploadFileName(file.originalname),
+    }));
+
+    for (const file of normalizedFiles) {
       this.assertValidFile(file);
     }
 
@@ -60,7 +68,7 @@ export class LocalImportStorageService {
 
     const stored: StoredLocalImportFile[] = [];
     try {
-      for (const [index, file] of files.entries()) {
+      for (const [index, file] of normalizedFiles.entries()) {
         const safeName = this.sanitizeFileName(file.originalname);
         const filePath = this.resolveManagedPath(
           path.relative(this.managedRoot, batchDir),
@@ -196,6 +204,16 @@ export class LocalImportStorageService {
 
   private sanitizePathSegment(value: string) {
     return value.trim().replace(/[^a-zA-Z0-9_-]/g, '_') || 'unknown';
+  }
+
+  private normalizeUploadFileName(value: string) {
+    const trimmed = value.trim();
+    const decoded = Buffer.from(trimmed, 'latin1').toString('utf8').trim();
+    const shouldUseDecoded =
+      MOJIBAKE_PATTERN.test(trimmed) ||
+      (!CJK_CHARACTER_PATTERN.test(trimmed) &&
+        CJK_CHARACTER_PATTERN.test(decoded));
+    return shouldUseDecoded && decoded ? decoded : trimmed;
   }
 
   private sanitizeFileName(value: string) {

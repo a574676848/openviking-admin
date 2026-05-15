@@ -22,6 +22,9 @@ describe('ImportTaskService', () => {
   };
   const nodeRepo = {
     find: jest.fn(),
+    findOne: jest.fn(),
+    createFileWithGeneratedUri: jest.fn(),
+    remove: jest.fn(),
   };
   const ovClient = {
     request: jest.fn(),
@@ -31,18 +34,63 @@ describe('ImportTaskService', () => {
     deleteBySourceUrl: jest.fn(),
     isManagedFileUrl: jest.fn(),
   };
+  const knowledgeTreeService = {
+    remove: jest.fn(),
+  };
+  const queryRunner = {
+    isTransactionActive: false,
+    isReleased: false,
+    startTransaction: jest.fn(),
+    commitTransaction: jest.fn(),
+    rollbackTransaction: jest.fn(),
+    release: jest.fn(),
+  };
+  const defaultDataSource = {
+    createQueryRunner: jest.fn(() => queryRunner),
+  };
+  const request = {
+    tenantQueryRunner: queryRunner,
+    tenantDataSource: undefined,
+  };
 
   let service: ImportTaskService;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    queryRunner.isTransactionActive = false;
+    queryRunner.isReleased = false;
+    request.tenantQueryRunner = queryRunner;
+    request.tenantDataSource = undefined;
+    nodeRepo.find.mockResolvedValue([]);
+    nodeRepo.findOne.mockResolvedValue(null);
+    nodeRepo.createFileWithGeneratedUri.mockImplementation(
+      async (payload) => ({
+        id: `node-${payload.name}`,
+        tenantId: payload.tenantId,
+        kbId: payload.kbId,
+        parentId: payload.parentId ?? null,
+        name: payload.name,
+        kind: 'document',
+        vikingUri: `viking://resources/tenants/${payload.tenantId}/${payload.kbId}/nodes/${payload.name}/`,
+        contentUri: null,
+        indexStatus: payload.indexStatus ?? 'pending',
+        sortOrder: payload.sortOrder ?? 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }),
+    );
+    nodeRepo.remove.mockImplementation(async (node) => node);
+    knowledgeTreeService.remove.mockResolvedValue(undefined);
     service = new ImportTaskService(
-      taskRepo as never,
+      taskRepo,
       kbRepo as never,
       nodeRepo as never,
       settings as never,
       ovClient as never,
       localImportStorage as never,
+      knowledgeTreeService as never,
+      defaultDataSource as never,
+      request as never,
     );
   });
 
@@ -50,27 +98,108 @@ describe('ImportTaskService', () => {
     taskRepo.findById
       .mockResolvedValueOnce({
         id: 'task-1',
+        tenantId: 'tenant-a',
         status: TaskStatus.FAILED,
+        targetUri: 'viking://resources/tenants/tenant-a/kb-1/imports/git/',
       })
       .mockResolvedValueOnce({
         id: 'task-1',
         status: TaskStatus.PENDING,
         errorMsg: null,
       });
+    settings.resolveOVConfig.mockResolvedValue({
+      baseUrl: 'http://ov.local',
+      apiKey: 'ov-key',
+      account: 'tenant-a',
+      user: 'worker-user',
+    });
+    ovClient.request.mockResolvedValueOnce({ status: 'ok' });
 
     const result = await service.retry('task-1', 'tenant-a');
 
+    expect(ovClient.request).toHaveBeenCalledWith(
+      expect.objectContaining({ account: 'tenant-a' }),
+      '/api/v1/fs?uri=viking%3A%2F%2Fresources%2Ftenants%2Ftenant-a%2Fkb-1%2Fimports%2Fgit%2F&recursive=true',
+      'DELETE',
+      undefined,
+      { user: 'worker-user' },
+      { serviceLabel: 'OpenViking 重试资源清理' },
+    );
     expect(taskRepo.update).toHaveBeenCalledWith(
       'task-1',
       expect.objectContaining({
         status: TaskStatus.PENDING,
         errorMsg: null,
+        nodeCount: 0,
+        vectorCount: 0,
       }),
     );
     expect(result).toEqual(
       expect.objectContaining({
         id: 'task-1',
         status: TaskStatus.PENDING,
+      }),
+    );
+  });
+
+  it('重试时目标资源已不存在仍允许重新排队', async () => {
+    taskRepo.findById
+      .mockResolvedValueOnce({
+        id: 'task-missing-target',
+        tenantId: 'tenant-a',
+        status: TaskStatus.FAILED,
+        targetUri: 'viking://resources/tenants/tenant-a/kb-1/imports/git/',
+      })
+      .mockResolvedValueOnce({
+        id: 'task-missing-target',
+        status: TaskStatus.PENDING,
+        errorMsg: null,
+      });
+    settings.resolveOVConfig.mockResolvedValue({
+      baseUrl: 'http://ov.local',
+      apiKey: 'ov-key',
+      account: 'tenant-a',
+      user: 'worker-user',
+    });
+    ovClient.request.mockRejectedValueOnce(new Error('NOT_FOUND'));
+
+    await service.retry('task-missing-target', 'tenant-a');
+
+    expect(taskRepo.update).toHaveBeenCalledWith(
+      'task-missing-target',
+      expect.objectContaining({
+        status: TaskStatus.PENDING,
+        errorMsg: null,
+        nodeCount: 0,
+        vectorCount: 0,
+      }),
+    );
+  });
+
+  it('重试已取消任务时不清理目标资源', async () => {
+    taskRepo.findById
+      .mockResolvedValueOnce({
+        id: 'task-cancelled',
+        tenantId: 'tenant-a',
+        status: TaskStatus.CANCELLED,
+        targetUri: 'viking://resources/tenants/tenant-a/kb-1/imports/git/',
+      })
+      .mockResolvedValueOnce({
+        id: 'task-cancelled',
+        status: TaskStatus.PENDING,
+        errorMsg: null,
+      });
+
+    await service.retry('task-cancelled', 'tenant-a');
+
+    expect(ovClient.request).not.toHaveBeenCalled();
+    expect(taskRepo.update).toHaveBeenCalledWith(
+      'task-cancelled',
+      expect.objectContaining({
+        status: TaskStatus.PENDING,
+        errorMsg: null,
+        nodeCount: 0,
+        vectorCount: 0,
       }),
     );
   });
@@ -119,14 +248,21 @@ describe('ImportTaskService', () => {
   it('允许物理删除失败任务', async () => {
     taskRepo.findById.mockResolvedValueOnce({
       id: 'task-failed-delete',
+      tenantId: 'tenant-a',
+      kbId: 'kb-1',
       status: TaskStatus.FAILED,
       sourceType: 'url',
       sourceUrl: 'https://example.com/broken.pdf',
+      autoCreatedNodeId: null,
     });
 
     const result = await service.deleteFailed('task-failed-delete', 'tenant-a');
 
-    expect(taskRepo.delete).toHaveBeenCalledWith('task-failed-delete', 'tenant-a');
+    expect(knowledgeTreeService.remove).not.toHaveBeenCalled();
+    expect(taskRepo.delete).toHaveBeenCalledWith(
+      'task-failed-delete',
+      'tenant-a',
+    );
     expect(result).toEqual(
       expect.objectContaining({
         id: 'task-failed-delete',
@@ -138,9 +274,12 @@ describe('ImportTaskService', () => {
   it('物理删除失败的本地任务时会清理受控上传文件', async () => {
     taskRepo.findById.mockResolvedValueOnce({
       id: 'task-local-failed',
+      tenantId: 'tenant-a',
+      kbId: 'kb-1',
       status: TaskStatus.FAILED,
       sourceType: 'local',
       sourceUrl: 'file:///data/openviking/imports/broken.md',
+      autoCreatedNodeId: null,
     });
 
     await service.deleteFailed('task-local-failed', 'tenant-a');
@@ -148,7 +287,77 @@ describe('ImportTaskService', () => {
     expect(localImportStorage.deleteBySourceUrl).toHaveBeenCalledWith(
       'file:///data/openviking/imports/broken.md',
     );
-    expect(taskRepo.delete).toHaveBeenCalledWith('task-local-failed', 'tenant-a');
+    expect(taskRepo.delete).toHaveBeenCalledWith(
+      'task-local-failed',
+      'tenant-a',
+    );
+  });
+
+  it('物理删除失败任务时会同步删除自动创建的文档节点', async () => {
+    const autoNode = {
+      id: 'node-auto',
+      tenantId: 'tenant-a',
+      kbId: 'kb-1',
+      kind: 'document',
+      vikingUri: 'viking://resources/tenants/tenant-a/kb-1/nodes/node-auto/',
+    };
+    taskRepo.findById.mockResolvedValueOnce({
+      id: 'task-auto-node-failed',
+      tenantId: 'tenant-a',
+      kbId: 'kb-1',
+      status: TaskStatus.FAILED,
+      sourceType: 'url',
+      sourceUrl: 'https://example.com/broken.pdf',
+      autoCreatedNodeId: 'node-auto',
+    });
+    nodeRepo.findOne.mockResolvedValueOnce(autoNode);
+
+    await service.deleteFailed('task-auto-node-failed', 'tenant-a');
+
+    expect(nodeRepo.findOne).toHaveBeenCalledWith({
+      where: {
+        id: 'node-auto',
+        tenantId: 'tenant-a',
+        kbId: 'kb-1',
+      },
+    });
+    expect(knowledgeTreeService.remove).toHaveBeenCalledWith(
+      'node-auto',
+      'tenant-a',
+    );
+    expect(taskRepo.delete).toHaveBeenCalledWith(
+      'task-auto-node-failed',
+      'tenant-a',
+    );
+  });
+
+  it('物理删除自动文档节点失败时应回滚且保留任务', async () => {
+    taskRepo.findById.mockResolvedValueOnce({
+      id: 'task-auto-node-delete-failed',
+      tenantId: 'tenant-a',
+      kbId: 'kb-1',
+      status: TaskStatus.FAILED,
+      sourceType: 'url',
+      sourceUrl: 'https://example.com/broken.pdf',
+      autoCreatedNodeId: 'node-auto',
+    });
+    nodeRepo.findOne.mockResolvedValueOnce({
+      id: 'node-auto',
+      tenantId: 'tenant-a',
+      kbId: 'kb-1',
+      kind: 'document',
+    });
+    knowledgeTreeService.remove.mockRejectedValueOnce(
+      new Error('OV 删除失败'),
+    );
+
+    await expect(
+      service.deleteFailed('task-auto-node-delete-failed', 'tenant-a'),
+    ).rejects.toThrow('OV 删除失败');
+
+    expect(queryRunner.startTransaction).toHaveBeenCalled();
+    expect(queryRunner.rollbackTransaction).toHaveBeenCalled();
+    expect(taskRepo.delete).not.toHaveBeenCalled();
   });
 
   it('拒绝物理删除非失败任务', async () => {
@@ -193,15 +402,18 @@ describe('ImportTaskService', () => {
         sourceUrl: 'https://example.com/repo-a.git',
         sourceName: 'repo-a',
         targetUri: 'viking://resources/tenants/tenant-a/kb-1/imports/git/',
+        autoCreatedNodeId: null,
         tenantId: 'tenant-a',
       }),
       expect.objectContaining({
         sourceUrl: 'https://example.com/repo-b.git',
         sourceName: 'repo-b',
         targetUri: 'viking://resources/tenants/tenant-a/kb-1/imports/git/',
+        autoCreatedNodeId: null,
         tenantId: 'tenant-a',
       }),
     ]);
+    expect(nodeRepo.createFileWithGeneratedUri).not.toHaveBeenCalled();
     expect(result).toEqual(
       expect.objectContaining({
         sourceUrl: 'https://example.com/repo-a.git',
@@ -223,7 +435,7 @@ describe('ImportTaskService', () => {
     expect(taskRepo.create).not.toHaveBeenCalled();
   });
 
-  it('会将网页提取任务写入 url 目标路径', async () => {
+  it('会将网页提取任务挂到自动创建的文档节点', async () => {
     taskRepo.create.mockImplementation((payload) => payload);
     taskRepo.save.mockImplementation(async (payload) => payload);
     kbRepo.findById.mockResolvedValue({
@@ -245,7 +457,19 @@ describe('ImportTaskService', () => {
       expect.objectContaining({
         sourceType: 'url',
         sourceUrl: 'https://docs.example.com/page',
-        targetUri: 'viking://resources/tenants/tenant-a/kb-url/imports/url/',
+        sourceName: 'page',
+        targetUri:
+          'viking://resources/tenants/tenant-a/kb-url/nodes/page.md/',
+        autoCreatedNodeId: 'node-page.md',
+      }),
+    );
+    expect(nodeRepo.createFileWithGeneratedUri).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kbId: 'kb-url',
+        tenantId: 'tenant-a',
+        parentId: null,
+        name: 'page.md',
+        kind: 'document',
       }),
     );
     expect(result).toEqual(
@@ -253,6 +477,31 @@ describe('ImportTaskService', () => {
         sourceType: 'url',
       }),
     );
+  });
+
+  it('创建自动文档节点后保存任务失败时应回滚事务', async () => {
+    taskRepo.create.mockImplementation((payload) => payload);
+    taskRepo.save.mockRejectedValueOnce(new Error('任务保存失败'));
+    kbRepo.findById.mockResolvedValue({
+      id: 'kb-url',
+      vikingUri: 'viking://resources/tenant-a/kb-url/',
+    });
+
+    await expect(
+      service.create(
+        {
+          kbId: 'kb-url',
+          sourceType: 'url',
+          sourceUrl: 'https://docs.example.com/page',
+        },
+        'tenant-a',
+      ),
+    ).rejects.toThrow('任务保存失败');
+
+    expect(nodeRepo.createFileWithGeneratedUri).toHaveBeenCalled();
+    expect(queryRunner.startTransaction).toHaveBeenCalled();
+    expect(queryRunner.rollbackTransaction).toHaveBeenCalled();
+    expect(queryRunner.commitTransaction).not.toHaveBeenCalled();
   });
 
   it('创建导入任务时优先使用显式 sourceName', async () => {
@@ -322,7 +571,8 @@ describe('ImportTaskService', () => {
       {
         kbId: 'kb-url',
         sourceType: 'url',
-        sourceUrl: 'https://docs.example.com/files/%E4%BA%A7%E5%93%81.md?download=1',
+        sourceUrl:
+          'https://docs.example.com/files/%E4%BA%A7%E5%93%81.md?download=1',
       },
       'tenant-a',
     );
@@ -345,8 +595,16 @@ describe('ImportTaskService', () => {
       {
         id: 'node-1',
         vikingUri: 'viking://resources/tenant-a/kb-url/node-1/',
+        kind: 'collection',
       },
     ]);
+    nodeRepo.findOne.mockResolvedValueOnce({
+      id: 'node-1',
+      tenantId: 'tenant-a',
+      kbId: 'kb-url',
+      kind: 'collection',
+      vikingUri: 'viking://resources/tenants/tenant-a/kb-url/node-1/',
+    });
 
     await service.create(
       {
@@ -360,7 +618,15 @@ describe('ImportTaskService', () => {
 
     expect(taskRepo.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        targetUri: 'viking://resources/tenants/tenant-a/kb-url/node-1/',
+        targetUri:
+          'viking://resources/tenants/tenant-a/kb-url/nodes/page.md/',
+        autoCreatedNodeId: 'node-page.md',
+      }),
+    );
+    expect(nodeRepo.createFileWithGeneratedUri).toHaveBeenCalledWith(
+      expect.objectContaining({
+        parentId: 'node-1',
+        name: 'page.md',
       }),
     );
   });
@@ -422,7 +688,9 @@ describe('ImportTaskService', () => {
         sourceType: 'local',
         sourceUrl: 'file:///data/openviking/imports/manual.md',
         sourceName: '产品手册.md',
-        targetUri: 'viking://resources/tenants/tenant-a/kb-1/imports/local/',
+        targetUri:
+          'viking://resources/tenants/tenant-a/kb-1/nodes/产品手册.md/',
+        autoCreatedNodeId: 'node-产品手册.md',
       }),
     );
     expect(result).toEqual(
@@ -466,7 +734,7 @@ describe('ImportTaskService', () => {
     expect(localImportStorage.saveFiles).not.toHaveBeenCalled();
   });
 
-  it('未显式传入 targetUri 时会按知识库自动派生企业文档目标路径', async () => {
+  it('未显式传入 targetUri 时会为企业文档自动创建文档节点', async () => {
     taskRepo.create.mockImplementation((payload) => payload);
     taskRepo.save.mockImplementation(async (payload) => payload);
     kbRepo.findById.mockResolvedValue({
@@ -488,12 +756,23 @@ describe('ImportTaskService', () => {
     expect(kbRepo.findById).toHaveBeenCalledWith('kb-2', 'tenant-a');
     expect(result).toEqual(
       expect.objectContaining({
-        targetUri: 'viking://resources/tenants/tenant-a/kb-2/imports/feishu/',
+        targetUri:
+          'viking://resources/tenants/tenant-a/kb-2/nodes/abc.md/',
+        autoCreatedNodeId: 'node-abc.md',
       }),
     );
     expect(taskRepo.create).toHaveBeenCalledWith(
       expect.objectContaining({
         sourceName: null,
+        targetUri:
+          'viking://resources/tenants/tenant-a/kb-2/nodes/abc.md/',
+        autoCreatedNodeId: 'node-abc.md',
+      }),
+    );
+    expect(nodeRepo.createFileWithGeneratedUri).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'abc.md',
+        parentId: null,
       }),
     );
   });

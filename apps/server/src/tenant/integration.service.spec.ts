@@ -18,7 +18,7 @@ describe('IntegrationService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new IntegrationService(repo as never, encryption as never);
+    service = new IntegrationService(repo, encryption as never);
   });
 
   function createIntegration(
@@ -50,7 +50,7 @@ describe('IntegrationService', () => {
       'integration-1',
       {
         name: 'gitlab',
-        type: 'gitlab' as never,
+        type: 'gitlab',
         credentials: {
           token: MASKED_SECRET_PLACEHOLDER,
           username: 'zhang.baogen',
@@ -80,7 +80,7 @@ describe('IntegrationService', () => {
       'integration-1',
       {
         name: 'gitlab',
-        type: 'gitlab' as never,
+        type: 'gitlab',
         credentials: {
           token: 'new-token',
           username: 'baogen.zhang',

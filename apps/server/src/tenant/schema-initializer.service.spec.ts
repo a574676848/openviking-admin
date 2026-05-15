@@ -28,9 +28,7 @@ describe('SchemaInitializerService', () => {
       isolationLevel: TenantIsolationLevel.MEDIUM,
     });
 
-    const ddlSql = query.mock.calls
-      .map(([sql]) => String(sql))
-      .join('\n');
+    const ddlSql = query.mock.calls.map(([sql]) => String(sql)).join('\n');
 
     expect(ddlSql).toContain('"knowledge_bases"');
     expect(ddlSql).toContain('"knowledge_nodes"');

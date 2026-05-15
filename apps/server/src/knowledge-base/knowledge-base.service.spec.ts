@@ -147,16 +147,14 @@ describe('KnowledgeBaseService', () => {
     });
     kbRepo.save.mockImplementation(async (item) => item);
 
-    const result = await service.refreshStatsFromNodes(
-      'kb-1',
-      'tenant-alpha',
-      { id: 'user-1', username: 'admin' },
-    );
+    const result = await service.refreshStatsFromNodes('kb-1', 'tenant-alpha', {
+      id: 'user-1',
+      username: 'admin',
+    });
 
-    expect(knowledgeTreeService.aggregateKnowledgeBaseStats).toHaveBeenCalledWith(
-      'kb-1',
-      'tenant-alpha',
-    );
+    expect(
+      knowledgeTreeService.aggregateKnowledgeBaseStats,
+    ).toHaveBeenCalledWith('kb-1', 'tenant-alpha');
     expect(kbRepo.save).toHaveBeenCalledWith(
       expect.objectContaining({
         docCount: 3,
@@ -165,7 +163,9 @@ describe('KnowledgeBaseService', () => {
         updatedByName: 'admin',
       }),
     );
-    expect(result).toEqual(expect.objectContaining({ docCount: 3, vectorCount: 12 }));
+    expect(result).toEqual(
+      expect.objectContaining({ docCount: 3, vectorCount: 12 }),
+    );
   });
 
   it('跨租户更新知识库时应拒绝访问', async () => {

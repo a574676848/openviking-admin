@@ -166,13 +166,9 @@ export class SystemController {
     ]);
 
     const queueRaw =
-      results[0].status === 'fulfilled'
-        ? (results[0].value as Record<string, unknown>)
-        : null;
+      results[0].status === 'fulfilled' ? results[0].value : null;
     const vikingdbRaw =
-      results[1].status === 'fulfilled'
-        ? (results[1].value as Record<string, unknown>)
-        : null;
+      results[1].status === 'fulfilled' ? results[1].value : null;
 
     // 解析队列文本表格
     const queue =

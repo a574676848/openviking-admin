@@ -45,7 +45,7 @@ describe("console-layout", () => {
     const elevated = container.querySelector(".test-elevated");
     const inverse = container.querySelector(".test-inverse");
 
-    expect(elevated?.className).toContain("border-[3px]");
+    expect(elevated?.className).toContain("border-[var(--border)]");
     expect(elevated?.className).toContain("bg-[var(--bg-elevated)]");
     expect(inverse?.className).toContain("bg-black");
     expect(inverse?.className).toContain("text-white");
@@ -64,10 +64,10 @@ describe("console-layout", () => {
     const active = container.querySelector(".test-active");
     const idle = container.querySelector(".test-idle");
 
-    expect(active?.className).toContain("bg-black");
-    expect(active?.className).toContain("text-white");
+    expect(active?.className).toContain("bg-[var(--brand)]");
+    expect(active?.className).toContain("text-[var(--brand-text)]");
     expect(idle?.className).toContain("bg-[var(--bg-card)]");
-    expect(idle?.className).toContain("shadow-[3px_3px_0px_#000]");
+    expect(idle?.className).toContain("hover:bg-[var(--bg-elevated)]");
   });
 
   it("ConsoleIconTile 与 ConsoleSurfaceCard 支持 success tone", async () => {

@@ -5,9 +5,7 @@ const SOURCE_NAME_COLUMN = 'source_name';
 const LEGACY_ORIGINAL_FILE_NAME_COLUMN = 'original_file_name';
 const SOURCE_NAME_MAX_LENGTH = 255;
 
-export class AddImportTaskSourceName1746800000000
-  implements MigrationInterface
-{
+export class AddImportTaskSourceName1746800000000 implements MigrationInterface {
   name = 'AddImportTaskSourceName1746800000000';
 
   async up(queryRunner: QueryRunner): Promise<void> {

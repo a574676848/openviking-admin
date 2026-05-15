@@ -636,7 +636,8 @@ describe('TaskWorkerService', () => {
       { serviceLabel: 'OpenViking 资源树' },
     );
     expect(nodeRepo.update).toHaveBeenCalledWith('node-file', {
-      contentUri: 'viking://resources/tenants/small-a/kb-1/node-file/content.md',
+      contentUri:
+        'viking://resources/tenants/small-a/kb-1/node-file/content.md',
       updatedAt: expect.any(Date),
     });
   });
@@ -686,7 +687,12 @@ describe('TaskWorkerService', () => {
       request: jest.fn(),
     };
     const documentSessionRegistry = new DocumentSessionRegistry();
-    documentSessionRegistry.register('kb-1', 'node-doc', 'collab-conn-1', 'write');
+    documentSessionRegistry.register(
+      'kb-1',
+      'node-doc',
+      'collab-conn-1',
+      'write',
+    );
     const assertNoActiveWriteSessionSpy = jest.spyOn(
       documentSessionRegistry,
       'assertNoActiveWriteSession',
@@ -893,7 +899,8 @@ describe('TaskWorkerService', () => {
       }),
     };
     const ovClient = {
-      request: jest.fn()
+      request: jest
+        .fn()
         .mockRejectedValueOnce(new Error('clone failed'))
         .mockResolvedValueOnce({ ok: true }),
     };
@@ -964,7 +971,8 @@ describe('TaskWorkerService', () => {
     const task = {
       ...createTask('git-fallback-task', 'test3'),
       sourceType: 'git',
-      sourceUrl: 'https://git.exexm.com/epaas-product/exe-cloud-business-center',
+      sourceUrl:
+        'https://git.exexm.com/epaas-product/exe-cloud-business-center',
       targetUri: 'viking://resources/tenants/test3/kb-1/imports/git/',
     } as ImportTaskModel;
     const tenantRepo = {
@@ -1013,7 +1021,8 @@ describe('TaskWorkerService', () => {
       }),
     };
     const ovClient = {
-      request: jest.fn()
+      request: jest
+        .fn()
         .mockResolvedValueOnce({
           result: {
             status: 'error',

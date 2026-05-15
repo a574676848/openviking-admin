@@ -127,7 +127,8 @@ async function main() {
       {
         timestamp: 1746200000000,
         name: 'RenameMcpSessionCredentialHash1746200000000',
-        check: async () => await columnExists('mcp_sessions', 'credential_hash'),
+        check: async () =>
+          await columnExists('mcp_sessions', 'credential_hash'),
       },
       {
         timestamp: 1746300000000,

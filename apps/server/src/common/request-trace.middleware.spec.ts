@@ -43,7 +43,7 @@ describe('RequestTraceMiddleware', () => {
         finishHandler = handler;
       }
       return response as unknown as Response;
-    }) as unknown as ResponseStub['on'];
+    });
     response.getHeader = jest.fn(() => undefined) as ResponseStub['getHeader'];
     response.setHeader = jest.fn() as ResponseStub['setHeader'];
     response.getHeaders = jest.fn(() => ({

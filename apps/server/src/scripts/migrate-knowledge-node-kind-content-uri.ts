@@ -20,7 +20,7 @@ const KIND_COLUMN = 'kind';
 const CONTENT_URI_COLUMN = 'content_uri';
 
 async function resolveTargetSchemas(queryRunner: DataSource) {
-  const rows = (await queryRunner.query(`
+  const rows = await queryRunner.query(`
     SELECT table_schema
     FROM information_schema.tables
     WHERE table_name = '${KNOWLEDGE_NODE_TABLE}'
@@ -30,9 +30,9 @@ async function resolveTargetSchemas(queryRunner: DataSource) {
       )
     GROUP BY table_schema
     ORDER BY table_schema
-  `)) as Array<{ table_schema: string }>;
+  `);
 
-  return rows.map((row) => row.table_schema);
+  return (rows as Array<{ table_schema: string }>).map((row) => row.table_schema);
 }
 
 async function applyKnowledgeNodeColumns(
@@ -104,14 +104,14 @@ async function main() {
     await applyKnowledgeNodeColumns(dataSource, schemas);
     console.log(`主库与 schema 迁移完成: ${schemas.join(', ')}`);
 
-    const tenants = (await dataSource.query(`
+    const tenants = await dataSource.query(`
       SELECT tenant_id AS "tenantId",
              isolation_level AS "isolationLevel",
              db_config AS "dbConfig"
       FROM tenants
       WHERE status = 'active'
         AND isolation_level = 'large'
-    `)) as TenantRow[];
+    `);
 
     for (const tenant of tenants) {
       await migrateLargeTenantDatabase(tenant);

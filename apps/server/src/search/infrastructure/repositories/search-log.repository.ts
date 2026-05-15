@@ -47,13 +47,15 @@ export class SearchLogRepository implements ISearchLogRepository {
       latencyMs: log.latencyMs,
       feedback: log.feedback,
       feedbackNote: log.feedbackNote,
-      meta: log.meta as Record<string, any> | undefined,
+      meta: log.meta,
       createdAt: log.createdAt,
     };
   }
 
   async save(log: Partial<SearchLogModel>): Promise<SearchLogModel> {
-    const saved = await this.repo.save(this.repo.create(this.toEntityInput(log)));
+    const saved = await this.repo.save(
+      this.repo.create(this.toEntityInput(log)),
+    );
     return this.toModel(saved);
   }
 
@@ -65,8 +67,12 @@ export class SearchLogRepository implements ISearchLogRepository {
     return this.repo.count((options ?? {}) as FindManyOptions<SearchLog>);
   }
 
-  async find(options?: RepositoryFindQuery<SearchLogModel>): Promise<SearchLogModel[]> {
-    const items = await this.repo.find((options ?? {}) as FindManyOptions<SearchLog>);
+  async find(
+    options?: RepositoryFindQuery<SearchLogModel>,
+  ): Promise<SearchLogModel[]> {
+    const items = await this.repo.find(
+      (options ?? {}) as FindManyOptions<SearchLog>,
+    );
     return items.map((item) => this.toModel(item));
   }
 
@@ -106,12 +112,18 @@ export class SearchLogRepository implements ISearchLogRepository {
     const query = this.repo
       .createQueryBuilder('l')
       .select("COUNT(*) FILTER (WHERE l.feedback = 'helpful')", 'helpfulCount')
-      .addSelect("COUNT(*) FILTER (WHERE l.feedback = 'unhelpful')", 'unhelpfulCount')
+      .addSelect(
+        "COUNT(*) FILTER (WHERE l.feedback = 'unhelpful')",
+        'unhelpfulCount',
+      )
       .where('l.feedback IS NOT NULL');
     if (tenantId) {
       query.andWhere('l.tenantId = :tenantId', { tenantId });
     }
-    const result = await query.getRawOne<{ helpfulCount: string | null; unhelpfulCount: string | null }>();
+    const result = await query.getRawOne<{
+      helpfulCount: string | null;
+      unhelpfulCount: string | null;
+    }>();
     return {
       helpfulCount: Number(result?.helpfulCount || 0),
       unhelpfulCount: Number(result?.unhelpfulCount || 0),
@@ -122,12 +134,13 @@ export class SearchLogRepository implements ISearchLogRepository {
     tenantId?: string | null,
     limit: number = 20,
   ): Promise<{ uri: string; count: number; hits: number; hitRate: number }[]> {
-    const normalizedScopeExpression = "COALESCE(NULLIF(l.scope, ''), :allScope)";
+    const normalizedScopeExpression =
+      "COALESCE(NULLIF(l.scope, ''), :allScope)";
     const query = this.repo
       .createQueryBuilder('l')
       .select(normalizedScopeExpression, 'uri')
       .addSelect('COUNT(*)', 'count')
-      .addSelect("COUNT(*) FILTER (WHERE l.result_count > 0)", 'hits')
+      .addSelect('COUNT(*) FILTER (WHERE l.result_count > 0)', 'hits')
       .setParameter('allScope', ALL_SCOPE_URI);
     if (tenantId) {
       query.where('l.tenantId = :tenantId', { tenantId });
@@ -151,12 +164,14 @@ export class SearchLogRepository implements ISearchLogRepository {
   async getTopQueries(
     tenantId?: string | null,
     limit: number = 20,
-  ): Promise<{ query: string; count: number; hits: number; hitRate: number }[]> {
+  ): Promise<
+    { query: string; count: number; hits: number; hitRate: number }[]
+  > {
     const query = this.repo
       .createQueryBuilder('l')
       .select('l.query', 'query')
       .addSelect('COUNT(*)', 'count')
-      .addSelect("COUNT(*) FILTER (WHERE l.result_count > 0)", 'hits')
+      .addSelect('COUNT(*) FILTER (WHERE l.result_count > 0)', 'hits')
       .where('l.query IS NOT NULL AND l.query != :empty', { empty: '' });
     if (tenantId) {
       query.andWhere('l.tenantId = :tenantId', { tenantId });
@@ -181,13 +196,19 @@ export class SearchLogRepository implements ISearchLogRepository {
     tenantId?: string | null,
     days: number = 10,
   ): Promise<
-    { day: string; total: number; hits: number; hitRate: number; avgLatency: number }[]
+    {
+      day: string;
+      total: number;
+      hits: number;
+      hitRate: number;
+      avgLatency: number;
+    }[]
   > {
     const query = this.repo
       .createQueryBuilder('l')
       .select("TO_CHAR(l.created_at, 'YYYY-MM-DD')", 'day')
       .addSelect('COUNT(*)', 'total')
-      .addSelect("COUNT(*) FILTER (WHERE l.result_count > 0)", 'hits')
+      .addSelect('COUNT(*) FILTER (WHERE l.result_count > 0)', 'hits')
       .addSelect('AVG(l.latency_ms)', 'avgLatency')
       .where(`l.created_at >= NOW() - INTERVAL '${days} days'`);
     if (tenantId) {

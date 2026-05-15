@@ -54,9 +54,17 @@ describe('McpController', () => {
     const session = { sessionId: 'session-1', endpoint: '/api/v1/mcp/message' };
     mcpProtocolService.createSessionConnection.mockResolvedValue(session);
 
-    await controller.sse('api-key', undefined, request as never, response as never);
+    await controller.sse(
+      'api-key',
+      undefined,
+      request as never,
+      response as never,
+    );
 
-    expect(mcpProtocolService.createSessionConnection).toHaveBeenCalledWith('api-key', undefined);
+    expect(mcpProtocolService.createSessionConnection).toHaveBeenCalledWith(
+      'api-key',
+      undefined,
+    );
     expect(mcpSseService.writeEventStream).toHaveBeenCalledWith(
       request,
       response,

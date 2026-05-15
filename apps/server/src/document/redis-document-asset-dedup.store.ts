@@ -81,7 +81,8 @@ export class RedisDocumentAssetDedupStore
       }
       return parsed.filter(
         (entry) =>
-          typeof entry?.hash === 'string' && typeof entry?.assetPath === 'string',
+          typeof entry?.hash === 'string' &&
+          typeof entry?.assetPath === 'string',
       );
     } catch {
       return [];
@@ -130,7 +131,10 @@ export class RedisDocumentAssetDedupStore
   private createClient(options: DocumentAssetDedupStoreOptions) {
     if (options.redisUrl) {
       const url = options.redisPassword
-        ? this.injectPasswordIntoRedisUrl(options.redisUrl, options.redisPassword)
+        ? this.injectPasswordIntoRedisUrl(
+            options.redisUrl,
+            options.redisPassword,
+          )
         : options.redisUrl;
       return new Redis(url, {
         connectTimeout: options.redisConnectTimeoutMs,

@@ -40,7 +40,9 @@ export class UsersService {
   async create(
     dto: CreateUserDto & { tenantId?: string; passwordHash?: string },
   ) {
-    const tenantRecordId = await this.resolveTenantRecordId(dto.tenantId ?? null);
+    const tenantRecordId = await this.resolveTenantRecordId(
+      dto.tenantId ?? null,
+    );
     const existing = await this.userRepo.findByUsername(
       dto.username,
       tenantRecordId,
@@ -54,7 +56,7 @@ export class UsersService {
       ...dto,
       tenantId: tenantRecordId ?? undefined,
       passwordHash,
-    } as Partial<UserModel>);
+    });
     return this.userRepo.save(user);
   }
 

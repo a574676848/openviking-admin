@@ -29,7 +29,7 @@ describe('UsersController', () => {
         password: 'secret123',
         role: SystemRoles.TENANT_VIEWER,
         tenantId: 'tenant-alpha',
-      } as never,
+      },
       {
         tenantScope: null,
         user: {
@@ -56,7 +56,7 @@ describe('UsersController', () => {
         password: 'secret123',
         role: SystemRoles.TENANT_VIEWER,
         tenantId: 'tenant-beta',
-      } as never,
+      },
       {
         tenantScope: 'tenant-alpha',
         user: {

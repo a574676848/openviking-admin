@@ -22,7 +22,10 @@ export class McpSseService {
     res.setHeader('Connection', SSE_CONNECTION);
     res.flushHeaders?.();
 
-    const subscription = this.createEventStream(req, async () => session).subscribe({
+    const subscription = this.createEventStream(
+      req,
+      async () => session,
+    ).subscribe({
       next: (event) => {
         res.write(this.formatSseEvent(event));
       },

@@ -42,9 +42,8 @@ describe('AuditClientLogController', () => {
         }),
       }),
     );
-    expect(JSON.stringify((auditService.log as jest.Mock).mock.calls[0][0])).not.toContain(
-      'ov-sk-secret-token',
-    );
+    expect(
+      JSON.stringify((auditService.log as jest.Mock).mock.calls[0][0]),
+    ).not.toContain('ov-sk-secret-token');
   });
 });
-

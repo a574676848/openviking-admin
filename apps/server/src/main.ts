@@ -85,9 +85,9 @@ async function bootstrap() {
 
   const port = process.env.PORT ?? 6001;
   await app.listen(port);
-  await (await app.resolve(DocumentCollabGateway)).attachToHttpServer(
-    app.getHttpServer(),
-  );
+  await (
+    await app.resolve(DocumentCollabGateway)
+  ).attachToHttpServer(app.getHttpServer());
   const banner = [
     '╔══════════════════════════════════════════════════════╗',
     '║            OpenViking 知识管理平台                    ║',

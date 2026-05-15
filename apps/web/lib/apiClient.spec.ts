@@ -56,13 +56,8 @@ describe("apiClient", () => {
     expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/v1/search/debug");
   });
 
-  it("401 时会清理会话并返回空对象", async () => {
+  it("401 时会清理会话并抛出 ApiError", async () => {
     sessionStorage.setItem(TOKEN_STORAGE_KEY, "expired");
-    const assignMock = vi.fn();
-    Object.defineProperty(window, "location", {
-      value: { assign: assignMock },
-      writable: true,
-    });
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(
@@ -74,11 +69,11 @@ describe("apiClient", () => {
       ),
     );
 
-    const result = await apiClient.get("/auth/profile");
-
-    expect(result).toEqual({});
+    await expect(apiClient.get("/auth/profile")).rejects.toMatchObject({
+      status: 401,
+      message: "登录已过期，请重新登录",
+    });
     expect(sessionStorage.getItem(TOKEN_STORAGE_KEY)).toBeNull();
-    expect(assignMock).toHaveBeenCalledWith("/login");
   });
 
   it("非 401 错误会抛出 ApiError 并保留错误消息", async () => {

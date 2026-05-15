@@ -20,6 +20,7 @@ import { DocumentSessionRegistry } from '../common/document-session-registry';
 import { ImportTaskService } from '../import-task/import-task.service';
 import { OVClientService } from '../common/ov-client.service';
 import { OvConfigResolverService } from '../settings/ov-config-resolver.service';
+import { DocumentService } from '../document/document.service';
 import { WebdavController } from './webdav.controller';
 import { WebdavService } from './webdav.service';
 import { TenantIsolationLevel } from '../common/constants/system.enum';
@@ -30,6 +31,10 @@ describe('WebdavController', () => {
   const principal = {
     tenantId: 'tenant-a',
     userId: 'user-a',
+  };
+  const auditActor = {
+    id: 'user-a',
+    username: 'alice',
   };
   const tenantRecordId = '3a433169-7eae-4da3-9b6f-9b35d8b0176f';
 
@@ -75,7 +80,8 @@ describe('WebdavController', () => {
       acl: null,
       kind: 'document',
       vikingUri: 'viking://resources/tenants/tenant-a/kb-1/node-file/',
-      contentUri: 'viking://resources/tenants/tenant-a/kb-1/node-file/content.md',
+      contentUri:
+        'viking://resources/tenants/tenant-a/kb-1/node-file/content.md',
       createdAt: new Date('2026-03-02T00:00:00.000Z'),
       updatedAt: new Date('2026-05-04T00:00:00.000Z'),
     },
@@ -147,6 +153,19 @@ describe('WebdavController', () => {
     assertNoActiveWriteSession: jest.fn(),
     assertNoActiveSessionInNodes: jest.fn(),
     hasActiveSessionInKb: jest.fn(),
+  };
+
+  const documentService = {
+    saveMarkdownContent: jest.fn(
+      async (nodeId: string, _tenantId: string, content: string) => ({
+        nodeId,
+        content,
+        contentUri: `viking://resources/tenants/tenant-a/kb-1/${nodeId}/content.md`,
+        draftVersion: 1,
+        indexStatus: 'queued',
+        updatedAt: new Date('2026-05-09T00:00:00.000Z'),
+      }),
+    ),
   };
 
   const capabilityCredentialService = {
@@ -260,7 +279,8 @@ describe('WebdavController', () => {
       acl: null,
       kind: 'document',
       vikingUri: 'viking://resources/tenants/tenant-a/kb-1/node-file/',
-      contentUri: 'viking://resources/tenants/tenant-a/kb-1/node-file/content.md',
+      contentUri:
+        'viking://resources/tenants/tenant-a/kb-1/node-file/content.md',
       createdAt: new Date('2026-03-02T00:00:00.000Z'),
       updatedAt: new Date('2026-05-08T00:00:00.000Z'),
     })),
@@ -290,6 +310,7 @@ describe('WebdavController', () => {
         { provide: KnowledgeBaseService, useValue: knowledgeBaseService },
         { provide: KnowledgeTreeService, useValue: knowledgeTreeService },
         { provide: DocumentSessionRegistry, useValue: documentSessionRegistry },
+        { provide: DocumentService, useValue: documentService },
         { provide: DataSource, useValue: dataSource },
       ],
     }).compile();
@@ -428,7 +449,8 @@ describe('WebdavController', () => {
       acl: null,
       kind: 'document',
       vikingUri: 'viking://resources/tenants/tenant-a/kb-1/node-file/',
-      contentUri: 'viking://resources/tenants/tenant-a/kb-1/node-file/content.md',
+      contentUri:
+        'viking://resources/tenants/tenant-a/kb-1/node-file/content.md',
       createdAt: new Date('2026-03-02T00:00:00.000Z'),
       updatedAt: new Date('2026-05-08T00:00:00.000Z'),
     }));
@@ -455,8 +477,7 @@ describe('WebdavController', () => {
     knowledgeTreeService.remove.mockResolvedValue(undefined);
     importTaskService.createLocalUpload.mockResolvedValue({
       id: 'task-webdav-put-1',
-      targetUri:
-        'viking://resources/tenants/tenant-a/kb-1/node-created-file/',
+      targetUri: 'viking://resources/tenants/tenant-a/kb-1/node-created-file/',
     });
     auditService.log.mockResolvedValue({ id: 'audit-1' });
     ovClientService.request.mockResolvedValue({});
@@ -647,11 +668,14 @@ describe('WebdavController', () => {
       .expect(201);
 
     expect(response.text).toBe('');
-    expect(knowledgeBaseService.create).toHaveBeenCalledWith({
-      name: 'Obsidian Vault',
-      description: '',
-      tenantId: 'tenant-a',
-    });
+    expect(knowledgeBaseService.create).toHaveBeenCalledWith(
+      {
+        name: 'Obsidian Vault',
+        description: '',
+        tenantId: 'tenant-a',
+      },
+      auditActor,
+    );
     expect(auditService.log).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'webdav_mkcol',
@@ -949,13 +973,16 @@ describe('WebdavController', () => {
       .expect(201);
 
     expect(response.text).toBe('');
-    expect(knowledgeTreeService.create).toHaveBeenCalledWith({
-      kbId: 'kb-1',
-      parentId: undefined,
-      name: '新目录',
-      sortOrder: 3,
-      tenantId: 'tenant-a',
-    });
+    expect(knowledgeTreeService.create).toHaveBeenCalledWith(
+      {
+        kbId: 'kb-1',
+        parentId: undefined,
+        name: '新目录',
+        sortOrder: 3,
+        tenantId: 'tenant-a',
+      },
+      auditActor,
+    );
     expect(auditService.log).toHaveBeenCalledWith(
       expect.objectContaining({
         tenantId: 'tenant-a',
@@ -1125,15 +1152,18 @@ describe('WebdavController', () => {
     expect(response.headers['x-openviking-import-task-id']).toBe(
       'task-webdav-put-1',
     );
-    expect(knowledgeTreeService.createFile).toHaveBeenCalledWith({
-      kbId: 'kb-1',
-      parentId: 'node-dir',
-      name: '新文档.md',
-      path: 'node-dir/新文档.md',
-      sortOrder: 4,
-      tenantId: 'tenant-a',
-      fileExtension: '.md',
-    });
+    expect(knowledgeTreeService.createFile).toHaveBeenCalledWith(
+      {
+        kbId: 'kb-1',
+        parentId: 'node-dir',
+        name: '新文档.md',
+        path: 'node-dir/新文档.md',
+        sortOrder: 4,
+        tenantId: 'tenant-a',
+        fileExtension: '.md',
+      },
+      auditActor,
+    );
     expect(importTaskService.createLocalUpload).toHaveBeenCalledWith(
       {
         kbId: 'kb-1',
@@ -1149,6 +1179,7 @@ describe('WebdavController', () => {
         }),
       ],
       'tenant-a',
+      auditActor,
     );
     expect(auditService.log).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1204,63 +1235,17 @@ describe('WebdavController', () => {
     expect(response.text).toBe('');
     expect(response.headers['x-openviking-import-task-id']).toBeUndefined();
     expect(knowledgeTreeService.createFile).not.toHaveBeenCalled();
-    expect(knowledgeTreeService.syncContentUri).toHaveBeenCalledWith(
+    expect(documentService.saveMarkdownContent).toHaveBeenCalledWith(
       'node-file',
-      expect.stringMatching(
-        /^viking:\/\/resources\/tenants\/tenant-a\/kb-1\/node-file\/webdav-overwrite-[a-z0-9-]+\.md$/,
-      ),
       'tenant-a',
+      '# 已更新\n正文',
+      {},
+      auditActor,
     );
     expect(knowledgeTreeService.touch).not.toHaveBeenCalled();
     expect(importTaskService.createLocalUpload).not.toHaveBeenCalled();
-    expect(ovClientService.uploadTempFile).toHaveBeenCalledWith(
-      expect.objectContaining({
-        baseUrl: 'https://ov.example.com',
-        apiKey: 'ov-sk-test',
-        account: 'tenant-a',
-      }),
-      '/api/v1/resources/temp_upload',
-      expect.objectContaining({
-        fileName: expect.stringMatching(/^webdav-overwrite-[a-z0-9-]+\.md$/),
-        buffer: Buffer.from('# 已更新\n正文'),
-        mimeType: 'text/markdown; charset=utf-8',
-      }),
-      undefined,
-      expect.objectContaining({ serviceLabel: 'OpenViking Resources' }),
-    );
-    expect(ovClientService.request).toHaveBeenCalledWith(
-      expect.objectContaining({
-        baseUrl: 'https://ov.example.com',
-        apiKey: 'ov-sk-test',
-        account: 'tenant-a',
-      }),
-      '/api/v1/resources',
-      'POST',
-      {
-        temp_file_id: 'temp-webdav-overwrite',
-        to: 'viking://resources/tenants/tenant-a/kb-1/node-file/',
-        reason: 'webdav-put-overwrite',
-        wait: true,
-      },
-      undefined,
-      expect.objectContaining({ serviceLabel: 'OpenViking Resources' }),
-    );
-    expect(ovClientService.request).toHaveBeenCalledWith(
-      expect.objectContaining({
-        baseUrl: 'https://ov.example.com',
-        apiKey: 'ov-sk-test',
-        account: 'tenant-a',
-      }),
-      '/api/v1/fs?uri=' +
-        encodeURIComponent(
-          'viking://resources/tenants/tenant-a/kb-1/node-file/content.md',
-        ) +
-        '&recursive=false',
-      'DELETE',
-      undefined,
-      undefined,
-      expect.objectContaining({ serviceLabel: 'OpenViking 资源删除' }),
-    );
+    expect(ovClientService.uploadTempFile).not.toHaveBeenCalled();
+    expect(ovClientService.request).not.toHaveBeenCalled();
     expect(auditService.log).toHaveBeenCalledWith(
       expect.objectContaining({
         tenantId: 'tenant-a',
@@ -1272,11 +1257,10 @@ describe('WebdavController', () => {
           kbId: 'kb-1',
           parentId: 'node-dir',
           name: '说明.md',
-          contentUri: expect.stringMatching(
-            /^viking:\/\/resources\/tenants\/tenant-a\/kb-1\/node-file\/webdav-overwrite-[a-z0-9-]+\.md$/,
-          ),
-          previousContentUri:
+          contentUri:
             'viking://resources/tenants/tenant-a/kb-1/node-file/content.md',
+          draftVersion: 1,
+          indexStatus: 'queued',
           requestId: 'request-put-update-1',
         }),
       }),
@@ -1320,6 +1304,7 @@ describe('WebdavController', () => {
         path: 'node-dir/app.json',
         fileExtension: '.json',
       }),
+      auditActor,
     );
     expect(importTaskService.createLocalUpload).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1333,6 +1318,7 @@ describe('WebdavController', () => {
         }),
       ],
       'tenant-a',
+      auditActor,
     );
   });
 
@@ -1373,10 +1359,12 @@ describe('WebdavController', () => {
         path: 'node-dir/rs-test-file-probe',
         fileExtension: '',
       }),
+      auditActor,
     );
     expect(importTaskService.createLocalUpload).toHaveBeenCalledWith(
       expect.objectContaining({
-        targetUri: 'viking://resources/tenants/tenant-a/kb-1/node-created-file/',
+        targetUri:
+          'viking://resources/tenants/tenant-a/kb-1/node-created-file/',
       }),
       [
         expect.objectContaining({
@@ -1385,6 +1373,7 @@ describe('WebdavController', () => {
         }),
       ],
       'tenant-a',
+      auditActor,
     );
   });
 
@@ -1531,6 +1520,7 @@ describe('WebdavController', () => {
 
     expect(knowledgeTreeService.createFile).toHaveBeenCalledWith(
       expect.objectContaining({ name: 'condition-new.md' }),
+      auditActor,
     );
   });
 
@@ -1569,11 +1559,13 @@ describe('WebdavController', () => {
         name: '中文 space.md',
         path: 'node-dir/中文 space.md',
       }),
+      auditActor,
     );
     expect(importTaskService.createLocalUpload).toHaveBeenCalledWith(
       expect.any(Object),
       [expect.objectContaining({ originalname: '中文 space.md' })],
       'tenant-a',
+      auditActor,
     );
   });
 
@@ -1626,26 +1618,17 @@ describe('WebdavController', () => {
 
     expect(response.text).toBe('');
     expect(knowledgeTreeService.createFile).not.toHaveBeenCalled();
-    expect(knowledgeTreeService.syncContentUri).toHaveBeenCalledWith(
+    expect(documentService.saveMarkdownContent).toHaveBeenCalledWith(
       'node-file',
-      expect.stringMatching(
-        /^viking:\/\/resources\/tenants\/tenant-a\/kb-1\/node-file\/webdav-overwrite-[a-z0-9-]+\.md$/,
-      ),
       'tenant-a',
+      '# 重名',
+      {},
+      auditActor,
     );
     expect(knowledgeTreeService.touch).not.toHaveBeenCalled();
     expect(importTaskService.createLocalUpload).not.toHaveBeenCalled();
-    expect(ovClientService.uploadTempFile).toHaveBeenCalledWith(
-      expect.any(Object),
-      '/api/v1/resources/temp_upload',
-      expect.objectContaining({
-        fileName: expect.stringMatching(/^webdav-overwrite-[a-z0-9-]+\.md$/),
-        buffer: Buffer.from('# 重名'),
-        mimeType: 'text/markdown; charset=utf-8',
-      }),
-      undefined,
-      expect.objectContaining({ serviceLabel: 'OpenViking Resources' }),
-    );
+    expect(ovClientService.uploadTempFile).not.toHaveBeenCalled();
+    expect(ovClientService.request).not.toHaveBeenCalled();
   });
 
   it('PUT 新建文件遇到同名资源且 If-None-Match 星号时应返回 412', async () => {
@@ -2115,6 +2098,7 @@ describe('WebdavController', () => {
         path: 'node-dir/renamed.md',
       },
       'tenant-a',
+      auditActor,
     );
     expect(ovClientService.request).not.toHaveBeenCalled();
     expect(importTaskService.createLocalUpload).not.toHaveBeenCalled();
@@ -2169,6 +2153,7 @@ describe('WebdavController', () => {
       'kb-1',
       { name: '重命名知识库' },
       'tenant-a',
+      auditActor,
     );
     expect(knowledgeTreeService.update).not.toHaveBeenCalled();
     expect(auditService.log).toHaveBeenCalledWith(
@@ -2254,6 +2239,7 @@ describe('WebdavController', () => {
         path: 'root.md',
       },
       'tenant-a',
+      auditActor,
     );
   });
 
@@ -2292,6 +2278,7 @@ describe('WebdavController', () => {
         path: null,
       },
       'tenant-a',
+      auditActor,
     );
     expect(ovClientService.request).not.toHaveBeenCalled();
   });

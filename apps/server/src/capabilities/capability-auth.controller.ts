@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Headers, Post, Req, Res, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  Post,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import type { AuthenticatedRequest } from '../common/authenticated-request.interface';
 import type { Request, Response } from 'express';
@@ -44,7 +53,8 @@ export class CapabilityAuthController {
             channel: 'http',
             credentialType: 'capability_access_token',
             issueEndpoint: '/api/auth/token/exchange',
-            ttlSeconds: CREDENTIAL_TTL_POLICIES.capability_access_token.defaultTtlSeconds,
+            ttlSeconds:
+              CREDENTIAL_TTL_POLICIES.capability_access_token.defaultTtlSeconds,
             ttlOptions: CREDENTIAL_TTL_POLICIES.capability_access_token.options,
             recommendedFor: ['browser', 'service', 'skill'],
           },
@@ -202,7 +212,8 @@ export class CapabilityAuthController {
         apiKey: key.apiKey,
         name: key.name,
         expiresAt: key.expiresAt,
-        expiresInSeconds: body.ttlSeconds ?? CREDENTIAL_TTL_POLICIES.api_key.defaultTtlSeconds,
+        expiresInSeconds:
+          body.ttlSeconds ?? CREDENTIAL_TTL_POLICIES.api_key.defaultTtlSeconds,
       },
       meta: {
         channel: 'http',

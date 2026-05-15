@@ -1,4 +1,4 @@
-import { HttpAdapterHost } from '@nestjs/core';
+import { HttpAdapterHost, ModuleRef } from '@nestjs/core';
 import type {
   connectedPayload,
   onAuthenticatePayload,
@@ -37,7 +37,9 @@ interface CapturedHocuspocusConfig {
   onAuthenticate: (
     payload: onAuthenticatePayload<Record<string, unknown>>,
   ) => Promise<Record<string, unknown>>;
-  connected: (payload: connectedPayload<Record<string, unknown>>) => Promise<void>;
+  connected: (
+    payload: connectedPayload<Record<string, unknown>>,
+  ) => Promise<void>;
   onLoadDocument: (
     payload: onLoadDocumentPayload<Record<string, unknown>>,
   ) => Promise<Y.Doc>;
@@ -107,13 +109,25 @@ describe('DocumentCollabGateway', () => {
     closeConnections: jest.Mock;
     flushPendingStores: jest.Mock;
   };
+  let moduleRef: {
+    registerRequestByContextId: jest.Mock;
+    resolve: jest.Mock;
+  };
   let gateway: DocumentCollabGateway;
-  let authService: jest.Mocked<Pick<AuthService, 'verifyAccessToken' | 'validateUser'>>;
+  let authService: {
+    verifyAccessToken: jest.Mock;
+    validateUser: jest.Mock;
+  };
   let tenantCacheService: jest.Mocked<
-    Pick<TenantCacheService, 'getIsolationConfigByTenantRecordId'>
+    Pick<
+      TenantCacheService,
+      'getIsolationConfigByTenantRecordId' | 'getIsolationConfig'
+    >
   >;
   let knowledgeTreeService: jest.Mocked<Pick<KnowledgeTreeService, 'findOne'>>;
-  let documentService: jest.Mocked<Pick<DocumentService, 'loadContent' | 'saveContent'>>;
+  let documentService: jest.Mocked<
+    Pick<DocumentService, 'loadContent' | 'saveContent'>
+  >;
   let documentContentCodec: jest.Mocked<
     Pick<DocumentContentCodec, 'markdownToYDoc' | 'yDocToBlocks'>
   >;
@@ -137,6 +151,18 @@ describe('DocumentCollabGateway', () => {
       closeConnections: jest.fn(),
       flushPendingStores: jest.fn(),
     };
+    moduleRef = {
+      registerRequestByContextId: jest.fn(),
+      resolve: jest.fn(async (token: string | symbol | Function) => {
+        if (token === KnowledgeTreeService) {
+          return knowledgeTreeService;
+        }
+        if (token === DocumentService) {
+          return documentService;
+        }
+        return undefined;
+      }),
+    };
     authService = {
       verifyAccessToken: jest.fn().mockReturnValue({
         sub: 'user-1',
@@ -146,10 +172,14 @@ describe('DocumentCollabGateway', () => {
         scope: 'tenant',
         tokenType: 'access_token',
       }),
-      validateUser: jest.fn().mockResolvedValue({ id: 'user-1' } as never),
+      validateUser: jest.fn().mockResolvedValue({ id: 'user-1' }),
     };
     tenantCacheService = {
       getIsolationConfigByTenantRecordId: jest.fn().mockResolvedValue({
+        tenantId: TENANT_SCOPE,
+        level: 'SMALL',
+      }),
+      getIsolationConfig: jest.fn().mockResolvedValue({
         tenantId: TENANT_SCOPE,
         level: 'SMALL',
       }),
@@ -160,14 +190,14 @@ describe('DocumentCollabGateway', () => {
     documentService = {
       loadContent: jest.fn().mockResolvedValue({
         markdown: '# 文档',
-      } as never),
+      }),
       saveContent: jest.fn(),
     };
     documentContentCodec = {
       markdownToYDoc: jest.fn().mockResolvedValue(new Y.Doc()),
-      yDocToBlocks: jest.fn().mockResolvedValue([
-        { type: 'paragraph', content: '正文' },
-      ] as never),
+      yDocToBlocks: jest
+        .fn()
+        .mockResolvedValue([{ type: 'paragraph', content: '正文' }] as never),
     };
     documentSessionRegistry = {
       register: jest.fn(),
@@ -193,8 +223,10 @@ describe('DocumentCollabGateway', () => {
     });
 
     gateway = new DocumentCollabGateway(
-      { httpAdapter: { getHttpServer: () => httpServer } } as unknown as HttpAdapterHost,
-      { resolve: jest.fn() } as never,
+      {
+        httpAdapter: { getHttpServer: () => httpServer },
+      } as unknown as HttpAdapterHost,
+      moduleRef as unknown as ModuleRef,
       {} as never,
       authService as unknown as AuthService,
       tenantCacheService as unknown as TenantCacheService,
@@ -213,7 +245,9 @@ describe('DocumentCollabGateway', () => {
 
   it('应该挂载 Nest HTTP server upgrade 监听并配置防抖参数', () => {
     expect(importEsmModuleMock).toHaveBeenCalledWith(HOCUSPOCUS_SERVER_MODULE);
-    expect(importEsmModuleMock).toHaveBeenCalledWith(CROSSWS_NODE_ADAPTER_MODULE);
+    expect(importEsmModuleMock).toHaveBeenCalledWith(
+      CROSSWS_NODE_ADAPTER_MODULE,
+    );
     expect(httpServer.on).toHaveBeenCalledWith('upgrade', expect.any(Function));
     expect(capturedConfig.debounce).toBe(30_000);
     expect(capturedConfig.maxDebounce).toBe(60_000);
@@ -225,10 +259,16 @@ describe('DocumentCollabGateway', () => {
     const context = await capturedConfig.onAuthenticate(payload);
 
     expect(authService.verifyAccessToken).toHaveBeenCalledWith('access-token');
-    expect(tenantCacheService.getIsolationConfigByTenantRecordId).toHaveBeenCalledWith(
-      TENANT_RECORD_ID,
+    expect(
+      tenantCacheService.getIsolationConfigByTenantRecordId,
+    ).toHaveBeenCalledWith(TENANT_RECORD_ID);
+    expect(tenantCacheService.getIsolationConfig).toHaveBeenCalledWith(
+      TENANT_SCOPE,
     );
-    expect(knowledgeTreeService.findOne).toHaveBeenCalledWith('node-1', TENANT_SCOPE);
+    expect(knowledgeTreeService.findOne).toHaveBeenCalledWith(
+      'node-1',
+      TENANT_SCOPE,
+    );
     expect(payload.connectionConfig.readOnly).toBe(false);
     expect(context).toMatchObject({
       tenantScope: TENANT_SCOPE,
@@ -287,14 +327,14 @@ describe('DocumentCollabGateway', () => {
       tenantScope: TENANT_SCOPE,
     };
 
-    await capturedConfig.connected(({
+    await capturedConfig.connected({
       context,
       socketId: SOCKET_ID,
-    } as unknown) as connectedPayload<Record<string, unknown>>);
-    await capturedConfig.onDisconnect(({
+    } as unknown as connectedPayload<Record<string, unknown>>);
+    await capturedConfig.onDisconnect({
       context,
       socketId: SOCKET_ID,
-    } as unknown) as onDisconnectPayload<Record<string, unknown>>);
+    } as unknown as onDisconnectPayload<Record<string, unknown>>);
 
     expect(documentSessionRegistry.register).toHaveBeenCalledWith(
       'kb-1',
@@ -310,17 +350,18 @@ describe('DocumentCollabGateway', () => {
   });
 
   it('onLoadDocument 应从 OpenViking Markdown 初始化 Y.Doc', async () => {
-    const yDoc = await capturedConfig.onLoadDocument(
-      ({
-        context: {
-          nodeId: 'node-1',
-          tenantScope: TENANT_SCOPE,
-          mode: 'write',
-        },
-      } as unknown) as onLoadDocumentPayload<Record<string, unknown>>,
-    );
+    const yDoc = await capturedConfig.onLoadDocument({
+      context: {
+        nodeId: 'node-1',
+        tenantScope: TENANT_SCOPE,
+        mode: 'write',
+      },
+    } as unknown as onLoadDocumentPayload<Record<string, unknown>>);
 
-    expect(documentService.loadContent).toHaveBeenCalledWith('node-1', TENANT_SCOPE);
+    expect(documentService.loadContent).toHaveBeenCalledWith(
+      'node-1',
+      TENANT_SCOPE,
+    );
     expect(documentContentCodec.markdownToYDoc).toHaveBeenCalledWith('# 文档');
     expect(yDoc).toBeInstanceOf(Y.Doc);
   });
@@ -328,16 +369,14 @@ describe('DocumentCollabGateway', () => {
   it('onStoreDocument 应把可写连接的 Y.Doc 保存为 Markdown 内容', async () => {
     const yDoc = new Y.Doc();
 
-    await capturedConfig.onStoreDocument(
-      ({
-        document: yDoc,
-        lastContext: {
-          nodeId: 'node-1',
-          tenantScope: TENANT_SCOPE,
-          mode: 'write',
-        },
-      } as unknown) as onStoreDocumentPayload<Record<string, unknown>>,
-    );
+    await capturedConfig.onStoreDocument({
+      document: yDoc,
+      lastContext: {
+        nodeId: 'node-1',
+        tenantScope: TENANT_SCOPE,
+        mode: 'write',
+      },
+    } as unknown as onStoreDocumentPayload<Record<string, unknown>>);
 
     expect(documentContentCodec.yDocToBlocks).toHaveBeenCalledWith(yDoc);
     expect(documentService.saveContent).toHaveBeenCalledWith(
@@ -348,16 +387,14 @@ describe('DocumentCollabGateway', () => {
   });
 
   it('onStoreDocument 应忽略只读连接产生的持久化请求', async () => {
-    await capturedConfig.onStoreDocument(
-      ({
-        document: new Y.Doc(),
-        lastContext: {
-          nodeId: 'node-1',
-          tenantScope: TENANT_SCOPE,
-          mode: 'readonly',
-        },
-      } as unknown) as onStoreDocumentPayload<Record<string, unknown>>,
-    );
+    await capturedConfig.onStoreDocument({
+      document: new Y.Doc(),
+      lastContext: {
+        nodeId: 'node-1',
+        tenantScope: TENANT_SCOPE,
+        mode: 'readonly',
+      },
+    } as unknown as onStoreDocumentPayload<Record<string, unknown>>);
 
     expect(documentService.saveContent).not.toHaveBeenCalled();
   });
@@ -365,7 +402,10 @@ describe('DocumentCollabGateway', () => {
   it('onModuleDestroy 应关闭连接并移除 upgrade 监听', async () => {
     await gateway.onModuleDestroy();
 
-    expect(httpServer.off).toHaveBeenCalledWith('upgrade', expect.any(Function));
+    expect(httpServer.off).toHaveBeenCalledWith(
+      'upgrade',
+      expect.any(Function),
+    );
     expect(adapter.closeAll).toHaveBeenCalled();
     expect(hocuspocus.closeConnections).toHaveBeenCalled();
     expect(hocuspocus.flushPendingStores).toHaveBeenCalled();

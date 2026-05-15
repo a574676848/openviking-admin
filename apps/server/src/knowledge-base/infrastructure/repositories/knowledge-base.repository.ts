@@ -1,9 +1,18 @@
 import { Injectable, Inject, Scope } from '@nestjs/common';
 import { REQUEST } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Not, Like, type FindManyOptions, type QueryRunner } from 'typeorm';
+import {
+  Repository,
+  Not,
+  Like,
+  type FindManyOptions,
+  type QueryRunner,
+} from 'typeorm';
 import { KnowledgeBase } from '../../entities/knowledge-base.entity';
-import { IKnowledgeBaseRepository, type PaginatedKnowledgeBases } from '../../domain/repositories/knowledge-base.repository.interface';
+import {
+  IKnowledgeBaseRepository,
+  type PaginatedKnowledgeBases,
+} from '../../domain/repositories/knowledge-base.repository.interface';
 import type { KnowledgeBaseModel } from '../../domain/knowledge-base.model';
 import type { RepositoryRequest } from '../../../common/repository-request.interface';
 import type { RepositoryFindQuery } from '../../../common/repository-query.types';
@@ -57,7 +66,9 @@ export class TypeOrmKnowledgeBaseRepository implements IKnowledgeBaseRepository 
     return { id, username };
   }
 
-  private toEntityInput(data: Partial<KnowledgeBaseModel>): Partial<KnowledgeBase> {
+  private toEntityInput(
+    data: Partial<KnowledgeBaseModel>,
+  ): Partial<KnowledgeBase> {
     return {
       id: data.id,
       name: data.name,
@@ -134,7 +145,9 @@ export class TypeOrmKnowledgeBaseRepository implements IKnowledgeBaseRepository 
     return entity ? this.toModel(entity) : null;
   }
 
-  async count(options?: RepositoryFindQuery<KnowledgeBaseModel>): Promise<number> {
+  async count(
+    options?: RepositoryFindQuery<KnowledgeBaseModel>,
+  ): Promise<number> {
     return this.repo.count({
       where: options?.where ?? {},
     } as FindManyOptions<KnowledgeBase>);
@@ -145,7 +158,9 @@ export class TypeOrmKnowledgeBaseRepository implements IKnowledgeBaseRepository 
   }
 
   async save(kb: KnowledgeBaseModel): Promise<KnowledgeBaseModel> {
-    const saved = await this.repo.save(this.repo.create(this.toEntityInput(kb)));
+    const saved = await this.repo.save(
+      this.repo.create(this.toEntityInput(kb)),
+    );
     return this.toModel(saved);
   }
 
@@ -153,7 +168,9 @@ export class TypeOrmKnowledgeBaseRepository implements IKnowledgeBaseRepository 
     await this.repo.remove(this.repo.create(this.toEntityInput(kb)));
   }
 
-  async createWithUri(data: Partial<KnowledgeBaseModel>): Promise<KnowledgeBaseModel> {
+  async createWithUri(
+    data: Partial<KnowledgeBaseModel>,
+  ): Promise<KnowledgeBaseModel> {
     const { queryRunner, releaseAfterUse } =
       await this.createTransactionalQueryRunner();
     const startedTransaction = !queryRunner.isTransactionActive;
@@ -163,11 +180,16 @@ export class TypeOrmKnowledgeBaseRepository implements IKnowledgeBaseRepository 
     }
 
     try {
-      const entity = queryRunner.manager.create(KnowledgeBase, this.toEntityInput(data));
+      const entity = queryRunner.manager.create(
+        KnowledgeBase,
+        this.toEntityInput(data),
+      );
       const saved = await queryRunner.manager.save(entity);
 
       const fullUri = `viking://resources/tenants/${data.tenantId}/${saved.id}/`;
-      await queryRunner.manager.update(KnowledgeBase, saved.id, { vikingUri: fullUri });
+      await queryRunner.manager.update(KnowledgeBase, saved.id, {
+        vikingUri: fullUri,
+      });
 
       if (startedTransaction) {
         await queryRunner.commitTransaction();

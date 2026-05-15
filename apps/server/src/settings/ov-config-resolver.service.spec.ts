@@ -92,7 +92,7 @@ describe('OvConfigResolverService', () => {
           rerankApiKey: 'encrypted-rerank-key',
           rerankEndpoint: 'http://rerank.local/v1',
         },
-      } as Tenant,
+      },
       decrypt: (value) => `plain-${value}`,
     });
 

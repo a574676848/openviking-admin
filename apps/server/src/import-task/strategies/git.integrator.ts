@@ -38,9 +38,18 @@ export class GitIntegrator implements IPlatformIntegrator {
     token: string,
   ) {
     try {
-      const variants = integration.type === 'gitlab'
-        ? this.buildGitLabCredentialPaths(sourceUrl, token, integration.credentials)
-        : this.buildGithubCredentialPaths(sourceUrl, token, integration.credentials);
+      const variants =
+        integration.type === 'gitlab'
+          ? this.buildGitLabCredentialPaths(
+              sourceUrl,
+              token,
+              integration.credentials,
+            )
+          : this.buildGithubCredentialPaths(
+              sourceUrl,
+              token,
+              integration.credentials,
+            );
       return Array.from(new Set(variants.filter(Boolean)));
     } catch {
       return [sourceUrl];
@@ -68,15 +77,22 @@ export class GitIntegrator implements IPlatformIntegrator {
     token: string,
     credentials: Record<string, any>,
   ) {
-    const usernames = GITLAB_USERNAME_KEYS
-      .map((key) => credentials?.[key])
-      .filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
+    const usernames = GITLAB_USERNAME_KEYS.map(
+      (key) => credentials?.[key],
+    ).filter(
+      (value): value is string =>
+        typeof value === 'string' && value.trim().length > 0,
+    );
 
     return [
       this.withCredential(sourceUrl, GITLAB_TOKEN_USERNAME, token, 'http:'),
-      ...usernames.map((username) => this.withCredential(sourceUrl, username, token, 'http:')),
+      ...usernames.map((username) =>
+        this.withCredential(sourceUrl, username, token, 'http:'),
+      ),
       this.withCredential(sourceUrl, GITLAB_TOKEN_USERNAME, token),
-      ...usernames.map((username) => this.withCredential(sourceUrl, username, token)),
+      ...usernames.map((username) =>
+        this.withCredential(sourceUrl, username, token),
+      ),
       this.withCredential(sourceUrl, token, undefined, 'http:'),
       this.withCredential(sourceUrl, token),
     ];

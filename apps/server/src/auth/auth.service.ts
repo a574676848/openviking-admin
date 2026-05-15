@@ -205,9 +205,9 @@ export class AuthService {
     let payload: AuthTokenPayload & { tokenType?: string };
 
     try {
-      payload = this.jwtService.verify<AuthTokenPayload & { tokenType?: string }>(
-        token,
-      );
+      payload = this.jwtService.verify<
+        AuthTokenPayload & { tokenType?: string }
+      >(token);
     } catch {
       throw new UnauthorizedException('access token 无效或已过期');
     }

@@ -54,7 +54,7 @@ describe("AnalysisPage", () => {
 
     await renderPage();
 
-    expect(container.textContent).toContain("无答案洞察加载失败");
+    expect(container.textContent).toContain("加载失败");
     expect(container.textContent).toContain("分析服务暂不可用");
     expect(container.textContent).toContain("重新加载");
   });
@@ -92,25 +92,25 @@ describe("AnalysisPage", () => {
 
     await renderPage();
 
-    expect(container.textContent).toContain("缺口处理工作台");
-    expect(container.textContent).toContain("关联知识库");
+    expect(container.textContent).toContain("知识补齐工作台");
+    expect(container.textContent).toContain("推荐知识库");
     expect(container.textContent).toContain("WebDAV 知识库");
 
-    const validateButton = Array.from(container.querySelectorAll("button")).find((button) =>
-      button.textContent?.includes("补充资源后验证"),
+    const importButton = Array.from(container.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("跳转导入"),
     );
     const openTreeButton = Array.from(container.querySelectorAll("button")).find((button) =>
-      button.textContent?.includes("打开知识树"),
+      button.textContent?.includes("管理"),
     );
 
-    expect(validateButton).toBeTruthy();
+    expect(importButton).toBeTruthy();
     expect(openTreeButton).toBeTruthy();
 
     await act(async () => {
-      validateButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      importButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     expect(pushMock).toHaveBeenCalledWith(
-      "/console/search?query=WebDAV%20%E9%85%8D%E7%BD%AE%E5%A4%B1%E8%B4%A5&uri=viking%3A%2F%2Fwebdav",
+      "/console/documents/import?q=WebDAV%20%E9%85%8D%E7%BD%AE%E5%A4%B1%E8%B4%A5",
     );
 
     await act(async () => {
@@ -139,12 +139,12 @@ describe("AnalysisPage", () => {
 
     await renderPage();
 
-    expect(container.textContent).toContain("总检索量");
+    expect(container.textContent).toContain("检索请求总量");
     expect(container.textContent).toContain("4");
     expect(container.textContent).toContain("零命中");
     expect(container.textContent).toContain("1");
-    expect(container.textContent).toContain("空窗占比");
+    expect(container.textContent).toContain("零命中率");
     expect(container.textContent).toContain("25.0%");
-    expect(container.textContent).toContain("高频问题 [0]");
+    expect(container.textContent).toContain("热点查询排行[0]");
   });
 });

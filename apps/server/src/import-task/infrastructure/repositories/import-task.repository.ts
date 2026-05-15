@@ -36,6 +36,7 @@ export class TypeOrmImportTaskRepository implements IImportTaskRepository {
       sourceUrl: entity.sourceUrl,
       sourceName: entity.sourceName ?? null,
       targetUri: entity.targetUri,
+      autoCreatedNodeId: entity.autoCreatedNodeId ?? null,
       status: entity.status,
       nodeCount: entity.nodeCount,
       vectorCount: entity.vectorCount,
@@ -69,6 +70,7 @@ export class TypeOrmImportTaskRepository implements IImportTaskRepository {
       sourceUrl: data.sourceUrl,
       sourceName: data.sourceName,
       targetUri: data.targetUri,
+      autoCreatedNodeId: data.autoCreatedNodeId,
       status: data.status,
       nodeCount: data.nodeCount,
       vectorCount: data.vectorCount,
@@ -102,9 +104,13 @@ export class TypeOrmImportTaskRepository implements IImportTaskRepository {
     return this.toModel(this.repo.create(this.toEntityInput(data)));
   }
 
-  async save(task: ImportTaskModel | ImportTaskModel[]): Promise<ImportTaskModel | ImportTaskModel[]> {
+  async save(
+    task: ImportTaskModel | ImportTaskModel[],
+  ): Promise<ImportTaskModel | ImportTaskModel[]> {
     if (Array.isArray(task)) {
-      const payload = task.map((item) => this.repo.create(this.toEntityInput(item)));
+      const payload = task.map((item) =>
+        this.repo.create(this.toEntityInput(item)),
+      );
       const saved = await this.repo.save(payload);
       return saved.map((item) => this.toModel(item));
     }
@@ -127,7 +133,9 @@ export class TypeOrmImportTaskRepository implements IImportTaskRepository {
   async findOne(
     options: RepositoryFindOneQuery<ImportTaskModel>,
   ): Promise<ImportTaskModel | null> {
-    const entity = await this.repo.findOne(options as FindOneOptions<ImportTask>);
+    const entity = await this.repo.findOne(
+      options as FindOneOptions<ImportTask>,
+    );
     return entity ? this.toModel(entity) : null;
   }
 

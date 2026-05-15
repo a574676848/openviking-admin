@@ -12,7 +12,7 @@ describe('CapabilityExecutionService', () => {
   const catalog = new CapabilityCatalogService();
   const authorization = {
     authorize: jest.fn(),
-  } as unknown as CapabilityAuthorizationService;
+  };
   const observability = {
     recordSuccess: jest.fn(),
     recordFailure: jest.fn(),
@@ -96,7 +96,9 @@ describe('CapabilityExecutionService', () => {
       items: [{ uri: 'viking://resources/tenants/tenant-1/doc-1', score: 0.9 }],
     });
     expect((authorization.authorize as jest.Mock).mock.calls.length).toBe(1);
-    expect((observability.recordSuccess as jest.Mock).mock.calls.length).toBe(1);
+    expect((observability.recordSuccess as jest.Mock).mock.calls.length).toBe(
+      1,
+    );
   });
 
   it('should record failure when gateway throws', async () => {
@@ -104,16 +106,22 @@ describe('CapabilityExecutionService', () => {
     gateway.grep = jest.fn().mockRejectedValue(new Error('OV timeout'));
 
     await expect(
-      service.execute('knowledge.grep', { pattern: 'tenant' }, {
-        ...context,
-        trace: {
-          ...context.trace,
-          capability: 'knowledge.grep',
+      service.execute(
+        'knowledge.grep',
+        { pattern: 'tenant' },
+        {
+          ...context,
+          trace: {
+            ...context.trace,
+            capability: 'knowledge.grep',
+          },
         },
-      }),
+      ),
     ).rejects.toThrow('OV timeout');
 
-    expect((observability.recordFailure as jest.Mock).mock.calls.length).toBe(1);
+    expect((observability.recordFailure as jest.Mock).mock.calls.length).toBe(
+      1,
+    );
   });
 
   it('should record rejection when rate limit is hit', async () => {
@@ -131,15 +139,19 @@ describe('CapabilityExecutionService', () => {
       service.execute('knowledge.search', { query: '限流' }, context),
     ).rejects.toThrow(CapabilityRateLimitException);
 
-    expect((observability.recordRejected as jest.Mock).mock.calls.length).toBe(1);
-    expect((observability.recordFailure as jest.Mock).mock.calls.length).toBe(0);
+    expect((observability.recordRejected as jest.Mock).mock.calls.length).toBe(
+      1,
+    );
+    expect((observability.recordFailure as jest.Mock).mock.calls.length).toBe(
+      0,
+    );
   });
 
   it('should reject invalid capability input with stable error code', async () => {
     await expect(
       service.execute(
         'knowledge.search',
-        { query: '限流', limit: 'oops' as unknown as number },
+        { query: '限流', limit: 'oops' },
         context,
       ),
     ).rejects.toMatchObject({
@@ -149,7 +161,9 @@ describe('CapabilityExecutionService', () => {
     });
 
     expect((rateLimit.assertAllowed as jest.Mock).mock.calls.length).toBe(0);
-    expect((observability.recordFailure as jest.Mock).mock.calls.length).toBe(0);
+    expect((observability.recordFailure as jest.Mock).mock.calls.length).toBe(
+      0,
+    );
   });
 
   it('should reject invalid capability output with stable error code', async () => {
@@ -166,6 +180,8 @@ describe('CapabilityExecutionService', () => {
       }),
     });
 
-    expect((observability.recordFailure as jest.Mock).mock.calls.length).toBe(1);
+    expect((observability.recordFailure as jest.Mock).mock.calls.length).toBe(
+      1,
+    );
   });
 });

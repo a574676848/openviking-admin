@@ -33,9 +33,10 @@ export class TenantGuard implements CanActivate {
 
     try {
       if (tenantRecordId) {
-        const config = await this.tenantCache.getIsolationConfigByTenantRecordId(
-          tenantRecordId,
-        );
+        const config =
+          await this.tenantCache.getIsolationConfigByTenantRecordId(
+            tenantRecordId,
+          );
         if (!config) {
           throw new InternalServerErrorException(
             `租户隔离配置不存在：${tenantRecordId}`,

@@ -111,7 +111,7 @@ describe("Platform AuditPage", () => {
     await renderPage();
 
     expect(container.textContent).toContain("alice");
-    expect(container.textContent).toContain("P.1/2");
+    expect(container.textContent).toContain("第 1/2 页");
 
     const nextButton = Array.from(container.querySelectorAll("button")).find((button) =>
       button.textContent?.includes("下一页"),
@@ -124,6 +124,6 @@ describe("Platform AuditPage", () => {
     });
 
     expect(container.textContent).toContain("bob");
-    expect(container.textContent).toContain("P.2/2");
+    expect(container.textContent).toContain("第 2/2 页");
   });
 });

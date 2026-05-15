@@ -127,7 +127,9 @@ describe('TenantGuard', () => {
     const allowed = await guard.canActivate(createExecutionContext(request));
 
     expect(allowed).toBe(false);
-    expect(tenantCache.getIsolationConfigByTenantRecordId).not.toHaveBeenCalled();
+    expect(
+      tenantCache.getIsolationConfigByTenantRecordId,
+    ).not.toHaveBeenCalled();
   });
 
   it('租户配置读取失败时应该抛错', async () => {
@@ -142,9 +144,9 @@ describe('TenantGuard', () => {
       },
     } as Record<string, unknown>;
 
-    await expect(guard.canActivate(createExecutionContext(request))).rejects.toThrow(
-      'cache down',
-    );
+    await expect(
+      guard.canActivate(createExecutionContext(request)),
+    ).rejects.toThrow('cache down');
   });
 
   it('large 隔离数据源构造失败时应该抛错', async () => {
@@ -162,9 +164,9 @@ describe('TenantGuard', () => {
       },
     } as Record<string, unknown>;
 
-    await expect(guard.canActivate(createExecutionContext(request))).rejects.toThrow(
-      'db down',
-    );
+    await expect(
+      guard.canActivate(createExecutionContext(request)),
+    ).rejects.toThrow('db down');
   });
 
   it('找不到租户隔离配置时应该直接抛错而不是回退公共库', async () => {
@@ -177,9 +179,9 @@ describe('TenantGuard', () => {
       },
     } as Record<string, unknown>;
 
-    await expect(guard.canActivate(createExecutionContext(request))).rejects.toThrow(
-      '租户隔离配置不存在：tenant-record-missing',
-    );
+    await expect(
+      guard.canActivate(createExecutionContext(request)),
+    ).rejects.toThrow('租户隔离配置不存在：tenant-record-missing');
     expect(defaultDataSource.createQueryRunner).not.toHaveBeenCalled();
   });
 
@@ -222,9 +224,9 @@ describe('TenantGuard', () => {
       },
     } as Record<string, unknown>;
 
-    await expect(guard.canActivate(createExecutionContext(request))).rejects.toThrow(
-      'LARGE 租户缺少独立库配置：tenant-large',
-    );
+    await expect(
+      guard.canActivate(createExecutionContext(request)),
+    ).rejects.toThrow('LARGE 租户缺少独立库配置：tenant-large');
     expect(defaultDataSource.createQueryRunner).not.toHaveBeenCalled();
   });
 });

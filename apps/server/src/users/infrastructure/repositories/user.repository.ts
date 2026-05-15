@@ -53,7 +53,10 @@ export class TypeOrmUserRepository implements IUserRepository {
     return items.map((item) => this.toModel(item));
   }
 
-  async findById(id: string, tenantId?: string | null): Promise<UserModel | null> {
+  async findById(
+    id: string,
+    tenantId?: string | null,
+  ): Promise<UserModel | null> {
     const where: Record<string, string> = { id };
     if (tenantId) where.tenantId = tenantId;
     const item = await this.repo.findOne({ where });
@@ -88,7 +91,9 @@ export class TypeOrmUserRepository implements IUserRepository {
   }
 
   async find(options?: RepositoryFindQuery<UserModel>): Promise<UserModel[]> {
-    const items = await this.repo.find((options ?? {}) as FindManyOptions<User>);
+    const items = await this.repo.find(
+      (options ?? {}) as FindManyOptions<User>,
+    );
     return items.map((item) => this.toModel(item));
   }
 }

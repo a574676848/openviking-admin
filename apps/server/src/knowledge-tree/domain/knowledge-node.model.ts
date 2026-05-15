@@ -7,7 +7,12 @@ export interface KnowledgeNodeAcl {
 }
 
 export type KnowledgeNodeKind = 'collection' | 'document';
-export type KnowledgeNodeIndexStatus = 'clean' | 'dirty' | 'pending' | 'indexing' | 'failed';
+export type KnowledgeNodeIndexStatus =
+  | 'clean'
+  | 'dirty'
+  | 'pending'
+  | 'indexing'
+  | 'failed';
 
 export interface KnowledgeNodeModel {
   id: string;

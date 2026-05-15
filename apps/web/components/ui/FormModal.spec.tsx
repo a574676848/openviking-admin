@@ -66,7 +66,7 @@ describe("FormModal", () => {
     expect(container.textContent).toContain("保存配置");
 
     const closeButton = Array.from(container.querySelectorAll("button")).find((button) =>
-      button.textContent?.trim() === "X",
+      button.getAttribute("aria-label") === "关闭表单弹窗",
     );
     const submitButton = Array.from(container.querySelectorAll("button")).find((button) =>
       button.textContent?.includes("保存配置"),

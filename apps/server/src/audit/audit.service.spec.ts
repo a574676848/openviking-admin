@@ -8,9 +8,7 @@ describe('AuditService', () => {
     getStats: jest.fn(),
   };
 
-  const service = new AuditService(
-    repo as unknown as IAuditLogRepository,
-  );
+  const service = new AuditService(repo);
 
   beforeEach(() => {
     jest.clearAllMocks();

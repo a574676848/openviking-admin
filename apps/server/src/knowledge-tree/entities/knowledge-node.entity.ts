@@ -47,10 +47,20 @@ export class KnowledgeNode {
   @Column({ name: 'viking_uri', nullable: true })
   vikingUri: string;
 
-  @Column({ name: 'content_uri', type: 'varchar', length: 2048, nullable: true })
+  @Column({
+    name: 'content_uri',
+    type: 'varchar',
+    length: 2048,
+    nullable: true,
+  })
   contentUri: string | null;
 
-  @Column({ name: 'index_status', type: 'varchar', length: 20, default: 'clean' })
+  @Column({
+    name: 'index_status',
+    type: 'varchar',
+    length: 20,
+    default: 'clean',
+  })
   indexStatus: KnowledgeNodeIndexStatus;
 
   @Column({ name: 'draft_version', type: 'int', default: 0 })
@@ -68,16 +78,36 @@ export class KnowledgeNode {
   @Column({ name: 'index_error', type: 'text', nullable: true })
   indexError: string | null;
 
-  @Column({ name: 'created_by_id', type: 'varchar', length: 64, nullable: true })
+  @Column({
+    name: 'created_by_id',
+    type: 'varchar',
+    length: 64,
+    nullable: true,
+  })
   createdById: string | null;
 
-  @Column({ name: 'created_by_name', type: 'varchar', length: 64, nullable: true })
+  @Column({
+    name: 'created_by_name',
+    type: 'varchar',
+    length: 64,
+    nullable: true,
+  })
   createdByName: string | null;
 
-  @Column({ name: 'updated_by_id', type: 'varchar', length: 64, nullable: true })
+  @Column({
+    name: 'updated_by_id',
+    type: 'varchar',
+    length: 64,
+    nullable: true,
+  })
   updatedById: string | null;
 
-  @Column({ name: 'updated_by_name', type: 'varchar', length: 64, nullable: true })
+  @Column({
+    name: 'updated_by_name',
+    type: 'varchar',
+    length: 64,
+    nullable: true,
+  })
   updatedByName: string | null;
 
   @CreateDateColumn({ name: 'created_at' })

@@ -25,11 +25,14 @@ describe('SearchController audit', () => {
   });
 
   it('提交检索反馈后应写入审计日志', async () => {
-    searchService.setFeedback.mockResolvedValue({ id: 'log-1', feedback: 'helpful' });
+    searchService.setFeedback.mockResolvedValue({
+      id: 'log-1',
+      feedback: 'helpful',
+    });
 
     await controller.setFeedback(
       'log-1',
-      { feedback: 'helpful', note: '命中预期' } as never,
+      { feedback: 'helpful', note: '命中预期' },
       req,
     );
 

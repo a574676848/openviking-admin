@@ -31,9 +31,7 @@ export interface DocumentAssetDedupStore {
   replaceAll(nodeId: string, entries: DocumentAssetDedupEntry[]): Promise<void>;
 }
 
-export const DOCUMENT_ASSET_DEDUP_STORE = Symbol(
-  'DOCUMENT_ASSET_DEDUP_STORE',
-);
+export const DOCUMENT_ASSET_DEDUP_STORE = Symbol('DOCUMENT_ASSET_DEDUP_STORE');
 export const DOCUMENT_ASSET_DEDUP_STORE_OPTIONS = Symbol(
   'DOCUMENT_ASSET_DEDUP_STORE_OPTIONS',
 );

@@ -26,7 +26,7 @@ describe('SettingsService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     service = new SettingsService(
-      repo as never,
+      repo,
       auditService as never,
       encryptionService as never,
       ovClient as never,

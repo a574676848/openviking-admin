@@ -125,7 +125,9 @@ export class DingTalkIntegrator implements IPlatformIntegrator {
       message?: string;
     };
     if (!res.ok || data.code) {
-      throw new Error(`钉钉文档读取失败: ${data.message ?? data.code ?? '未知错误'}`);
+      throw new Error(
+        `钉钉文档读取失败: ${data.message ?? data.code ?? '未知错误'}`,
+      );
     }
     return data;
   }
@@ -133,8 +135,9 @@ export class DingTalkIntegrator implements IPlatformIntegrator {
   private extractReadableContent(value: unknown): string {
     const pieces: string[] = [];
     this.collectText(value, pieces);
-    return Array.from(new Set(pieces.map((item) => item.trim()).filter(Boolean)))
-      .join('\n');
+    return Array.from(
+      new Set(pieces.map((item) => item.trim()).filter(Boolean)),
+    ).join('\n');
   }
 
   private collectText(value: unknown, pieces: string[]) {
@@ -155,14 +158,17 @@ export class DingTalkIntegrator implements IPlatformIntegrator {
       this.collectText(record[key], pieces),
     );
     Object.entries(record)
-      .filter(([key]) => !['text', 'content', 'plainText', 'value'].includes(key))
+      .filter(
+        ([key]) => !['text', 'content', 'plainText', 'value'].includes(key),
+      )
       .forEach(([, item]) => this.collectText(item, pieces));
   }
 
   private resolveOperatorId(integration: Integration) {
     const credentials = integration.credentials as Record<string, unknown>;
-    const config = integration.config as Record<string, unknown> | null;
-    const value = credentials.operatorId ?? credentials.unionId ?? config?.operatorId;
+    const config = integration.config;
+    const value =
+      credentials.operatorId ?? credentials.unionId ?? config?.operatorId;
     if (typeof value !== 'string' || value.trim().length === 0) {
       throw new Error('钉钉文档导入需要配置 operatorId 或 unionId');
     }

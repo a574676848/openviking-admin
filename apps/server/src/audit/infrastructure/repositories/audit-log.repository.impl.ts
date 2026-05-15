@@ -56,16 +56,16 @@ export class AuditLogRepositoryImpl implements IAuditLogRepository {
   }
 
   async save(log: CreateAuditLogInput): Promise<AuditLogModel> {
-    const saved = await this.repo.save(this.repo.create(this.toEntityInput(log)));
+    const saved = await this.repo.save(
+      this.repo.create(this.toEntityInput(log)),
+    );
     return this.toModel(saved);
   }
 
   async findAndCount(
     options: AuditLogListQuery,
   ): Promise<[AuditLogModel[], number]> {
-    const [items, total] = await this.repo.findAndCount(
-      options as FindManyOptions<AuditLog>,
-    );
+    const [items, total] = await this.repo.findAndCount(options);
     return [items.map((item) => this.toModel(item)), total];
   }
 

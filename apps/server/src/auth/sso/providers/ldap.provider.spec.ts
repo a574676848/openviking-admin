@@ -70,7 +70,9 @@ describe('LdapProvider', () => {
       email: 'zhangsan@corp.local',
       displayName: '张三',
     });
-    expect(result.ssoId).toBe(`ldap:${Buffer.from('user-guid').toString('hex')}`);
+    expect(result.ssoId).toBe(
+      `ldap:${Buffer.from('user-guid').toString('hex')}`,
+    );
   });
 
   it('未找到唯一用户时应拒绝登录', async () => {

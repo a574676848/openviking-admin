@@ -97,7 +97,7 @@ export class CapabilitySchemaValidatorService {
       return;
     }
 
-    const record = value as Record<string, unknown>;
+    const record = value;
     for (const key of schema.required ?? []) {
       if (!(key in record) || record[key] === undefined) {
         errors.push(`${path}.${key} 为必填项`);
@@ -105,7 +105,9 @@ export class CapabilitySchemaValidatorService {
       }
     }
 
-    for (const [key, propertySchema] of Object.entries(schema.properties ?? {})) {
+    for (const [key, propertySchema] of Object.entries(
+      schema.properties ?? {},
+    )) {
       if (!(key in record) || record[key] === undefined) {
         continue;
       }
@@ -132,7 +134,12 @@ export class CapabilitySchemaValidatorService {
     }
 
     value.forEach((item, index) => {
-      this.validateValue(schema.items as CapabilitySchema, item, `${path}[${index}]`, errors);
+      this.validateValue(
+        schema.items as CapabilitySchema,
+        item,
+        `${path}[${index}]`,
+        errors,
+      );
     });
   }
 

@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { HttpAdapterHost, ModuleRef, ContextIdFactory } from '@nestjs/core';
 import type {
   Hocuspocus,
@@ -96,8 +101,7 @@ interface HocuspocusServerModule {
   }) => Hocuspocus<DocumentCollabContext>;
 }
 
-type CrosswsNodeAdapterFactory =
-  typeof import('crossws/adapters/node').default;
+type CrosswsNodeAdapterFactory = typeof import('crossws/adapters/node').default;
 type CrosswsNodeAdapter = ReturnType<CrosswsNodeAdapterFactory>;
 
 interface CrosswsNodeAdapterModule {
@@ -220,9 +224,9 @@ export class DocumentCollabGateway implements OnModuleInit, OnModuleDestroy {
   private isAttachableHttpServer(candidate: unknown): candidate is HttpServer {
     return Boolean(
       candidate &&
-        typeof candidate === 'object' &&
-        'on' in candidate &&
-        'off' in candidate,
+      typeof candidate === 'object' &&
+      'on' in candidate &&
+      'off' in candidate,
     );
   }
 
@@ -231,21 +235,24 @@ export class DocumentCollabGateway implements OnModuleInit, OnModuleDestroy {
   ): CrosswsNodeAdapter {
     return createNodeAdapter({
       hooks: {
-        open: (peer: HocuspocusPeer) => {
+        open: (peer: Peer) => {
           if (!this.hocuspocus) {
             throw new DocumentCollabProtocolError('协作服务尚未初始化。');
           }
 
-          peer.hocuspocusConnection = this.hocuspocus.handleConnection(
-            peer.websocket,
-            peer.request,
+          const hocuspocusPeer = peer as HocuspocusPeer;
+          hocuspocusPeer.hocuspocusConnection = this.hocuspocus.handleConnection(
+            hocuspocusPeer.websocket,
+            hocuspocusPeer.request,
           );
         },
-        message: (peer: HocuspocusPeer, message: Message) => {
-          peer.hocuspocusConnection?.handleMessage(message.uint8Array());
+        message: (peer: Peer, message: Message) => {
+          const hocuspocusPeer = peer as HocuspocusPeer;
+          hocuspocusPeer.hocuspocusConnection?.handleMessage(message.uint8Array());
         },
-        close: (peer: HocuspocusPeer, event) => {
-          peer.hocuspocusConnection?.handleClose({
+        close: (peer: Peer, event) => {
+          const hocuspocusPeer = peer as HocuspocusPeer;
+          hocuspocusPeer.hocuspocusConnection?.handleClose({
             code: event.code,
             reason: event.reason,
           });
@@ -501,13 +508,13 @@ export class DocumentCollabGateway implements OnModuleInit, OnModuleDestroy {
 
     return Boolean(
       node.acl.roles?.includes(authPayload.role) ||
-        node.acl.users?.includes(authPayload.sub),
+      node.acl.users?.includes(authPayload.sub),
     );
   }
 
-  private requireContext(context: DocumentCollabContext): Required<
-    Pick<DocumentCollabContext, 'nodeId' | 'tenantScope' | 'mode'>
-  > {
+  private requireContext(
+    context: DocumentCollabContext,
+  ): Required<Pick<DocumentCollabContext, 'nodeId' | 'tenantScope' | 'mode'>> {
     if (!context.nodeId || !context.mode) {
       throw new DocumentCollabProtocolError('协作上下文缺失。');
     }

@@ -209,10 +209,7 @@ export class TaskWorkerService implements OnModuleInit {
             );
           }
         } else if (task.sourceType === 'local') {
-          injectBody.temp_file_id = await this.uploadLocalTempFile(
-            conn,
-            task,
-          );
+          injectBody.temp_file_id = await this.uploadLocalTempFile(conn, task);
           delete injectBody.path;
           await this.injectResourceWithPaths(conn, injectBody);
         } else {
@@ -224,7 +221,12 @@ export class TaskWorkerService implements OnModuleInit {
           this.toEngineResourceUri(task.targetUri),
         );
         if (targetNode && this.isDocumentNode(targetNode)) {
-          await this.syncDocumentContentUri(context, conn, targetNode, task.targetUri);
+          await this.syncDocumentContentUri(
+            context,
+            conn,
+            targetNode,
+            task.targetUri,
+          );
         }
 
         await context.taskRepo.update(task.id, {
@@ -367,7 +369,9 @@ export class TaskWorkerService implements OnModuleInit {
     tenantId: string,
     targetUri: string,
   ): Promise<TargetKnowledgeNode | null> {
-    if (typeof (context.nodeRepo as { findOne?: unknown }).findOne !== 'function') {
+    if (
+      typeof (context.nodeRepo as { findOne?: unknown }).findOne !== 'function'
+    ) {
       return null;
     }
     const candidates = this.resolveTargetUriCandidates(targetUri);
@@ -468,9 +472,9 @@ export class TaskWorkerService implements OnModuleInit {
       (item): item is { uri: string; isDir?: boolean } =>
         Boolean(
           item &&
-            typeof item === 'object' &&
-            typeof (item as { uri?: unknown }).uri === 'string' &&
-            (item as { isDir?: unknown }).isDir === false,
+          typeof item === 'object' &&
+          typeof (item as { uri?: unknown }).uri === 'string' &&
+          (item as { isDir?: unknown }).isDir === false,
         ),
     );
     if (leafResources.length === 0) {
@@ -500,9 +504,8 @@ export class TaskWorkerService implements OnModuleInit {
     injectBody: Record<string, unknown>,
     fallbackPaths: string[] = [],
   ) {
-    const firstPath = typeof injectBody.path === 'string'
-      ? injectBody.path
-      : null;
+    const firstPath =
+      typeof injectBody.path === 'string' ? injectBody.path : null;
     const paths = firstPath ? [firstPath, ...fallbackPaths] : [null];
     let lastError: unknown = null;
 
@@ -511,16 +514,14 @@ export class TaskWorkerService implements OnModuleInit {
       if (path) {
         body.path = path;
       }
-      const result = await this.ovClient.request(
-        conn,
-        OPENVIKING_RESOURCE_ENDPOINTS.INJECT,
-        'POST',
-        body,
-        { user: conn.user || undefined },
-      ).catch((error) => {
-        lastError = error;
-        return null;
-      });
+      const result = await this.ovClient
+        .request(conn, OPENVIKING_RESOURCE_ENDPOINTS.INJECT, 'POST', body, {
+          user: conn.user || undefined,
+        })
+        .catch((error) => {
+          lastError = error;
+          return null;
+        });
 
       if (!result) {
         continue;
@@ -606,7 +607,9 @@ export class TaskWorkerService implements OnModuleInit {
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
   }
 
-  private resolveNodeCountFromStat(statResult: Record<string, unknown> | undefined) {
+  private resolveNodeCountFromStat(
+    statResult: Record<string, unknown> | undefined,
+  ) {
     if (
       statResult?.children_count === undefined &&
       statResult?.descendant_count === undefined
@@ -778,9 +781,10 @@ export class TaskWorkerService implements OnModuleInit {
     }
 
     const errors = (result as { errors?: unknown }).errors;
-    const message = Array.isArray(errors) && errors.length > 0
-      ? errors.map((item) => String(item)).join('; ')
-      : 'OpenViking 资源注入失败';
+    const message =
+      Array.isArray(errors) && errors.length > 0
+        ? errors.map((item) => String(item)).join('; ')
+        : 'OpenViking 资源注入失败';
     throw new Error(message);
   }
 
@@ -818,6 +822,7 @@ export class TaskWorkerService implements OnModuleInit {
       sourceUrl: entity.sourceUrl,
       sourceName: entity.sourceName ?? null,
       targetUri: entity.targetUri,
+      autoCreatedNodeId: entity.autoCreatedNodeId ?? null,
       status: entity.status,
       nodeCount: entity.nodeCount,
       vectorCount: entity.vectorCount,

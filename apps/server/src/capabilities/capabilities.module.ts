@@ -100,7 +100,7 @@ const CAPABILITY_RATE_LIMIT_ENV = {
         redisHost: config.get<string>(
           CAPABILITY_RATE_LIMIT_ENV.REDIS_HOST,
           '127.0.0.1',
-        )!,
+        ),
         redisPort: Number(
           config.get<string>(CAPABILITY_RATE_LIMIT_ENV.REDIS_PORT, '6379'),
         ),
@@ -116,7 +116,7 @@ const CAPABILITY_RATE_LIMIT_ENV = {
         redisKeyPrefix: config.get<string>(
           CAPABILITY_RATE_LIMIT_ENV.REDIS_KEY_PREFIX,
           'openviking:capability-rate-limit',
-        )!,
+        ),
         redisConnectTimeoutMs: Number(
           config.get<string>(
             CAPABILITY_RATE_LIMIT_ENV.REDIS_CONNECT_TIMEOUT_MS,

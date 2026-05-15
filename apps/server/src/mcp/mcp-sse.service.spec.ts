@@ -20,12 +20,9 @@ describe('McpSseService', () => {
     const events: Array<{ type?: string; data: unknown }> = [];
 
     const subscription = service
-      .createEventStream(
-        request as never,
-        async () => {
-          throw new Error('无效的 capability apiKey');
-        },
-      )
+      .createEventStream(request as never, async () => {
+        throw new Error('无效的 capability apiKey');
+      })
       .subscribe({
         next: (event) => events.push(event),
       });
@@ -59,11 +56,10 @@ describe('McpSseService', () => {
       return request;
     });
 
-    service.writeEventStream(
-      request as never,
-      response as never,
-      { sessionId: 'session-1', endpoint: '/api/v1/mcp/message?sessionId=session-1' },
-    );
+    service.writeEventStream(request as never, response as never, {
+      sessionId: 'session-1',
+      endpoint: '/api/v1/mcp/message?sessionId=session-1',
+    });
 
     await new Promise((resolve) => setImmediate(resolve));
 
@@ -89,13 +85,10 @@ describe('McpSseService', () => {
     const events: Array<{ type?: string; data: unknown }> = [];
 
     const subscription = service
-      .createEventStream(
-        request as never,
-        async () => ({
-          sessionId: 'session-1',
-          endpoint: '/api/v1/mcp/message?sessionId=session-1',
-        }),
-      )
+      .createEventStream(request as never, async () => ({
+        sessionId: 'session-1',
+        endpoint: '/api/v1/mcp/message?sessionId=session-1',
+      }))
       .subscribe({
         next: (event) => events.push(event),
       });

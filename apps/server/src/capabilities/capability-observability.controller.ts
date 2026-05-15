@@ -1,4 +1,12 @@
-import { Controller, Get, Header, Query, Req, Res, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Header,
+  Query,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CapabilityObservabilityService } from './application/capability-observability.service';
 import { CapabilityPrometheusExporterService } from './infrastructure/capability-prometheus-exporter.service';
@@ -42,7 +50,7 @@ export class CapabilityObservabilityController {
     const trace = ensureRequestTrace(req, res);
     const parsedLimit = Number.parseInt(limit ?? '20', 10);
     const tenantId =
-      req.user?.role === 'super_admin' ? null : req.user?.tenantId ?? null;
+      req.user?.role === 'super_admin' ? null : (req.user?.tenantId ?? null);
     return {
       data: await this.capabilityObservabilityService.auditCorrelation(
         tenantId,

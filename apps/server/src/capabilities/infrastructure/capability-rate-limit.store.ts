@@ -38,7 +38,9 @@ export interface CapabilityRateLimitStore {
   entries(): Promise<Array<{ key: string; state: RateLimitBucketState }>>;
 }
 
-export const CAPABILITY_RATE_LIMIT_STORE = Symbol('CAPABILITY_RATE_LIMIT_STORE');
+export const CAPABILITY_RATE_LIMIT_STORE = Symbol(
+  'CAPABILITY_RATE_LIMIT_STORE',
+);
 export const CAPABILITY_RATE_LIMIT_STORE_OPTIONS = Symbol(
   'CAPABILITY_RATE_LIMIT_STORE_OPTIONS',
 );

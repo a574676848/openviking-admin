@@ -12,7 +12,7 @@ describe('OVClientService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     service = new OVClientService();
-    global.fetch = fetchMock as unknown as typeof fetch;
+    global.fetch = fetchMock;
   });
 
   it('遇到可重试的 503 时应重试并最终成功', async () => {

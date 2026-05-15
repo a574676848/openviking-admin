@@ -8,7 +8,13 @@ export function createMarkdownTempFile(input: {
   sourceUrl: string;
 }) {
   const title = input.title.trim() || input.fallbackName;
-  const body = [`# ${title}`, '', `来源：${input.sourceUrl}`, '', input.content.trim()]
+  const body = [
+    `# ${title}`,
+    '',
+    `来源：${input.sourceUrl}`,
+    '',
+    input.content.trim(),
+  ]
     .filter((item) => item.length > 0)
     .join('\n');
 

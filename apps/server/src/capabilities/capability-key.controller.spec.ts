@@ -62,11 +62,15 @@ describe('CapabilityKeyController audit', () => {
       { id: 'key-1', userId: 'user-1' },
       { id: 'key-2', userId: 'user-2' },
     ]);
-    expect(capabilityKeyService.getCapabilityKeysByTenant).toHaveBeenCalledWith('tenant-alpha');
+    expect(capabilityKeyService.getCapabilityKeysByTenant).toHaveBeenCalledWith(
+      'tenant-alpha',
+    );
   });
 
   it('删除 capability key 后应写入审计日志', async () => {
-    capabilityKeyService.deleteCapabilityKey.mockResolvedValue({ success: true });
+    capabilityKeyService.deleteCapabilityKey.mockResolvedValue({
+      success: true,
+    });
 
     await controller.deleteCapabilityKey(req, 'key-1');
 

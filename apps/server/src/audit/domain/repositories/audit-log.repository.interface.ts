@@ -1,7 +1,4 @@
-import type {
-  AuditLogModel,
-  CreateAuditLogInput,
-} from '../audit-log.model';
+import type { AuditLogModel, CreateAuditLogInput } from '../audit-log.model';
 
 export interface AuditActionStat {
   action: string;

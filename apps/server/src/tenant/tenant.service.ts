@@ -100,7 +100,11 @@ export class TenantService {
         dbConfig: saved.dbConfig ?? undefined,
       });
     } catch (error) {
-      await this.rollbackFailedTenantCreation(saved.id, saved.tenantId, createdAdminUser?.id);
+      await this.rollbackFailedTenantCreation(
+        saved.id,
+        saved.tenantId,
+        createdAdminUser?.id,
+      );
       const message = error instanceof Error ? error.message : '未知错误';
       throw new InternalServerErrorException(
         `${TENANT_INITIALIZATION_FAILED_MESSAGE} ${message}`,
@@ -137,7 +141,9 @@ export class TenantService {
       dto.dbConfig = {
         ...(tenant.dbConfig ?? {}),
         ...Object.fromEntries(
-          Object.entries(dto.dbConfig).filter(([, value]) => value !== undefined),
+          Object.entries(dto.dbConfig).filter(
+            ([, value]) => value !== undefined,
+          ),
         ),
       };
     }
@@ -225,9 +231,7 @@ export class TenantService {
         failedTask.reason instanceof Error
           ? failedTask.reason.message
           : String(failedTask.reason);
-      this.logger.error(
-        `租户 [${tenantId}] 初始化失败后回滚不完整：${reason}`,
-      );
+      this.logger.error(`租户 [${tenantId}] 初始化失败后回滚不完整：${reason}`);
     }
   }
 }

@@ -123,11 +123,14 @@ export class DocumentService {
     tenantId: string | null,
   ): Promise<DocumentContentSnapshot> {
     const node = await this.requireDocumentNode(nodeId, tenantId);
-    const draft = await this.documentDraftRepository.findByNode(node.id, tenantId);
+    const draft = await this.documentDraftRepository.findByNode(
+      node.id,
+      tenantId,
+    );
     const contentUri = this.resolveCurrentContentUri(node);
-    const markdown = draft?.markdown ?? (contentUri
-      ? await this.downloadMarkdown(contentUri, tenantId)
-      : '');
+    const markdown =
+      draft?.markdown ??
+      (contentUri ? await this.downloadMarkdown(contentUri, tenantId) : '');
 
     return {
       nodeId: node.id,
@@ -226,8 +229,12 @@ export class DocumentService {
     actor?: AuditActorSnapshot | null,
   ): Promise<DocumentIndexResult> {
     const node = await this.requireDocumentNode(nodeId, tenantId);
-    const draft = await this.documentDraftRepository.findByNode(node.id, tenantId);
-    const markdown = draft?.markdown ?? await this.loadIndexedMarkdown(node, tenantId);
+    const draft = await this.documentDraftRepository.findByNode(
+      node.id,
+      tenantId,
+    );
+    const markdown =
+      draft?.markdown ?? (await this.loadIndexedMarkdown(node, tenantId));
     const connection = await this.resolveOpenVikingConnection(tenantId);
     const contentUri = this.resolveIndexedContentUri(node);
     const draftVersion = draft?.version ?? node.draftVersion;
@@ -250,7 +257,10 @@ export class DocumentService {
         contentUri,
         markdown,
       );
-      const vectorCount = await this.fetchVectorCount(connection, indexedContentUri);
+      const vectorCount = await this.fetchVectorCount(
+        connection,
+        indexedContentUri,
+      );
       const indexedAt = new Date();
       const touched = await this.knowledgeTreeService.syncIndexState(
         node.id,
@@ -361,7 +371,11 @@ export class DocumentService {
       assetHash,
     );
     if (dedupAsset) {
-      await this.documentAssetDedupStore.set(node.id, assetHash, dedupAsset.path);
+      await this.documentAssetDedupStore.set(
+        node.id,
+        assetHash,
+        dedupAsset.path,
+      );
       return dedupAsset;
     }
 
@@ -383,14 +397,19 @@ export class DocumentService {
       assetsUri,
       fileName,
     );
-    const confirmedFileName = this.extractResourceLeafFileName(confirmedAssetUri);
+    const confirmedFileName =
+      this.extractResourceLeafFileName(confirmedAssetUri);
     await this.knowledgeTreeService.touch(node.id, tenantId, actor);
 
     const uploadedAsset = {
       path: `${DOCUMENT_ASSETS_DIRECTORY}/${confirmedFileName}`,
       uri: confirmedAssetUri,
     };
-    await this.documentAssetDedupStore.set(node.id, assetHash, uploadedAsset.path);
+    await this.documentAssetDedupStore.set(
+      node.id,
+      assetHash,
+      uploadedAsset.path,
+    );
     return uploadedAsset;
   }
 
@@ -691,7 +710,9 @@ export class DocumentService {
   ): Promise<DocumentAssetUploadResult | null> {
     const cachedEntries = await this.documentAssetDedupStore.getAll(nodeId);
     if (cachedEntries.length > 0) {
-      const cachedMatch = cachedEntries.find((entry) => entry.hash === assetHash);
+      const cachedMatch = cachedEntries.find(
+        (entry) => entry.hash === assetHash,
+      );
       if (cachedMatch) {
         return {
           path: cachedMatch.assetPath,

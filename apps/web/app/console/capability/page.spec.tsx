@@ -88,7 +88,7 @@ describe("CapabilityPage", () => {
 
     await renderPage();
 
-    expect(container.textContent).toContain("Capability Key 列表加载失败");
+    expect(container.textContent).toContain("凭证列表加载失败");
     expect(container.textContent).toContain("凭证中心暂不可用");
     expect(container.textContent).toContain("凭证中心暂不可用");
   });

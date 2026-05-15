@@ -366,7 +366,9 @@ export class DocumentMarkdownParser {
     idFactory: GeneratedBlockIdFactory,
   ): DocumentBlock {
     return this.createTextBlock(marker.type, content, idFactory, {
-      ...(typeof marker.checked === 'boolean' ? { checked: marker.checked } : {}),
+      ...(typeof marker.checked === 'boolean'
+        ? { checked: marker.checked }
+        : {}),
       ...(marker.markerNumber ? { start: marker.markerNumber } : {}),
     });
   }
@@ -565,15 +567,13 @@ export class DocumentMarkdownParser {
     return { type: 'text', text, styles };
   }
 
-  private findNextInlineMatch(source: string):
-    | {
-        index: number;
-        length: number;
-        type: 'link' | 'code' | 'strike' | 'bold' | 'italic';
-        content: string;
-        href?: string;
-      }
-    | null {
+  private findNextInlineMatch(source: string): {
+    index: number;
+    length: number;
+    type: 'link' | 'code' | 'strike' | 'bold' | 'italic';
+    content: string;
+    href?: string;
+  } | null {
     const matches = [
       this.matchInlinePattern(
         source,
@@ -624,9 +624,10 @@ export class DocumentMarkdownParser {
     source: string,
     pattern: RegExp,
     type: 'link' | 'code' | 'strike' | 'bold' | 'italic',
-    buildContent: (
-      match: RegExpExecArray,
-    ) => { content: string; href?: string },
+    buildContent: (match: RegExpExecArray) => {
+      content: string;
+      href?: string;
+    },
   ): {
     index: number;
     length: number;
@@ -774,8 +775,7 @@ export class DocumentMarkdownParser {
   private isTableAlignmentLine(line: string): boolean {
     const cells = this.parseTableCells(line);
     return (
-      cells.length > 0 &&
-      cells.every((cell) => /^:?-{3,}:?$/.test(cell.trim()))
+      cells.length > 0 && cells.every((cell) => /^:?-{3,}:?$/.test(cell.trim()))
     );
   }
 

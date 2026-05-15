@@ -5,8 +5,12 @@ import type {
 import type { SystemConfigModel } from '../system-config.model';
 
 export interface ISystemConfigRepository {
-  find(options?: RepositoryFindQuery<SystemConfigModel>): Promise<SystemConfigModel[]>;
-  findOne(options: RepositoryFindOneQuery<SystemConfigModel>): Promise<SystemConfigModel | null>;
+  find(
+    options?: RepositoryFindQuery<SystemConfigModel>,
+  ): Promise<SystemConfigModel[]>;
+  findOne(
+    options: RepositoryFindOneQuery<SystemConfigModel>,
+  ): Promise<SystemConfigModel | null>;
   save(config: Partial<SystemConfigModel>): Promise<SystemConfigModel>;
 }
 

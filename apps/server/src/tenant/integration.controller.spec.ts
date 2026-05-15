@@ -34,7 +34,7 @@ describe('IntegrationController', () => {
     });
 
     await controller.create(
-      { name: 'GitHub', type: 'github', credentials: {} } as never,
+      { name: 'GitHub', type: 'github', credentials: {} },
       req,
     );
 

@@ -69,7 +69,11 @@ export class IntegrationController {
       username: req.user.username,
       action: 'create_integration',
       target: item.id,
-      meta: { type: item.type, name: item.name, requestId: req.headers['x-request-id'] },
+      meta: {
+        type: item.type,
+        name: item.name,
+        requestId: req.headers['x-request-id'],
+      },
       ip: req.ip,
     });
     return this.svc.mask(item);

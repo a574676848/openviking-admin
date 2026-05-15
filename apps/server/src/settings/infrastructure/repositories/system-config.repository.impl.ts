@@ -47,20 +47,22 @@ export class SystemConfigRepositoryImpl implements ISystemConfigRepository {
   async find(
     options?: RepositoryFindQuery<SystemConfigModel>,
   ): Promise<SystemConfigModel[]> {
-    const items = await this.repo.find((options ?? {}) as FindManyOptions<SystemConfig>);
+    const items = await this.repo.find(
+      (options ?? {}) as FindManyOptions<SystemConfig>,
+    );
     return items.map((item) => this.toModel(item));
   }
 
   async findOne(
     options: RepositoryFindOneQuery<SystemConfigModel>,
   ): Promise<SystemConfigModel | null> {
-    const item = await this.repo.findOne(options as FindOneOptions<SystemConfig>);
+    const item = await this.repo.findOne(
+      options as FindOneOptions<SystemConfig>,
+    );
     return item ? this.toModel(item) : null;
   }
 
-  async save(
-    config: Partial<SystemConfigModel>,
-  ): Promise<SystemConfigModel> {
+  async save(config: Partial<SystemConfigModel>): Promise<SystemConfigModel> {
     if (config.key) {
       const existing = await this.repo.findOne({ where: { key: config.key } });
       if (existing) {

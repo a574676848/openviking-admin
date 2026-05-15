@@ -1,6 +1,4 @@
-import {
-  OpenVikingRequestException,
-} from './ov-client.service';
+import { OpenVikingRequestException } from './ov-client.service';
 import { OVKnowledgeGatewayService } from './ov-knowledge-gateway.service';
 
 describe('OVKnowledgeGatewayService', () => {

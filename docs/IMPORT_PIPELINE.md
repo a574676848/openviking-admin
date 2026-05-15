@@ -194,7 +194,8 @@ POST /api/v1/import-tasks
 
 - 控制台创建导入任务时不再要求手工填写 `targetUri`
 - 服务端会基于知识库的 `vikingUri` 自动派生目标路径
-- 当前默认规则为 `viking://resources/{tenantId}/{kbId}/imports/{sourceType}/`
+- `local`、`url`、`feishu`、`dingtalk` 会先在所选知识树目录下自动创建 `document` 子节点，并把任务 `targetUri` 指向该文档节点的稳定资源容器 URI；未选择目录节点时挂到知识库根级知识树
+- `git` 仍按资源目录导入，不自动创建知识树文档节点；默认规则为 `viking://resources/{tenantId}/{kbId}/imports/git/`
 - 如果知识库下已有知识树节点，控制台会额外提供“导入目标节点”选择；当前控制台只允许选择目录节点，文档叶子不支持从导入中心直接覆盖
 - 服务端会严格校验显式 `targetUri`：只允许当前知识库根目录或当前知识库下已有节点的稳定资源容器 URI，禁止写入其他租户的 OV 路径
 
@@ -213,9 +214,11 @@ LOCAL_IMPORT_KEEP_FILES_AFTER_DONE=false
 
 - `LOCAL_IMPORT_UPLOAD_DIR` 是 Admin 服务的上传暂存目录；生产环境必须显式配置。
 - 上传接口生成的临时文件会写入 `LOCAL_IMPORT_UPLOAD_DIR/managed`，Worker 只读取该受控子目录下的文件。
-- 导入任务会保存来源展示名称到 `sourceName`：创建接口可显式传 `sourceName`，批量来源可传与 `sourceUrls` 对齐的 `sourceNames`；未显式传入时，服务层会为 Git 解析仓库名，为 `url`、`local`、`manifest` 解析来源路径末尾文件名。飞书、钉钉等企业文档默认由 Worker 读取平台文档后写入解析出的文档名；历史任务或无法解析名称时回退展示 `sourceUrl`。
+- 导入任务会保存来源展示名称到 `sourceName`：创建接口可显式传 `sourceName`，批量来源可传与 `sourceUrls` 对齐的 `sourceNames`；未显式传入时，服务层会为 Git 解析仓库名，为 `url`、`local`、`manifest` 解析来源路径末尾文件名。飞书、钉钉等企业文档创建自动文档节点时会先从 URL 路径解析展示名，Worker 读取平台文档后再写入解析出的真实文档名；历史任务或无法解析名称时回退展示 `sourceUrl`。
+- 本地上传文件名会在服务端统一规范化为 UTF-8 后写入 `sourceName`，避免浏览器 multipart 文件名被中间件按 Latin-1 解析后在文档处理中心显示乱码。
 - 本地文件统一转成 OpenViking `temp_file_id` 后再注入，不向 OpenViking 传递 `file://` 路径。
 - 默认导入成功后会删除暂存文件；失败任务会保留文件，便于排查和重试。
+- 由导入中心自动创建的文档节点会记录到任务的 `autoCreatedNodeId`。自动文档节点和导入任务在 Admin 数据库内同事务提交，避免任务保存失败时残留孤儿知识树节点。失败任务被物理删除时，服务端会同步删除该自动文档节点；手工选择的既有目录节点不会被删除。
 - WebDAV `PUT` 新建文件时复用受控上传链路：WebDAV adapter 接收请求正文，新建白名单内文件时创建文档叶子节点并分配稳定资源容器 URI，并创建 `sourceType=local` 导入任务。Worker 导入成功后会把当前正文叶子的实际 `contentUri` 回写到知识树节点。覆盖已有白名单文件时，只保存 Admin 侧最新草稿并把文档节点索引状态标记为 `dirty`，不再创建导入任务，也不主动触发 OpenViking 语义化或向量化；需要用户在编辑器或 capability 中显式执行 `documents.index.rebuild`。WebDAV 本身仍是同步 adapter，不新增独立导入来源。
 - WebDAV `DELETE` 不创建导入任务；它复用知识树服务层删除语义，对带 `vikingUri` 的叶子文件或空目录先调用 OpenViking `/api/v1/fs` 删除资源和向量，再删除 Admin 侧知识树节点。控制台知识树和知识库删除同样走这条服务层语义，避免只删 Admin 元数据。
 - WebDAV `MOVE` 不创建导入任务，也不触发 OpenViking 移动或重索引；它只更新 Admin 侧知识树节点名称、父节点、排序和展示路径，保持稳定资源容器 URI 不变。
@@ -326,13 +329,21 @@ GET /api/v1/import-tasks/:id/sync
 
 导入任务失败时会把 `nodeCount` 和 `vectorCount` 统一清零，控制台任务进度也会回落为 `0%`，避免把失败任务误展示为已完成。
 
+### 重试失败任务
+
+```bash
+POST /api/v1/import-tasks/:id/retry
+```
+
+重试仅允许 `failed` 或 `cancelled` 状态的任务。重试 `failed` 任务时，服务端会先删除该任务 `targetUri` 下已有的 OpenViking 资源和向量，再将 `nodeCount`、`vectorCount` 清零并重新置为 `pending`，保证 Worker 从空目标路径重新执行完整导入，而不是在上一次部分写入结果上继续叠加。目标资源已经不存在时视为清理完成。重试 `cancelled` 任务只重新排队并清零统计，不主动删除目标资源。
+
 ### 删除失败任务
 
 ```bash
 DELETE /api/v1/import-tasks/:id
 ```
 
-该接口仅供控制台/JWT 管理入口使用，只允许物理删除 `failed` 状态的任务。若失败任务来源于受控本地上传文件，服务端会同步删除暂存文件；现有 CLI、MCP 和 capability 契约暂不暴露该能力。
+该接口仅供控制台/JWT 管理入口使用，只允许物理删除 `failed` 状态的任务。若失败任务来源于受控本地上传文件，服务端会同步删除暂存文件；若任务关联了导入中心自动创建的文档节点，服务端会同步删除该节点，避免知识树残留失败导入的空文档。节点和任务的 Admin 数据库删除在同一事务内提交；OpenViking 资源删除属于外部幂等副作用，删除失败时接口返回错误并保留任务，用户可再次发起删除。现有 CLI、MCP 和 capability 契约暂不暴露该能力。
 
 ### 状态流转
 

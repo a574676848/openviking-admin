@@ -62,7 +62,8 @@ export class KnowledgeTreeService {
     private readonly ovClientService: OVClientService,
     private readonly documentSessionRegistry: DocumentSessionRegistry,
     @Optional() private readonly defaultDataSource?: DataSource,
-    @Optional() private readonly dynamicDataSourceService?: DynamicDataSourceService,
+    @Optional()
+    private readonly dynamicDataSourceService?: DynamicDataSourceService,
     @Optional() private readonly tenantCacheService?: TenantCacheService,
   ) {}
 
@@ -185,9 +186,11 @@ export class KnowledgeTreeService {
           isolationConfig.tenantId,
           isolationConfig.dbConfig,
         );
-      const entity = await tenantDataSource.getRepository(KnowledgeNode).findOne({
-        where: { id, tenantId },
-      });
+      const entity = await tenantDataSource
+        .getRepository(KnowledgeNode)
+        .findOne({
+          where: { id, tenantId },
+        });
       return entity ? this.toModel(entity) : null;
     }
 
@@ -198,9 +201,11 @@ export class KnowledgeTreeService {
         await queryRunner.query(
           `SET search_path TO "tenant_${tenantId.replace(/-/g, '_')}", public`,
         );
-        const entity = await queryRunner.manager.getRepository(KnowledgeNode).findOne({
-          where: { id, tenantId },
-        });
+        const entity = await queryRunner.manager
+          .getRepository(KnowledgeNode)
+          .findOne({
+            where: { id, tenantId },
+          });
         return entity ? this.toModel(entity) : null;
       } finally {
         if (!queryRunner.isReleased) {
@@ -209,9 +214,11 @@ export class KnowledgeTreeService {
       }
     }
 
-    const entity = await this.defaultDataSource.getRepository(KnowledgeNode).findOne({
-      where: { id, tenantId },
-    });
+    const entity = await this.defaultDataSource
+      .getRepository(KnowledgeNode)
+      .findOne({
+        where: { id, tenantId },
+      });
     return entity ? this.toModel(entity) : null;
   }
 

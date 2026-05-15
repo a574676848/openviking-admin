@@ -1,6 +1,11 @@
 import { KnowledgeBaseController } from './knowledge-base.controller';
 
 describe('KnowledgeBaseController', () => {
+  const auditActor = {
+    id: 'user-1',
+    username: 'admin',
+  };
+
   const kbService = {
     create: jest.fn(),
     remove: jest.fn(),
@@ -56,6 +61,7 @@ describe('KnowledgeBaseController', () => {
 
     expect(kbService.create).toHaveBeenCalledWith(
       expect.objectContaining({ tenantId: 'mem' }),
+      auditActor,
     );
     expect(kbService.remove).toHaveBeenCalledWith('kb-1', 'mem', {
       user: 'admin',

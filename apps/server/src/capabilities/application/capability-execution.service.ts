@@ -40,10 +40,7 @@ export class CapabilityExecutionService {
       throw new NotFoundException(`未知 capability: ${capabilityId}`);
     }
 
-    this.capabilityAuthorizationService.authorize(
-      contract,
-      context.principal,
-    );
+    this.capabilityAuthorizationService.authorize(contract, context.principal);
     this.capabilitySchemaValidator.validateInput(contract, input);
 
     const startedAt = Date.now();

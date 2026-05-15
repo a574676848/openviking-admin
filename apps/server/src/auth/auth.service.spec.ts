@@ -9,6 +9,43 @@ import { USER_REPOSITORY } from '../users/domain/repositories/user.repository.in
 import type { IUserRepository } from '../users/domain/repositories/user.repository.interface';
 import { TENANT_REPOSITORY } from '../tenant/domain/repositories/tenant.repository.interface';
 import type { ITenantRepository } from '../tenant/domain/repositories/tenant.repository.interface';
+import type { UserModel } from '../users/domain/user.model';
+import type { TenantModel } from '../tenant/domain/tenant.model';
+
+function createUser(overrides: Partial<UserModel> = {}): UserModel {
+  return {
+    id: 'user-1',
+    username: 'alice',
+    passwordHash: 'hashed',
+    role: SystemRoles.TENANT_ADMIN,
+    tenantId: 'tenant-1',
+    active: true,
+    ssoId: null,
+    provider: null,
+    createdAt: new Date('2026-05-15T00:00:00.000Z'),
+    updatedAt: new Date('2026-05-15T00:00:00.000Z'),
+    ...overrides,
+  };
+}
+
+function createTenant(overrides: Partial<TenantModel> = {}): TenantModel {
+  return {
+    id: 'tenant-1',
+    tenantId: 'acme',
+    displayName: 'Acme',
+    status: 'active',
+    isolationLevel: 'small' as TenantModel['isolationLevel'],
+    dbConfig: null,
+    vikingAccount: null,
+    quota: null,
+    ovConfig: null,
+    description: null,
+    createdAt: new Date('2026-05-15T00:00:00.000Z'),
+    updatedAt: new Date('2026-05-15T00:00:00.000Z'),
+    deletedAt: null,
+    ...overrides,
+  };
+}
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -49,10 +86,10 @@ describe('AuthService', () => {
 
   describe('login', () => {
     it('应该在密码错误时抛出 UnauthorizedException', async () => {
-      mockUserRepo.findByUsername.mockResolvedValue({
+      mockUserRepo.findByUsername.mockResolvedValue(createUser({
         username: 'test',
         passwordHash: await bcrypt.hash('correct', 10),
-      } as never);
+      }));
 
       await expect(
         service.login({ username: 'test', password: 'wrong' }),
@@ -60,13 +97,14 @@ describe('AuthService', () => {
     });
 
     it('超管登录不带租户编码应该成功', async () => {
-      const mockUser = {
+      const mockUser = createUser({
         id: '1',
         username: 'admin',
         passwordHash: await bcrypt.hash('pass', 10),
-        role: 'super_admin',
-      };
-      mockUserRepo.findByUsername.mockResolvedValue(mockUser as never);
+        role: SystemRoles.SUPER_ADMIN,
+        tenantId: null,
+      });
+      mockUserRepo.findByUsername.mockResolvedValue(mockUser);
 
       const result = await service.login({
         username: 'admin',
@@ -80,35 +118,30 @@ describe('AuthService', () => {
     });
 
     it('租户登录应优先命中租户内同名账号', async () => {
-      const tenantUser = {
+      const tenantUser = createUser({
         id: 'tenant-user-1',
         username: 'admin',
         passwordHash: await bcrypt.hash('acme@123', 10),
-        role: 'tenant_admin',
+        role: SystemRoles.TENANT_ADMIN,
         tenantId: 'tenant-1',
-      };
-      const superAdmin = {
+      });
+      const superAdmin = createUser({
         id: 'platform-admin-1',
         username: 'admin',
         passwordHash: await bcrypt.hash('Admin@2026', 10),
-        role: 'super_admin',
+        role: SystemRoles.SUPER_ADMIN,
         tenantId: null,
-      };
+      });
 
-      mockTenantRepo.findByTenantId.mockResolvedValue({
-        id: 'tenant-1',
-        tenantId: 'acme',
-      } as never);
-      mockTenantRepo.findById.mockResolvedValue({
-        id: 'tenant-1',
-        tenantId: 'acme',
+      mockTenantRepo.findByTenantId.mockResolvedValue(createTenant());
+      mockTenantRepo.findById.mockResolvedValue(createTenant({
         ovConfig: {
           baseUrl: 'http://tenant-ov.local',
         },
-      } as never);
+      }));
       mockUserRepo.findByUsername
-        .mockResolvedValueOnce(tenantUser as never)
-        .mockResolvedValueOnce(superAdmin as never);
+        .mockResolvedValueOnce(tenantUser)
+        .mockResolvedValueOnce(superAdmin);
 
       const result = await service.login({
         username: 'admin',
@@ -132,28 +165,26 @@ describe('AuthService', () => {
     });
 
     it('超管带租户编码登录时应签发租户视角 token', async () => {
-      const superAdmin = {
+      const superAdmin = createUser({
         id: 'platform-admin-1',
         username: 'admin',
         passwordHash: await bcrypt.hash('Admin@2026', 10),
         role: SystemRoles.SUPER_ADMIN,
         tenantId: null,
-      };
+      });
 
-      mockTenantRepo.findByTenantId.mockResolvedValue({
-        id: 'tenant-1',
-        tenantId: 'test3',
-      } as never);
-      mockTenantRepo.findById.mockResolvedValue({
-        id: 'tenant-1',
+      mockTenantRepo.findByTenantId.mockResolvedValue(
+        createTenant({ tenantId: 'test3' }),
+      );
+      mockTenantRepo.findById.mockResolvedValue(createTenant({
         tenantId: 'test3',
         ovConfig: {
           baseUrl: 'http://tenant-ov.local',
         },
-      } as never);
+      }));
       mockUserRepo.findByUsername
         .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce(superAdmin as never);
+        .mockResolvedValueOnce(superAdmin);
 
       const result = await service.login({
         username: 'admin',
@@ -191,12 +222,12 @@ describe('AuthService', () => {
         scope: 'tenant',
         tokenType: 'refresh_token',
       });
-      mockUserRepo.findById.mockResolvedValue({
+      mockUserRepo.findById.mockResolvedValue(createUser({
         id: 'user-1',
         username: 'alice',
         role: SystemRoles.TENANT_ADMIN,
         tenantId: 'tenant-1',
-      } as never);
+      }));
 
       const result = await service.refreshAccessToken('refresh-token');
 

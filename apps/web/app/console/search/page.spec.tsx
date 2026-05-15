@@ -162,19 +162,27 @@ describe("SearchPage", () => {
     await renderPage();
 
     const inputs = Array.from(container.querySelectorAll("input"));
-    const select = container.querySelector("select") as HTMLSelectElement;
+    const uriTrigger = Array.from(container.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("指定 URI | viking://prefill"),
+    );
     expect((inputs[0] as HTMLInputElement).value).toBe("预填问题");
-    expect(select.value).toBe("viking://prefill");
-    expect(select.textContent).toContain("指定 URI | viking://prefill");
+    expect(uriTrigger).toBeTruthy();
   });
 
   it("检索范围应改为知识库数据源下拉选择", async () => {
     await renderPage();
 
-    const select = container.querySelector("select") as HTMLSelectElement;
-    expect(select).toBeTruthy();
-    expect(select.textContent).toContain("全部知识库");
-    expect(select.textContent).toContain("WebDAV 知识库 | viking://docs/webdav");
-    expect(select.textContent).toContain("默认知识库 | viking://resources/default/");
+    const trigger = Array.from(container.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("全部知识库"),
+    );
+    expect(trigger).toBeTruthy();
+
+    await act(async () => {
+      trigger?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(document.body.textContent).toContain("全部知识库");
+    expect(document.body.textContent).toContain("WebDAV 知识库 | viking://docs/webdav");
+    expect(document.body.textContent).toContain("默认知识库 | viking://resources/default/");
   });
 });

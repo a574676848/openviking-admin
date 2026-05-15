@@ -64,22 +64,28 @@ describe('KnowledgeCapabilityGateway', () => {
 
   it('should call OV with tenant scoped uri', async () => {
     ovKnowledgeGateway.listResources.mockResolvedValue({
-      result: [{ uri: 'viking://resources/tenants/tenant-a/doc-1', isDir: false }],
+      result: [
+        { uri: 'viking://resources/tenants/tenant-a/doc-1', isDir: false },
+      ],
     });
 
-    await gateway.listResources(principal, {
-      uri: 'viking://resources/tenants/tenant-a/',
-    }, {
-      traceId: 'trace-1',
-      spanId: 'span-1',
-      requestId: 'request-1',
-      tenantId: 'tenant-a',
-      userId: 'user-1',
-      channel: 'http',
-      clientType: 'service',
-      credentialType: 'jwt_access_token',
-      capability: 'resources.list',
-    } as TraceContext);
+    await gateway.listResources(
+      principal,
+      {
+        uri: 'viking://resources/tenants/tenant-a/',
+      },
+      {
+        traceId: 'trace-1',
+        spanId: 'span-1',
+        requestId: 'request-1',
+        tenantId: 'tenant-a',
+        userId: 'user-1',
+        channel: 'http',
+        clientType: 'service',
+        credentialType: 'jwt_access_token',
+        capability: 'resources.list',
+      },
+    );
 
     expect(ovKnowledgeGateway.listResources).toHaveBeenCalledWith(
       expect.anything(),

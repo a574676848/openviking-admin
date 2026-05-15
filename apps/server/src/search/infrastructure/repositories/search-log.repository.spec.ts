@@ -23,9 +23,7 @@ describe('SearchLogRepository', () => {
       createQueryBuilder: jest.fn(),
     };
 
-    const repository = new SearchLogRepository(
-      defaultRepo as never,
-    );
+    const repository = new SearchLogRepository(defaultRepo as never);
 
     await repository.save({
       tenantId: 'tenant-a',

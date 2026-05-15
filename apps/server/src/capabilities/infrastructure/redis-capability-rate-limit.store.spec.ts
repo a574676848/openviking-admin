@@ -26,10 +26,10 @@ class FakeRedisPipeline {
   async exec() {
     return this.commands.map((command) => {
       if (command.type === 'hmget') {
-        return [null, this.client.hmget(command.key, ...(command.fields ?? []))] as [
+        return [
           null,
-          string[],
-        ];
+          this.client.hmget(command.key, ...(command.fields ?? [])),
+        ] as [null, string[]];
       }
 
       return [null, this.client.pttl(command.key)] as [null, number];

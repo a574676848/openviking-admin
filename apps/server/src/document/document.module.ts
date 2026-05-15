@@ -61,9 +61,8 @@ const DOCUMENT_ASSET_DEDUP_ENV = {
       inject: [ConfigService],
       useFactory: (config: ConfigService): DocumentAssetDedupStoreOptions => ({
         driver:
-          config
-            .get<string>(DOCUMENT_ASSET_DEDUP_ENV.DRIVER)
-            ?.toLowerCase() === DOCUMENT_ASSET_DEDUP_STORE_DRIVER.REDIS
+          config.get<string>(DOCUMENT_ASSET_DEDUP_ENV.DRIVER)?.toLowerCase() ===
+          DOCUMENT_ASSET_DEDUP_STORE_DRIVER.REDIS
             ? DOCUMENT_ASSET_DEDUP_STORE_DRIVER.REDIS
             : DOCUMENT_ASSET_DEDUP_STORE_DRIVER.MEMORY,
         redisUrl:
@@ -71,7 +70,7 @@ const DOCUMENT_ASSET_DEDUP_ENV = {
           config.get<string>('CAPABILITY_RATE_LIMIT_REDIS_URL'),
         redisHost:
           config.get<string>(DOCUMENT_ASSET_DEDUP_ENV.REDIS_HOST) ??
-          config.get<string>('CAPABILITY_RATE_LIMIT_REDIS_HOST', '127.0.0.1')!,
+          config.get<string>('CAPABILITY_RATE_LIMIT_REDIS_HOST', '127.0.0.1'),
         redisPort: Number(
           config.get<string>(DOCUMENT_ASSET_DEDUP_ENV.REDIS_PORT) ??
             config.get<string>('CAPABILITY_RATE_LIMIT_REDIS_PORT', '6379'),
@@ -91,8 +90,13 @@ const DOCUMENT_ASSET_DEDUP_ENV = {
           config.get<string>(DOCUMENT_ASSET_DEDUP_ENV.REDIS_KEY_PREFIX) ??
           'openviking:document-asset-dedup',
         redisConnectTimeoutMs: Number(
-          config.get<string>(DOCUMENT_ASSET_DEDUP_ENV.REDIS_CONNECT_TIMEOUT_MS) ??
-            config.get<string>('CAPABILITY_RATE_LIMIT_REDIS_CONNECT_TIMEOUT_MS', '1500'),
+          config.get<string>(
+            DOCUMENT_ASSET_DEDUP_ENV.REDIS_CONNECT_TIMEOUT_MS,
+          ) ??
+            config.get<string>(
+              'CAPABILITY_RATE_LIMIT_REDIS_CONNECT_TIMEOUT_MS',
+              '1500',
+            ),
         ),
         ttlSeconds: Number(
           config.get<string>(

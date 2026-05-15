@@ -129,6 +129,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 | `source_url` | VARCHAR(2048) | NULLABLE | — | 来源 URL |
 | `source_name` | VARCHAR(255) | NULLABLE | — | 来源展示名称；Git 为仓库名，企业文档和本地上传为文档或文件名 |
 | `target_uri` | VARCHAR(2048) | NOT NULL | — | 目标 URI |
+| `auto_created_node_id` | VARCHAR(36) | NULLABLE | — | 导入中心为该任务自动创建的知识树文档节点 ID；失败任务物理删除时用于同步清理节点 |
 | `status` | VARCHAR(20) | NOT NULL | `'pending'` | `pending` / `running` / `done` / `failed` / `cancelled` |
 | `node_count` | INTEGER | NOT NULL | `0` | 节点数量 |
 | `vector_count` | INTEGER | NOT NULL | `0` | 向量数量 |
@@ -318,6 +319,7 @@ mcp_sessions (1) ────< (N) mcp_session_events
 | `AddKnowledgeNodeKindAndContentUri` | 1746600000000 | knowledge_nodes 添加 kind, content_uri 列 |
 | `RepairSchemaDrift` | 1746700000000 | 补齐 audit_logs、import_tasks、knowledge_nodes、search_logs、integrations 的历史 schema 漂移 |
 | `AddImportTaskSourceName` | 1746800000000 | import_tasks 添加 source_name 列 |
+| `AddImportTaskAutoCreatedNodeId` | 1747100000000 | import_tasks 添加 auto_created_node_id 列 |
 
 ---
 

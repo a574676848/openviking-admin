@@ -7,9 +7,7 @@ const LEGACY_TYPEORM_USERNAME_CONSTRAINT_NAME =
 const PLATFORM_USERNAME_INDEX_NAME = 'uq_users_platform_username';
 const TENANT_USERNAME_INDEX_NAME = 'uq_users_tenant_username';
 
-export class RepairScopedUsernameConstraints1746500000000
-  implements MigrationInterface
-{
+export class RepairScopedUsernameConstraints1746500000000 implements MigrationInterface {
   name = 'RepairScopedUsernameConstraints1746500000000';
 
   async up(queryRunner: QueryRunner): Promise<void> {

@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class RenameUserMcpKeysToCapabilityKeys1746100000000
-  implements MigrationInterface
-{
+export class RenameUserMcpKeysToCapabilityKeys1746100000000 implements MigrationInterface {
   name = 'RenameUserMcpKeysToCapabilityKeys1746100000000';
 
   async up(queryRunner: QueryRunner): Promise<void> {

@@ -17,9 +17,10 @@ interface ResponseEnvelope<T> {
 }
 
 @Injectable()
-export class SuccessResponseInterceptor<T>
-  implements NestInterceptor<T, T | ResponseEnvelope<T>>
-{
+export class SuccessResponseInterceptor<T> implements NestInterceptor<
+  T,
+  T | ResponseEnvelope<T>
+> {
   intercept(
     context: ExecutionContext,
     next: CallHandler<T>,
@@ -78,10 +79,7 @@ export class SuccessResponseInterceptor<T>
     }
 
     return (
-      'data' in data &&
-      'meta' in data &&
-      'traceId' in data &&
-      'error' in data
+      'data' in data && 'meta' in data && 'traceId' in data && 'error' in data
     );
   }
 }

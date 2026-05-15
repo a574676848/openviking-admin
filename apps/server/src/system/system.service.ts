@@ -308,7 +308,7 @@ export class SystemService {
           baseUrl: target.connection.baseUrl,
           version:
             health.status === 'fulfilled' && health.value
-              ? ((health.value as Record<string, unknown>).version as string)
+              ? (health.value.version as string)
               : null,
           queue:
             queue.status === 'fulfilled'
@@ -327,7 +327,7 @@ export class SystemService {
               : null,
           vikingdb:
             vikingdb.status === 'fulfilled'
-              ? ((vikingdb.value as Record<string, unknown>)?.result ?? null)
+              ? (vikingdb.value?.result ?? null)
               : null,
         };
       }),
