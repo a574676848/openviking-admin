@@ -306,7 +306,7 @@ export class DocumentMarkdownParser {
           },
           content: {
             type: 'tableContent',
-            columnWidths: Array.from({ length: columnCount }, () => undefined),
+            columnWidths: [],
             headerRows: 1,
             rows,
           },

@@ -6,7 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { LOCAL_IMPORT_UPLOAD_CONFIG } from './constants';
 
-const MOJIBAKE_PATTERN = /[ÃÂ�]/;
+const MOJIBAKE_PATTERN = /[ÃÂ\u0080-\u009f�]/;
 const CJK_CHARACTER_PATTERN = /[\u3400-\u9fff]/;
 
 export interface LocalImportUploadFile {

@@ -386,6 +386,32 @@ describe('DocumentCollabGateway', () => {
     );
   });
 
+  it('onStoreDocument 应跳过加载非空正文后的首次空内容落盘', async () => {
+    const yDoc = new Y.Doc();
+    const context = {
+      nodeId: 'node-1',
+      tenantScope: TENANT_SCOPE,
+      mode: 'write',
+    };
+    documentService.loadContent.mockResolvedValueOnce({
+      markdown: '# 已导入正文',
+    } as never);
+    documentContentCodec.yDocToBlocks.mockResolvedValueOnce([
+      { type: 'paragraph', content: [] },
+    ] as never);
+
+    await capturedConfig.onLoadDocument({
+      context,
+    } as unknown as onLoadDocumentPayload<Record<string, unknown>>);
+    await capturedConfig.onStoreDocument({
+      document: yDoc,
+      lastContext: context,
+    } as unknown as onStoreDocumentPayload<Record<string, unknown>>);
+
+    expect(documentService.saveContent).not.toHaveBeenCalled();
+    expect(context).toMatchObject({ skippedInitialEmptyStore: true });
+  });
+
   it('onStoreDocument 应忽略只读连接产生的持久化请求', async () => {
     await capturedConfig.onStoreDocument({
       document: new Y.Doc(),

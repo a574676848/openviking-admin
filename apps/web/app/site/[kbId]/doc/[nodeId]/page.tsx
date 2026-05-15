@@ -551,7 +551,7 @@ function KnowledgeSiteDocumentContent({
                     saveRequestId={saveRequestId}
                     indexRequestId={indexRequestId}
                     reconnectRequestId={reconnectRequestId}
-                    collab={metadata.collab}
+                    collab={editorUsesCollab ? metadata.collab : undefined}
                     onStateChange={setEditorState}
                   />
                 </div>

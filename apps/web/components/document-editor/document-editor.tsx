@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PartialBlock } from "@blocknote/core";
+import { Node as TiptapNode } from "@tiptap/core";
 import { zh } from "@blocknote/core/locales";
 import {
   SuggestionMenuController,
@@ -25,7 +26,7 @@ import {
   filterSuggestionItems,
   insertOrUpdateBlockForSlashMenu,
 } from "@blocknote/core/extensions";
-import { defaultBlockSpecs, BlockNoteSchema } from "@blocknote/core";
+import { defaultBlockSpecs, BlockNoteSchema, createExtension } from "@blocknote/core";
 import { MermaidBlock } from "./mermaid-block";
 import { CustomCodeBlock } from "./code-block";
 import { apiClient } from "@/lib/apiClient";
@@ -194,6 +195,20 @@ const MARKDOWN_SLASH_MENU_KEYS = new Set([
   "image",
 ]);
 
+const BLOCK_GROUP_NODE_NAME = "blockGroup";
+const BLOCK_CONTAINER_NODE_NAME = "blockContainer";
+const BLOCK_OUTER_NODE_TYPE = "blockOuter";
+const BLOCK_GROUP_CLASS_NAME = "bn-block-group";
+const BLOCK_CONTAINER_CLASS_NAME = "bn-block";
+const BLOCK_OUTER_CLASS_NAME = "bn-block-outer";
+const BLOCK_CONTAINER_DATA_ATTRIBUTES: Record<string, string> = {
+  blockColor: "data-block-color",
+  blockStyle: "data-block-style",
+  id: "data-id",
+  depth: "data-depth",
+  depthChange: "data-depth-change",
+};
+
 const schema = BlockNoteSchema.create({
   blockSpecs: {
     ...defaultBlockSpecs,
@@ -201,6 +216,169 @@ const schema = BlockNoteSchema.create({
     procode: CustomCodeBlock(),
   },
 });
+
+function mergeClassName(...classNames: Array<string | null | undefined>): string {
+  return classNames.filter(Boolean).join(" ");
+}
+
+function setAttributeIfPresent(
+  element: HTMLElement,
+  attribute: string,
+  value: unknown,
+): void {
+  if (value !== null && value !== undefined && value !== "") {
+    element.setAttribute(attribute, String(value));
+  }
+}
+
+function setAttributes(element: HTMLElement, attributes: Record<string, unknown>): void {
+  for (const [attribute, value] of Object.entries(attributes)) {
+    if (attribute !== "class") {
+      setAttributeIfPresent(element, attribute, value);
+    }
+  }
+}
+
+function createBlockGroupNodeView() {
+  const blockGroup = document.createElement("div");
+  blockGroup.className = BLOCK_GROUP_CLASS_NAME;
+  blockGroup.setAttribute("data-node-type", BLOCK_GROUP_NODE_NAME);
+
+  return {
+    dom: blockGroup,
+    contentDOM: blockGroup,
+  };
+}
+
+function createBlockContainerNodeView({
+  node,
+  HTMLAttributes = {},
+}: {
+  node: { attrs: Record<string, unknown> };
+  HTMLAttributes?: Record<string, unknown>;
+}) {
+  const blockOuter = document.createElement("div");
+  blockOuter.className = BLOCK_OUTER_CLASS_NAME;
+  blockOuter.setAttribute("data-node-type", BLOCK_OUTER_NODE_TYPE);
+  setAttributes(blockOuter, HTMLAttributes);
+
+  const block = document.createElement("div");
+  block.className = mergeClassName(
+    BLOCK_CONTAINER_CLASS_NAME,
+    HTMLAttributes.class as string,
+  );
+  block.setAttribute("data-node-type", BLOCK_CONTAINER_NODE_NAME);
+  setAttributes(block, HTMLAttributes);
+  for (const [nodeAttribute, domAttribute] of Object.entries(
+    BLOCK_CONTAINER_DATA_ATTRIBUTES,
+  )) {
+    setAttributeIfPresent(block, domAttribute, node.attrs[nodeAttribute]);
+  }
+
+  blockOuter.appendChild(block);
+
+  return {
+    dom: blockOuter,
+    contentDOM: block,
+  };
+}
+
+const BlockNoteContainerNodeViewExtension = createExtension({
+  key: "blocknote-container-node-views",
+  tiptapExtensions: [
+    TiptapNode.create({
+      name: BLOCK_GROUP_NODE_NAME,
+      group: "childContainer",
+      content: "blockGroupChild+",
+      marks: "deletion insertion modification",
+      parseHTML() {
+        return [
+          {
+            tag: "div",
+            getAttrs: (element) =>
+              typeof element !== "string" &&
+              element.getAttribute("data-node-type") === BLOCK_GROUP_NODE_NAME
+                ? null
+                : false,
+          },
+        ];
+      },
+      renderHTML({ HTMLAttributes }) {
+        return [
+          "div",
+          {
+            ...HTMLAttributes,
+            "data-node-type": BLOCK_GROUP_NODE_NAME,
+            class: mergeClassName(BLOCK_GROUP_CLASS_NAME, HTMLAttributes.class),
+          },
+          0,
+        ];
+      },
+      addNodeView() {
+        return createBlockGroupNodeView;
+      },
+    }),
+    TiptapNode.create({
+      name: BLOCK_CONTAINER_NODE_NAME,
+      group: "blockGroupChild bnBlock",
+      content: "blockContent blockGroup?",
+      priority: 50,
+      defining: true,
+      marks: "insertion modification deletion",
+      parseHTML() {
+        return [
+          {
+            tag: `div[data-node-type="${BLOCK_CONTAINER_NODE_NAME}"]`,
+            getAttrs: (element) => {
+              if (typeof element === "string") {
+                return false;
+              }
+
+              const attrs: Record<string, string> = {};
+              for (const [nodeAttribute, domAttribute] of Object.entries(
+                BLOCK_CONTAINER_DATA_ATTRIBUTES,
+              )) {
+                const value = element.getAttribute(domAttribute);
+                if (value) {
+                  attrs[nodeAttribute] = value;
+                }
+              }
+              return attrs;
+            },
+          },
+          {
+            tag: `div[data-node-type="${BLOCK_OUTER_NODE_TYPE}"]`,
+            skip: true,
+          },
+        ];
+      },
+      renderHTML({ HTMLAttributes }) {
+        return [
+          "div",
+          {
+            ...HTMLAttributes,
+            "data-node-type": BLOCK_OUTER_NODE_TYPE,
+            class: BLOCK_OUTER_CLASS_NAME,
+          },
+          [
+            "div",
+            {
+              ...HTMLAttributes,
+              "data-node-type": BLOCK_CONTAINER_NODE_NAME,
+              class: mergeClassName(BLOCK_CONTAINER_CLASS_NAME, HTMLAttributes.class),
+            },
+            0,
+          ],
+        ];
+      },
+      addNodeView() {
+        return createBlockContainerNodeView;
+      },
+    }),
+  ],
+});
+
+const BLOCKNOTE_EXTENSIONS = [BlockNoteContainerNodeViewExtension];
 
 function buildDocumentContentEndpoint(nodeId: string): string {
   return `/editor/${encodeURIComponent(nodeId)}/${DOCUMENT_CONTENT_ENDPOINT_SUFFIX}`;
@@ -214,7 +392,52 @@ function normalizeBlocks(blocks: unknown): PartialBlock[] {
   if (!Array.isArray(blocks) || blocks.length === 0) {
     return EMPTY_DOCUMENT_BLOCKS;
   }
-  return blocks as PartialBlock[];
+  return blocks.map((block) => normalizeBlock(block)) as PartialBlock[];
+}
+
+function normalizeBlock(block: unknown): unknown {
+  if (!block || typeof block !== "object") {
+    return block;
+  }
+
+  const nextBlock = { ...(block as Record<string, unknown>) };
+  const content = nextBlock.content;
+  if (isTableContent(content)) {
+    nextBlock.content = {
+      ...content,
+      columnWidths: normalizeTableColumnWidths(content.columnWidths),
+    };
+  }
+
+  if (Array.isArray(nextBlock.children)) {
+    nextBlock.children = nextBlock.children.map((child) =>
+      normalizeBlock(child),
+    );
+  }
+
+  return nextBlock;
+}
+
+function isTableContent(
+  content: unknown,
+): content is { type: "tableContent"; columnWidths?: unknown } {
+  return (
+    Boolean(content) &&
+    typeof content === "object" &&
+    (content as { type?: unknown }).type === "tableContent"
+  );
+}
+
+function normalizeTableColumnWidths(
+  columnWidths: unknown,
+): Array<number | undefined> {
+  if (!Array.isArray(columnWidths)) {
+    return [];
+  }
+
+  return columnWidths.map((width) =>
+    typeof width === "number" && Number.isFinite(width) ? width : undefined,
+  );
 }
 
 function toSerializableBlocks(blocks: any[]): PartialBlock[] {
@@ -541,6 +764,15 @@ function DocumentCollaborativeEditor({
     let sessionToCleanup: DocumentCollabSession | null = null;
     let unbindStatus: (() => void) | null = null;
     let connected = false;
+    let activated = false;
+
+    const activateSession = (nextSession: DocumentCollabSession) => {
+      if (activated) {
+        return;
+      }
+      activated = true;
+      setSession(nextSession);
+    };
 
     try {
       const nextSession = createDocumentCollabSession({
@@ -550,6 +782,7 @@ function DocumentCollaborativeEditor({
       unbindStatus = bindDocumentCollabStatus(nextSession.provider, (status) => {
         if (status === "collabConnected" || status === "collabSynced") {
           connected = true;
+          activateSession(nextSession);
         }
         onStateChange({
           status,
@@ -561,19 +794,19 @@ function DocumentCollaborativeEditor({
       const alreadySynced = Boolean((nextSession.provider as any)?.isSynced);
       if (alreadySynced) {
         connected = true;
+        activateSession(nextSession);
         onStateChange({
           status: "collabSynced",
           message: COLLAB_STATUS_MESSAGE.collabSynced,
         });
       } else if (websocketStatus === "connected") {
         connected = true;
+        activateSession(nextSession);
         onStateChange({
           status: "collabConnected",
           message: COLLAB_STATUS_MESSAGE.collabConnected,
         });
       }
-
-      setSession(nextSession);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "协作连接初始化失败。";
       setConnectionError(message);
@@ -680,6 +913,7 @@ function DocumentCollaborativeEditorSurface({
       resolveFileUrl: assetStore.resolveFileUrl,
       pasteHandler: createDocumentPasteHandler(),
       schema,
+      extensions: BLOCKNOTE_EXTENSIONS,
       collaboration: {
         provider: session.provider,
         fragment: session.fragment,
@@ -873,6 +1107,7 @@ function DocumentEditorSurface({
       resolveFileUrl: assetStore.resolveFileUrl,
       pasteHandler: createDocumentPasteHandler(),
       schema,
+      extensions: BLOCKNOTE_EXTENSIONS,
     },
     [assetStore, initialBlocks, uploadFile],
   );

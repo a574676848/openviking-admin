@@ -220,6 +220,7 @@ describe('DocumentContentCodec', () => {
       },
     });
     const tableContent = blocks[0].content as unknown as DocumentTableContent;
+    expect(tableContent.columnWidths).toEqual([]);
     expect(tableContent.rows).toHaveLength(3);
     expect(tableContent.rows[0].cells[0]).toMatchObject({
       type: 'tableCell',

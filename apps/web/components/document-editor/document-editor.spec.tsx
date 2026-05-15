@@ -1,7 +1,11 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DocumentEditor, getDocumentSlashMenuItems } from "./document-editor";
+import {
+  DocumentEditor,
+  getDocumentSlashMenuItems,
+  type DocumentEditorStatus,
+} from "./document-editor";
 import {
   isEnterpriseClipboardHtml,
   sanitizeEnterpriseClipboardHtmlToMarkdown,
@@ -140,6 +144,7 @@ function readLatestBlockNoteOptions() {
   const calls = useCreateBlockNoteMock.mock.calls;
   return calls.at(-1)?.[0] as
     | {
+        initialContent?: unknown[];
         pasteHandler?: (context: {
           event: ClipboardEvent;
           editor: any;
@@ -190,6 +195,16 @@ async function rerenderEditor(
   await act(async () => {
     root?.render(createNode(saveRequestId, readOnly, collab));
     await Promise.resolve();
+    await Promise.resolve();
+  });
+}
+
+async function triggerCollabStatus(status: DocumentEditorStatus) {
+  const statusHandler = bindDocumentCollabStatusMock.mock.calls.at(-1)?.[1] as
+    | ((status: DocumentEditorStatus) => void)
+    | undefined;
+  await act(async () => {
+    statusHandler?.(status);
     await Promise.resolve();
   });
 }
@@ -275,6 +290,46 @@ describe("DocumentEditor", () => {
     expect(stateMock).toHaveBeenCalledWith(
       expect.objectContaining({ status: "saved" }),
     );
+  });
+
+  it("加载表格正文时应兼容 JSON 中的空列宽", async () => {
+    getMock.mockResolvedValueOnce({
+      nodeId: "node-doc",
+      kbId: "kb-1",
+      name: "表格文档",
+      contentUri: "viking://content.md",
+      blocks: [
+        {
+          id: "table-1",
+          type: "table",
+          content: {
+            type: "tableContent",
+            columnWidths: [null, 120],
+            headerRows: 1,
+            rows: [
+              {
+                cells: [
+                  { type: "tableCell", props: {}, content: [] },
+                  { type: "tableCell", props: {}, content: [] },
+                ],
+              },
+            ],
+          },
+          children: [],
+        },
+      ],
+      updatedAt: "2026-05-12T08:00:00.000Z",
+    });
+
+    await renderEditor();
+
+    expect(readLatestBlockNoteOptions()?.initialContent).toEqual([
+      expect.objectContaining({
+        content: expect.objectContaining({
+          columnWidths: [undefined, 120],
+        }),
+      }),
+    ]);
   });
 
   it("编辑后进入未保存状态，并在保存请求到达时 PUT blocks", async () => {
@@ -435,6 +490,13 @@ describe("DocumentEditor", () => {
       collabSessionMock.provider,
       expect.any(Function),
     );
+    expect(useCreateBlockNoteMock).not.toHaveBeenCalled();
+    expect(stateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "collabConnecting" }),
+    );
+
+    await triggerCollabStatus("collabConnected");
+
     expect(useCreateBlockNoteMock).toHaveBeenCalledWith(
       expect.objectContaining({
         collaboration: expect.objectContaining({
@@ -458,9 +520,6 @@ describe("DocumentEditor", () => {
       ],
     );
     expect(container.querySelector("[data-editable='true']")).toBeTruthy();
-    expect(stateMock).toHaveBeenCalledWith(
-      expect.objectContaining({ status: "collabConnecting" }),
-    );
 
     await rerenderEditor(1, false, collab);
 
@@ -475,6 +534,7 @@ describe("DocumentEditor", () => {
     uploadDocumentAssetMock.mockResolvedValueOnce("assets/asset-2.png");
 
     await renderEditor(0, false, collab);
+    await triggerCollabStatus("collabConnected");
 
     const uploadFile = readLatestBlockNoteOptions()?.uploadFile;
     const file = createImageFile("协作截图.png");

@@ -136,6 +136,20 @@ describe('DocumentService', () => {
     });
   });
 
+  it('目录型导入文档没有 contentUri 时应关闭协作入口', async () => {
+    knowledgeTreeService.findOne.mockResolvedValue(
+      createNode({ contentUri: null }),
+    );
+
+    const result = await service.getMetadata(
+      'node-1',
+      'tenant-1',
+      'tenant_admin',
+    );
+
+    expect(result.collab.documentName).toBe('');
+  });
+
   it('应该读取 contentUri Markdown 并转换为编辑器 JSON', async () => {
     knowledgeTreeService.findOne.mockResolvedValue(
       createNode({ contentUri: OLD_CONTENT_URI }),
@@ -199,9 +213,22 @@ describe('DocumentService', () => {
     ]);
   });
 
-  it('contentUri 为空时应该返回空文档结构且不读取 OpenViking', async () => {
+  it('contentUri 为空且资源目录不存在时应该返回空文档结构', async () => {
     knowledgeTreeService.findOne.mockResolvedValue(
       createNode({ contentUri: null }),
+    );
+    ovClientService.request.mockRejectedValueOnce(
+      new OpenVikingRequestException(
+        'OpenViking 资源树',
+        false,
+        404,
+        undefined,
+        undefined,
+        {
+          code: 'OV_UPSTREAM_NOT_FOUND',
+          message: 'OpenViking 资源树 目标不存在',
+        },
+      ),
     );
 
     const result = await service.loadContent('node-1', 'tenant-1');
@@ -210,6 +237,80 @@ describe('DocumentService', () => {
     expect(result.blocks).toHaveLength(1);
     expect(result.blocks[0]).toMatchObject({ type: 'paragraph', content: [] });
     expect(ovClientService.requestStream).not.toHaveBeenCalled();
+  });
+
+  it('contentUri 为空但导入目录存在 Markdown 叶子时应聚合正文', async () => {
+    knowledgeTreeService.findOne.mockResolvedValue(
+      createNode({ contentUri: null }),
+    );
+    ovClientService.request.mockResolvedValueOnce({
+      result: [
+        {
+          uri: `${CONTAINER_URI}assets/image.png`,
+          rel_path: 'assets/image.png',
+          isDir: false,
+        },
+        {
+          uri: `${CONTAINER_URI}b.md`,
+          rel_path: 'b.md',
+          isDir: false,
+        },
+        {
+          uri: `${CONTAINER_URI}a.md`,
+          rel_path: 'a.md',
+          isDir: false,
+        },
+      ],
+    });
+    ovClientService.requestStream
+      .mockResolvedValueOnce({ stream: Readable.from(['# A\n正文 A']) })
+      .mockResolvedValueOnce({ stream: Readable.from(['# B\n正文 B']) });
+
+    const result = await service.loadContent('node-1', 'tenant-1');
+
+    expect(result.contentUri).toBeNull();
+    expect(result.markdown).toBe('# A\n正文 A\n\n# B\n正文 B');
+    expect(result.blocks.map((block) => block.type)).toEqual([
+      'heading',
+      'paragraph',
+      'heading',
+      'paragraph',
+    ]);
+    expect(ovClientService.request).toHaveBeenCalledWith(
+      expect.any(Object),
+      `/api/v1/fs/tree?uri=${encodeURIComponent(CONTAINER_URI)}&depth=3`,
+      'GET',
+      undefined,
+      { user: 'user-1' },
+      { serviceLabel: 'OpenViking 资源树' },
+    );
+  });
+
+  it('contentUri 为空且存在空草稿时仍应回退导入目录正文', async () => {
+    knowledgeTreeService.findOne.mockResolvedValue(
+      createNode({ contentUri: null }),
+    );
+    documentDraftRepository.findByNode.mockResolvedValueOnce({
+      version: 3,
+      markdown: '',
+    });
+    ovClientService.request.mockResolvedValueOnce({
+      result: [
+        {
+          uri: `${CONTAINER_URI}imported.md`,
+          rel_path: 'imported.md',
+          isDir: false,
+        },
+      ],
+    });
+    ovClientService.requestStream.mockResolvedValueOnce({
+      stream: Readable.from(['# 导入正文']),
+    });
+
+    const result = await service.loadContent('node-1', 'tenant-1');
+
+    expect(result.draftVersion).toBe(3);
+    expect(result.markdown).toBe('# 导入正文');
   });
 
   it('保存正文时应该只写入草稿并标记索引过期', async () => {

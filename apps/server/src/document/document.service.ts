@@ -112,7 +112,9 @@ export class DocumentService {
       canWrite,
       collab: {
         path: DOCUMENT_COLLAB_PATH,
-        documentName: this.createCollabDocumentName(tenantId, node.id),
+        documentName: contentUri
+          ? this.createCollabDocumentName(tenantId, node.id)
+          : '',
       },
       updatedAt: node.updatedAt,
     };
@@ -128,9 +130,11 @@ export class DocumentService {
       tenantId,
     );
     const contentUri = this.resolveCurrentContentUri(node);
-    const markdown =
-      draft?.markdown ??
-      (contentUri ? await this.downloadMarkdown(contentUri, tenantId) : '');
+    const markdown = await this.resolveDocumentMarkdown(
+      node,
+      tenantId,
+      draft?.markdown,
+    );
 
     return {
       nodeId: node.id,
@@ -234,7 +238,7 @@ export class DocumentService {
       tenantId,
     );
     const markdown =
-      draft?.markdown ?? (await this.loadIndexedMarkdown(node, tenantId));
+      await this.resolveDocumentMarkdown(node, tenantId, draft?.markdown);
     const connection = await this.resolveOpenVikingConnection(tenantId);
     const contentUri = this.resolveIndexedContentUri(node);
     const draftVersion = draft?.version ?? node.draftVersion;
@@ -484,6 +488,13 @@ export class DocumentService {
     tenantId: string | null,
   ): Promise<string> {
     const connection = await this.resolveOpenVikingConnection(tenantId);
+    return this.downloadMarkdownWithConnection(connection, contentUri);
+  }
+
+  private async downloadMarkdownWithConnection(
+    connection: OVConnection,
+    contentUri: string,
+  ): Promise<string> {
     const response = await this.ovClientService.requestStream(
       connection,
       `${DOCUMENT_CONTENT_DOWNLOAD_PATH}?uri=${encodeURIComponent(contentUri)}`,
@@ -496,12 +507,82 @@ export class DocumentService {
     return this.readStreamAsUtf8(response.stream);
   }
 
-  private async loadIndexedMarkdown(
+  private async loadStoredMarkdown(
     node: KnowledgeNodeModel,
     tenantId: string | null,
   ): Promise<string> {
     const contentUri = this.resolveCurrentContentUri(node);
-    return contentUri ? this.downloadMarkdown(contentUri, tenantId) : '';
+    if (contentUri) {
+      return this.downloadMarkdown(contentUri, tenantId);
+    }
+    return this.loadImportedDirectoryMarkdown(node, tenantId);
+  }
+
+  private async resolveDocumentMarkdown(
+    node: KnowledgeNodeModel,
+    tenantId: string | null,
+    draftMarkdown?: string | null,
+  ): Promise<string> {
+    const contentUri = this.resolveCurrentContentUri(node);
+    if (draftMarkdown !== undefined && draftMarkdown !== null) {
+      if (draftMarkdown.trim().length > 0 || contentUri) {
+        return draftMarkdown;
+      }
+      const storedMarkdown = await this.loadStoredMarkdown(node, tenantId);
+      return storedMarkdown.trim().length > 0 ? storedMarkdown : draftMarkdown;
+    }
+    return this.loadStoredMarkdown(node, tenantId);
+  }
+
+  private async loadIndexedMarkdown(
+    node: KnowledgeNodeModel,
+    tenantId: string | null,
+  ): Promise<string> {
+    return this.loadStoredMarkdown(node, tenantId);
+  }
+
+  private async loadImportedDirectoryMarkdown(
+    node: KnowledgeNodeModel,
+    tenantId: string | null,
+  ): Promise<string> {
+    if (!node.vikingUri?.endsWith(DOCUMENT_DIRECTORY_URI_SUFFIX)) {
+      return '';
+    }
+
+    const connection = await this.resolveOpenVikingConnection(tenantId);
+    let response: unknown;
+    try {
+      response = await this.ovClientService.request(
+        connection,
+        `${DOCUMENT_FS_TREE_PATH}?uri=${encodeURIComponent(node.vikingUri)}&depth=3`,
+        'GET',
+        undefined,
+        this.createRequestMeta(connection),
+        { serviceLabel: DOCUMENT_RESOURCE_TREE_LABEL },
+      );
+    } catch (error) {
+      if (this.isOpenVikingNotFound(error)) {
+        return '';
+      }
+      throw error;
+    }
+
+    const leaves = this.resolveMarkdownLeaves(response, node.vikingUri);
+    if (leaves.length === 0) {
+      return '';
+    }
+
+    const parts: string[] = [];
+    for (const leaf of leaves) {
+      const content = await this.downloadMarkdownWithConnection(
+        connection,
+        leaf.uri,
+      );
+      if (content.trim()) {
+        parts.push(content.trimEnd());
+      }
+    }
+    return parts.join('\n\n');
   }
 
   private async writeIndexedContent(
@@ -847,6 +928,44 @@ export class DocumentService {
       return false;
     }
     return normalized.endsWith(DOCUMENT_MARKDOWN_EXTENSION);
+  }
+
+  private resolveMarkdownLeaves(
+    response: unknown,
+    containerUri: string,
+  ): Array<{ uri: string; relPath: string }> {
+    const resources =
+      response && typeof response === 'object'
+        ? (response as { result?: unknown }).result
+        : null;
+    if (!Array.isArray(resources)) {
+      return [];
+    }
+
+    return resources
+      .filter(
+        (
+          item,
+        ): item is { uri: string; isDir?: boolean; rel_path?: string } =>
+          Boolean(
+            item &&
+              typeof item === 'object' &&
+              typeof (item as { uri?: unknown }).uri === 'string' &&
+              (item as { isDir?: unknown }).isDir === false,
+          ),
+      )
+      .map((item) => ({
+        uri: item.uri,
+        relPath: item.rel_path ?? item.uri.slice(containerUri.length),
+      }))
+      .filter(
+        (item) =>
+          item.uri.toLowerCase().endsWith(DOCUMENT_MARKDOWN_EXTENSION) &&
+          !item.relPath
+            .toLowerCase()
+            .startsWith(`${DOCUMENT_ASSETS_DIRECTORY.toLowerCase()}/`),
+      )
+      .sort((left, right) => left.relPath.localeCompare(right.relPath));
   }
 
   private isOpenVikingBusy(error: unknown): boolean {

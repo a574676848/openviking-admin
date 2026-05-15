@@ -75,6 +75,8 @@ interface DocumentCollabContext {
   mode?: DocumentSessionMode;
   connectionId?: string;
   registered?: boolean;
+  loadedMarkdownLength?: number;
+  skippedInitialEmptyStore?: boolean;
 }
 
 interface HocuspocusServerModule {
@@ -396,6 +398,7 @@ export class DocumentCollabGateway implements OnModuleInit, OnModuleDestroy {
       this.logger.log(
         `协作文档加载 nodeId=${context.nodeId} tenantScope=${context.tenantScope ?? 'global'} markdownLength=${snapshot.markdown.length}`,
       );
+      payload.context.loadedMarkdownLength = snapshot.markdown.trim().length;
 
       return this.documentContentCodec.markdownToYDoc(snapshot.markdown);
     } catch (error) {
@@ -417,6 +420,13 @@ export class DocumentCollabGateway implements OnModuleInit, OnModuleDestroy {
       const blocks = await this.documentContentCodec.yDocToBlocks(
         payload.document,
       );
+      if (this.shouldSkipInitialEmptyStore(payload.lastContext, blocks)) {
+        payload.lastContext.skippedInitialEmptyStore = true;
+        this.logger.warn(
+          `跳过协作文档首次空内容落盘 nodeId=${context.nodeId} tenantScope=${context.tenantScope ?? 'global'}`,
+        );
+        return;
+      }
       await this.withTenantRequestContext(
         context.tenantScope,
         async (_knowledgeTreeService, documentService) =>
@@ -434,6 +444,40 @@ export class DocumentCollabGateway implements OnModuleInit, OnModuleDestroy {
       this.logger.warn(`协作文档落盘失败: ${message}`);
       throw error;
     }
+  }
+
+  private shouldSkipInitialEmptyStore(
+    context: DocumentCollabContext,
+    blocks: unknown[],
+  ): boolean {
+    return Boolean(
+      context.loadedMarkdownLength &&
+        context.loadedMarkdownLength > 0 &&
+        !context.skippedInitialEmptyStore &&
+        this.isEmptyDocumentBlocks(blocks),
+    );
+  }
+
+  private isEmptyDocumentBlocks(blocks: unknown[]): boolean {
+    if (blocks.length === 0) {
+      return true;
+    }
+    if (blocks.length > 1) {
+      return false;
+    }
+    const block = blocks[0];
+    if (!block || typeof block !== 'object') {
+      return false;
+    }
+    const typedBlock = block as { type?: unknown; content?: unknown };
+    if (typedBlock.type !== 'paragraph') {
+      return false;
+    }
+    return (
+      typedBlock.content === '' ||
+      typedBlock.content === undefined ||
+      (Array.isArray(typedBlock.content) && typedBlock.content.length === 0)
+    );
   }
 
   private extractToken(

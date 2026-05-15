@@ -56,6 +56,25 @@ describe('LocalImportStorageService', () => {
     expect(stored.originalName).toBe('产品手册.md');
   });
 
+  it('会恢复包含 C1 控制字符的中文乱码文件名', async () => {
+    const mojibakeName = Buffer.from(
+      '面授课堂系统-需求分析文档.md',
+      'utf8',
+    ).toString('latin1');
+
+    const [stored] = await service.saveFiles('tenant-a', 'kb-1', [
+      {
+        originalname: mojibakeName,
+        mimetype: 'text/markdown',
+        size: 6,
+        buffer: Buffer.from('手册'),
+      },
+    ]);
+
+    expect(stored.originalName).toBe('面授课堂系统-需求分析文档.md');
+  });
+
+
   it('会拒绝不在白名单内的文件格式', async () => {
     await expect(
       service.saveFiles('tenant-a', 'kb-1', [
