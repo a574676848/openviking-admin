@@ -241,7 +241,7 @@ OVClientService.requestStream(conn,
    → 更新 knowledge_nodes.contentUri
 ```
 
-**关键差异**：协作保存**不经过 `importTaskService.createLocalUpload`**，而是由 `DocumentService` 直接调用 `OVClientService`。绕过导入链路中 `prepareDocumentTarget` 的 `DELETE recursive` 清空容器行为，附件（`assets/`）不会被删除。
+**关键差异**：协作保存**不经过 `importTaskService.createLocalUpload`**，而是由 `DocumentService` 直接调用 `OVClientService`。绕过导入链路覆盖已有正文时 `prepareDocumentTarget` 的 `DELETE recursive` 清空容器行为，附件（`assets/`）不会被删除。自动创建的新文档节点首次导入没有旧正文，Worker 不会执行该预清理。
 
 **contentUri 回写的内部方法**：
 

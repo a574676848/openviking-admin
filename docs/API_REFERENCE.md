@@ -699,6 +699,7 @@ MCP JSON-RPC 消息接口。
 - `/api/v1/import-tasks/local-upload` 使用 `multipart/form-data`，字段为 `kbId`、可选 `targetUri`，以及 `files`
 - 导入任务会在响应中返回 `sourceName`，用于控制台和调用端展示仓库名、企业文档名、URL 文件名或本地上传原文件名；普通 JSON 创建接口可传 `sourceName` 或与 `sourceUrls` 对齐的 `sourceNames`
 - `local`、`url`、`feishu`、`dingtalk` 创建任务时会在所选知识树目录下自动创建文档节点，响应中的 `targetUri` 指向该节点稳定资源容器，并返回 `autoCreatedNodeId` 用于失败删除时识别自动节点；自动文档节点和导入任务在 Admin 数据库内同事务提交；`git` 不自动创建知识树节点
+- 自动创建的新文档节点首次导入不会预先递归删除 OpenViking 稳定资源容器；只有目标文档节点已有 `contentUri`、属于覆盖已有正文时，Worker 才会在写入前清空目标容器
 - `POST /api/v1/import-tasks/:id/retry` 重试 `failed` 任务时会先删除任务 `targetUri` 下已有的 OpenViking 资源和向量，并清零 `nodeCount/vectorCount` 后重新排队，避免部分失败结果和新一轮导入叠加；重试 `cancelled` 任务只重新排队并清零统计
 - WebDAV `PUT` 新建文件时会复用本地上传链路，但不把 WebDAV 注册为新的 `sourceType`；导入任务仍以 `sourceType=local` 入队。覆盖文件时只保存最新草稿并标记索引过期，不创建导入任务。
 - `DELETE /api/v1/import-tasks/:id` 仅允许删除 `failed` 状态的任务；若任务来源是受控本地上传文件，服务端会一并清理暂存文件；若任务关联自动创建的文档节点，服务端会同步删除该节点。节点和任务的 Admin 数据库删除在同一事务内提交；OpenViking 资源删除失败时保留任务，允许再次删除

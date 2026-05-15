@@ -55,7 +55,7 @@ P5-1 至 P5-5 独立站点化已完成：前端最终入口已迁移到 `\`/site
 
 项目需要为知识库增加在线文档协作编辑能力，并以“独立知识站点”而不是“控制台子页”的方式交付给最终用户。设计涉及内容存储位置、协作状态持久化、读写路径选择、站点入口形态和媒体资源管理。
 
-现有系统中，`knowledge_nodes` 表已预留 `kind:'document'` 和 `contentUri` 字段。其中 `vikingUri` 是以 `/` 结尾的资源容器目录，`contentUri` 是导入完成后由 Worker 回写的正文叶子文件 URI。导入流程的 `prepareDocumentTarget` 会在注入前递归清空整个 vikingUri 容器。`KnowledgeTreeService.update()` 将 `vikingUri`、`contentUri`、`kind` 列为 `IMMUTABLE_FIELDS`，公开 API 无法修改。
+现有系统中，`knowledge_nodes` 表已预留 `kind:'document'` 和 `contentUri` 字段。其中 `vikingUri` 是以 `/` 结尾的资源容器目录，`contentUri` 是导入完成后由 Worker 回写的正文叶子文件 URI。导入流程仅在目标文档节点已有 `contentUri` 时调用 `prepareDocumentTarget` 递归清空整个 vikingUri 容器；自动创建的新文档节点首次导入不做预清理。`KnowledgeTreeService.update()` 将 `vikingUri`、`contentUri`、`kind` 列为 `IMMUTABLE_FIELDS`，公开 API 无法修改。
 
 现有 Admin 封装中，写入 OpenViking 的已验证路径为：先 `uploadTempFile` 到 `/api/v1/resources/temp_upload` 获取 `temp_file_id`，再 `POST /api/v1/resources` 注入。不存在直接 PUT 到指定 URI 的封装方法。
 
@@ -64,7 +64,7 @@ P5-1 至 P5-5 独立站点化已完成：前端最终入口已迁移到 `\`/site
 ## 决策
 
 1. 文档内容底层存储使用 OpenViking，不在 PostgreSQL 新建 `documents` 或 `document_versions` 表。
-2. 协作保存采用原子交换（Atomic Swap）以保证零丢失：先 `temp_upload`，再 `POST /api/v1/resources` 注入带时间戳的新叶子文件，接着回写 `contentUri`，最后异步删除旧叶子。由 `DocumentService` 直接调用 `OVClientService`，不走 `importTaskService`。导入链路的 `prepareDocumentTarget` 会递归清空容器导致附件丢失，必须绕过。
+2. 协作保存采用原子交换（Atomic Swap）以保证零丢失：先 `temp_upload`，再 `POST /api/v1/resources` 注入带时间戳的新叶子文件，接着回写 `contentUri`，最后异步删除旧叶子。由 `DocumentService` 直接调用 `OVClientService`，不走 `importTaskService`。导入链路覆盖已有正文时仍可能通过 `prepareDocumentTarget` 递归清空容器导致附件丢失，必须绕过。
 3. 首次协作保存后，通过 `/api/v1/fs/tree` 查询容器叶子文件，回写 `contentUri`。复用 `KnowledgeTreeService.syncContentUri()` 作为内部入口，绕过公开 `update()` 的 `IMMUTABLE_FIELDS` 保护。Worker 的 `contentUri` 回写必须保持租户数据源上下文，不得为了统一入口破坏 MEDIUM schema 或 LARGE 独立库写入语义。
 4. 文档中的图片等媒体资源存储在容器的 `assets/` 子目录下。
 5. 媒体上传使用独立配置（`DOCUMENT_ASSET_UPLOAD_CONFIG`），不复用 `LOCAL_IMPORT_UPLOAD_CONFIG`。后者的 `ALLOWED_EXTENSIONS` 不包含图片格式。

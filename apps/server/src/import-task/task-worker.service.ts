@@ -168,7 +168,9 @@ export class TaskWorkerService implements OnModuleInit {
           this.documentSessionRegistry.assertNoActiveWriteSession(
             targetNode.id,
           );
-          await this.prepareDocumentTarget(conn, task.targetUri);
+          if (this.shouldClearDocumentTargetBeforeImport(targetNode)) {
+            await this.prepareDocumentTarget(conn, task.targetUri);
+          }
         }
 
         if (task.integrationId) {
@@ -396,6 +398,12 @@ export class TaskWorkerService implements OnModuleInit {
     }
 
     return Boolean(node.vikingUri && !node.vikingUri.endsWith('/'));
+  }
+
+  private shouldClearDocumentTargetBeforeImport(
+    node: TargetKnowledgeNode,
+  ): boolean {
+    return Boolean(node.contentUri);
   }
 
   private resolveTargetUriCandidates(targetUri: string) {

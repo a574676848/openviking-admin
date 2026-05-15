@@ -642,6 +642,132 @@ describe('TaskWorkerService', () => {
     });
   });
 
+  it('自动创建的新文档节点首次导入时不应预清空 OpenViking 容器', async () => {
+    const tenant = createTenant('small-a', TenantIsolationLevel.SMALL);
+    const task = {
+      ...createTask('local-auto-doc-task', 'small-a'),
+      integrationId: '',
+      sourceType: 'local',
+      sourceUrl: 'file:///data/openviking/imports/new-doc.md',
+      sourceName: '新文档.md',
+      targetUri: 'viking://resources/tenants/small-a/kb-1/node-new-doc/',
+      autoCreatedNodeId: 'node-new-doc',
+    } as ImportTaskModel;
+    const tenantRepo = {
+      findOne: jest.fn().mockResolvedValue(tenant),
+    };
+    const taskRepo = {
+      update: jest.fn(),
+    };
+    const nodeRepo = {
+      findOne: jest.fn().mockResolvedValue({
+        id: 'node-new-doc',
+        tenantId: 'small-a',
+        kbId: 'kb-1',
+        name: '新文档.md',
+        kind: 'document',
+        vikingUri: 'viking://resources/tenants/small-a/kb-1/node-new-doc/',
+        contentUri: null,
+      }),
+      update: jest.fn(),
+    };
+    const defaultDataSource = {
+      getRepository: jest.fn((entity) => {
+        if (entity === Tenant) return tenantRepo;
+        if (entity === ImportTask) return taskRepo;
+        if (entity === KnowledgeNode) return nodeRepo;
+        return {};
+      }),
+    };
+    const ovConfigResolver = {
+      resolve: jest.fn().mockResolvedValue({
+        baseUrl: 'http://ov.local',
+        apiKey: 'ov-key',
+        account: 'small-a',
+        user: 'worker-user',
+      }),
+    };
+    const ovClient = {
+      request: jest
+        .fn()
+        .mockResolvedValueOnce({ ok: true })
+        .mockResolvedValueOnce({
+          result: { children_count: 1, descendant_count: 1 },
+        })
+        .mockResolvedValueOnce({ result: { count: 3 } })
+        .mockResolvedValueOnce({
+          result: [
+            {
+              uri: 'viking://resources/tenants/small-a/kb-1/node-new-doc/new-doc.md',
+              isDir: false,
+            },
+          ],
+        }),
+      uploadTempFile: jest.fn().mockResolvedValue({
+        result: { temp_file_id: 'upload_new-doc.md' },
+      }),
+    };
+    const localImportStorage = {
+      readBySourceUrl: jest.fn().mockResolvedValue({
+        fileName: 'new-doc.md',
+        buffer: Buffer.from('# 新文档'),
+        mimeType: 'text/markdown;charset=utf-8',
+      }),
+      shouldCleanupAfterDone: jest.fn(() => true),
+      isManagedFileUrl: jest.fn(() => true),
+      deleteBySourceUrl: jest.fn(),
+    };
+    const documentSessionRegistry = {
+      assertNoActiveWriteSession: jest.fn(),
+    };
+    const service = createService({
+      defaultDataSource,
+      ovConfigResolver,
+      ovClient,
+      localImportStorage,
+      documentSessionRegistry,
+    });
+
+    await (
+      service as unknown as {
+        processTask(task: ImportTaskModel): Promise<void>;
+      }
+    ).processTask(task);
+
+    expect(documentSessionRegistry.assertNoActiveWriteSession).toHaveBeenCalledWith(
+      'node-new-doc',
+    );
+    expect(ovClient.request).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.stringContaining('/api/v1/fs?'),
+      'DELETE',
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ serviceLabel: 'OpenViking 资源删除' }),
+    );
+    expect(ovClient.request).toHaveBeenCalledWith(
+      expect.objectContaining({ account: 'small-a' }),
+      '/api/v1/resources',
+      'POST',
+      expect.objectContaining({
+        temp_file_id: 'upload_new-doc.md',
+        to: 'viking://resources/tenants/small-a/kb-1/node-new-doc/',
+      }),
+      { user: 'worker-user' },
+    );
+    expect(nodeRepo.update).toHaveBeenCalledWith('node-new-doc', {
+      contentUri:
+        'viking://resources/tenants/small-a/kb-1/node-new-doc/new-doc.md',
+      updatedAt: expect.any(Date),
+    });
+    expect(taskRepo.update).toHaveBeenLastCalledWith('local-auto-doc-task', {
+      status: TaskStatus.DONE,
+      nodeCount: 2,
+      vectorCount: 3,
+      updatedAt: expect.any(Date),
+    });
+  });
+
   it('文档目标存在可写协作会话时应标记任务失败且不清空容器', async () => {
     const tenant = createTenant('small-a', TenantIsolationLevel.SMALL);
     const task = {
