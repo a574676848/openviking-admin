@@ -23,6 +23,7 @@ import { CommonModule } from './common/common.module';
 import { CapabilitiesModule } from './capabilities/capabilities.module';
 import { McpModule } from './mcp/mcp.module';
 import { WebdavModule } from './webdav/webdav.module';
+import { DocumentModule } from './document/document.module';
 import { TenantCleanupInterceptor } from './common/tenant-cleanup.interceptor';
 import { AllExceptionsFilter } from './common/all-exceptions.filter';
 import { SuccessResponseInterceptor } from './common/success-response.interceptor';
@@ -153,6 +154,7 @@ async function createDevelopmentAwareDataSource(
     CapabilitiesModule,
     McpModule,
     WebdavModule,
+    DocumentModule,
   ],
   providers: [
     { provide: APP_INTERCEPTOR, useClass: SuccessResponseInterceptor },

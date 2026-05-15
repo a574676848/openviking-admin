@@ -6,6 +6,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import type {
+  KnowledgeNodeIndexStatus,
   KnowledgeNodeKind,
   KnowledgeNodeModel,
 } from '../domain/knowledge-node.model';
@@ -48,6 +49,36 @@ export class KnowledgeNode {
 
   @Column({ name: 'content_uri', type: 'varchar', length: 2048, nullable: true })
   contentUri: string | null;
+
+  @Column({ name: 'index_status', type: 'varchar', length: 20, default: 'clean' })
+  indexStatus: KnowledgeNodeIndexStatus;
+
+  @Column({ name: 'draft_version', type: 'int', default: 0 })
+  draftVersion: number;
+
+  @Column({ name: 'indexed_version', type: 'int', default: 0 })
+  indexedVersion: number;
+
+  @Column({ name: 'vector_count', type: 'int', nullable: true })
+  vectorCount: number | null;
+
+  @Column({ name: 'last_indexed_at', type: 'timestamptz', nullable: true })
+  lastIndexedAt: Date | null;
+
+  @Column({ name: 'index_error', type: 'text', nullable: true })
+  indexError: string | null;
+
+  @Column({ name: 'created_by_id', type: 'varchar', length: 64, nullable: true })
+  createdById: string | null;
+
+  @Column({ name: 'created_by_name', type: 'varchar', length: 64, nullable: true })
+  createdByName: string | null;
+
+  @Column({ name: 'updated_by_id', type: 'varchar', length: 64, nullable: true })
+  updatedById: string | null;
+
+  @Column({ name: 'updated_by_name', type: 'varchar', length: 64, nullable: true })
+  updatedByName: string | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

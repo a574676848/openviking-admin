@@ -76,6 +76,10 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 | `viking_uri` | VARCHAR(512) | NULLABLE | — | OpenViking URI |
 | `doc_count` | INTEGER | NOT NULL | `0` | 文档数量，读取知识库接口时会按根目录文件数回写 |
 | `vector_count` | INTEGER | NOT NULL | `0` | 向量数量，读取知识库接口时会按根目录总向量数回写 |
+| `created_by_id` | VARCHAR(64) | NULLABLE | — | 创建人用户 ID；历史数据或系统入口可为空 |
+| `created_by_name` | VARCHAR(64) | NULLABLE | — | 创建人用户名快照 |
+| `updated_by_id` | VARCHAR(64) | NULLABLE | — | 最后更新人用户 ID；系统更新可为空 |
+| `updated_by_name` | VARCHAR(64) | NULLABLE | — | 最后更新人用户名快照 |
 | `created_at` | TIMESTAMP | NOT NULL | `now()` | 创建时间 |
 | `updated_at` | TIMESTAMP | NOT NULL | `now()` | 更新时间 |
 
@@ -100,6 +104,10 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 | `kind` | VARCHAR(20) | NULLABLE | — | `collection`（目录）或 `document`（文档） |
 | `viking_uri` | VARCHAR(512) | NULLABLE | — | OpenViking 资源容器 URI，以 `/` 结尾 |
 | `content_uri` | VARCHAR(2048) | NULLABLE | — | 正文叶子资源 URI，导入完成后由 Worker 回写 |
+| `created_by_id` | VARCHAR(64) | NULLABLE | — | 创建人用户 ID；历史数据或 WebDAV/capability 系统入口可为空 |
+| `created_by_name` | VARCHAR(64) | NULLABLE | — | 创建人用户名快照 |
+| `updated_by_id` | VARCHAR(64) | NULLABLE | — | 最后更新人用户 ID |
+| `updated_by_name` | VARCHAR(64) | NULLABLE | — | 最后更新人用户名快照 |
 | `created_at` | TIMESTAMP | NOT NULL | `now()` | 创建时间 |
 | `updated_at` | TIMESTAMP | NOT NULL | `now()` | 更新时间 |
 
@@ -125,6 +133,10 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 | `node_count` | INTEGER | NOT NULL | `0` | 节点数量 |
 | `vector_count` | INTEGER | NOT NULL | `0` | 向量数量 |
 | `error_msg` | TEXT | NULLABLE | — | 错误信息 |
+| `created_by_id` | VARCHAR(64) | NULLABLE | — | 创建任务的用户 ID；历史数据或系统入口可为空 |
+| `created_by_name` | VARCHAR(64) | NULLABLE | — | 创建任务的用户名快照 |
+| `updated_by_id` | VARCHAR(64) | NULLABLE | — | 最后更新任务状态的用户 ID |
+| `updated_by_name` | VARCHAR(64) | NULLABLE | — | 最后更新任务状态的用户名快照 |
 | `created_at` | TIMESTAMP | NOT NULL | `now()` | 创建时间 |
 | `updated_at` | TIMESTAMP | NOT NULL | `now()` | 更新时间 |
 

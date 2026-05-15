@@ -38,6 +38,9 @@ ova documents import status --task <taskId> --watch --output json
 ova documents import list --output json
 ova documents import cancel --task <taskId> --output json
 ova documents import retry --task <taskId> --output json
+ova documents index status --node <nodeId> --output json
+ova documents index rebuild --node <nodeId> --output json
+ova documents draft grep --node <nodeId> --pattern "关键词" --output json
 ```
 
 ## HTTP 回退调用
@@ -118,6 +121,9 @@ curl "http://localhost:6001/api/v1/import-tasks/:id/events" \
 | `documents.import.cancel` | `ova documents import cancel` | `POST /api/v1/import-tasks/:id/cancel` |
 | `documents.import.retry` | `ova documents import retry` | `POST /api/v1/import-tasks/:id/retry` |
 | `documents.import.events` | `ova documents import status --watch` | `GET /api/v1/import-tasks/:id/events` |
+| `documents.index.status` | `ova documents index status` | `GET /api/v1/capability/documents/:id/index` |
+| `documents.index.rebuild` | `ova documents index rebuild` | `POST /api/v1/capability/documents/:id/index/rebuild` |
+| `documents.draft.grep` | `ova documents draft grep` | `POST /api/v1/capability/documents/:id/draft/grep` |
 
 ## 关于 capability 映射刷新
 

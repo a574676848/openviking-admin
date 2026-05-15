@@ -35,6 +35,7 @@ import { KnowledgeTreeModule } from '../knowledge-tree/knowledge-tree.module';
 import { ImportTaskModule } from '../import-task/import-task.module';
 import { RedisCapabilityRateLimitStore } from './infrastructure/redis-capability-rate-limit.store';
 import { SettingsModule } from '../settings/settings.module';
+import { DocumentModule } from '../document/document.module';
 
 const CAPABILITY_RATE_LIMIT_ENV = {
   DRIVER: 'CAPABILITY_RATE_LIMIT_STORE_DRIVER',
@@ -62,6 +63,7 @@ const CAPABILITY_RATE_LIMIT_ENV = {
     KnowledgeTreeModule,
     ImportTaskModule,
     SettingsModule,
+    DocumentModule,
   ],
   controllers: [
     CapabilitiesController,

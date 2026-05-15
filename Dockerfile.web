@@ -1,11 +1,15 @@
-FROM node:20-alpine AS base
+ARG NODE_VERSION=24-alpine
+FROM node:${NODE_VERSION} AS base
 WORKDIR /app
-RUN corepack enable && corepack prepare pnpm@8.15.9 --activate
+ARG PNPM_VERSION=9.15.9
+RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 
-COPY package.json pnpm-workspace.yaml ./
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY apps/server/package.json ./apps/server/
 COPY apps/web/package.json ./apps/web/
+COPY packages/ova-cli/package.json ./packages/ova-cli/
 
-RUN pnpm install --no-frozen-lockfile
+RUN pnpm install --frozen-lockfile
 
 COPY apps/web ./apps/web
 

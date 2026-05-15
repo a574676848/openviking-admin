@@ -1,16 +1,24 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { X } from "lucide-react";
+import { FileText, FolderTree, X } from "lucide-react";
 import { ConsoleSelect } from "@/components/console/primitives";
 import type { TreeNode } from "./knowledge-tree.types";
+import {
+  type KnowledgeNodeKind,
+  KNOWLEDGE_NODE_DEFAULT_KIND,
+  KNOWLEDGE_NODE_KIND_COLLECTION,
+  KNOWLEDGE_NODE_KIND_DOCUMENT,
+  KNOWLEDGE_TREE_ROOT_PARENT_VALUE,
+} from "./knowledge-tree.constants";
 
 interface AddNodeModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (name: string, parentId: string | null) => void;
+  onSubmit: (name: string, parentId: string | null, kind: KnowledgeNodeKind) => void;
   tree: TreeNode[];
   defaultParentId: string | null;
+  defaultKind: KnowledgeNodeKind;
   submitting: boolean;
 }
 
@@ -25,9 +33,18 @@ function flattenTree(nodes: TreeNode[], depth = 0): { node: TreeNode; depth: num
   return result;
 }
 
-export function AddNodeModal({ isOpen, onClose, onSubmit, tree, defaultParentId, submitting }: AddNodeModalProps) {
+export function AddNodeModal({
+  isOpen,
+  onClose,
+  onSubmit,
+  tree,
+  defaultParentId,
+  defaultKind,
+  submitting,
+}: AddNodeModalProps) {
   const [name, setName] = useState("");
-  const [parentId, setParentId] = useState<string>("__ROOT__");
+  const [parentId, setParentId] = useState<string>(KNOWLEDGE_TREE_ROOT_PARENT_VALUE);
+  const [nodeKind, setNodeKind] = useState<KnowledgeNodeKind>(KNOWLEDGE_NODE_DEFAULT_KIND);
   const inputRef = useRef<HTMLInputElement>(null);
   const onCloseRef = useRef(onClose);
 
@@ -38,10 +55,11 @@ export function AddNodeModal({ isOpen, onClose, onSubmit, tree, defaultParentId,
   useEffect(() => {
     if (isOpen) {
       setName("");
-      setParentId(defaultParentId ?? "__ROOT__");
+      setParentId(defaultParentId ?? KNOWLEDGE_TREE_ROOT_PARENT_VALUE);
+      setNodeKind(defaultKind);
       setTimeout(() => inputRef.current?.focus(), 100);
     }
-  }, [isOpen, defaultParentId]);
+  }, [isOpen, defaultParentId, defaultKind]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -59,7 +77,20 @@ export function AddNodeModal({ isOpen, onClose, onSubmit, tree, defaultParentId,
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim()) return;
-    onSubmit(name.trim(), parentId === "__ROOT__" ? null : parentId);
+    onSubmit(
+      name.trim(),
+      parentId === KNOWLEDGE_TREE_ROOT_PARENT_VALUE ? null : parentId,
+      nodeKind,
+    );
+  }
+
+  function typeButtonClass(kind: KnowledgeNodeKind) {
+    const isActive = nodeKind === kind;
+    return `flex min-h-16 items-center gap-3 border-[var(--border-width)] px-4 py-3 text-left font-sans transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] ${
+      isActive
+        ? "border-[var(--brand)] bg-[var(--brand-muted)] text-[var(--text-primary)] shadow-[var(--shadow-base)]"
+        : "border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-secondary)] hover:border-[var(--brand)] hover:text-[var(--text-primary)]"
+    }`;
   }
 
   return (
@@ -97,6 +128,41 @@ export function AddNodeModal({ isOpen, onClose, onSubmit, tree, defaultParentId,
           <div className="space-y-5 p-6">
             <div>
               <label className="mb-1.5 block font-sans text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
+                节点类型
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  aria-pressed={nodeKind === KNOWLEDGE_NODE_KIND_COLLECTION}
+                  onClick={() => setNodeKind(KNOWLEDGE_NODE_KIND_COLLECTION)}
+                  className={typeButtonClass(KNOWLEDGE_NODE_KIND_COLLECTION)}
+                >
+                  <FolderTree size={18} strokeWidth={2} />
+                  <span className="min-w-0">
+                    <span className="block text-xs font-black">目录节点</span>
+                    <span className="mt-1 block text-[9px] font-bold uppercase tracking-widest text-[var(--text-muted)]">
+                      组织层级
+                    </span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={nodeKind === KNOWLEDGE_NODE_KIND_DOCUMENT}
+                  onClick={() => setNodeKind(KNOWLEDGE_NODE_KIND_DOCUMENT)}
+                  className={typeButtonClass(KNOWLEDGE_NODE_KIND_DOCUMENT)}
+                >
+                  <FileText size={18} strokeWidth={2} />
+                  <span className="min-w-0">
+                    <span className="block text-xs font-black">文档节点</span>
+                    <span className="mt-1 block text-[9px] font-bold uppercase tracking-widest text-[var(--text-muted)]">
+                      协作编辑
+                    </span>
+                  </span>
+                </button>
+              </div>
+            </div>
+            <div>
+              <label className="mb-1.5 block font-sans text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
                 节点名称
               </label>
               <input
@@ -115,7 +181,7 @@ export function AddNodeModal({ isOpen, onClose, onSubmit, tree, defaultParentId,
                 value={parentId}
                 onChange={(e) => setParentId(e.target.value)}
               >
-                <option value="__ROOT__" className="bg-[var(--bg-card)] text-[var(--text-primary)] font-bold">根目录</option>
+                <option value={KNOWLEDGE_TREE_ROOT_PARENT_VALUE} className="bg-[var(--bg-card)] text-[var(--text-primary)] font-bold">根目录</option>
                 {flatTree.map(({ node, depth }) => (
                   <option 
                     key={node.id} 

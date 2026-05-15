@@ -7,6 +7,7 @@ import {
   Param,
   Body,
   Req,
+  Query,
   UseGuards,
   Logger,
 } from '@nestjs/common';
@@ -18,6 +19,7 @@ import { AuditService } from '../audit/audit.service';
 import { CreateKnowledgeBaseDto } from './dto/create-kb.dto';
 import { UpdateKnowledgeBaseDto } from './dto/update-kb.dto';
 import type { AuthenticatedRequest } from '../common/authenticated-request.interface';
+import { createAuditActorSnapshot } from '../common/audit-actor.types';
 
 @Controller('knowledge-bases')
 @UseGuards(JwtAuthGuard, TenantGuard)
@@ -32,12 +34,36 @@ export class KnowledgeBaseController {
 
   @Get()
   findAll(@Req() req: AuthenticatedRequest) {
-    return this.kbService.findAllWithRuntimeStats(req.tenantScope);
+    return this.kbService.findAll(req.tenantScope);
+  }
+
+  @Get('paged')
+  async findPaged(
+    @Req() req: AuthenticatedRequest,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('q') q?: string,
+  ) {
+    const parsedPage = Math.max(1, page ? parseInt(page, 10) : 1);
+    const parsedPageSize = Math.max(1, Math.min(100, pageSize ? parseInt(pageSize, 10) : 6));
+    const { items, total } = await this.kbService.findAllPaginated(
+      req.tenantScope,
+      parsedPage,
+      parsedPageSize,
+      q,
+    );
+    return {
+      items,
+      total,
+      page: parsedPage,
+      pageSize: parsedPageSize,
+      pages: Math.max(1, Math.ceil(total / parsedPageSize)),
+    };
   }
 
   @Get(':id')
   async findOne(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
-    return this.kbService.findOneWithRuntimeStats(id, req.tenantScope);
+    return this.kbService.findOne(id, req.tenantScope);
   }
 
   @Get(':id/tree')
@@ -52,7 +78,8 @@ export class KnowledgeBaseController {
     @Req() req: AuthenticatedRequest,
   ) {
     const data = { ...dto, tenantId: req.tenantScope ?? '' };
-    const created = await this.kbService.create(data);
+    const actor = createAuditActorSnapshot(req.user);
+    const created = await this.kbService.create(data, actor);
     try {
       await this.auditService.log({
         tenantId: req.tenantScope ?? undefined,
@@ -87,7 +114,12 @@ export class KnowledgeBaseController {
     @Body() dto: UpdateKnowledgeBaseDto,
     @Req() req: AuthenticatedRequest,
   ) {
-    const updated = await this.kbService.update(id, dto, req.tenantScope);
+    const updated = await this.kbService.update(
+      id,
+      dto,
+      req.tenantScope,
+      createAuditActorSnapshot(req.user),
+    );
     await this.auditService.log({
       tenantId: req.tenantScope ?? undefined,
       userId: req.user.id,

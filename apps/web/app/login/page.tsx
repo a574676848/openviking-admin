@@ -1,17 +1,37 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { LogIn, Lock, Share2, Globe, ShieldCheck, Eye, EyeOff } from "lucide-react";
+import { LogIn, Share2, Globe, ShieldCheck, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { VikingWatcher } from "@/components/watcher";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { useApp } from "@/components/app-provider";
 import { API_ENDPOINTS, SystemRoles } from "@/lib/constants";
+import { buildKnowledgeSiteIndexRoute } from "../console/knowledge-tree/knowledge-tree.constants";
+import { getShellButtonClass, getShellTileClass } from "@/components/ui/shell-primitives";
+
+export function resolvePostLoginRoute(
+  nextRoute: string | null,
+  role: string | undefined,
+  mode: "site" | "console" = "console",
+): string {
+  if (nextRoute && nextRoute.startsWith("/")) {
+    return nextRoute;
+  }
+
+  if (mode === "site") {
+    return buildKnowledgeSiteIndexRoute();
+  }
+
+  return role === SystemRoles.SUPER_ADMIN
+    ? "/platform/dashboard"
+    : "/console/dashboard";
+}
 
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { login, setTheme } = useApp();
+  const { login, setTheme, theme } = useApp();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -23,6 +43,18 @@ export default function LoginPage() {
   const [shakeKey, setShakeKey] = useState(0);
   const [tenantInfo, setTenantInfo] = useState<{ name: string } | null>(null);
   const [ssoConfigs, setSsoConfigs] = useState<{ oidc: boolean; feishu: boolean; ldap: boolean; dingtalk: boolean }>({ oidc: false, feishu: false, ldap: false, dingtalk: false });
+  const nextRoute = searchParams.get("next");
+  const loginMode = searchParams.get("mode") === "site" || nextRoute?.startsWith("/site")
+    ? "site"
+    : "console";
+  const loginTitle = tenantInfo?.name || (loginMode === "site" ? "知识空间登录" : "后台管理登录");
+  const loginSubtitle =
+    loginMode === "site"
+      ? "// 进入知识空间与协作站点"
+      : "// 进入后台治理与运维控制台";
+  
+  const isStarry = theme === 'starry';
+  const shellTheme = isStarry ? 'starry' : 'neo';
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("ov_theme");
@@ -45,12 +77,12 @@ export default function LoginPage() {
           throw new Error(payload.error?.message || payload.message || "SSO 票据交换失败");
         }
         login(data.accessToken, data.user);
-        router.replace(data.user?.role === SystemRoles.SUPER_ADMIN ? "/platform/dashboard" : "/console/dashboard");
+        router.replace(resolvePostLoginRoute(nextRoute, data.user?.role, loginMode));
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "SSO 登录失败");
       }
     })();
-  }, [login, router, searchParams]);
+  }, [login, loginMode, nextRoute, router, searchParams]);
 
   async function checkTenant(code: string) {
     if (code.length < 2) return;
@@ -97,7 +129,7 @@ export default function LoginPage() {
 
       login(data.accessToken, data.user);
       toast.success("身份验证成功，欢迎进入维京知识系统", { id: toastId });
-      router.replace(data.user?.role === SystemRoles.SUPER_ADMIN ? "/platform/dashboard" : "/console/dashboard");
+      router.replace(resolvePostLoginRoute(nextRoute, data.user?.role, loginMode));
     } catch (err: unknown) {
       setShakeKey((value) => value + 1);
       toast.error(err instanceof Error ? err.message : "登录失败", { id: toastId });
@@ -124,8 +156,29 @@ export default function LoginPage() {
         }} 
       />
 
-      <div className="absolute top-6 right-6 z-20">
+      <div className="absolute top-6 right-6 z-20 flex flex-col items-end gap-3">
         <ThemeSwitcher align="right" />
+        {loginMode === "site" ? (
+          <a 
+            href="/login" 
+            className={getShellButtonClass(shellTheme, 'default', "h-11 px-4 min-w-[120px]")}
+          >
+            <div className={getShellTileClass(shellTheme, "p-1.5 bg-[var(--brand-muted)] text-[var(--brand)]")}>
+              <ShieldCheck size={14} strokeWidth={2.5} />
+            </div>
+            <span className="text-xs font-bold whitespace-nowrap ml-1">进入后台管理</span>
+          </a>
+        ) : (
+          <a 
+            href="/login?mode=site&next=%2Fsite" 
+            className={getShellButtonClass(shellTheme, 'default', "h-11 px-4 min-w-[120px]")}
+          >
+            <div className={getShellTileClass(shellTheme, "p-1.5 bg-[#00F0FF]/20 text-[#00F0FF]")}>
+              <Globe size={14} strokeWidth={2.5} />
+            </div>
+            <span className="text-xs font-bold whitespace-nowrap ml-1">进入知识空间</span>
+          </a>
+        )}
       </div>
 
       <div className="w-full max-w-sm z-10">
@@ -137,10 +190,10 @@ export default function LoginPage() {
 
           <div className="text-center mb-10">
             <h2 className="text-2xl font-bold font-sans tracking-tight mb-2 text-[var(--text-primary)]">
-              {tenantInfo?.name || "知识空间登录"}
+              {loginTitle}
             </h2>
             <p className="text-[var(--text-muted)] text-xs font-medium">
-              {'// 企业加密知识通道'}
+              {loginSubtitle}
             </p>
           </div>
 
@@ -250,10 +303,31 @@ export default function LoginPage() {
           </form>
         </div>
         
-        <p className="mt-10 text-center font-sans text-xs font-medium text-[var(--text-muted)] leading-relaxed">
-           OpenViking 知识管理平台 v2.3.0<br/>
-           致力于企业级高性能知识中台构建
-        </p>
+        <div className="mt-24 flex flex-col items-center gap-6 opacity-60 hover:opacity-100 transition-all duration-700">
+          <div className="flex flex-col items-center gap-3">
+            <div className="flex items-center gap-3">
+              <span className="text-[13px] font-black tracking-[0.2em] text-[var(--text-primary)] uppercase">OpenViking Admin</span>
+              <span className="h-3 w-px bg-[var(--border)]"></span>
+              <span className="text-[12px] font-bold text-[var(--text-secondary)]">v2.3.0</span>
+            </div>
+            <div className="text-[12px] text-[var(--text-secondary)] font-bold tracking-[0.1em]">
+              维京企业级高性能知识中台
+            </div>
+          </div>
+
+          <div className="flex items-center gap-5 text-[11px] font-bold tracking-tight text-[var(--text-muted)]">
+            <a 
+              href="https://github.com/a574676848/openviking-admin" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="hover:text-[var(--brand)] transition-colors flex items-center gap-1.5"
+            >
+              代码仓库 (GitHub)
+            </a>
+            <span className="w-1.5 h-1.5 rounded-full bg-[var(--border)]"></span>
+            <span className="uppercase">Copyright © 2026 OpenViking Admin</span>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -1,9 +1,18 @@
 "use client";
 
-import { ChevronDown, ChevronRight, FolderTree, Plus, Search } from "lucide-react";
+import { ChevronDown, ChevronRight, FileText, FolderTree, Plus, RefreshCw, Search } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ConsoleButton, ConsoleSelect } from "@/components/console/primitives";
 import type { KnowledgeBase, TreeNode } from "./knowledge-tree.types";
+import { isDocumentNode } from "./knowledge-tree.utils";
+import {
+  DOCUMENT_INDEX_STATUS_LABELS,
+  DOCUMENT_INDEX_STATUS_TONES,
+} from "./knowledge-tree.constants";
+
+function resolveIndexStatus(node: TreeNode) {
+  return node.indexStatus ?? "clean";
+}
 
 function TreeItem({
   node,
@@ -17,6 +26,8 @@ function TreeItem({
   onDragHover,
   onDragEnd,
   onDropToNode,
+  onRebuildIndex,
+  rebuildingNodeId,
 }: {
   node: TreeNode;
   depth: number;
@@ -29,6 +40,8 @@ function TreeItem({
   onDragHover: (node: TreeNode) => void;
   onDragEnd: () => void;
   onDropToNode: (targetNode: TreeNode) => void;
+  onRebuildIndex: (node: TreeNode) => void;
+  rebuildingNodeId: string | null;
 }) {
   const [expanded, setExpanded] = useState(true);
   const [isRenaming, setIsRenaming] = useState(false);
@@ -38,6 +51,10 @@ function TreeItem({
   const isSelected = selected === node.id;
   const isDragging = draggingNodeId === node.id;
   const isDragOver = dragOverNodeId === node.id;
+  const isDoc = isDocumentNode(node);
+  const indexStatus = resolveIndexStatus(node);
+  const isIndexing = rebuildingNodeId === node.id || indexStatus === "indexing";
+  const NodeIcon = isDocumentNode(node) ? FileText : FolderTree;
 
   async function commitRename() {
     const trimmedName = draftName.trim();
@@ -115,7 +132,7 @@ function TreeItem({
           }}
           className="flex min-w-0 flex-1 items-center gap-2 text-left focus-visible:outline-none"
         >
-          <FolderTree size={14} className={isSelected ? "text-[var(--brand)]" : "text-[var(--text-primary)]"} />
+          <NodeIcon size={14} className={isSelected ? "text-[var(--brand)]" : "text-[var(--text-primary)]"} />
           {isRenaming ? (
             <input
               autoFocus
@@ -147,6 +164,29 @@ function TreeItem({
             </span>
           )}
         </button>
+        {isDoc && (
+          <div className="flex flex-shrink-0 items-center gap-1">
+            <span className={`rounded-[var(--radius-pill)] border border-[var(--border)] bg-[var(--bg-elevated)] px-2 py-0.5 text-[9px] font-black ${DOCUMENT_INDEX_STATUS_TONES[indexStatus]}`}>
+              {DOCUMENT_INDEX_STATUS_LABELS[indexStatus]}
+            </span>
+            {indexStatus !== "clean" && (
+              <button
+                type="button"
+                aria-label={`重建索引 ${node.name}`}
+                title="重建索引"
+                disabled={isIndexing}
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onRebuildIndex(node);
+                }}
+                className="flex h-6 w-6 items-center justify-center rounded-[var(--radius-pill)] border border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-primary)] transition-all hover:-translate-y-px hover:bg-[var(--brand-muted)] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <RefreshCw size={12} strokeWidth={3} className={isIndexing ? "animate-spin" : ""} />
+              </button>
+            )}
+          </div>
+        )}
       </div>
       {expanded && hasChildren && (
         <div className="mb-2 ml-4 border-l-[var(--border-width)] border-dashed border-[var(--border)] pl-2">
@@ -164,6 +204,8 @@ function TreeItem({
               onDragHover={onDragHover}
               onDragEnd={onDragEnd}
               onDropToNode={onDropToNode}
+              onRebuildIndex={onRebuildIndex}
+              rebuildingNodeId={rebuildingNodeId}
             />
           ))}
         </div>
@@ -182,12 +224,15 @@ export function KnowledgeTreeBrowser({
   dragOverRoot,
   onKbChange,
   onAddNode,
+  onAddDocument,
   onSelectNode,
   onRenameNode,
   onDragStart,
   onDragHover,
   onDragEnd,
   onDropToNode,
+  onRebuildIndex,
+  rebuildingNodeId,
   onRootDragOver,
   onRootDragLeave,
   onDropRoot,
@@ -201,12 +246,15 @@ export function KnowledgeTreeBrowser({
   dragOverRoot: boolean;
   onKbChange: (value: string) => void;
   onAddNode: () => void;
+  onAddDocument: () => void;
   onSelectNode: (node: TreeNode) => void;
   onRenameNode: (node: TreeNode, nextName: string) => Promise<void>;
   onDragStart: (node: TreeNode) => void;
   onDragHover: (node: TreeNode) => void;
   onDragEnd: () => void;
   onDropToNode: (targetNode: TreeNode) => void;
+  onRebuildIndex: (node: TreeNode) => void;
+  rebuildingNodeId: string | null;
   onRootDragOver: (event: React.DragEvent<HTMLDivElement>) => void;
   onRootDragLeave: () => void;
   onDropRoot: (event: React.DragEvent<HTMLDivElement>) => void;
@@ -218,8 +266,24 @@ export function KnowledgeTreeBrowser({
       return;
     }
 
-    const target = treeContainerRef.current?.querySelector<HTMLElement>(`[data-node-id="${selectedNodeId}"]`);
-    target?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    const container = treeContainerRef.current;
+    const target = container?.querySelector<HTMLElement>(`[data-node-id="${selectedNodeId}"]`);
+    if (!container || !target) {
+      return;
+    }
+
+    const visibleTop = container.scrollTop;
+    const visibleBottom = visibleTop + container.clientHeight;
+    const targetTop = target.offsetTop;
+    const targetBottom = targetTop + target.offsetHeight;
+
+    if (targetTop < visibleTop) {
+      container.scrollTop = targetTop;
+      return;
+    }
+    if (targetBottom > visibleBottom) {
+      container.scrollTop = targetBottom - container.clientHeight;
+    }
   }, [selectedNodeId]);
 
   return (
@@ -252,6 +316,15 @@ export function KnowledgeTreeBrowser({
           className="flex-1 justify-center px-3 py-2 text-[10px]"
         >
           <Plus size={12} strokeWidth={3} /> 新建节点
+        </ConsoleButton>
+        <ConsoleButton
+          type="button"
+          aria-label="打开新建文档弹窗"
+          onClick={onAddDocument}
+          className="flex-1 justify-center px-3 py-2 text-[10px]"
+          tone="neutral"
+        >
+          <FileText size={12} strokeWidth={3} /> 新建文档
         </ConsoleButton>
       </div>
 
@@ -288,6 +361,8 @@ export function KnowledgeTreeBrowser({
               onDragHover={onDragHover}
               onDragEnd={onDragEnd}
               onDropToNode={onDropToNode}
+              onRebuildIndex={onRebuildIndex}
+              rebuildingNodeId={rebuildingNodeId}
             />
           ))
         )}

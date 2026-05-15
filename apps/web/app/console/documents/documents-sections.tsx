@@ -307,6 +307,10 @@ function SourceNameCell({ task }: { task: ImportTask }) {
   );
 }
 
+function actorName(actor?: ImportTask["createdBy"]) {
+  return actor?.username || actor?.id || "—";
+}
+
 export function DocumentsTasksTable({
   tasks,
   selectedIds,
@@ -390,15 +394,17 @@ export function DocumentsTasksTable({
     },
     {
       key: "createdAt",
-      header: "创建时间",
-      headerClassName: "w-[120px] whitespace-nowrap",
-      cellClassName: "w-[120px]",
+      header: "创建信息",
+      headerClassName: "w-[150px] whitespace-nowrap",
+      cellClassName: "w-[150px]",
       sortable: true,
       sortValue: (task) => task.createdAt,
       cell: (task) => (
-        <span className="font-sans text-[10px] tracking-widest text-[var(--text-secondary)]">
-          {new Date(task.createdAt).toLocaleString("zh-CN", { hour12: false })}
-        </span>
+        <div className="space-y-1 font-sans text-[10px] text-[var(--text-secondary)]">
+          <p className="tracking-widest">{new Date(task.createdAt).toLocaleString("zh-CN", { hour12: false })}</p>
+          <p className="font-bold">创建人：{actorName(task.createdBy)}</p>
+          <p className="font-bold">更新人：{actorName(task.updatedBy)}</p>
+        </div>
       ),
     },
     {

@@ -89,6 +89,9 @@ OpenViking Admin 的设计目标，是把这些问题作为平台能力解决，
 | `documents.import.cancel` | `POST /api/v1/capability/import-tasks/:id/cancel` | `ova documents import cancel`         | `documents.import.cancel` |
 | `documents.import.retry`  | `POST /api/v1/capability/import-tasks/:id/retry`  | `ova documents import retry`          | `documents.import.retry`  |
 | `documents.import.events` | `GET /api/v1/capability/import-tasks/:id/events`  | `ova documents import status --watch` | `documents.import.events` |
+| `documents.index.status`  | `GET /api/v1/capability/documents/:id/index`      | `ova documents index status`          | `documents.index.status`  |
+| `documents.index.rebuild` | `POST /api/v1/capability/documents/:id/index/rebuild` | `ova documents index rebuild`     | `documents.index.rebuild` |
+| `documents.draft.grep`    | `POST /api/v1/capability/documents/:id/draft/grep`   | `ova documents draft grep`        | `documents.draft.grep`    |
 
 ## 快速开始
 
@@ -166,11 +169,14 @@ curl -X POST "http://localhost:6001/api/v1/knowledge/search" \
 ### CLI
 
 ```bash
-npm run ova -- auth login --server http://localhost:6001 --username admin --password acme@123 --tenant-code acme
+npm run ova -- auth login --server http://localhost:6001 --username admin --password <your-password> --tenant-code acme
 npm run ova -- capabilities list
 npm run ova -- knowledge search --query "多租户隔离" --limit 5
 npm run ova -- kb list
 npm run ova -- documents import "https://example.com/product.pdf" --kb <kbId> --type url
+npm run ova -- documents index status --node <nodeId>
+npm run ova -- documents index rebuild --node <nodeId>
+npm run ova -- documents draft grep --node <nodeId> --pattern "关键词"
 ```
 
 生产或客户端机器上建议安装独立 CLI：
@@ -258,6 +264,8 @@ Skill 不定义新协议，只负责在 Agent 运行环境中发现 capability�
 本项目深度致谢 [OpenViking](https://github.com/openviking) 官方项目。OpenViking 提供了优秀的语义索引、资源检索与 AI 知识引擎基础能力，OpenViking Admin 在此基础上补齐企业级管理、权限、审计、SSO、MCP、CLI、HTTP 和 Skill 接入能力。
 
 也感谢 Model Context Protocol、NestJS、TypeORM、PostgreSQL 以及开源社区中的相关项目，为本项目的协议接入、工程结构和基础设施提供了可复用的生态基础。
+
+> 版权所有 © 设计与开发：[github.com/a574676848/openviking-admin](https://github.com/a574676848/openviking-admin)
 
 ## 开源协议
 

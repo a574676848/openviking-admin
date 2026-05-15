@@ -102,6 +102,9 @@ CLI 模式适合有本地 profile 的 Agent 宿主机。Agent 不需要自己管
 - `documents.import.cancel`：优先执行 `ova documents import cancel --task <taskId> --output json`，不可用时回退到 `POST /api/v1/capability/import-tasks/:id/cancel`。
 - `documents.import.retry`：优先执行 `ova documents import retry --task <taskId> --output json`，不可用时回退到 `POST /api/v1/capability/import-tasks/:id/retry`。
 - `documents.import.events`：优先执行 `ova documents import status --watch --task <taskId> --output json`，不可用时回退到 `GET /api/v1/capability/import-tasks/:id/events`。
+- `documents.index.status`：优先执行 `ova documents index status --node <nodeId> --output json`，不可用时回退到 `GET /api/v1/capability/documents/:id/index`。
+- `documents.index.rebuild`：优先执行 `ova documents index rebuild --node <nodeId> --output json`，不可用时回退到 `POST /api/v1/capability/documents/:id/index/rebuild`。
+- `documents.draft.grep`：优先执行 `ova documents draft grep --node <nodeId> --pattern <keyword> --output json`，不可用时回退到 `POST /api/v1/capability/documents/:id/draft/grep`。
 
 始终保留响应中的 `traceId`。
 ```

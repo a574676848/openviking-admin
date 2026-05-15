@@ -12,7 +12,10 @@ export type CapabilityId =
   | 'documents.import.list'
   | 'documents.import.cancel'
   | 'documents.import.retry'
-  | 'documents.import.events';
+  | 'documents.import.events'
+  | 'documents.index.status'
+  | 'documents.index.rebuild'
+  | 'documents.draft.grep';
 
 export type CapabilityVersion = 'v1';
 

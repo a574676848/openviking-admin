@@ -6,6 +6,8 @@ import { OVKnowledgeGatewayService } from '../../common/ov-knowledge-gateway.ser
 import { KnowledgeBaseService } from '../../knowledge-base/knowledge-base.service';
 import { KnowledgeTreeService } from '../../knowledge-tree/knowledge-tree.service';
 import { ImportTaskService } from '../../import-task/import-task.service';
+import { DocumentService } from '../../document/document.service';
+import { createAuditActorSnapshot } from '../../common/audit-actor.types';
 import type { KnowledgeBaseModel } from '../../knowledge-base/domain/knowledge-base.model';
 import type { KnowledgeNodeModel } from '../../knowledge-tree/domain/knowledge-node.model';
 import type { ImportTaskModel } from '../../import-task/domain/import-task.model';
@@ -24,6 +26,13 @@ interface GrepMatch {
   content: string;
 }
 
+interface DocumentGrepMatch {
+  line: number;
+  content: string;
+  before: string[];
+  after: string[];
+}
+
 interface ResourceNode {
   uri: string;
   isDir: boolean;
@@ -37,6 +46,7 @@ export class KnowledgeCapabilityGateway {
     private readonly knowledgeBaseService: KnowledgeBaseService,
     private readonly knowledgeTreeService: KnowledgeTreeService,
     private readonly importTaskService: ImportTaskService,
+    private readonly documentService: DocumentService,
   ) {}
 
   async search(
@@ -223,10 +233,13 @@ export class KnowledgeCapabilityGateway {
         kbId: String(input.knowledgeBaseId),
         sourceType: String(input.sourceType),
         sourceUrl: input.sourceUrl ? String(input.sourceUrl) : undefined,
+        sourceName: input.sourceName ? String(input.sourceName) : undefined,
         sourceUrls: this.toStringArray(input.sourceUrls),
+        sourceNames: this.toStringArray(input.sourceNames),
         targetUri: targetUri ?? undefined,
       },
       tenantId,
+      createAuditActorSnapshot(principal),
     );
 
     return {
@@ -259,6 +272,7 @@ export class KnowledgeCapabilityGateway {
     const task = await this.importTaskService.cancel(
       String(input.taskId),
       this.requireTenantId(principal),
+      createAuditActorSnapshot(principal),
     );
     return {
       taskId: task?.id ?? String(input.taskId),
@@ -274,6 +288,7 @@ export class KnowledgeCapabilityGateway {
     const task = await this.importTaskService.retry(
       String(input.taskId),
       this.requireTenantId(principal),
+      createAuditActorSnapshot(principal),
     );
     return {
       taskId: task?.id ?? String(input.taskId),
@@ -303,6 +318,57 @@ export class KnowledgeCapabilityGateway {
     };
   }
 
+  async getDocumentIndexStatus(
+    principal: Principal,
+    input: Record<string, unknown>,
+  ) {
+    const node = await this.knowledgeTreeService.findOne(
+      String(input.nodeId),
+      this.requireTenantId(principal),
+    );
+    return { item: this.toDocumentIndexItem(node) };
+  }
+
+  async rebuildDocumentIndex(
+    principal: Principal,
+    input: Record<string, unknown>,
+  ) {
+    const item = await this.documentService.indexContent(
+      String(input.nodeId),
+      this.requireTenantId(principal),
+      createAuditActorSnapshot(principal),
+    );
+    return { item };
+  }
+
+  async grepDocumentDraft(
+    principal: Principal,
+    input: Record<string, unknown>,
+  ) {
+    const snapshot = await this.documentService.loadContent(
+      String(input.nodeId),
+      this.requireTenantId(principal),
+    );
+    const pattern = String(input.pattern ?? '');
+    const caseInsensitive =
+      input.caseInsensitive === undefined
+        ? true
+        : Boolean(input.caseInsensitive);
+    const matches = this.grepMarkdown(snapshot.markdown, pattern, caseInsensitive);
+
+    return {
+      items: matches.map((match) => ({
+        nodeId: snapshot.nodeId,
+        uri: snapshot.contentUri,
+        source: 'draft',
+        draftVersion: snapshot.draftVersion,
+        indexedVersion: snapshot.indexedVersion,
+        indexStatus: snapshot.indexStatus,
+        ...match,
+      })),
+    };
+  }
+
   private toKnowledgeBaseItem(item: KnowledgeBaseModel) {
     return {
       id: item.id,
@@ -312,6 +378,8 @@ export class KnowledgeCapabilityGateway {
       vikingUri: item.vikingUri,
       docCount: item.docCount,
       vectorCount: item.vectorCount,
+      createdBy: this.toActor(item.createdById, item.createdByName),
+      updatedBy: this.toActor(item.updatedById, item.updatedByName),
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
     };
@@ -327,6 +395,8 @@ export class KnowledgeCapabilityGateway {
       sortOrder: item.sortOrder,
       acl: item.acl,
       vikingUri: item.vikingUri,
+      createdBy: this.toActor(item.createdById, item.createdByName),
+      updatedBy: this.toActor(item.updatedById, item.updatedByName),
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
     };
@@ -352,9 +422,59 @@ export class KnowledgeCapabilityGateway {
       errorMsg: task.errorMsg,
       nodeCount: task.nodeCount,
       vectorCount: task.vectorCount,
+      createdBy: this.toActor(task.createdById, task.createdByName),
+      updatedBy: this.toActor(task.updatedById, task.updatedByName),
       createdAt: task.createdAt,
       updatedAt: task.updatedAt,
     };
+  }
+
+  private toDocumentIndexItem(item: KnowledgeNodeModel) {
+    return {
+      nodeId: item.id,
+      kbId: item.kbId,
+      name: item.name,
+      contentUri: item.contentUri,
+      indexStatus: item.indexStatus,
+      draftVersion: item.draftVersion,
+      indexedVersion: item.indexedVersion,
+      vectorCount: item.vectorCount,
+      lastIndexedAt: item.lastIndexedAt,
+      indexError: item.indexError,
+      updatedAt: item.updatedAt,
+    };
+  }
+
+  private grepMarkdown(
+    markdown: string,
+    pattern: string,
+    caseInsensitive: boolean,
+  ): DocumentGrepMatch[] {
+    if (!pattern.trim()) {
+      return [];
+    }
+    const needle = caseInsensitive ? pattern.toLowerCase() : pattern;
+    const lines = markdown.split(/\r?\n/);
+    return lines.flatMap((line, index) => {
+      const haystack = caseInsensitive ? line.toLowerCase() : line;
+      if (!haystack.includes(needle)) {
+        return [];
+      }
+      return [{
+        line: index + 1,
+        content: line,
+        before: lines.slice(Math.max(index - 2, 0), index),
+        after: lines.slice(index + 1, index + 3),
+      }];
+    });
+  }
+
+  private toActor(id?: string | null, username?: string | null) {
+    if (!id && !username) {
+      return null;
+    }
+
+    return { id: id ?? null, username: username ?? null };
   }
 
   private toProgress(task: ImportTaskModel) {

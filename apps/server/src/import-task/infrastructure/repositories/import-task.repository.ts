@@ -40,9 +40,23 @@ export class TypeOrmImportTaskRepository implements IImportTaskRepository {
       nodeCount: entity.nodeCount,
       vectorCount: entity.vectorCount,
       errorMsg: entity.errorMsg,
+      createdById: entity.createdById,
+      createdByName: entity.createdByName,
+      updatedById: entity.updatedById,
+      updatedByName: entity.updatedByName,
+      createdBy: this.toActor(entity.createdById, entity.createdByName),
+      updatedBy: this.toActor(entity.updatedById, entity.updatedByName),
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,
     };
+  }
+
+  private toActor(id: string | null, username: string | null) {
+    if (!id && !username) {
+      return null;
+    }
+
+    return { id, username };
   }
 
   private toEntityInput(data: Partial<ImportTaskModel>): Partial<ImportTask> {
@@ -59,6 +73,10 @@ export class TypeOrmImportTaskRepository implements IImportTaskRepository {
       nodeCount: data.nodeCount,
       vectorCount: data.vectorCount,
       errorMsg: data.errorMsg,
+      createdById: data.createdById,
+      createdByName: data.createdByName,
+      updatedById: data.updatedById,
+      updatedByName: data.updatedByName,
       createdAt: data.createdAt,
       updatedAt: data.updatedAt,
     };

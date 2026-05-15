@@ -21,6 +21,7 @@ import { CreateLocalImportTaskDto } from './dto/create-local-import-task.dto';
 import type { AuthenticatedRequest } from '../common/authenticated-request.interface';
 import { LOCAL_IMPORT_UPLOAD_CONFIG } from './constants';
 import type { LocalImportUploadFile } from './local-import-storage.service';
+import { createAuditActorSnapshot } from '../common/audit-actor.types';
 
 @Controller('import-tasks')
 @UseGuards(JwtAuthGuard, TenantGuard)
@@ -110,6 +111,7 @@ export class ImportTaskController {
       dto,
       files ?? [],
       req.tenantScope ?? '',
+      createAuditActorSnapshot(req.user),
     );
     await this.auditService.log({
       tenantId: req.tenantScope ?? undefined,
@@ -134,7 +136,11 @@ export class ImportTaskController {
 
   @Post(':id/retry')
   async retry(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
-    const retried = await this.taskService.retry(id, req.tenantScope);
+    const retried = await this.taskService.retry(
+      id,
+      req.tenantScope,
+      createAuditActorSnapshot(req.user),
+    );
     await this.auditService.log({
       tenantId: req.tenantScope ?? undefined,
       userId: req.user.id,
@@ -149,7 +155,11 @@ export class ImportTaskController {
 
   @Post(':id/cancel')
   async cancel(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
-    const cancelled = await this.taskService.cancel(id, req.tenantScope);
+    const cancelled = await this.taskService.cancel(
+      id,
+      req.tenantScope,
+      createAuditActorSnapshot(req.user),
+    );
     await this.auditService.log({
       tenantId: req.tenantScope ?? undefined,
       userId: req.user.id,
@@ -182,7 +192,11 @@ export class ImportTaskController {
     req: AuthenticatedRequest,
     action: string,
   ) {
-    const created = await this.taskService.create(dto, req.tenantScope ?? '');
+    const created = await this.taskService.create(
+      dto,
+      req.tenantScope ?? '',
+      createAuditActorSnapshot(req.user),
+    );
     await this.auditService.log({
       tenantId: req.tenantScope ?? undefined,
       userId: req.user.id,

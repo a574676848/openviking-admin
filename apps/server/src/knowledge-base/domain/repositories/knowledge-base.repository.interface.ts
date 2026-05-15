@@ -3,8 +3,19 @@ import type { RepositoryFindQuery } from '../../../common/repository-query.types
 
 export const KNOWLEDGE_BASE_REPOSITORY = Symbol('IKnowledgeBaseRepository');
 
+export interface PaginatedKnowledgeBases {
+  items: KnowledgeBaseModel[];
+  total: number;
+}
+
 export interface IKnowledgeBaseRepository {
   findAll(tenantId: string | null): Promise<KnowledgeBaseModel[]>;
+  findAllPaginated(
+    tenantId: string | null,
+    page: number,
+    pageSize: number,
+    q?: string,
+  ): Promise<PaginatedKnowledgeBases>;
   findById(id: string, tenantId?: string | null): Promise<KnowledgeBaseModel | null>;
   count(options?: RepositoryFindQuery<KnowledgeBaseModel>): Promise<number>;
   create(data: Partial<KnowledgeBaseModel>): KnowledgeBaseModel;

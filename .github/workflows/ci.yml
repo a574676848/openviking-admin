@@ -8,6 +8,10 @@ on:
       - 'codex/**'
   pull_request:
 
+env:
+  NODE_VERSION: 24
+  PNPM_VERSION: 9.15.9
+
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -16,15 +20,15 @@ jobs:
 
       - uses: pnpm/action-setup@v4
         with:
-          version: 8.15.9
+          version: ${{ env.PNPM_VERSION }}
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
 
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Typecheck
         run: pnpm typecheck

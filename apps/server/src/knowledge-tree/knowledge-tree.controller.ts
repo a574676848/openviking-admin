@@ -16,6 +16,15 @@ import { KnowledgeTreeService } from './knowledge-tree.service';
 import { AuditService } from '../audit/audit.service';
 import { CreateNodeDto, UpdateNodeDto } from './dto/node.dto';
 import type { AuthenticatedRequest } from '../common/authenticated-request.interface';
+import { Roles } from '../common/roles.decorator';
+import { RolesGuard } from '../common/roles.guard';
+import {
+  KNOWLEDGE_NODE_DEFAULT_KIND,
+  KNOWLEDGE_NODE_KIND_DOCUMENT,
+  KNOWLEDGE_TREE_DOCUMENT_FILE_EXTENSION,
+  KNOWLEDGE_TREE_WRITE_ROLES,
+} from './constants';
+import { createAuditActorSnapshot } from '../common/audit-actor.types';
 
 @Controller('knowledge-tree')
 @UseGuards(JwtAuthGuard, TenantGuard)
@@ -26,8 +35,28 @@ export class KnowledgeTreeController {
   ) {}
 
   @Get()
-  findByKb(@Query('kbId') kbId: string, @Req() req: AuthenticatedRequest) {
+  findByKb(
+    @Query('kbId') kbId: string, 
+    @Query('parentId') parentId: string | undefined,
+    @Req() req: AuthenticatedRequest
+  ) {
+    if (parentId !== undefined) {
+      return this.treeService.findChildrenWithCount(
+        kbId, 
+        parentId === 'root' ? null : parentId, 
+        req.tenantScope
+      );
+    }
     return this.treeService.findByKb(kbId, req.tenantScope);
+  }
+
+  @Get(':id/lineage')
+  findLineage(
+    @Param('id') id: string,
+    @Query('kbId') kbId: string,
+    @Req() req: AuthenticatedRequest
+  ) {
+    return this.treeService.findLineageWithSiblings(kbId, id, req.tenantScope);
   }
 
   @Get('graph')
@@ -41,11 +70,25 @@ export class KnowledgeTreeController {
   }
 
   @Post()
+  @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
+  @Roles(...KNOWLEDGE_TREE_WRITE_ROLES)
   async create(@Body() dto: CreateNodeDto, @Req() req: AuthenticatedRequest) {
-    const created = await this.treeService.create({
-      ...dto,
+    const { kind = KNOWLEDGE_NODE_DEFAULT_KIND, ...nodeDto } = dto;
+    const createPayload = {
+      ...nodeDto,
       tenantId: req.tenantScope ?? '',
-    });
+    };
+    const actor = createAuditActorSnapshot(req.user);
+    const created =
+      kind === KNOWLEDGE_NODE_KIND_DOCUMENT
+        ? await this.treeService.createFile(
+            {
+              ...createPayload,
+              fileExtension: KNOWLEDGE_TREE_DOCUMENT_FILE_EXTENSION,
+            },
+            actor,
+          )
+        : await this.treeService.create(createPayload, actor);
     await this.auditService.log({
       tenantId: req.tenantScope ?? undefined,
       userId: req.user.id,
@@ -54,6 +97,7 @@ export class KnowledgeTreeController {
       target: created.id,
       meta: {
         kbId: created.kbId,
+        kind: created.kind,
         name: created.name,
         requestId: req.headers['x-request-id'],
       },
@@ -68,7 +112,12 @@ export class KnowledgeTreeController {
     @Body() dto: UpdateNodeDto,
     @Req() req: AuthenticatedRequest,
   ) {
-    const updated = await this.treeService.update(id, dto, req.tenantScope);
+    const updated = await this.treeService.update(
+      id,
+      dto,
+      req.tenantScope,
+      createAuditActorSnapshot(req.user),
+    );
     await this.auditService.log({
       tenantId: req.tenantScope ?? undefined,
       userId: req.user.id,
@@ -108,6 +157,7 @@ export class KnowledgeTreeController {
       id,
       { parentId: body.parentId, sortOrder: body.sortOrder },
       req.tenantScope,
+      createAuditActorSnapshot(req.user),
     );
     await this.auditService.log({
       tenantId: req.tenantScope ?? undefined,

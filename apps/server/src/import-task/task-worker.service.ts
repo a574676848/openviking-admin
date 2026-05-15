@@ -23,6 +23,7 @@ import type { TenantModel } from '../tenant/domain/tenant.model';
 import { OvConfigResolverService } from '../settings/ov-config-resolver.service';
 import { buildTenantIdentityWhere } from '../tenant/tenant-identity.util';
 import { KnowledgeNode } from '../knowledge-tree/entities/knowledge-node.entity';
+import { DocumentSessionRegistry } from '../common/document-session-registry';
 
 interface TenantTaskContext {
   taskRepo: Repository<ImportTask>;
@@ -62,6 +63,7 @@ export class TaskWorkerService implements OnModuleInit {
     private readonly dingtalk: DingTalkIntegrator,
     private readonly git: GitIntegrator,
     private readonly localImportStorage: LocalImportStorageService,
+    private readonly documentSessionRegistry: DocumentSessionRegistry,
   ) {}
 
   async onModuleInit() {
@@ -163,6 +165,9 @@ export class TaskWorkerService implements OnModuleInit {
           task.targetUri,
         );
         if (this.isDocumentNode(targetNode)) {
+          this.documentSessionRegistry.assertNoActiveWriteSession(
+            targetNode.id,
+          );
           await this.prepareDocumentTarget(conn, task.targetUri);
         }
 
@@ -375,7 +380,9 @@ export class TaskWorkerService implements OnModuleInit {
     return node ?? null;
   }
 
-  private isDocumentNode(node: TargetKnowledgeNode | null) {
+  private isDocumentNode(
+    node: TargetKnowledgeNode | null,
+  ): node is TargetKnowledgeNode {
     if (!node) {
       return false;
     }

@@ -5,7 +5,6 @@ import {
   NotFoundException,
   ForbiddenException,
   Inject,
-  Logger,
 } from '@nestjs/common';
 import { CreateKnowledgeBaseDto } from './dto/create-kb.dto';
 import { TenantService } from '../tenant/tenant.service';
@@ -22,18 +21,21 @@ import {
   OVClientService,
   type OVConnection,
 } from '../common/ov-client.service';
+import { DocumentSessionRegistry } from '../common/document-session-registry';
+import {
+  applyCreatedAuditActor,
+  applyUpdatedAuditActor,
+  type AuditActorSnapshot,
+} from '../common/audit-actor.types';
 
 const OPENVIKING_FS_PATH = '/api/v1/fs';
-const OPENVIKING_FS_TREE_PATH = '/api/v1/fs/tree';
-const OPENVIKING_VECTOR_COUNT_PATH = '/api/v1/debug/vector/count';
 const OPENVIKING_DELETE_LABEL = 'OpenViking 资源删除';
 const DEFAULT_OPENVIKING_ACCOUNT = 'default';
 const ARCHIVED_KNOWLEDGE_BASE_STATUS: KnowledgeBaseStatus = 'archived';
+const KNOWLEDGE_BASE_LOCK_MESSAGE = '目标知识库正在被协作编辑';
 
 @Injectable()
 export class KnowledgeBaseService {
-  private readonly logger = new Logger(KnowledgeBaseService.name);
-
   constructor(
     @Inject(KNOWLEDGE_BASE_REPOSITORY)
     private readonly kbRepo: IKnowledgeBaseRepository,
@@ -41,6 +43,7 @@ export class KnowledgeBaseService {
     private readonly knowledgeTreeService: KnowledgeTreeService,
     private readonly settingsService: SettingsService,
     private readonly ovClientService: OVClientService,
+    private readonly documentSessionRegistry: DocumentSessionRegistry,
   ) {}
 
   findAll(tenantId: string | null) {
@@ -51,9 +54,8 @@ export class KnowledgeBaseService {
       );
   }
 
-  async findAllWithRuntimeStats(tenantId: string | null) {
-    const items = await this.findAll(tenantId);
-    return this.refreshRuntimeStats(items, tenantId);
+  async findAllPaginated(tenantId: string | null, page: number, pageSize: number, q?: string) {
+    return this.kbRepo.findAllPaginated(tenantId, page, pageSize, q);
   }
 
   async findOne(id: string, tenantId: string | null) {
@@ -64,13 +66,37 @@ export class KnowledgeBaseService {
     return kb;
   }
 
-  async findOneWithRuntimeStats(id: string, tenantId: string | null) {
-    const kb = await this.findOne(id, tenantId);
-    const [refreshed] = await this.refreshRuntimeStats([kb], tenantId);
-    return refreshed;
+  async refreshStatsFromNodes(
+    id: string,
+    tenantId: string | null,
+    actor?: AuditActorSnapshot | null,
+  ): Promise<KnowledgeBaseModel> {
+    const kb = await this.kbRepo.findById(id, tenantId);
+    if (!kb || kb.status === ARCHIVED_KNOWLEDGE_BASE_STATUS) {
+      throw new NotFoundException(`知识库 ${id} 不存在或无权访问`);
+    }
+
+    const stats = await this.knowledgeTreeService.aggregateKnowledgeBaseStats(
+      id,
+      tenantId,
+    );
+    return this.kbRepo.save(
+      applyUpdatedAuditActor(
+        {
+          ...kb,
+          docCount: stats.docCount,
+          vectorCount: stats.vectorCount,
+          updatedAt: new Date(),
+        },
+        actor,
+      ),
+    );
   }
 
-  async create(dto: CreateKnowledgeBaseDto & { tenantId: string }) {
+  async create(
+    dto: CreateKnowledgeBaseDto & { tenantId: string },
+    actor?: AuditActorSnapshot | null,
+  ) {
     const tenant = await this.tenantService.findOneByIdOrTenantId(dto.tenantId);
     const currentCount = (await this.findAll(tenant.tenantId)).length;
 
@@ -83,22 +109,28 @@ export class KnowledgeBaseService {
     }
 
     const tenantIdentifier = tenant.tenantId;
-    return this.kbRepo.createWithUri({
-      ...dto,
-      tenantId: tenantIdentifier,
-    });
+    return this.kbRepo.createWithUri(
+      applyCreatedAuditActor(
+        {
+          ...dto,
+          tenantId: tenantIdentifier,
+        },
+        actor,
+      ),
+    );
   }
 
   async update(
     id: string,
     attrs: Partial<KnowledgeBaseModel>,
     tenantId: string | null,
+    actor?: AuditActorSnapshot | null,
   ) {
     const kb = await this.kbRepo.findById(id, tenantId);
     if (!kb) {
       throw new NotFoundException(`知识库 ${id} 不存在或无权访问`);
     }
-    Object.assign(kb, attrs);
+    Object.assign(kb, applyUpdatedAuditActor(attrs, actor));
     return this.kbRepo.save(kb);
   }
 
@@ -110,6 +142,12 @@ export class KnowledgeBaseService {
     const kb = await this.kbRepo.findById(id, tenantId);
     if (!kb) {
       throw new NotFoundException(`知识库 ${id} 不存在或无权访问`);
+    }
+    if (this.documentSessionRegistry.hasActiveSessionInKb(kb.id)) {
+      throw new HttpException(
+        KNOWLEDGE_BASE_LOCK_MESSAGE,
+        HttpStatus.LOCKED,
+      );
     }
     const ovConfig = await this.resolveOpenVikingConfig(tenantId, context);
     const nodes = await this.knowledgeTreeService.findByKb(kb.id, tenantId);
@@ -172,103 +210,5 @@ export class KnowledgeBaseService {
       }
       throw error;
     }
-  }
-
-  private async refreshRuntimeStats(
-    items: KnowledgeBaseModel[],
-    tenantId: string | null,
-  ) {
-    if (!tenantId || items.length === 0) {
-      return items;
-    }
-
-    const ovConfig = await this.resolveOpenVikingConfig(tenantId);
-    return Promise.all(
-      items.map((item) => this.refreshSingleKnowledgeBaseStats(item, ovConfig)),
-    );
-  }
-
-  private async refreshSingleKnowledgeBaseStats(
-    kb: KnowledgeBaseModel,
-    ovConfig: OVConnection,
-  ): Promise<KnowledgeBaseModel> {
-    if (!kb.vikingUri?.trim()) {
-      return kb;
-    }
-
-    try {
-      const [treeData, vecData] = await Promise.all([
-        this.ovClientService.request(
-          ovConfig,
-          `${OPENVIKING_FS_TREE_PATH}?uri=${encodeURIComponent(kb.vikingUri)}`,
-          'GET',
-          undefined,
-          { user: ovConfig.user },
-        ),
-        this.ovClientService.request(
-          ovConfig,
-          `${OPENVIKING_VECTOR_COUNT_PATH}?uri=${encodeURIComponent(kb.vikingUri)}`,
-          'GET',
-          undefined,
-          { user: ovConfig.user },
-        ),
-      ]);
-
-      const docCount = this.countDocumentsFromTree(treeData?.result);
-      const vectorCount = this.toNonNegativeNumber(
-        (vecData?.result as Record<string, unknown> | undefined)?.count,
-      );
-
-      if (kb.docCount === docCount && kb.vectorCount === vectorCount) {
-        return kb;
-      }
-
-      return this.kbRepo.save({
-        ...kb,
-        docCount,
-        vectorCount,
-      });
-    } catch (error) {
-      if (this.isOpenVikingNotFound(error)) {
-        if (kb.docCount === 0 && kb.vectorCount === 0) {
-          return kb;
-        }
-
-        return this.kbRepo.save({
-          ...kb,
-          docCount: 0,
-          vectorCount: 0,
-        });
-      }
-
-      const message = error instanceof Error ? error.message : '未知错误';
-      this.logger.warn(
-        `刷新知识库统计失败，保留已有计数: ${kb.id} (${message})`,
-      );
-      return kb;
-    }
-  }
-
-  private countDocumentsFromTree(result: unknown) {
-    if (!Array.isArray(result)) {
-      return 0;
-    }
-
-    return result.filter((item) => {
-      if (!item || typeof item !== 'object') {
-        return false;
-      }
-
-      return (item as { isDir?: unknown }).isDir === false;
-    }).length;
-  }
-
-  private toNonNegativeNumber(value: unknown) {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
-  }
-
-  private isOpenVikingNotFound(error: unknown) {
-    return error instanceof HttpException && error.getStatus() === HttpStatus.NOT_FOUND;
   }
 }

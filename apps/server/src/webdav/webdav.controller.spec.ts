@@ -16,6 +16,7 @@ import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
 import { KnowledgeTreeService } from '../knowledge-tree/knowledge-tree.service';
 import { TenantCacheService } from '../tenant/tenant-cache.service';
 import { DynamicDataSourceService } from '../common/dynamic-datasource.service';
+import { DocumentSessionRegistry } from '../common/document-session-registry';
 import { ImportTaskService } from '../import-task/import-task.service';
 import { OVClientService } from '../common/ov-client.service';
 import { OvConfigResolverService } from '../settings/ov-config-resolver.service';
@@ -140,6 +141,12 @@ describe('WebdavController', () => {
 
   const auditService = {
     log: jest.fn(),
+  };
+
+  const documentSessionRegistry = {
+    assertNoActiveWriteSession: jest.fn(),
+    assertNoActiveSessionInNodes: jest.fn(),
+    hasActiveSessionInKb: jest.fn(),
   };
 
   const capabilityCredentialService = {
@@ -282,6 +289,7 @@ describe('WebdavController', () => {
         { provide: AuditService, useValue: auditService },
         { provide: KnowledgeBaseService, useValue: knowledgeBaseService },
         { provide: KnowledgeTreeService, useValue: knowledgeTreeService },
+        { provide: DocumentSessionRegistry, useValue: documentSessionRegistry },
         { provide: DataSource, useValue: dataSource },
       ],
     }).compile();
@@ -319,6 +327,13 @@ describe('WebdavController', () => {
       rerankApiKey: null,
       rerankModel: null,
     });
+    documentSessionRegistry.assertNoActiveWriteSession.mockImplementation(
+      () => undefined,
+    );
+    documentSessionRegistry.assertNoActiveSessionInNodes.mockImplementation(
+      () => undefined,
+    );
+    documentSessionRegistry.hasActiveSessionInKb.mockReturnValue(false);
     knowledgeBaseService.findAll.mockResolvedValue(knowledgeBases);
     knowledgeBaseService.findOne.mockImplementation(async (id: string) =>
       knowledgeBases.find((item) => item.id === id),

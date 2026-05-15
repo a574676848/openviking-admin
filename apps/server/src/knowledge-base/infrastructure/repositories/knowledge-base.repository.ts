@@ -1,9 +1,9 @@
 import { Injectable, Inject, Scope } from '@nestjs/common';
 import { REQUEST } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, type FindManyOptions, type QueryRunner } from 'typeorm';
+import { Repository, Not, Like, type FindManyOptions, type QueryRunner } from 'typeorm';
 import { KnowledgeBase } from '../../entities/knowledge-base.entity';
-import { IKnowledgeBaseRepository } from '../../domain/repositories/knowledge-base.repository.interface';
+import { IKnowledgeBaseRepository, type PaginatedKnowledgeBases } from '../../domain/repositories/knowledge-base.repository.interface';
 import type { KnowledgeBaseModel } from '../../domain/knowledge-base.model';
 import type { RepositoryRequest } from '../../../common/repository-request.interface';
 import type { RepositoryFindQuery } from '../../../common/repository-query.types';
@@ -38,9 +38,23 @@ export class TypeOrmKnowledgeBaseRepository implements IKnowledgeBaseRepository 
       vikingUri: entity.vikingUri,
       docCount: entity.docCount,
       vectorCount: entity.vectorCount,
+      createdById: entity.createdById,
+      createdByName: entity.createdByName,
+      updatedById: entity.updatedById,
+      updatedByName: entity.updatedByName,
+      createdBy: this.toActor(entity.createdById, entity.createdByName),
+      updatedBy: this.toActor(entity.updatedById, entity.updatedByName),
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,
     };
+  }
+
+  private toActor(id: string | null, username: string | null) {
+    if (!id && !username) {
+      return null;
+    }
+
+    return { id, username };
   }
 
   private toEntityInput(data: Partial<KnowledgeBaseModel>): Partial<KnowledgeBase> {
@@ -53,6 +67,10 @@ export class TypeOrmKnowledgeBaseRepository implements IKnowledgeBaseRepository 
       vikingUri: data.vikingUri,
       docCount: data.docCount,
       vectorCount: data.vectorCount,
+      createdById: data.createdById,
+      createdByName: data.createdByName,
+      updatedById: data.updatedById,
+      updatedByName: data.updatedByName,
       createdAt: data.createdAt,
       updatedAt: data.updatedAt,
     };
@@ -83,6 +101,27 @@ export class TypeOrmKnowledgeBaseRepository implements IKnowledgeBaseRepository 
     const where = tenantId ? { tenantId } : {};
     const items = await this.repo.find({ where, order: { createdAt: 'DESC' } });
     return items.map((item) => this.toModel(item));
+  }
+
+  async findAllPaginated(
+    tenantId: string | null,
+    page: number,
+    pageSize: number,
+    q?: string,
+  ): Promise<PaginatedKnowledgeBases> {
+    const where: Record<string, unknown> = { status: Not('archived') };
+    if (tenantId) where.tenantId = tenantId;
+    if (q?.trim()) {
+      where.name = Like(`%${q.trim()}%`);
+    }
+    const skip = (page - 1) * pageSize;
+    const [items, total] = await this.repo.findAndCount({
+      where,
+      order: { createdAt: 'DESC' },
+      skip,
+      take: pageSize,
+    });
+    return { items: items.map((item) => this.toModel(item)), total };
   }
 
   async findById(

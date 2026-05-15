@@ -20,6 +20,9 @@ type GatewayHandlerName = keyof Pick<
   | 'cancelDocumentImport'
   | 'retryDocumentImport'
   | 'watchDocumentImportEvents'
+  | 'getDocumentIndexStatus'
+  | 'rebuildDocumentIndex'
+  | 'grepDocumentDraft'
 >;
 
 interface CapabilityRegistryEntry {
@@ -453,6 +456,101 @@ export const capabilityRegistry: Record<CapabilityId, CapabilityRegistryEntry> =
           path: capabilityHttpPath('/import-tasks/:id/events'),
         },
         cli: { command: 'ova documents import status --watch' },
+      },
+    },
+    'documents.index.status': {
+      gatewayHandler: 'getDocumentIndexStatus',
+      contract: {
+        id: 'documents.index.status',
+        version: 'v1',
+        displayName: 'Documents Index Status',
+        description: '查看文档草稿与索引同步状态',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            nodeId: { type: 'string', description: '知识树文档节点 ID' },
+          },
+          required: ['nodeId'],
+        },
+        outputSchema: {
+          type: 'object',
+          properties: {
+            item: { type: 'object' },
+          },
+        },
+        permissionRequirement: 'tenant',
+        minimumRole: 'tenant_viewer',
+        auditLevel: 'standard',
+        http: {
+          method: 'GET',
+          path: capabilityHttpPath('/documents/:id/index'),
+        },
+        cli: { command: 'ova documents index status' },
+      },
+    },
+    'documents.index.rebuild': {
+      gatewayHandler: 'rebuildDocumentIndex',
+      contract: {
+        id: 'documents.index.rebuild',
+        version: 'v1',
+        displayName: 'Documents Index Rebuild',
+        description: '使用最新草稿重建文档索引',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            nodeId: { type: 'string', description: '知识树文档节点 ID' },
+          },
+          required: ['nodeId'],
+        },
+        outputSchema: {
+          type: 'object',
+          properties: {
+            item: { type: 'object' },
+          },
+        },
+        permissionRequirement: 'tenant',
+        minimumRole: 'tenant_operator',
+        auditLevel: 'standard',
+        http: {
+          method: 'POST',
+          path: capabilityHttpPath('/documents/:id/index/rebuild'),
+        },
+        cli: { command: 'ova documents index rebuild' },
+      },
+    },
+    'documents.draft.grep': {
+      gatewayHandler: 'grepDocumentDraft',
+      contract: {
+        id: 'documents.draft.grep',
+        version: 'v1',
+        displayName: 'Documents Draft Grep',
+        description: '对 Admin 侧最新草稿正文执行文本匹配',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            nodeId: { type: 'string', description: '知识树文档节点 ID' },
+            pattern: { type: 'string', description: '关键词或正则表达式' },
+            caseInsensitive: {
+              type: 'boolean',
+              description: '是否忽略大小写',
+            },
+          },
+          required: ['nodeId', 'pattern'],
+        },
+        outputSchema: {
+          type: 'object',
+          properties: {
+            items: { type: 'array' },
+          },
+        },
+        permissionRequirement: 'tenant',
+        minimumRole: 'tenant_viewer',
+        auditLevel: 'standard',
+        http: {
+          method: 'POST',
+          path: capabilityHttpPath('/documents/:id/draft/grep'),
+        },
+        cli: { command: 'ova documents draft grep' },
       },
     },
   };

@@ -22,8 +22,15 @@ export interface ImportTask {
   nodeCount: number;
   vectorCount: number;
   errorMsg: string | null;
+  createdBy?: ActorInfo | null;
+  updatedBy?: ActorInfo | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ActorInfo {
+  id: string | null;
+  username: string | null;
 }
 
 export const DOCUMENT_SUCCESS_STATUS = "done";

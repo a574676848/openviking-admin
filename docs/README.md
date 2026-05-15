@@ -26,6 +26,10 @@
 3. [数据库 Schema](./DATABASE_SCHEMA.md)
 4. [安全策略](./SECURITY.md)
 5. [可观测性](./OBSERVABILITY.md)
+6. [在线文档协作](./DOCUMENT_COLLABORATION.md)
+7. [ADR 0009: 文档协作存储设计](./adr/0009-document-collaboration-storage-design.md)
+8. [文档协作实施记录](./DOCUMENT_COLLABORATION_HISTORY.md)
+9. [ADR 0010: 知识资产操作人字段设计](./adr/0010-audit-actor-fields.md)
 
 ## 文档分类
 
@@ -44,6 +48,11 @@
 | 参考 | [数据库 Schema](./DATABASE_SCHEMA.md) | 表结构、关系和迁移说明 |
 | 运维 | [可观测性](./OBSERVABILITY.md) | trace、指标、告警和 Prometheus 接入 |
 | 运维 | [安全策略](./SECURITY.md) | 威胁模型、权限边界和生产安全建议 |
+| 设计 | [在线文档协作](./DOCUMENT_COLLABORATION.md) | 协作编辑架构、存储模型、媒体处理和前后端集成 |
+| 设计 | [Markdown 编辑器规范](./MARKDOWN_EDITOR.md) | 编辑器能力边界、Markdown 交换标准与实施约束 |
+| 设计 | [ADR 0009: 文档协作存储设计](./adr/0009-document-collaboration-storage-design.md) | 文档协作存储、持久化和实施边界的架构决策 |
+| 设计 | [ADR 0010: 知识资产操作人字段设计](./adr/0010-audit-actor-fields.md) | 知识库、知识树和导入任务操作人字段的架构决策与影响分析 |
+| 历史 | [文档协作实施记录](./DOCUMENT_COLLABORATION_HISTORY.md) | P1-P5 各阶段实施结果与代码基线验证记录 |
 | 运维 | [故障排查](./TROUBLESHOOTING.md) | 常见问题、诊断命令和修复建议 |
 
 ## 图片资产

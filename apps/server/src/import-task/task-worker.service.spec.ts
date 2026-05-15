@@ -3,6 +3,7 @@ import { ImportTask } from './entities/import-task.entity';
 import { Integration } from '../tenant/entities/integration.entity';
 import { Tenant } from '../tenant/entities/tenant.entity';
 import { KnowledgeNode } from '../knowledge-tree/entities/knowledge-node.entity';
+import { DocumentSessionRegistry } from '../common/document-session-registry';
 import {
   IntegrationType,
   TaskStatus,
@@ -65,6 +66,7 @@ describe('TaskWorkerService', () => {
     dingtalk?: Record<string, unknown>;
     git?: Record<string, unknown>;
     localImportStorage?: Record<string, unknown>;
+    documentSessionRegistry?: Record<string, unknown> | DocumentSessionRegistry;
   }) {
     return new TaskWorkerService(
       options.defaultDataSource as never,
@@ -86,6 +88,9 @@ describe('TaskWorkerService', () => {
         shouldCleanupAfterDone: jest.fn(() => false),
         isManagedFileUrl: jest.fn(() => false),
         deleteBySourceUrl: jest.fn(),
+      }) as never,
+      (options.documentSessionRegistry ?? {
+        assertNoActiveWriteSession: jest.fn(),
       }) as never,
     );
   }
@@ -475,6 +480,99 @@ describe('TaskWorkerService', () => {
     );
   });
 
+  it('本地 Markdown 导入任务应把原始增强 Markdown 文本原样透传给 temp_upload', async () => {
+    const tenant = createTenant('small-a', TenantIsolationLevel.SMALL);
+    const task = {
+      ...createTask('local-markdown-task', 'small-a'),
+      integrationId: '',
+      sourceType: 'local',
+      sourceUrl: 'file:///data/openviking/imports/release.md',
+      sourceName: '发布说明.md',
+      targetUri: 'viking://resources/small-a/kb-1/imports/local/',
+    } as ImportTaskModel;
+    const tenantRepo = {
+      findOne: jest.fn().mockResolvedValue(tenant),
+    };
+    const taskRepo = {
+      update: jest.fn(),
+    };
+    const defaultDataSource = {
+      getRepository: jest.fn((entity) => {
+        if (entity === Tenant) return tenantRepo;
+        if (entity === ImportTask) return taskRepo;
+        return {};
+      }),
+    };
+    const ovConfigResolver = {
+      resolve: jest.fn().mockResolvedValue({
+        baseUrl: 'http://ov.local',
+        apiKey: 'ov-key',
+        account: 'small-a',
+        user: 'worker-user',
+      }),
+    };
+    const ovClient = {
+      request: jest
+        .fn()
+        .mockResolvedValueOnce({ ok: true })
+        .mockResolvedValueOnce({
+          result: { children_count: 1, descendant_count: 1 },
+        })
+        .mockResolvedValueOnce({ result: { count: 3 } }),
+      uploadTempFile: jest.fn().mockResolvedValue({
+        result: { temp_file_id: 'upload_release.md' },
+      }),
+    };
+    const markdown = [
+      '# 发布说明',
+      '',
+      '- [x] 已完成',
+      '',
+      '| 功能 | 状态 |',
+      '| :--- | ---: |',
+      '| Markdown | 已接入 |',
+      '',
+      '```mermaid',
+      'flowchart TD',
+      '  A[开始] --> B[结束]',
+      '```',
+    ].join('\n');
+    const localImportStorage = {
+      readBySourceUrl: jest.fn().mockResolvedValue({
+        fileName: 'release.md',
+        buffer: Buffer.from(markdown, 'utf8'),
+        mimeType: 'text/markdown;charset=utf-8',
+      }),
+      shouldCleanupAfterDone: jest.fn(() => false),
+      isManagedFileUrl: jest.fn(() => true),
+      deleteBySourceUrl: jest.fn(),
+    };
+    const service = createService({
+      defaultDataSource,
+      ovConfigResolver,
+      ovClient,
+      localImportStorage,
+    });
+
+    await (
+      service as unknown as {
+        processTask(task: ImportTaskModel): Promise<void>;
+      }
+    ).processTask(task);
+
+    expect(ovClient.uploadTempFile).toHaveBeenCalledWith(
+      expect.objectContaining({ account: 'small-a' }),
+      '/api/v1/resources/temp_upload',
+      {
+        fileName: '发布说明.md',
+        buffer: Buffer.from(markdown, 'utf8'),
+        mimeType: 'text/markdown;charset=utf-8',
+      },
+      { user: 'worker-user' },
+      { serviceLabel: 'OpenViking Resources' },
+    );
+  });
+
   it('文档导入成功后仅在唯一正文叶子存在时回写 contentUri', async () => {
     const nodeRepo = {
       update: jest.fn(),
@@ -539,6 +637,84 @@ describe('TaskWorkerService', () => {
     );
     expect(nodeRepo.update).toHaveBeenCalledWith('node-file', {
       contentUri: 'viking://resources/tenants/small-a/kb-1/node-file/content.md',
+      updatedAt: expect.any(Date),
+    });
+  });
+
+  it('文档目标存在可写协作会话时应标记任务失败且不清空容器', async () => {
+    const tenant = createTenant('small-a', TenantIsolationLevel.SMALL);
+    const task = {
+      ...createTask('document-lock-task', 'small-a'),
+      integrationId: '',
+      sourceType: 'url',
+      sourceUrl: 'https://docs.example.com/page',
+      targetUri: 'viking://resources/tenants/small-a/kb-1/node-doc/',
+    } as ImportTaskModel;
+    const tenantRepo = {
+      findOne: jest.fn().mockResolvedValue(tenant),
+    };
+    const taskRepo = {
+      update: jest.fn(),
+    };
+    const nodeRepo = {
+      findOne: jest.fn().mockResolvedValue({
+        id: 'node-doc',
+        tenantId: 'small-a',
+        kbId: 'kb-1',
+        kind: 'document',
+        vikingUri: 'viking://resources/tenants/small-a/kb-1/node-doc/',
+        contentUri: 'viking://resources/tenants/small-a/kb-1/node-doc/old.md',
+      }),
+    };
+    const defaultDataSource = {
+      getRepository: jest.fn((entity) => {
+        if (entity === Tenant) return tenantRepo;
+        if (entity === ImportTask) return taskRepo;
+        if (entity === KnowledgeNode) return nodeRepo;
+        return {};
+      }),
+    };
+    const ovConfigResolver = {
+      resolve: jest.fn().mockResolvedValue({
+        baseUrl: 'http://ov.local',
+        apiKey: 'ov-key',
+        account: 'small-a',
+        user: 'worker-user',
+      }),
+    };
+    const ovClient = {
+      request: jest.fn(),
+    };
+    const documentSessionRegistry = new DocumentSessionRegistry();
+    documentSessionRegistry.register('kb-1', 'node-doc', 'collab-conn-1', 'write');
+    const assertNoActiveWriteSessionSpy = jest.spyOn(
+      documentSessionRegistry,
+      'assertNoActiveWriteSession',
+    );
+    const service = createService({
+      defaultDataSource,
+      ovConfigResolver,
+      ovClient,
+      documentSessionRegistry,
+    });
+
+    await (
+      service as unknown as {
+        processTask(task: ImportTaskModel): Promise<void>;
+      }
+    ).processTask(task);
+
+    expect(assertNoActiveWriteSessionSpy).toHaveBeenCalledWith('node-doc');
+    expect(ovClient.request).not.toHaveBeenCalled();
+    expect(taskRepo.update).toHaveBeenNthCalledWith(1, 'document-lock-task', {
+      status: TaskStatus.RUNNING,
+      updatedAt: expect.any(Date),
+    });
+    expect(taskRepo.update).toHaveBeenNthCalledWith(2, 'document-lock-task', {
+      status: TaskStatus.FAILED,
+      nodeCount: 0,
+      vectorCount: 0,
+      errorMsg: '目标节点正在被协作编辑',
       updatedAt: expect.any(Date),
     });
   });

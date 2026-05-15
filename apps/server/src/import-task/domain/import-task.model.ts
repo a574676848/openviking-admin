@@ -1,3 +1,5 @@
+import type { AuditActorSnapshot } from '../../common/audit-actor.types';
+
 export type ImportTaskStatus =
   | 'pending'
   | 'running'
@@ -27,6 +29,12 @@ export interface ImportTaskModel {
   nodeCount: number;
   vectorCount: number;
   errorMsg: string | null;
+  createdById?: string | null;
+  createdByName?: string | null;
+  updatedById?: string | null;
+  updatedByName?: string | null;
+  createdBy?: AuditActorSnapshot | null;
+  updatedBy?: AuditActorSnapshot | null;
   createdAt: Date;
   updatedAt: Date;
 }

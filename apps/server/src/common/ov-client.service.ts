@@ -437,58 +437,83 @@ export class OVClientService {
     options?: OVRequestOptions,
   ): Promise<OVStreamResponse> {
     const serviceLabel = options?.serviceLabel ?? 'OpenViking';
-    const controller = new AbortController();
-    const requestHeaders = { ...headers };
-    const timeoutMs = options?.timeoutMs;
-    const timeoutId =
-      timeoutMs && timeoutMs > 0
-        ? setTimeout(() => controller.abort(), timeoutMs)
-        : undefined;
+    const retryCount = Math.max(options?.retryCount ?? 0, 0);
+    const retryDelayMs = Math.max(
+      options?.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS,
+      0,
+    );
 
-    if (meta?.traceId) {
-      requestHeaders['x-trace-id'] = meta.traceId;
-    }
-    if (meta?.requestId) {
-      requestHeaders['x-request-id'] = meta.requestId;
-    }
+    for (let attempt = 0; attempt <= retryCount; attempt += 1) {
+      const controller = new AbortController();
+      const requestHeaders = { ...headers };
+      const timeoutMs = options?.timeoutMs;
+      const timeoutId =
+        timeoutMs && timeoutMs > 0
+          ? setTimeout(() => controller.abort(), timeoutMs)
+          : undefined;
 
-    try {
-      const res = await fetch(url, {
-        method,
-        headers: requestHeaders,
-        body: body ? JSON.stringify(body) : undefined,
-        signal: controller.signal,
-      });
-
-      if (!res.ok) {
-        const errorText = await res.text();
-        throw this.createHttpError(serviceLabel, res.status, errorText, meta);
+      if (meta?.traceId) {
+        requestHeaders['x-trace-id'] = meta.traceId;
       }
-      if (!res.body) {
-        throw this.createHttpError(
-          serviceLabel,
-          HttpStatus.BAD_GATEWAY,
-          '缺少响应流',
-          meta,
+      if (meta?.requestId) {
+        requestHeaders['x-request-id'] = meta.requestId;
+      }
+
+      try {
+        const res = await fetch(url, {
+          method,
+          headers: requestHeaders,
+          body: body ? JSON.stringify(body) : undefined,
+          signal: controller.signal,
+        });
+
+        if (!res.ok) {
+          const errorText = await res.text();
+          throw this.createHttpError(serviceLabel, res.status, errorText, meta);
+        }
+        if (!res.body) {
+          throw this.createHttpError(
+            serviceLabel,
+            HttpStatus.BAD_GATEWAY,
+            '缺少响应流',
+            meta,
+          );
+        }
+
+        return {
+          stream: Readable.fromWeb(res.body as never),
+          contentType: res.headers.get('content-type') ?? undefined,
+          contentLength: res.headers.get('content-length') ?? undefined,
+        };
+      } catch (error: unknown) {
+        const mappedError = this.normalizeError(serviceLabel, error, meta);
+        const hasNextAttempt = attempt < retryCount;
+
+        if (mappedError.retriable && hasNextAttempt) {
+          this.logger.warn(
+            `${serviceLabel} 请求失败，准备重试 (${attempt + 1}/${retryCount + 1}) traceId=${meta?.traceId ?? '-'} requestId=${meta?.requestId ?? '-'}: ${mappedError.message}`,
+          );
+          await this.sleep(retryDelayMs);
+          continue;
+        }
+
+        this.logger.error(
+          `Failed to connect to ${serviceLabel} traceId=${meta?.traceId ?? '-'} requestId=${meta?.requestId ?? '-'}: ${mappedError.message}`,
         );
-      }
-
-      return {
-        stream: Readable.fromWeb(res.body as never),
-        contentType: res.headers.get('content-type') ?? undefined,
-        contentLength: res.headers.get('content-length') ?? undefined,
-      };
-    } catch (error: unknown) {
-      const mappedError = this.normalizeError(serviceLabel, error, meta);
-      this.logger.error(
-        `Failed to connect to ${serviceLabel} traceId=${meta?.traceId ?? '-'} requestId=${meta?.requestId ?? '-'}: ${mappedError.message}`,
-      );
-      throw mappedError;
-    } finally {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
+        throw mappedError;
+      } finally {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
       }
     }
+
+    throw this.createHttpError(
+      serviceLabel,
+      HttpStatus.SERVICE_UNAVAILABLE,
+      '重试次数耗尽',
+      meta,
+    );
   }
 
   private normalizeError(

@@ -6,7 +6,7 @@
 
 | 类型 | 技术 |
 |------|------|
-| 运行时 | Node.js 20 |
+| 运行时 | Node.js 24 |
 | Framework | NestJS 11 |
 | ORM | TypeORM |
 | Database | PostgreSQL 14+ |

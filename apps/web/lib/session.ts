@@ -14,6 +14,8 @@ type SessionUser = {
   hasCustomOvConfig?: boolean;
 };
 
+export type { SessionUser };
+
 function isBrowser() {
   return typeof window !== "undefined";
 }
@@ -60,6 +62,13 @@ export function readSessionUser(): SessionUser | null {
 export function writeSessionUser(user: SessionUser): void {
   if (!isBrowser()) return;
   sessionStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
+}
+
+export function writeSessionUserToWindow(
+  targetWindow: Window,
+  user: SessionUser,
+): void {
+  targetWindow.sessionStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
 }
 
 export function clearSessionToken(): void {

@@ -130,20 +130,29 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
         </nav>
 
-        <div className="mt-auto border-t border-[var(--border)] px-4 py-4">
-          <div className={`flex ${sidebarCollapsed ? 'flex-col items-center gap-3' : 'flex-row items-center gap-2'}`}>
-            <ThemeSwitcher className={sidebarCollapsed ? '' : 'flex-1 min-w-0'} placement="top" compact={sidebarCollapsed} />
-            <button
-              type="button"
-              onClick={logout}
-              className={getShellButtonClass(shellTheme, "danger", `flex h-11 ${sidebarCollapsed ? 'w-11 px-0 justify-center' : 'px-3 shrink-0'}`)}
-              title="退出系统"
-            >
-              <div className={getShellTileClass(shellTheme, "p-1.5 bg-[var(--danger)]/10")}>
-                <LogOut size={14} strokeWidth={2.5} />
-              </div>
-              {!sidebarCollapsed && <span className="ml-1">退出系统</span>}
-            </button>
+        <div className="mt-auto">
+          {!sidebarCollapsed && (
+            <div className="border-t border-[var(--border)] px-4 py-3 text-center">
+              <p className="font-sans text-[10px] text-[var(--text-muted)] leading-relaxed">
+                设计与开发：<a href="https://github.com/a574676848/openviking-admin" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-[var(--brand)] transition-colors">OpenViking Admin</a>
+              </p>
+            </div>
+          )}
+          <div className="border-t border-[var(--border)] px-4 py-4">
+            <div className={`flex ${sidebarCollapsed ? 'flex-col items-center gap-3' : 'flex-row items-center gap-2'}`}>
+              <ThemeSwitcher className={sidebarCollapsed ? '' : 'flex-1 min-w-0'} placement="top" compact={sidebarCollapsed} />
+              <button
+                type="button"
+                onClick={logout}
+                className={getShellButtonClass(shellTheme, "danger", `flex h-11 ${sidebarCollapsed ? 'w-11 px-0 justify-center' : 'px-3 shrink-0'}`)}
+                title="退出系统"
+              >
+                <div className={getShellTileClass(shellTheme, "p-1.5 bg-[var(--danger)]/10")}>
+                  <LogOut size={14} strokeWidth={2.5} />
+                </div>
+                {!sidebarCollapsed && <span className="ml-1">退出系统</span>}
+              </button>
+            </div>
           </div>
         </div>
       </aside>

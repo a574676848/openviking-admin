@@ -33,6 +33,20 @@
   --info:    #16A34A;
 
   --font-stack-sans: var(--font-inter), "PingFang SC", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
+
+  /* 文档编辑器专属变量 */
+  --editor-body-size: 16px;
+  --editor-line-height: 1.75;
+  --editor-max-width: 100%;
+  --editor-bg: var(--bg-base);
+  --editor-surface: var(--bg-card);
+  --editor-toolbar-bg: var(--bg-elevated);
+  --collab-cursor-1: #E06C75;
+  --collab-cursor-2: #61AFEF;
+  --collab-cursor-3: #C678DD;
+  --collab-cursor-4: #98C379;
+  --collab-cursor-5: #E5C07B;
+  --collab-cursor-6: #56B6C2;
 }
 
 /* ─── Starry Sky Dark Style Overrides ─── */
@@ -61,6 +75,9 @@
   --warning: #F59E0B;
   --danger: #EF4444;
   --info: #0EA5E9;
+  --editor-bg: var(--bg-base);
+  --editor-surface: rgba(255, 255, 255, 0.04);
+  --editor-toolbar-bg: rgba(255, 255, 255, 0.06);
 }
 
 /* ─── Theme Visibility Helpers ─── */
@@ -310,6 +327,242 @@ samp {
   background-color: var(--border);
 }
 
+.ov-document-editor.bn-container {
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-stack-sans);
+  font-size: var(--editor-body-size);
+  line-height: var(--editor-line-height);
+}
+
+.ov-document-editor .bn-editor {
+  background: transparent;
+  color: var(--text-primary);
+  min-height: 48vh;
+  padding-inline: 54px; /* 恢复标准边距，确保 BlockNote 内部布局计算正确 */
+  padding-bottom: 240px; /* 预留充足空间给斜杠菜单，防止被底部遮挡 */
+}
+
+/* 修复媒体块（图片、视频）过大导致布局错乱的问题 */
+.ov-document-editor .bn-block-content[data-content-type="image"] img,
+.ov-document-editor .bn-block-content[data-content-type="video"] video,
+.ov-document-editor .bn-image-container img,
+.ov-document-editor .bn-video-container video {
+  max-width: 85% !important; /* 不铺满全宽，留出呼吸感 */
+  max-height: 70vh !important; /* 限制高度，防止长图霸屏 */
+  height: auto !important;
+  border-radius: var(--radius-tile);
+  display: block;
+  object-fit: contain;
+  margin: 0 auto;
+  box-shadow: var(--shadow-base);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ov-document-editor .bn-image-container img:hover {
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-2px);
+}
+
+.ov-document-editor .bn-image-container,
+.ov-document-editor .bn-video-container {
+  max-width: 100% !important;
+  display: flex;
+  justify-content: center;
+  padding: 12px 0;
+}
+
+.ov-document-editor .bn-block-content {
+  color: var(--text-primary);
+  font-family: var(--font-stack-sans);
+  line-height: var(--editor-line-height);
+}
+
+.ov-document-editor .bn-suggestion-menu {
+  background: var(--editor-toolbar-bg);
+  border-color: var(--border);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-hover);
+  font-family: var(--font-stack-sans) !important;
+  border-radius: var(--radius-base);
+  padding: 8px;
+  -webkit-font-smoothing: antialiased;
+  max-height: 320px;
+  overflow-y: auto;
+  z-index: 1000;
+}
+
+.ov-document-editor .bn-suggestion-menu .bn-suggestion-menu-item {
+  border-radius: var(--radius-inner);
+  transition: all 0.2s ease;
+  padding: 8px 12px;
+}
+
+.ov-document-editor .bn-suggestion-menu .bn-suggestion-menu-item .bn-suggestion-menu-item-title {
+  font-weight: 400 !important;
+  font-size: 14px;
+  color: var(--text-primary);
+  font-family: var(--font-stack-sans) !important;
+}
+
+.ov-document-editor .bn-suggestion-menu .bn-suggestion-menu-item .bn-suggestion-menu-item-description {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-stack-sans) !important;
+}
+
+.ov-document-editor .bn-suggestion-menu .bn-suggestion-menu-item[data-selected="true"],
+.ov-document-editor .bn-suggestion-menu .bn-suggestion-menu-item:hover {
+  background: var(--brand-muted);
+}
+
+.ov-document-editor .bn-suggestion-menu .bn-suggestion-menu-item[data-selected="true"] .bn-suggestion-menu-item-title,
+.ov-document-editor .bn-suggestion-menu .bn-suggestion-menu-item:hover .bn-suggestion-menu-item-title {
+  color: var(--brand-hover);
+}
+
+.ov-document-editor .bn-block-content[data-content-type="heading"] {
+  letter-spacing: 0;
+}
+
+/* Toolbar Style Adjustments */
+.ov-document-toolbar-button-active {
+  background: var(--brand-muted) !important;
+  color: var(--brand) !important;
+}
+
+/* Hyperlink Styling in Editor */
+.ov-document-editor a,
+.ov-document-editor [data-link-url] {
+  color: var(--brand) !important;
+  text-decoration: underline !important;
+  text-underline-offset: 3px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.ov-document-editor .bn-react-node-view-renderer.ProseMirror-selectednode,
+.ov-document-editor .ProseMirror-selectednode,
+.ov-document-editor .bn-block-outer[data-selected="true"],
+.ov-document-editor .bn-block-outer[data-selected="true"] > .bn-block,
+.ov-document-editor [data-content-type][data-selected="true"],
+.ov-document-editor .bn-visual-selection {
+  outline: none !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
+  background-color: transparent !important;
+}
+
+.ov-document-editor .bn-react-node-view-renderer.ProseMirror-selectednode > div,
+.ov-document-editor .bn-block-content.ProseMirror-selectednode > *,
+.ov-document-editor .ProseMirror-selectednode > .bn-block-content > * {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.ov-document-editor a:hover,
+.ov-document-editor [data-link-url]:hover {
+  opacity: 0.7;
+  text-decoration-thickness: 2px;
+}
+
+/* Toolbar Select Styling */
+.ov-document-toolbar select {
+  appearance: none;
+  background-color: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-inner);
+  padding: 2px 24px 2px 8px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 6px center;
+  font-size: 13px;
+  color: var(--text-primary);
+  min-width: 80px;
+  transition: all 0.2s ease;
+}
+
+.ov-document-toolbar select:hover {
+  border-color: var(--brand);
+  background-color: var(--bg-card);
+}
+
+/* Table Styling - Full Width */
+.ov-document-editor [data-content-type="table"],
+.ov-document-editor [data-content-type="table"] > div {
+  width: 100% !important;
+}
+
+.ov-document-editor [data-content-type="table"] table {
+  width: 100% !important;
+  min-width: 100% !important;
+  table-layout: fixed;
+}
+
+/* Code Block & Mermaid Styling - Beautified & Theme Aware */
+.ov-document-editor [data-content-type="codeBlock"],
+.ov-document-editor [data-content-type="codeBlock"] *,
+.ov-document-editor .bn-code-block,
+.ov-document-editor .bn-code-block * {
+  background-color: transparent !important;
+  color: var(--text-primary) !important;
+}
+
+.ov-document-editor [data-content-type="codeBlock"] {
+  background-color: var(--bg-input) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 16px !important; /* Make it more rounded like the rest of the UI */
+  padding: 8px !important; /* Slightly more padding for breathing room */
+  margin: 16px 0 !important;
+  font-family: var(--font-stack-mono) !important;
+  pointer-events: auto !important;
+  display: block !important;
+  min-height: 50px !important;
+  box-shadow: var(--shadow-base) !important; /* Add subtle shadow */
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.ov-document-editor [data-content-type="codeBlock"]:hover {
+  box-shadow: var(--shadow-hover) !important; /* Glow/lift on hover */
+}
+
+.theme-starry .ov-document-editor [data-content-type="codeBlock"] {
+  backdrop-filter: blur(12px) !important;
+  border-color: rgba(0, 240, 255, 0.2) !important; /* Starry theme subtle glowing border */
+}
+
+/* 修复 Ctrl+A 全选时，自定义 procode 和 mermaid 块没有视觉反馈覆盖层的问题 */
+.ov-document-editor .bn-block-outer[data-selected="true"] [data-content-type="procode"] > div:first-child,
+.ov-document-editor .bn-block-outer[data-selected="true"] [data-content-type="mermaid"] > div:first-child,
+.ov-document-editor .ProseMirror-selectednode [data-content-type="procode"] > div:first-child,
+.ov-document-editor .ProseMirror-selectednode [data-content-type="mermaid"] > div:first-child {
+  position: relative;
+}
+
+.ov-document-editor .bn-block-outer[data-selected="true"] [data-content-type="procode"] > div:first-child::after,
+.ov-document-editor .bn-block-outer[data-selected="true"] [data-content-type="mermaid"] > div:first-child::after,
+.ov-document-editor .ProseMirror-selectednode [data-content-type="procode"] > div:first-child::after,
+.ov-document-editor .ProseMirror-selectednode [data-content-type="mermaid"] > div:first-child::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-color: rgba(59, 130, 246, 0.25); /* 模拟系统蓝色的全选覆盖层 */
+  pointer-events: none;
+  z-index: 50;
+  border-radius: inherit;
+  transition: opacity 0.2s ease;
+}
+
+/* Ensure the internal pre/code is visible */
+.ov-document-editor [data-content-type="codeBlock"] pre,
+.ov-document-editor [data-content-type="codeBlock"] code {
+  background: transparent !important;
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  pointer-events: auto !important;
+}
+
 /* 流星雨特效 */
 .animate-meteor {
   position: absolute;
@@ -360,61 +613,14 @@ samp {
     opacity: 0;
     transform: rotate(135deg) translateX(0);
   }
-  2% {
+  10% {
     opacity: 1;
   }
-  20% {
+  70% {
     opacity: 1;
-  }
-  25% {
-    opacity: 0;
-    transform: rotate(135deg) translateX(150vw);
   }
   100% {
+    transform: rotate(135deg) translateX(-1200px);
     opacity: 0;
-    transform: rotate(135deg) translateX(150vw);
   }
 }
-
-/* 萤火虫闪烁特效 */
-@keyframes firefly-blink {
-  0%, 100% { 
-    opacity: 0; 
-    transform: scale(0.5);
-  }
-  20% { 
-    opacity: 1; 
-    transform: scale(1.2);
-  }
-  40% { 
-    opacity: 0.1; 
-    transform: scale(0.8);
-  }
-  60% { 
-    opacity: 0.8; 
-    transform: scale(1);
-  }
-  80% { 
-    opacity: 0; 
-    transform: scale(0.5);
-  }
-}
-.animate-firefly {
-  animation: firefly-blink 6s ease-in-out infinite;
-}
-
-@keyframes wing-flap-top {
-  0%, 100% { transform: rotate(10deg); }
-  50% { transform: rotate(50deg); }
-}
-@keyframes wing-flap-bottom {
-  0%, 100% { transform: rotate(-10deg); }
-  50% { transform: rotate(-50deg); }
-}
-.animate-wing-top {
-  animation: wing-flap-top 0.08s linear infinite;
-}
-.animate-wing-bottom {
-  animation: wing-flap-bottom 0.08s linear infinite;
-}
-

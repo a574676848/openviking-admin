@@ -187,6 +187,38 @@ describe('OVClientService', () => {
     });
   });
 
+  it('流式请求遇到可重试的 503 时应重试并最终成功', async () => {
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        text: async () => 'temporarily unavailable',
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: {
+          get: (name: string) => {
+            if (name === 'content-type') return 'image/png';
+            if (name === 'content-length') return '3';
+            return null;
+          },
+        },
+        body: Readable.toWeb(Readable.from(['png'])),
+      });
+
+    const result = await service.requestStream(
+      { baseUrl: 'http://ov.local', apiKey: 'key', account: 'default' },
+      '/api/v1/content/download?uri=viking%3A%2F%2Fasset',
+      'GET',
+      undefined,
+      undefined,
+      { retryCount: 1, retryDelayMs: 0, serviceLabel: 'OpenViking 内容下载' },
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await expect(collectStream(result.stream)).resolves.toBe('png');
+  });
+
   it('403 应映射为不可重试异常', async () => {
     fetchMock.mockResolvedValue({
       ok: false,

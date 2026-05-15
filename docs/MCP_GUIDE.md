@@ -26,6 +26,9 @@ MCP 是协议入口，不是独立业务层。MCP 暴露的工具来自统一 ca
 | `documents.import.cancel` | `documents.import.cancel` | 取消排队中的文档导入任务 |
 | `documents.import.retry` | `documents.import.retry` | 重试失败或已取消的文档导入任务 |
 | `documents.import.events` | `documents.import.events` | 查看文档导入任务进度事件快照 |
+| `documents.index.status` | `documents.index.status` | 查看文档草稿与索引同步状态 |
+| `documents.index.rebuild` | `documents.index.rebuild` | 使用最新草稿重建文档索引 |
+| `documents.draft.grep` | `documents.draft.grep` | 对 Admin 侧文档草稿正文执行文本匹配 |
 
 ## 获取凭证
 
@@ -39,7 +42,7 @@ MCP 客户端可以使用两类凭证：
 示例：
 
 ```bash
-ova auth login --server http://localhost:6001 --username admin --password acme@123 --tenant-code acme
+ova auth login --server http://localhost:6001 --username admin --password <your-password> --tenant-code acme
 ova auth client-credentials --name claude-desktop --output json
 ova auth session-exchange --output json
 ```
@@ -55,7 +58,7 @@ ova setup --server http://localhost:6001 --api-key <ov-sk-...>
 或在已经登录的 profile 上直接执行：
 
 ```bash
-ova auth login --server http://localhost:6001 --username admin --password acme@123 --tenant-code acme
+ova auth login --server http://localhost:6001 --username admin --password <your-password> --tenant-code acme
 ova setup
 ```
 

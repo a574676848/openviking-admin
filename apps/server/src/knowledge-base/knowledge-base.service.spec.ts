@@ -1,4 +1,4 @@
-import { HttpException, NotFoundException } from '@nestjs/common';
+import { HttpException, HttpStatus, NotFoundException } from '@nestjs/common';
 import { KnowledgeBaseService } from './knowledge-base.service';
 
 describe('KnowledgeBaseService', () => {
@@ -17,6 +17,7 @@ describe('KnowledgeBaseService', () => {
   };
   const knowledgeTreeService = {
     findByKb: jest.fn(),
+    aggregateKnowledgeBaseStats: jest.fn(),
     remove: jest.fn(),
   };
   const settingsService = {
@@ -25,12 +26,16 @@ describe('KnowledgeBaseService', () => {
   const ovClientService = {
     request: jest.fn(),
   };
+  const documentSessionRegistry = {
+    hasActiveSessionInKb: jest.fn(),
+  };
   const service = new KnowledgeBaseService(
     kbRepo as never,
     tenantService as never,
     knowledgeTreeService as never,
     settingsService as never,
     ovClientService as never,
+    documentSessionRegistry as never,
   );
 
   beforeEach(() => {
@@ -41,6 +46,7 @@ describe('KnowledgeBaseService', () => {
       account: 'tenant-alpha',
       user: null,
     });
+    documentSessionRegistry.hasActiveSessionInKb.mockReturnValue(false);
   });
 
   it('跨租户查询知识库时应拒绝访问', async () => {
@@ -52,15 +58,15 @@ describe('KnowledgeBaseService', () => {
     expect(kbRepo.findById).toHaveBeenCalledWith('kb-1', 'tenant-a');
   });
 
-  it('读取知识库列表时应过滤归档项并按根目录实时刷新文档数与向量数', async () => {
+  it('读取知识库列表时应过滤归档项并直接返回已持久化统计', async () => {
     kbRepo.findAll.mockResolvedValue([
       {
         id: 'kb-1',
         tenantId: 'tenant-alpha',
         name: '知识库一',
         vikingUri: 'viking://resources/tenants/tenant-alpha/kb-1/',
-        docCount: 0,
-        vectorCount: 0,
+        docCount: 2,
+        vectorCount: 7,
         status: 'active',
       },
       {
@@ -73,44 +79,10 @@ describe('KnowledgeBaseService', () => {
         status: 'archived',
       },
     ]);
-    ovClientService.request
-      .mockResolvedValueOnce({
-        result: [
-          { isDir: true },
-          { isDir: false },
-          { isDir: false },
-        ],
-      })
-      .mockResolvedValueOnce({
-        result: { count: 7 },
-      });
-    kbRepo.save.mockImplementation(async (payload) => payload);
+    const result = await service.findAll('tenant-alpha');
 
-    const result = await service.findAllWithRuntimeStats('tenant-alpha');
-
-    expect(ovClientService.request).toHaveBeenNthCalledWith(
-      1,
-      expect.objectContaining({ account: 'tenant-alpha' }),
-      '/api/v1/fs/tree?uri=viking%3A%2F%2Fresources%2Ftenants%2Ftenant-alpha%2Fkb-1%2F',
-      'GET',
-      undefined,
-      { user: undefined },
-    );
-    expect(ovClientService.request).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({ account: 'tenant-alpha' }),
-      '/api/v1/debug/vector/count?uri=viking%3A%2F%2Fresources%2Ftenants%2Ftenant-alpha%2Fkb-1%2F',
-      'GET',
-      undefined,
-      { user: undefined },
-    );
-    expect(kbRepo.save).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: 'kb-1',
-        docCount: 2,
-        vectorCount: 7,
-      }),
-    );
+    expect(ovClientService.request).not.toHaveBeenCalled();
+    expect(kbRepo.save).not.toHaveBeenCalled();
     expect(result).toEqual([
       expect.objectContaining({
         id: 'kb-1',
@@ -136,7 +108,7 @@ describe('KnowledgeBaseService', () => {
     ).rejects.toThrow(NotFoundException);
   });
 
-  it('读取单个知识库时若根目录已不存在应将统计归零', async () => {
+  it('读取单个知识库时应直接返回已持久化统计', async () => {
     kbRepo.findById.mockResolvedValue({
       id: 'kb-missing',
       tenantId: 'tenant-alpha',
@@ -145,30 +117,55 @@ describe('KnowledgeBaseService', () => {
       docCount: 9,
       vectorCount: 18,
     });
-    ovClientService.request.mockRejectedValueOnce(
-      new HttpException('不存在', 404),
-    );
-    kbRepo.save.mockImplementation(async (payload) => payload);
+    const result = await service.findOne('kb-missing', 'tenant-alpha');
 
-    const result = await service.findOneWithRuntimeStats(
-      'kb-missing',
-      'tenant-alpha',
-    );
-
-    expect(kbRepo.save).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: 'kb-missing',
-        docCount: 0,
-        vectorCount: 0,
-      }),
-    );
+    expect(ovClientService.request).not.toHaveBeenCalled();
+    expect(kbRepo.save).not.toHaveBeenCalled();
     expect(result).toEqual(
       expect.objectContaining({
         id: 'kb-missing',
-        docCount: 0,
-        vectorCount: 0,
+        docCount: 9,
+        vectorCount: 18,
       }),
     );
+  });
+
+  it('刷新知识库统计时应按文档节点聚合并回写知识库', async () => {
+    const kb = {
+      id: 'kb-1',
+      tenantId: 'tenant-alpha',
+      name: '知识库一',
+      status: 'active',
+      vikingUri: 'viking://resources/tenants/tenant-alpha/kb-1/',
+      docCount: 0,
+      vectorCount: 0,
+    };
+    kbRepo.findById.mockResolvedValue(kb);
+    knowledgeTreeService.aggregateKnowledgeBaseStats.mockResolvedValue({
+      docCount: 3,
+      vectorCount: 12,
+    });
+    kbRepo.save.mockImplementation(async (item) => item);
+
+    const result = await service.refreshStatsFromNodes(
+      'kb-1',
+      'tenant-alpha',
+      { id: 'user-1', username: 'admin' },
+    );
+
+    expect(knowledgeTreeService.aggregateKnowledgeBaseStats).toHaveBeenCalledWith(
+      'kb-1',
+      'tenant-alpha',
+    );
+    expect(kbRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        docCount: 3,
+        vectorCount: 12,
+        updatedById: 'user-1',
+        updatedByName: 'admin',
+      }),
+    );
+    expect(result).toEqual(expect.objectContaining({ docCount: 3, vectorCount: 12 }));
   });
 
   it('跨租户更新知识库时应拒绝访问', async () => {
@@ -285,6 +282,29 @@ describe('KnowledgeBaseService', () => {
     expect(
       knowledgeTreeService.remove.mock.invocationCallOrder[0],
     ).toBeLessThan(kbRepo.delete.mock.invocationCallOrder[0]);
+  });
+
+  it('删除知识库前应阻止活跃协作会话所在的知识库', async () => {
+    kbRepo.findById.mockResolvedValue({
+      id: 'kb-1',
+      tenantId: 'tenant-alpha',
+      name: '记忆',
+      vikingUri: 'viking://resources/tenants/tenant-alpha/kb-1/',
+    });
+    documentSessionRegistry.hasActiveSessionInKb.mockReturnValue(true);
+
+    await expect(service.remove('kb-1', 'tenant-alpha')).rejects.toMatchObject({
+      status: HttpStatus.LOCKED,
+      message: '目标知识库正在被协作编辑',
+    });
+
+    expect(documentSessionRegistry.hasActiveSessionInKb).toHaveBeenCalledWith(
+      'kb-1',
+    );
+    expect(settingsService.resolveOVConfig).not.toHaveBeenCalled();
+    expect(ovClientService.request).not.toHaveBeenCalled();
+    expect(knowledgeTreeService.remove).not.toHaveBeenCalled();
+    expect(kbRepo.delete).not.toHaveBeenCalled();
   });
 
   it('删除知识库遇到 OpenViking 404 时应继续删除本地元数据', async () => {

@@ -136,6 +136,31 @@ export async function callApi(
     return payload;
 }
 
+export async function uploadMultipartApi(
+    path: string,
+    body: FormData,
+    options: Record<string, string | boolean> = {},
+    store: CredentialStore,
+) {
+    const { stateFile, profileName, profile } = readProfile(store, options);
+    const nextProfile = await ensureAccessToken(profileName, profile, stateFile, store);
+    const headers = new Headers();
+    applyProfileCredential(headers, nextProfile);
+
+    const response = await fetch(`${nextProfile.serverUrl}${path}`, {
+        method: 'POST',
+        headers,
+        body,
+    });
+
+    const payload = (await response.json()) as Record<string, unknown>;
+    if (!response.ok) {
+        throw new Error(unwrapError(payload, response.status));
+    }
+
+    return payload;
+}
+
 function applyProfileCredential(headers: Headers, nextProfile: CliProfile) {
     if (headers.has('Authorization') || headers.has('x-capability-key')) {
         return;

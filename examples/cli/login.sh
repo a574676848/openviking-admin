@@ -4,7 +4,7 @@ set -euo pipefail
 SERVER_URL="${SERVER_URL:-http://localhost:6001}"
 TENANT_CODE="${TENANT_CODE:-acme}"
 USERNAME="${USERNAME:-admin}"
-PASSWORD="${PASSWORD:-admin123}"
+PASSWORD="${PASSWORD:-secret}"
 PROFILE="${PROFILE:-dev}"
 
 ova auth login \

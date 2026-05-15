@@ -310,6 +310,64 @@ export class CapabilitiesController {
     );
   }
 
+  @Get('capability/documents/:id/index')
+  async getDocumentIndexStatus(
+    @Param('id') id: string,
+    @Headers('x-capability-key') capabilityKey: string | undefined,
+    @Headers('authorization') authorization: string | undefined,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.executeCapability(
+      'documents.index.status',
+      { nodeId: id },
+      this.resolveClientType('http'),
+      req,
+      res,
+      capabilityKey,
+      authorization,
+    );
+  }
+
+  @Post('capability/documents/:id/index/rebuild')
+  async rebuildDocumentIndex(
+    @Param('id') id: string,
+    @Headers('x-capability-key') capabilityKey: string | undefined,
+    @Headers('authorization') authorization: string | undefined,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.executeCapability(
+      'documents.index.rebuild',
+      { nodeId: id },
+      this.resolveClientType('http'),
+      req,
+      res,
+      capabilityKey,
+      authorization,
+    );
+  }
+
+  @Post('capability/documents/:id/draft/grep')
+  async grepDocumentDraft(
+    @Param('id') id: string,
+    @Body() body: Record<string, unknown>,
+    @Headers('x-capability-key') capabilityKey: string | undefined,
+    @Headers('authorization') authorization: string | undefined,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.executeCapability(
+      'documents.draft.grep',
+      { ...body, nodeId: id },
+      this.resolveClientType('http'),
+      req,
+      res,
+      capabilityKey,
+      authorization,
+    );
+  }
+
   private async executeCapability(
     capabilityId: CapabilityId,
     input: Record<string, unknown>,

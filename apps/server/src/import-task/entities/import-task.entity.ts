@@ -61,6 +61,18 @@ export class ImportTask {
   @Column({ name: 'error_msg', nullable: true, type: 'text' })
   errorMsg: string | null;
 
+  @Column({ name: 'created_by_id', type: 'varchar', length: 64, nullable: true })
+  createdById: string | null;
+
+  @Column({ name: 'created_by_name', type: 'varchar', length: 64, nullable: true })
+  createdByName: string | null;
+
+  @Column({ name: 'updated_by_id', type: 'varchar', length: 64, nullable: true })
+  updatedById: string | null;
+
+  @Column({ name: 'updated_by_name', type: 'varchar', length: 64, nullable: true })
+  updatedByName: string | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

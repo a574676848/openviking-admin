@@ -17,15 +17,23 @@ describe('KnowledgeTreeService', () => {
   const ovClientService = {
     request: jest.fn(),
   };
+  const documentSessionRegistry = {
+    assertNoActiveSessionInNodes: jest.fn(),
+  };
 
   const service = new KnowledgeTreeService(
     nodeRepo as never,
     settingsService as never,
     ovClientService as never,
+    documentSessionRegistry as never,
   );
 
   beforeEach(() => {
     jest.clearAllMocks();
+    documentSessionRegistry.assertNoActiveSessionInNodes.mockReset();
+    documentSessionRegistry.assertNoActiveSessionInNodes.mockImplementation(
+      () => undefined,
+    );
     settingsService.resolveOVConfig.mockResolvedValue({
       baseUrl: 'https://ov.example.com',
       apiKey: 'ov-sk-test',
@@ -83,6 +91,82 @@ describe('KnowledgeTreeService', () => {
     });
     expect(created.vikingUri).toBe(
       'viking://resources/tenant-alpha/kb-1/node-file.md',
+    );
+  });
+
+  it('createFile 收到无后缀名称时应自动补齐 Markdown 后缀', async () => {
+    nodeRepo.createFileWithGeneratedUri.mockResolvedValue({
+      id: 'node-file',
+      tenantId: 'tenant-alpha',
+      kbId: 'kb-1',
+      name: '说明.md',
+      kind: 'document',
+      vikingUri: 'viking://resources/tenant-alpha/kb-1/node-file/',
+      contentUri: null,
+    });
+
+    await service.createFile({
+      tenantId: 'tenant-alpha',
+      kbId: 'kb-1',
+      name: '说明',
+      fileExtension: '.md',
+    });
+
+    expect(nodeRepo.createFileWithGeneratedUri).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: '说明.md',
+        fileExtension: '.md',
+      }),
+    );
+  });
+
+  it('createFile 补齐 Markdown 后缀前应裁剪名称首尾空白', async () => {
+    nodeRepo.createFileWithGeneratedUri.mockResolvedValue({
+      id: 'node-file',
+      tenantId: 'tenant-alpha',
+      kbId: 'kb-1',
+      name: '发布记录.md',
+      kind: 'document',
+      vikingUri: 'viking://resources/tenant-alpha/kb-1/node-file/',
+      contentUri: null,
+    });
+
+    await service.createFile({
+      tenantId: 'tenant-alpha',
+      kbId: 'kb-1',
+      name: ' 发布记录 ',
+      fileExtension: '.md',
+    });
+
+    expect(nodeRepo.createFileWithGeneratedUri).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: '发布记录.md',
+      }),
+    );
+  });
+
+  it('createFile 收到已有后缀名称时不应重复补齐 Markdown 后缀', async () => {
+    nodeRepo.createFileWithGeneratedUri.mockResolvedValue({
+      id: 'node-file',
+      tenantId: 'tenant-alpha',
+      kbId: 'kb-1',
+      name: 'README.markdown',
+      kind: 'document',
+      vikingUri: 'viking://resources/tenant-alpha/kb-1/node-file/',
+      contentUri: null,
+    });
+
+    await service.createFile({
+      tenantId: 'tenant-alpha',
+      kbId: 'kb-1',
+      name: 'README.markdown',
+      fileExtension: '.md',
+    });
+
+    expect(nodeRepo.createFileWithGeneratedUri).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'README.markdown',
+      }),
     );
   });
 
@@ -146,6 +230,65 @@ describe('KnowledgeTreeService', () => {
         },
       }),
     );
+    expect(
+      documentSessionRegistry.assertNoActiveSessionInNodes,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('update 移动节点前应检查目标子树活跃协作会话', async () => {
+    nodeRepo.findOne.mockResolvedValue({
+      id: 'node-1',
+      tenantId: 'tenant-alpha',
+      kbId: 'kb-1',
+      parentId: 'parent-old',
+      name: '节点 A',
+      vikingUri: 'viking://resources/tenant-alpha/kb-1/node-1/',
+    });
+    nodeRepo.find.mockResolvedValue([]);
+    documentSessionRegistry.assertNoActiveSessionInNodes.mockImplementation(
+      () => {
+        throw new HttpException('目标节点或子节点正在被协作编辑', 423);
+      },
+    );
+
+    await expect(
+      service.update('node-1', { parentId: 'parent-new' }, 'tenant-alpha'),
+    ).rejects.toMatchObject({ status: 423 });
+
+    expect(
+      documentSessionRegistry.assertNoActiveSessionInNodes,
+    ).toHaveBeenCalledWith(['node-1']);
+    expect(nodeRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('update 重命名节点前应检查目标子树活跃协作会话', async () => {
+    nodeRepo.findOne.mockResolvedValue({
+      id: 'node-1',
+      tenantId: 'tenant-alpha',
+      kbId: 'kb-1',
+      parentId: null,
+      name: '旧名称',
+      vikingUri: 'viking://resources/tenant-alpha/kb-1/node-1/',
+    });
+    nodeRepo.find
+      .mockResolvedValueOnce([
+        {
+          id: 'child-1',
+          tenantId: 'tenant-alpha',
+          kbId: 'kb-1',
+          parentId: 'node-1',
+          name: '子节点',
+          vikingUri: 'viking://resources/tenant-alpha/kb-1/child-1/',
+        },
+      ])
+      .mockResolvedValueOnce([]);
+    nodeRepo.save.mockImplementation(async (node) => node);
+
+    await service.update('node-1', { name: '新名称' }, 'tenant-alpha');
+
+    expect(
+      documentSessionRegistry.assertNoActiveSessionInNodes,
+    ).toHaveBeenCalledWith(['node-1', 'child-1']);
   });
 
   it('touch 应只刷新节点更新时间', async () => {
@@ -240,6 +383,46 @@ describe('KnowledgeTreeService', () => {
     expect(ovClientService.request.mock.invocationCallOrder[0]).toBeLessThan(
       nodeRepo.remove.mock.invocationCallOrder[0],
     );
+  });
+
+  it('remove 删除前应检查目标子树活跃协作会话', async () => {
+    nodeRepo.findOne.mockResolvedValue({
+      id: 'node-dir',
+      tenantId: 'tenant-alpha',
+      kbId: 'kb-1',
+      parentId: null,
+      name: '目录',
+      vikingUri: 'viking://resources/tenants/tenant-alpha/kb-1/node-dir/',
+    });
+    nodeRepo.find
+      .mockResolvedValueOnce([
+        {
+          id: 'child-doc',
+          tenantId: 'tenant-alpha',
+          kbId: 'kb-1',
+          parentId: 'node-dir',
+          name: '子文档',
+          vikingUri:
+            'viking://resources/tenants/tenant-alpha/kb-1/child-doc/',
+        },
+      ])
+      .mockResolvedValueOnce([]);
+    documentSessionRegistry.assertNoActiveSessionInNodes.mockImplementation(
+      () => {
+        throw new HttpException('目标节点或子节点正在被协作编辑', 423);
+      },
+    );
+
+    await expect(service.remove('node-dir', 'tenant-alpha')).rejects.toMatchObject(
+      { status: 423 },
+    );
+
+    expect(
+      documentSessionRegistry.assertNoActiveSessionInNodes,
+    ).toHaveBeenCalledWith(['node-dir', 'child-doc']);
+    expect(settingsService.resolveOVConfig).not.toHaveBeenCalled();
+    expect(ovClientService.request).not.toHaveBeenCalled();
+    expect(nodeRepo.remove).not.toHaveBeenCalled();
   });
 
   it('remove 删除目录节点时应使用 recursive=true', async () => {

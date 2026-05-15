@@ -55,8 +55,8 @@ WebDAV 响应不使用统一 JSON envelope。知识库始终映射为目录资�
 - 当前读侧 `href` 对外使用知识库名和节点名路径，便于标准 WebDAV 客户端直接挂载租户根目录并浏览全部可访问知识库。
 - 为兼容 `sunmagicshow/obsidian-webdav` 一类客户端的写权限探测，只要 `PUT` 或 `DELETE` 目标路径最后一段命中 `.webdav_write_test_*` 前缀，服务端都会直接返回合成成功响应，不会读取正文、持久化任何资源，也不会创建导入任务或删除真实节点。
 - `PUT` 当前支持与本地导入白名单一致的文件扩展名，默认包括 `.md`、`.markdown`、`.txt`、`.json`、`.canvas`、`.css`、`.js`、`.pdf`、`.doc`、`.docx` 与 `.zip`。新建文件时服务端会先创建文档叶子节点，并为该叶子分配稳定资源容器 URI，再通过受控本地上传链路写入正文内容，成功返回 `201 Created`。
-- `PUT` 命中已有文档叶子 `href` 时，会保留原节点与稳定资源容器 URI，直接替换该叶子的 `contentUri` 正文内容，不再创建本地导入任务，成功返回 `204 No Content`。
-- `PUT` 新建文件时响应头会返回 `X-OpenViking-Import-Task-Id`，用于关联后续导入任务进度。覆盖写入因直接替换叶子而无此头。
+- `PUT` 命中已有文档叶子 `href` 时，会保留原节点与稳定资源容器 URI，只保存最新草稿并将索引状态标记为 `dirty`，成功返回 `204 No Content`。
+- `PUT` 新建文件时响应头会返回 `X-OpenViking-Import-Task-Id`，用于关联后续导入任务进度。覆盖写入只更新草稿，不返回导入任务头。
 - `DELETE /webdav/:tenantId/:kbName` 会映射为知识库递归删除，并复用知识库服务层与 OpenViking 资源清理逻辑；`DELETE /webdav/:tenantId/:kbName/:nodeName...` 仍只删除叶子文件或空目录，非空目录返回 `409 Conflict`，无 ACL 权限的节点按不存在处理。
 - `DELETE` 对带资源容器 URI 的节点会进入知识树服务层：目录节点会递归删除资源容器；文档叶子会删除该叶子的资源容器与正文内容。OpenViking 返回 `404` 时按幂等删除处理。
 - `MOVE /webdav/:tenantId/:kbName` 会把租户根目录下的知识库目录重命名为新的知识库名，只更新 Admin 侧知识库名称，不修改系统生成的 `vikingUri`，也不调用 OpenViking 移动接口。
@@ -66,7 +66,7 @@ WebDAV 响应不使用统一 JSON envelope。知识库始终映射为目录资�
 - 当前未实现 `LOCK` / `UNLOCK`。Obsidian Remotely Save 的 WebDAV 主链路不强依赖锁方法，常规同步通过目录探测、目录创建、文件写入、删除与 `MOVE` 完成。
 - 写入阶段同一父目录下不允许同名同类型资源；新建 `PUT`、`MKCOL` 或 `MOVE` 产生同名冲突时返回 `409 Conflict`。
 - 路径单段名称不能是空名称、`.`、`..`，不能包含 `/` 或 `\` 分隔符，单段长度不能超过 255 个字符；非法路径返回 `400 text/plain`。
-- `MKCOL` 在租户根目录下创建知识库，在知识库内创建目录节点；两种场景都不触发导入任务或索引重建。`PUT` 新建文件会触发异步导入任务，检索索引更新以导入任务完成为准；覆盖已有文件直接替换 `contentUri` 正文叶子。
+- `MKCOL` 在租户根目录下创建知识库，在知识库内创建目录节点；两种场景都不触发导入任务或索引重建。`PUT` 新建文件会触发异步导入任务，检索索引更新以导入任务完成为准；覆盖已有文件只更新草稿，需手动触发文档索引重建。
 
 ### 成功响应
 
@@ -423,6 +423,11 @@ LDAP / AD 域账号直接登录。服务端会使用租户 LDAP 集成中的 `bi
 | `documents.import.cancel` | `POST` | `/api/v1/capability/import-tasks/:id/cancel`  | 取消排队中的导入任务         |
 | `documents.import.retry`  | `POST` | `/api/v1/capability/import-tasks/:id/retry`   | 重试失败或已取消任务         |
 | `documents.import.events` | `GET`  | `/api/v1/capability/import-tasks/:id/events`  | 查看进度事件快照             |
+| `documents.index.status`  | `GET`  | `/api/v1/capability/documents/:id/index`      | 查看文档索引状态             |
+| `documents.index.rebuild` | `POST` | `/api/v1/capability/documents/:id/index/rebuild` | 使用最新草稿重建索引      |
+| `documents.draft.grep`    | `POST` | `/api/v1/capability/documents/:id/draft/grep` | 检索 Admin 侧文档草稿正文 |
+
+导入任务列表、详情、状态和 capability 投影会返回 `createdBy`、`updatedBy`。创建任务时两个字段均为当前操作者；重试和取消会更新 `updatedBy`；Worker 自动推进任务状态不会覆盖人工操作人。
 
 失败任务的物理删除当前仅提供给控制台/JWT 管理接口，尚未纳入 capability、CLI 和 MCP 契约。
 
@@ -433,11 +438,12 @@ LDAP / AD 域账号直接登录。服务端会使用租户 LDAP 集成中的 `bi
   "sourceType": "url",
   "knowledgeBaseId": "knowledge_base_uuid",
   "parentNodeId": "knowledge_node_uuid",
-  "sourceUrl": "https://example.com/product.pdf"
+  "sourceUrl": "https://example.com/product.pdf",
+  "sourceName": "产品手册.pdf"
 }
 ```
 
-导入任务响应中的 `sourceName` 用于展示来源名称。Git 来源保存仓库名，飞书、钉钉等企业文档保存解析后的文档名，本地上传保存用户上传时的原文件名。历史任务或无法解析名称的来源可能返回 `null`，调用端应回退展示 `sourceUrl`。
+导入任务响应中的 `sourceName` 用于展示来源名称。创建任务时可传 `sourceName`，批量 `sourceUrls` 可传同下标的 `sourceNames`；未显式传入时，服务层会统一为 Git 解析仓库名，为 `url`、`local`、`manifest` 解析来源路径末尾文件名。飞书、钉钉等企业文档默认保留为空，由 Worker 读取平台文档后写入解析出的文档名。历史任务或无法解析名称的来源可能返回 `null`，调用端应回退展示 `sourceUrl`。
 
 Capability 与 CLI 导入入口的 `sourceType` 支持 `local`、`url`、`manifest`。飞书、钉钉、Git 等需要集成凭证的来源走导入任务 API 或控制台集成流程，并提供 `integrationId`。`parentNodeId` 可省略，省略时导入到知识库根路径。
 
@@ -601,6 +607,7 @@ MCP JSON-RPC 消息接口。
 | Method   | Path                               | 说明                       |
 | -------- | ---------------------------------- | -------------------------- |
 | `GET`    | `/api/v1/knowledge-bases`          | 获取当前租户未归档知识库   |
+| `GET`    | `/api/v1/knowledge-bases/paged`    | 分页获取当前租户知识库     |
 | `GET`    | `/api/v1/knowledge-bases/:id`      | 获取未归档知识库详情       |
 | `GET`    | `/api/v1/knowledge-bases/:id/tree` | 获取未归档知识库下的知识树 |
 | `POST`   | `/api/v1/knowledge-bases`          | 创建知识库                 |
@@ -608,6 +615,8 @@ MCP JSON-RPC 消息接口。
 | `DELETE` | `/api/v1/knowledge-bases/:id`      | 删除知识库                 |
 
 删除知识库由服务层统一先清理 OpenViking 资源，再删除 Admin 元数据。服务会先对知识库根 `vikingUri` 调用 OpenViking `/api/v1/fs?recursive=true`，成功或远端 `404` 后再删除知识树节点和知识库记录。已归档知识库默认不会出现在列表、能力选择和 WebDAV 根目录中，详情接口会按不存在处理。
+
+知识库列表与详情会返回操作人快照：`createdBy`、`updatedBy`。字段来自服务端从 JWT、WebDAV principal 或 capability principal 解析出的用户信息；历史数据为空时返回 `null`。
 
 ## 知识树接口
 
@@ -618,6 +627,7 @@ MCP JSON-RPC 消息接口。
 | `GET`    | `/api/v1/knowledge-tree`          | 获取知识树节点   |
 | `GET`    | `/api/v1/knowledge-tree/graph`    | 获取知识图谱     |
 | `GET`    | `/api/v1/knowledge-tree/:id`      | 获取知识节点详情 |
+| `GET`    | `/api/v1/knowledge-tree/:id/lineage` | 获取节点谱系与同级节点 |
 | `POST`   | `/api/v1/knowledge-tree`          | 创建知识节点     |
 | `PATCH`  | `/api/v1/knowledge-tree/:id`      | 更新知识节点     |
 | `DELETE` | `/api/v1/knowledge-tree/:id`      | 删除知识节点     |
@@ -625,12 +635,32 @@ MCP JSON-RPC 消息接口。
 
 删除知识树节点由服务层统一先调用 OpenViking `/api/v1/fs` 删除节点对应资源，再删除 Admin 侧节点元数据：叶子文件使用 `recursive=false`，目录节点使用 `recursive=true`。递归删除时按子节点优先顺序清理，避免本地元数据先消失后留下 OpenViking 残留资源。
 
+创建文档节点时，请求体传 `kind:'document'`。如果 `name` 没有文件后缀，后端会自动补齐默认 Markdown 后缀 `.md`；已有后缀的名称保持不变。未传 `kind` 或传 `kind:'collection'` 时仍按目录节点创建。
+
+知识树列表、详情和知识库树查询会返回 `createdBy`、`updatedBy` 操作人快照。正文保存、资产上传、节点移动和重命名会更新节点的 `updatedBy`，创建人保持不变。
+
 知识树查询参数：
 
 | 接口                           | 参数   | 说明          |
 | ------------------------------ | ------ | ------------- |
 | `/api/v1/knowledge-tree`       | `kbId` | 目标知识库 ID |
 | `/api/v1/knowledge-tree/graph` | `kbId` | 目标知识库 ID |
+
+## 文档编辑接口
+
+需要 JWT 和租户上下文。文档编辑接口面向在线编辑器，路径统一使用 `/api/v1/editor`，避免与导入任务管理的“文档处理中心”混淆。写入类接口需要至少 `tenant_operator` 权限。
+
+| Method | Path                                      | 说明                                      |
+|--------|-------------------------------------------|-------------------------------------------|
+| `GET`  | `/api/v1/editor/:nodeId`                  | 获取文档元数据、索引状态、当前权限和协作入口信息 |
+| `GET`  | `/api/v1/editor/:nodeId/content`          | 读取最新草稿正文并转换为编辑器 JSON             |
+| `PUT`  | `/api/v1/editor/:nodeId/content`          | 将编辑器 JSON 转换为 Markdown 并保存为草稿      |
+| `GET`  | `/api/v1/editor/:nodeId/index`            | 查看文档草稿与索引同步状态                     |
+| `POST` | `/api/v1/editor/:nodeId/index`            | 使用最新草稿写入 OpenViking 并更新索引          |
+| `POST` | `/api/v1/editor/:nodeId/assets`           | 上传图片到文档容器的 `assets/` 子目录           |
+| `GET`  | `/api/v1/editor/:nodeId/assets/*path`     | 流式读取文档图片资产                            |
+
+正文保存只更新 Admin 侧草稿并把文档节点标记为 `dirty`，不会主动触发 OpenViking 语义化或向量化。用户在编辑器点击“更新索引”，或通过 `documents.index.rebuild` capability，才会将最新草稿写入 OpenViking `/api/v1/content/write` 并提交索引刷新；已有正文写入使用非等待模式，避免接口被 Engine 向量化过程阻塞。如果文档稳定资源容器尚未在 OpenViking 落盘，服务端会降级为 `temp_upload` 加 `/api/v1/resources` 注入，创建 `{nodeId}/content.md` 后再回写真实 `contentUri`。文档索引成功后，服务端会按当前知识库的文档节点重新聚合 `docCount` 与 `vectorCount`，并回写到 `knowledge_bases`，用于控制台知识库列表指标展示。资产上传字段名为 `files`，单次最多 10 个文件，单文件最大 10MB，允许 `.png`、`.jpg`、`.jpeg`、`.gif`、`.webp` 和 `.svg`。服务端会对同一文档 `assets/` 目录内的图片做基于内容哈希的精确去重，并通过 `local/redis` 双驱动缓存去重索引，避免每次上传都重复遍历资源树。SVG 读取代理会强制下载，并返回 `X-Content-Type-Options: nosniff`。
 
 ## 导入任务接口
 
@@ -667,8 +697,8 @@ MCP JSON-RPC 消息接口。
 - `sourceType=git` 建议提供 `integrationId`，用于读取平台凭证、分支和路径配置
 - `sourceType=local` 只能由 `/api/v1/import-tasks/local-upload` 生成，不能直接提交任意 `file://` 路径
 - `/api/v1/import-tasks/local-upload` 使用 `multipart/form-data`，字段为 `kbId`、可选 `targetUri`，以及 `files`
-- 导入任务会在响应中返回 `sourceName`，用于控制台和调用端展示仓库名、企业文档名或本地上传原文件名
-- WebDAV `PUT` 新建文件时会复用本地上传链路，但不把 WebDAV 注册为新的 `sourceType`；导入任务仍以 `sourceType=local` 入队。覆盖文件时直接替换叶子内容，不创建导入任务。
+- 导入任务会在响应中返回 `sourceName`，用于控制台和调用端展示仓库名、企业文档名、URL 文件名或本地上传原文件名；普通 JSON 创建接口可传 `sourceName` 或与 `sourceUrls` 对齐的 `sourceNames`
+- WebDAV `PUT` 新建文件时会复用本地上传链路，但不把 WebDAV 注册为新的 `sourceType`；导入任务仍以 `sourceType=local` 入队。覆盖文件时只保存最新草稿并标记索引过期，不创建导入任务。
 - `DELETE /api/v1/import-tasks/:id` 仅允许删除 `failed` 状态的任务；若任务来源是受控本地上传文件，服务端会一并清理暂存文件
 - 控制台默认不再传 `targetUri`，服务端会按知识库 `vikingUri` 自动生成导入目标路径
 - OpenViking 资源接口只接收 `path` 或 `temp_file_id`；平台 Token 不会作为 `config` 透传给 OpenViking

@@ -23,6 +23,20 @@ export interface IKnowledgeNodeRepository {
     tenantId: string,
     user: { id: string; role: string },
   ): Promise<string[]>;
+  aggregateKnowledgeBaseStats(
+    kbId: string,
+    tenantId: string | null,
+  ): Promise<{ docCount: number; vectorCount: number }>;
+  findChildrenWithCount(
+    kbId: string,
+    parentId: string | null,
+    tenantId: string | null,
+  ): Promise<(KnowledgeNodeModel & { childrenCount: number })[]>;
+  findLineageWithSiblings(
+    kbId: string,
+    nodeId: string,
+    tenantId: string | null,
+  ): Promise<(KnowledgeNodeModel & { childrenCount: number })[]>;
 }
 
 export const IKnowledgeNodeRepository = Symbol('IKnowledgeNodeRepository');

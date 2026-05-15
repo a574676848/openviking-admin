@@ -10,7 +10,23 @@ import { KnowledgeTreeBrowser } from "./knowledge-tree-browser";
 import { KnowledgeTreeInspector } from "./knowledge-tree-inspector";
 import { AddNodeModal } from "./add-node-modal";
 import type { KnowledgeAcl, KnowledgeBase, KnowledgeNode, TenantUserOption, TreeNode } from "./knowledge-tree.types";
-import { buildPermissionPreview, buildTree, collectDescendantIds, EMPTY_ACL, findNode } from "./knowledge-tree.utils";
+import {
+  buildPermissionPreview,
+  buildTree,
+  collectDescendantIds,
+  EMPTY_ACL,
+  findNode,
+  knowledgeNodeKindLabel,
+} from "./knowledge-tree.utils";
+import {
+  KNOWLEDGE_NODE_DEFAULT_KIND,
+  DOCUMENT_INDEX_STATUS_LABELS,
+  DOCUMENT_INDEX_STATUS_TONES,
+  KNOWLEDGE_NODE_KIND_COLLECTION,
+  KNOWLEDGE_NODE_KIND_DOCUMENT,
+  KNOWLEDGE_TREE_API_PATH,
+  type KnowledgeNodeKind,
+} from "./knowledge-tree.constants";
 
 export default function KnowledgeTreePage() {
   const router = useRouter();
@@ -22,6 +38,8 @@ export default function KnowledgeTreePage() {
   const [selectedNode, setSelectedNode] = useState<TreeNode | null>(null);
   const [loading, setLoading] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [createModalDefaultKind, setCreateModalDefaultKind] =
+    useState<KnowledgeNodeKind>(KNOWLEDGE_NODE_DEFAULT_KIND);
   const [submitting, setSubmitting] = useState(false);
   const [editAcl, setEditAcl] = useState<KnowledgeAcl>(EMPTY_ACL);
   const [saving, setSaving] = useState(false);
@@ -32,6 +50,7 @@ export default function KnowledgeTreePage() {
   const [tenantUsersLoading, setTenantUsersLoading] = useState(false);
   const [tenantUsersError, setTenantUsersError] = useState("");
   const [nodesLoadedForKb, setNodesLoadedForKb] = useState("");
+  const [rebuildingNodeId, setRebuildingNodeId] = useState<string | null>(null);
   const pendingNodeIdRef = useRef(searchParams.get("nodeId"));
   const initialKbId = searchParams.get("kbId");
 
@@ -110,7 +129,16 @@ export default function KnowledgeTreePage() {
     setNodesLoadedForKb("");
     apiClient
       .get<KnowledgeNode[]>(`/knowledge-tree?kbId=${selectedKb}`)
-      .then((list) => setNodes(Array.isArray(list) ? list : []))
+      .then((list) => {
+        const nextNodes = Array.isArray(list) ? list : [];
+        setNodes(nextNodes);
+        setSelectedNode((current) => {
+          if (!current) {
+            return null;
+          }
+          return findNode(buildTree(nextNodes), current.id) ?? current;
+        });
+      })
       .catch((error: unknown) => {
         toast.error(error instanceof Error ? error.message : "知识树加载失败");
       })
@@ -147,18 +175,29 @@ export default function KnowledgeTreePage() {
     pendingNodeIdRef.current = null;
   }, [loading, nodesLoadedForKb, selectedKb, tree]);
 
-  async function handleCreate(name: string, parentId: string | null) {
+  function openCreateModal(defaultKind: KnowledgeNodeKind) {
+    setCreateModalDefaultKind(defaultKind);
+    setShowAddModal(true);
+  }
+
+  async function handleCreate(name: string, parentId: string | null, kind: KnowledgeNodeKind) {
     if (!name.trim() || !selectedKb) return;
 
     setSubmitting(true);
     try {
-      await apiClient.post("/knowledge-tree", {
+      const created = await apiClient.post<KnowledgeNode>(KNOWLEDGE_TREE_API_PATH, {
         kbId: selectedKb,
         parentId,
         name: name.trim(),
+        kind,
       });
-      toast.success("知识节点已创建");
       setShowAddModal(false);
+      if (kind === KNOWLEDGE_NODE_KIND_DOCUMENT) {
+        toast.success("文档已创建");
+        loadNodes();
+        return;
+      }
+      toast.success("知识节点已创建");
       loadNodes();
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : "创建节点失败");
@@ -201,6 +240,40 @@ export default function KnowledgeTreePage() {
       loadNodes();
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : "删除节点失败");
+    }
+  }
+
+  async function handleRebuildIndex(node: TreeNode) {
+    if (node.kind !== KNOWLEDGE_NODE_KIND_DOCUMENT || rebuildingNodeId) {
+      return;
+    }
+
+    setRebuildingNodeId(node.id);
+    try {
+      const result = await apiClient.post<Partial<KnowledgeNode>>(
+        `/editor/${encodeURIComponent(node.id)}/index`,
+        {},
+      );
+      const updated = {
+        ...node,
+        ...result,
+        indexStatus: result.indexStatus ?? node.indexStatus,
+        vectorCount: result.vectorCount ?? node.vectorCount,
+        lastIndexedAt: result.lastIndexedAt ?? node.lastIndexedAt,
+      };
+      setNodes((current) =>
+        current.map((item) => (item.id === node.id ? { ...item, ...updated } : item)),
+      );
+      if (selectedNode?.id === node.id) {
+        setSelectedNode({ ...selectedNode, ...updated });
+      }
+      toast.success(updated.indexStatus === "indexing" ? "索引任务已提交" : "索引已更新");
+      loadNodes();
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "重建索引失败");
+      loadNodes();
+    } finally {
+      setRebuildingNodeId(null);
     }
   }
 
@@ -293,10 +366,42 @@ export default function KnowledgeTreePage() {
   }
 
   const permissionPreview = selectedNode ? buildPermissionPreview(editAcl, tenantUsers) : [];
+  const resolveActorName = (actor?: { id: string | null; username: string | null } | null) =>
+    actor?.username || actor?.id || "—";
+  const formatDateTime = (value?: string | null) => value ? new Date(value).toLocaleString("zh-CN") : "—";
+  const resolveIndexStatus = (node: TreeNode) => node.indexStatus ?? "clean";
   const detailCards = selectedNode
     ? [
         { label: "系统唯一标识", value: selectedNode.id, className: "text-[var(--text-primary)]" },
         { label: "所属知识库", value: selectedKbName, className: "text-[var(--text-primary)]" },
+        { label: "节点类型", value: knowledgeNodeKindLabel(selectedNode), className: "text-[var(--brand)]" },
+        ...(selectedNode.kind === KNOWLEDGE_NODE_KIND_DOCUMENT
+          ? [
+              {
+                label: "索引状态",
+                value: DOCUMENT_INDEX_STATUS_LABELS[resolveIndexStatus(selectedNode)],
+                className: DOCUMENT_INDEX_STATUS_TONES[resolveIndexStatus(selectedNode)],
+              },
+              {
+                label: "向量数",
+                value: String(selectedNode.vectorCount ?? 0),
+                className: "text-[var(--brand)]",
+              },
+              {
+                label: "最近索引时间",
+                value: formatDateTime(selectedNode.lastIndexedAt),
+                className: "text-[var(--text-primary)]",
+              },
+              {
+                label: "索引错误",
+                value: selectedNode.indexError || "—",
+                className: selectedNode.indexError ? "text-[var(--danger)]" : "text-[var(--text-secondary)]",
+                full: true,
+              },
+            ]
+          : []),
+        { label: "创建人", value: resolveActorName(selectedNode.createdBy), className: "text-[var(--text-primary)]" },
+        { label: "更新人", value: resolveActorName(selectedNode.updatedBy), className: "text-[var(--text-primary)]" },
         { label: "引擎资源 URI", value: selectedNode.vikingUri || "未挂载", className: "text-[var(--info)]", full: true },
         {
           label: "节点状态",
@@ -365,13 +470,16 @@ export default function KnowledgeTreePage() {
             setSelectedKb(value);
             setSelectedNode(null);
           }}
-          onAddNode={() => setShowAddModal(true)}
+          onAddNode={() => openCreateModal(KNOWLEDGE_NODE_KIND_COLLECTION)}
+          onAddDocument={() => openCreateModal(KNOWLEDGE_NODE_KIND_DOCUMENT)}
           onSelectNode={selectNode}
           onRenameNode={handleInlineRename}
           onDragStart={handleDragStart}
           onDragHover={handleDragHover}
           onDragEnd={handleDragEnd}
           onDropToNode={handleDropTarget}
+          onRebuildIndex={handleRebuildIndex}
+          rebuildingNodeId={rebuildingNodeId}
           onRootDragOver={(event) => {
             event.preventDefault();
             setDragOverRoot(true);
@@ -392,9 +500,15 @@ export default function KnowledgeTreePage() {
           tenantUsersLoading={tenantUsersLoading}
           tenantUsersError={tenantUsersError}
           saving={saving}
+          rebuildingIndex={Boolean(selectedNode && rebuildingNodeId === selectedNode.id)}
           onEditAclChange={setEditAcl}
           onSave={handleSave}
           onDelete={handleDelete}
+          onRebuildIndex={() => {
+            if (selectedNode) {
+              void handleRebuildIndex(selectedNode);
+            }
+          }}
         />
       </div>
 
@@ -404,6 +518,7 @@ export default function KnowledgeTreePage() {
         onSubmit={handleCreate}
         tree={tree}
         defaultParentId={selectedNode?.id ?? null}
+        defaultKind={createModalDefaultKind}
         submitting={submitting}
       />
     </div>

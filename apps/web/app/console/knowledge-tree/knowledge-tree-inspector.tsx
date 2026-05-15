@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, RefreshCw } from "lucide-react";
 import { KnowledgeTreeEditor } from "./knowledge-tree-editor";
 import { PIPELINE_STEPS } from "./knowledge-tree.utils";
 import type { KnowledgeAcl, TenantUserOption, TreeNode } from "./knowledge-tree.types";
@@ -13,9 +13,11 @@ export function KnowledgeTreeInspector({
   tenantUsersLoading,
   tenantUsersError,
   saving,
+  rebuildingIndex,
   onEditAclChange,
   onSave,
   onDelete,
+  onRebuildIndex,
 }: {
   selectedNode: TreeNode | null;
   detailCards: Array<{ label: string; value?: string; lines?: string[]; className: string; full?: boolean }>;
@@ -24,9 +26,11 @@ export function KnowledgeTreeInspector({
   tenantUsersLoading: boolean;
   tenantUsersError: string;
   saving: boolean;
+  rebuildingIndex: boolean;
   onEditAclChange: (acl: KnowledgeAcl) => void;
   onSave: () => void;
   onDelete: () => void;
+  onRebuildIndex: () => void;
 }) {
   return (
     <section className="hidden-scrollbar min-h-0 overflow-y-auto bg-[var(--bg-base)] p-6">
@@ -35,13 +39,15 @@ export function KnowledgeTreeInspector({
           {selectedNode ? `节点观察器 [${selectedNode.name}]` : "// 等待选择节点"}
         </h2>
         {selectedNode && (
-          <div className="flex gap-2">
-            {PIPELINE_STEPS.map((step) => (
-              <div key={step} className="flex items-center gap-1.5 border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-card)] px-2 py-0.5">
-                <div className="h-2 w-2 animate-pulse bg-[var(--success)]" />
-                <span className="font-sans text-[9px] font-black">{step}</span>
-              </div>
-            ))}
+          <div className="flex items-center gap-2">
+            <div className="flex gap-2">
+              {PIPELINE_STEPS.map((step) => (
+                <div key={step} className="flex items-center gap-1.5 border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-card)] px-2 py-0.5">
+                  <div className="h-2 w-2 animate-pulse bg-[var(--success)]" />
+                  <span className="font-sans text-[9px] font-black">{step}</span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>
@@ -57,6 +63,28 @@ export function KnowledgeTreeInspector({
       ) : (
         <div>
           <div className="ov-card p-8">
+            {selectedNode.kind === "document" && (
+              <div className="mb-4 flex items-center justify-between border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-card)] p-4 shadow-[var(--shadow-base)]">
+                <div>
+                  <div className="font-sans text-[9px] font-black uppercase tracking-widest text-[var(--text-muted)]">
+                    文档索引
+                  </div>
+                  <p className="mt-1 font-sans text-xs font-bold text-[var(--text-secondary)]">
+                    使用最新草稿提交 OpenViking 索引刷新
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={onRebuildIndex}
+                  disabled={rebuildingIndex}
+                  className="flex items-center gap-2 rounded-[var(--radius-pill)] border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-elevated)] px-4 py-2 font-sans text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)] transition-all hover:-translate-y-px hover:bg-[var(--brand-muted)] disabled:cursor-not-allowed disabled:opacity-50"
+                  title="重建索引"
+                >
+                  <RefreshCw size={14} strokeWidth={3} className={rebuildingIndex ? "animate-spin" : ""} />
+                  重建索引
+                </button>
+              </div>
+            )}
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               {detailCards.map((item) => (
                 <div

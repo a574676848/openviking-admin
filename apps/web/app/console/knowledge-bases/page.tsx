@@ -2,10 +2,25 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Database, FolderTree, Plus, Search } from "lucide-react";
+import {
+  Database,
+  FolderTree,
+  MoreHorizontal,
+  PencilLine,
+  Plus,
+  Search,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/apiClient";
 import { useConfirm } from "@/components/ui/ConfirmProvider";
+import { FormModal } from "@/components/ui/FormModal";
+import { buildKnowledgeSiteHomeRoute } from "../knowledge-tree/knowledge-tree.constants";
+import {
+  KNOWLEDGE_SITE_POPUP_BLOCKED_MESSAGE,
+  openKnowledgeSiteInNewTab,
+} from "@/lib/knowledge-site-launch";
 import {
   ConsoleButton,
   ConsoleEmptyState,
@@ -30,12 +45,27 @@ interface KnowledgeBase {
   vikingUri: string;
   docCount: number;
   vectorCount: number;
+  createdBy?: ActorInfo | null;
+  updatedBy?: ActorInfo | null;
   createdAt: string;
+}
+
+interface ActorInfo {
+  id: string | null;
+  username: string | null;
 }
 
 interface DashboardSnapshot {
   kbCount?: number;
   quota?: Record<string, unknown> | null;
+}
+
+interface PageResult {
+  items: KnowledgeBase[];
+  total: number;
+  page: number;
+  pageSize: number;
+  pages: number;
 }
 
 const STATUS_MAP: Record<string, { label: string; className: string }> = {
@@ -46,6 +76,91 @@ const STATUS_MAP: Record<string, { label: string; className: string }> = {
 
 const ARCHIVED_STATUS: KnowledgeBaseStatus = "archived";
 const TABLE_COLUMNS = "lg:grid-cols-[minmax(0,1fr)_120px_110px_110px_minmax(160px,1fr)_180px]";
+
+function actorName(actor?: ActorInfo | null) {
+  return actor?.username || actor?.id || "—";
+}
+
+function KnowledgeBaseActionMenu({
+  disabled,
+  onRename,
+  onArchive,
+  kbId,
+}: {
+  disabled: boolean;
+  onRename: () => void;
+  onArchive: () => void;
+  kbId: string;
+}) {
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const handleWindowClick = () => {
+      setOpen(false);
+    };
+
+    window.addEventListener("click", handleWindowClick);
+    return () => {
+      window.removeEventListener("click", handleWindowClick);
+    };
+  }, [open]);
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        className="flex h-10 w-10 items-center justify-center rounded-[var(--radius-pill)] border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-elevated)]"
+        aria-label="更多操作"
+        title="更多操作"
+        onClick={(event) => {
+          event.stopPropagation();
+          setOpen((value) => !value);
+        }}
+      >
+        <MoreHorizontal size={16} strokeWidth={2.4} />
+      </button>
+      {open ? (
+        <div className="absolute right-0 top-12 z-10 min-w-[168px] rounded-[var(--radius-base)] border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-card)] p-1 shadow-[var(--shadow-hover)]">
+          <Link
+            href={`/console/knowledge-tree?kbId=${encodeURIComponent(kbId)}`}
+            className="flex w-full items-center gap-2 rounded-[calc(var(--radius-base)-4px)] px-3 py-2 text-sm font-bold text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-elevated)]"
+            onClick={() => setOpen(false)}
+          >
+            <FolderTree size={14} strokeWidth={2.4} />
+            查看知识树
+          </Link>
+          <button
+            type="button"
+            disabled={disabled}
+            className="flex w-full items-center gap-2 rounded-[calc(var(--radius-base)-4px)] px-3 py-2 text-left text-sm font-bold text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-elevated)] disabled:cursor-not-allowed disabled:opacity-50"
+            onClick={() => {
+              setOpen(false);
+              onRename();
+            }}
+          >
+            <PencilLine size={14} strokeWidth={2.4} />
+            重命名知识库
+          </button>
+          <button
+            type="button"
+            disabled={disabled}
+            className="flex w-full items-center gap-2 rounded-[calc(var(--radius-base)-4px)] px-3 py-2 text-left text-sm font-bold text-[var(--warning)] transition-colors hover:bg-[var(--warning)]/10 disabled:cursor-not-allowed disabled:opacity-50"
+            onClick={() => {
+              setOpen(false);
+              onArchive();
+            }}
+          >
+            归档知识库
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 /** 根据占用比例返回对应的色调 */
 function usageTone(percent: number): "brand" | "warning" | "danger" {
@@ -122,34 +237,49 @@ function QuotaProgressCard({ used, total, percent }: { used: number; total: numb
 
 export default function KnowledgeBasesPage() {
   const confirm = useConfirm();
-  const [items, setItems] = useState<KnowledgeBase[]>([]);
+  const [pageResult, setPageResult] = useState<PageResult | null>(null);
   const [quota, setQuota] = useState({ used: 0, total: 0 });
   const [searchQuery, setSearchQuery] = useState("");
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [mutatingId, setMutatingId] = useState<string | null>(null);
+  const [renameTarget, setRenameTarget] = useState<KnowledgeBase | null>(null);
+  const [renameName, setRenameName] = useState("");
 
-  const load = useCallback(async () => {
+  const PAGE_SIZE = 6;
+
+  const load = useCallback(async (targetPage: number) => {
+    const params = new URLSearchParams({
+      page: String(targetPage),
+      pageSize: String(PAGE_SIZE),
+    });
+    const keyword = searchQuery.trim();
+    if (keyword) {
+      params.set("q", keyword);
+    }
+
     const [kbData, dashboard] = await Promise.all([
-      apiClient.get<KnowledgeBase[]>("/knowledge-bases"),
+      apiClient.get<PageResult>(`/knowledge-bases/paged?${params.toString()}`),
       apiClient.get<DashboardSnapshot>("/system/dashboard"),
     ]);
 
-    setItems(kbData);
+    setPageResult(kbData);
+    setPage(targetPage);
 
-    const used = dashboard.kbCount ?? kbData.length;
+    const used = dashboard.kbCount ?? kbData.total;
     const maxDocs = (dashboard.quota as Record<string, number> | undefined)?.maxDocs ?? 0;
     setQuota({
       used,
       total: maxDocs > 0 ? maxDocs : 0,
     });
-  }, []);
+  }, [searchQuery]);
 
   useEffect(() => {
     let active = true;
 
     const run = async () => {
       try {
-        await load();
+        await load(1);
       } finally {
         if (active) {
           setLoading(false);
@@ -163,15 +293,9 @@ export default function KnowledgeBasesPage() {
     };
   }, [load]);
 
-  const filtered = useMemo(() => {
-    const keyword = searchQuery.trim().toLowerCase();
-    if (!keyword) {
-      return items;
-    }
-    return items.filter((item) => {
-      return item.name.toLowerCase().includes(keyword) || item.id.toLowerCase().includes(keyword);
-    });
-  }, [items, searchQuery]);
+  const items = pageResult?.items ?? [];
+  const totalPages = pageResult?.pages ?? 1;
+  const totalItems = pageResult?.total ?? 0;
 
   const totals = useMemo(() => {
     return items.reduce(
@@ -187,7 +311,7 @@ export default function KnowledgeBasesPage() {
   const usagePercent = quota.total > 0 ? Math.min(Math.round((quota.used / quota.total) * 100), 100) : 0;
   const tableState = resolveConsoleTableState({
     loading,
-    hasData: filtered.length > 0,
+    hasData: items.length > 0,
   });
 
   async function handleArchive(item: KnowledgeBase) {
@@ -209,11 +333,46 @@ export default function KnowledgeBasesPage() {
         status: ARCHIVED_STATUS,
       });
       toast.success("知识库已归档");
-      await load();
+      await load(page);
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : "知识库状态更新失败");
     } finally {
       setMutatingId(null);
+    }
+  }
+
+  async function handleRenameSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    if (!renameTarget) {
+      return;
+    }
+
+    const nextName = renameName.trim();
+    if (!nextName) {
+      toast.error("请输入新的知识库名称");
+      return;
+    }
+
+    setMutatingId(renameTarget.id);
+    try {
+      await apiClient.patch(`/knowledge-bases/${renameTarget.id}`, {
+        name: nextName,
+      });
+      toast.success("知识库名称已更新");
+      await load(page);
+      setRenameTarget(null);
+      setRenameName("");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "知识库重命名失败");
+    } finally {
+      setMutatingId(null);
+    }
+  }
+
+  function handleEnterSite(kbId: string) {
+    const opened = openKnowledgeSiteInNewTab(buildKnowledgeSiteHomeRoute(kbId));
+    if (!opened) {
+      toast.error(KNOWLEDGE_SITE_POPUP_BLOCKED_MESSAGE);
     }
   }
 
@@ -233,7 +392,7 @@ export default function KnowledgeBasesPage() {
       />
 
       <ConsoleStatsGrid className="lg:grid-cols-4">
-        <ConsoleMetricCard label="知识库数量" value={(items.length || 0).toLocaleString()} tone="brand" />
+        <ConsoleMetricCard label="知识库数量" value={(totalItems || 0).toLocaleString()} tone="brand" />
         <ConsoleMetricCard label="文档数" value={totals.docs.toLocaleString()} />
         <ConsoleMetricCard label="向量数" value={totals.vectors.toLocaleString()} tone="warning" />
         <ConsoleMetricCard
@@ -262,8 +421,14 @@ export default function KnowledgeBasesPage() {
       </ConsolePanel>
 
       <div className="flex h-full flex-col gap-4">
-          {/* 搜索框移至表格上方 */}
-          <div className="relative">
+          {/* 搜索框 */}
+          <form
+            className="relative"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void load(1);
+            }}
+          >
             <Search
               size={16}
               strokeWidth={2.6}
@@ -272,10 +437,10 @@ export default function KnowledgeBasesPage() {
             <ConsoleInput
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="按名称或 ID 检索知识库"
+              placeholder="按名称或 ID 检索知识库，按回车搜索"
               className="w-full py-3 pl-11 pr-4"
             />
-          </div>
+          </form>
 
           <ConsoleTableShell
             className="flex-1"
@@ -300,7 +465,7 @@ export default function KnowledgeBasesPage() {
               empty: <ConsoleEmptyState icon={Database} title="暂无匹配知识库" description="当前没有符合筛选条件的知识库记录。" />,
             }}
           >
-            {filtered.map((item) => {
+            {items.map((item) => {
               const status = STATUS_MAP[item.status] ?? {
                 label: item.status || "unknown",
                 className: "bg-[var(--bg-card)] text-[var(--text-primary)]",
@@ -312,7 +477,7 @@ export default function KnowledgeBasesPage() {
                   name={item.name}
                   nameTestId={`knowledge-base-name-${item.id}`}
                   detailId={item.id}
-                  date={`创建于 ${new Date(item.createdAt).toLocaleString("zh-CN", { hour12: false })}`}
+                  date={`创建于 ${new Date(item.createdAt).toLocaleString("zh-CN", { hour12: false })} · 创建人 ${actorName(item.createdBy)} · 更新人 ${actorName(item.updatedBy)}`}
                   badges={[
                     { label: status.label, className: status.className },
                   ]}
@@ -335,28 +500,93 @@ export default function KnowledgeBasesPage() {
                   columns={TABLE_COLUMNS}
                   actions={
                     <div className="flex items-center gap-3">
-                      <Link href={`/console/knowledge-tree?kbId=${item.id}`}>
-                        <ConsoleButton tone="dark" className="px-3 py-2.5 text-[11px] whitespace-nowrap">
-                          <FolderTree size={13} strokeWidth={2.6} />
-                          查看知识树
-                        </ConsoleButton>
-                      </Link>
                       <ConsoleButton
                         type="button"
-                        tone="warning"
+                        tone="dark"
                         className="px-3 py-2.5 text-[11px] whitespace-nowrap"
-                        onClick={() => void handleArchive(item)}
-                        disabled={mutatingId === item.id}
+                        onClick={() => handleEnterSite(item.id)}
                       >
-                        归档
+                        进入空间
                       </ConsoleButton>
+                      <KnowledgeBaseActionMenu
+                        kbId={item.id}
+                        disabled={mutatingId === item.id}
+                        onRename={() => {
+                          setRenameTarget(item);
+                          setRenameName(item.name);
+                        }}
+                        onArchive={() => void handleArchive(item)}
+                      />
                     </div>
                   }
                 />
               );
             })}
           </ConsoleTableShell>
+
+          {/* 分页控件 */}
+          {!loading && totalItems > 0 ? (
+            <div className="flex flex-col gap-3 border-t border-[var(--border)] bg-[var(--bg-elevated)] px-4 py-3 font-sans text-xs text-[var(--text-muted)] md:flex-row md:items-center md:justify-between">
+              <div className="font-medium">
+                第 {page}/{totalPages} 页，共 {totalItems} 个知识库
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void load(page - 1)}
+                  disabled={page <= 1}
+                  className="inline-flex h-8 items-center gap-1 rounded-[var(--radius-pill)] border border-[var(--border)] bg-[var(--bg-card)] px-3 font-bold text-[var(--text-primary)] transition-colors disabled:cursor-not-allowed disabled:opacity-40 hover:not-disabled:border-[var(--brand)]"
+                >
+                  <ChevronLeft size={14} />
+                  上一页
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void load(page + 1)}
+                  disabled={page >= totalPages}
+                  className="inline-flex h-8 items-center gap-1 rounded-[var(--radius-pill)] border border-[var(--border)] bg-[var(--bg-card)] px-3 font-bold text-[var(--text-primary)] transition-colors disabled:cursor-not-allowed disabled:opacity-40 hover:not-disabled:border-[var(--brand)]"
+                >
+                  下一页
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+            </div>
+          ) : null}
+      </div>
+
+      <FormModal
+        isOpen={Boolean(renameTarget)}
+        onClose={() => {
+          if (mutatingId) {
+            return;
+          }
+          setRenameTarget(null);
+          setRenameName("");
+        }}
+        onSubmit={handleRenameSubmit}
+        title="重命名知识库"
+        saving={Boolean(mutatingId)}
+        saveText="保存名称"
+        savingText="保存中..."
+      >
+        <div className="space-y-4">
+          <div className="rounded-[var(--radius-base)] border-[var(--border-width)] border-[var(--border)] bg-[var(--bg-elevated)] px-4 py-3 text-sm text-[var(--text-muted)]">
+            当前对象：{renameTarget?.name ?? "未选择"}
+          </div>
+          <div className="space-y-2">
+            <label className="block text-sm font-bold text-[var(--text-primary)]">
+              新的知识库名称
+            </label>
+            <input
+              autoFocus
+              value={renameName}
+              onChange={(event) => setRenameName(event.target.value)}
+              placeholder="输入新的知识库名称"
+              className="ov-input px-4 py-3 font-sans text-sm"
+            />
+          </div>
         </div>
+      </FormModal>
     </div>
   );
 }

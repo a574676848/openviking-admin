@@ -1,14 +1,13 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { LogIn, Lock, Eye, EyeOff } from "lucide-react";
+import { LogIn, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { VikingWatcher } from "@/components/watcher";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { useApp } from "@/components/app-provider";
 import { API_ENDPOINTS, SystemRoles } from "@/lib/constants";
 import {
-  PlatformButton,
   PlatformField,
   PlatformInput,
   PlatformPanel,
@@ -148,10 +147,31 @@ export default function PlatformLoginPage() {
           </form>
         </PlatformPanel>
         
-        <p className="mt-10 text-center font-sans text-xs font-medium text-[var(--text-muted)] leading-relaxed">
-           OpenViking 知识管理平台 v2.3.0<br/>
-           致力于企业级高性能知识中台构建
-        </p>
+        <div className="mt-24 flex flex-col items-center gap-6 opacity-60 hover:opacity-100 transition-all duration-700">
+          <div className="flex flex-col items-center gap-3">
+            <div className="flex items-center gap-3">
+              <span className="text-[13px] font-black tracking-[0.2em] text-[var(--text-primary)] uppercase">OpenViking Admin</span>
+              <span className="h-3 w-px bg-[var(--border)]"></span>
+              <span className="text-[12px] font-bold text-[var(--text-secondary)]">v2.3.0</span>
+            </div>
+            <div className="text-[12px] text-[var(--text-secondary)] font-bold tracking-[0.1em]">
+              维京企业级高性能知识中台
+            </div>
+          </div>
+
+          <div className="flex items-center gap-5 text-[11px] font-bold tracking-tight text-[var(--text-muted)]">
+            <a 
+              href="https://github.com/a574676848/openviking-admin" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="hover:text-[var(--brand)] transition-colors flex items-center gap-1.5"
+            >
+              代码仓库 (GitHub)
+            </a>
+            <span className="w-1.5 h-1.5 rounded-full bg-[var(--border)]"></span>
+            <span className="uppercase">Copyright © 2026 OpenViking Admin</span>
+          </div>
+        </div>
       </div>
     </div>
   );

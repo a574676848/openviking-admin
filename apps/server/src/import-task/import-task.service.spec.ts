@@ -255,6 +255,85 @@ describe('ImportTaskService', () => {
     );
   });
 
+  it('创建导入任务时优先使用显式 sourceName', async () => {
+    taskRepo.create.mockImplementation((payload) => payload);
+    taskRepo.save.mockImplementation(async (payload) => payload);
+    kbRepo.findById.mockResolvedValue({
+      id: 'kb-url',
+      vikingUri: 'viking://resources/tenant-a/kb-url/',
+    });
+    nodeRepo.find.mockResolvedValue([]);
+
+    await service.create(
+      {
+        kbId: 'kb-url',
+        sourceType: 'url',
+        sourceUrl: 'https://docs.example.com/raw/manual.md',
+        sourceName: '产品手册.md',
+      },
+      'tenant-a',
+    );
+
+    expect(taskRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceName: '产品手册.md',
+      }),
+    );
+  });
+
+  it('批量创建导入任务时应按 sourceNames 下标写入来源名称', async () => {
+    taskRepo.create.mockImplementation((payload) => payload);
+    taskRepo.save.mockImplementation(async (payload) => payload);
+    kbRepo.findById.mockResolvedValue({
+      id: 'kb-url',
+      vikingUri: 'viking://resources/tenant-a/kb-url/',
+    });
+    nodeRepo.find.mockResolvedValue([]);
+
+    await service.create(
+      {
+        kbId: 'kb-url',
+        sourceType: 'url',
+        sourceUrls: [
+          'https://docs.example.com/a.md',
+          'https://docs.example.com/b.md',
+        ],
+        sourceNames: ['A 文档.md', 'B 文档.md'],
+      },
+      'tenant-a',
+    );
+
+    expect(taskRepo.save).toHaveBeenCalledWith([
+      expect.objectContaining({ sourceName: 'A 文档.md' }),
+      expect.objectContaining({ sourceName: 'B 文档.md' }),
+    ]);
+  });
+
+  it('URL 导入未传来源名称时应从路径解析展示名', async () => {
+    taskRepo.create.mockImplementation((payload) => payload);
+    taskRepo.save.mockImplementation(async (payload) => payload);
+    kbRepo.findById.mockResolvedValue({
+      id: 'kb-url',
+      vikingUri: 'viking://resources/tenant-a/kb-url/',
+    });
+    nodeRepo.find.mockResolvedValue([]);
+
+    await service.create(
+      {
+        kbId: 'kb-url',
+        sourceType: 'url',
+        sourceUrl: 'https://docs.example.com/files/%E4%BA%A7%E5%93%81.md?download=1',
+      },
+      'tenant-a',
+    );
+
+    expect(taskRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceName: '产品.md',
+      }),
+    );
+  });
+
   it('已是引擎租户命名空间的 targetUri 不应重复追加 tenants 前缀', async () => {
     taskRepo.create.mockImplementation((payload) => payload);
     taskRepo.save.mockImplementation(async (payload) => payload);
@@ -354,6 +433,32 @@ describe('ImportTaskService', () => {
     );
   });
 
+  it('受控本地 file URL 直接创建任务时应从路径解析来源名称', async () => {
+    taskRepo.create.mockImplementation((payload) => payload);
+    taskRepo.save.mockImplementation(async (payload) => payload);
+    localImportStorage.isManagedFileUrl.mockReturnValue(true);
+    kbRepo.findById.mockResolvedValue({
+      id: 'kb-1',
+      vikingUri: 'viking://resources/tenant-a/kb-1/',
+    });
+    nodeRepo.find.mockResolvedValue([]);
+
+    await service.create(
+      {
+        kbId: 'kb-1',
+        sourceType: 'local',
+        sourceUrl: 'file:///data/openviking/imports/%E4%BA%A7%E5%93%81.md',
+      },
+      'tenant-a',
+    );
+
+    expect(taskRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceName: '产品.md',
+      }),
+    );
+  });
+
   it('本地导入必须上传文件', async () => {
     await expect(
       service.createLocalUpload({ kbId: 'kb-1' }, [], 'tenant-a'),
@@ -384,6 +489,11 @@ describe('ImportTaskService', () => {
     expect(result).toEqual(
       expect.objectContaining({
         targetUri: 'viking://resources/tenants/tenant-a/kb-2/imports/feishu/',
+      }),
+    );
+    expect(taskRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceName: null,
       }),
     );
   });

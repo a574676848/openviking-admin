@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { Toaster } from "sonner";
+import "@blocknote/mantine/style.css";
 import "./globals.css";
 import { TerminalOverlay } from "@/components/ui/TerminalOverlay";
 import { ConfirmProvider } from "@/components/ui/ConfirmProvider";

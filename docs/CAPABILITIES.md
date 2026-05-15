@@ -31,10 +31,13 @@
 | `documents.import.cancel` | 取消排队中的文档导入任务               | `POST /api/v1/capability/import-tasks/:id/cancel` | `ova documents import cancel`         | `documents.import.cancel` | `tenant_operator` |
 | `documents.import.retry`  | 重试失败或已取消的文档导入任务         | `POST /api/v1/capability/import-tasks/:id/retry`  | `ova documents import retry`          | `documents.import.retry`  | `tenant_operator` |
 | `documents.import.events` | 查看文档导入任务进度事件快照           | `GET /api/v1/capability/import-tasks/:id/events`  | `ova documents import status --watch` | `documents.import.events` | `tenant_viewer`   |
+| `documents.index.status`  | 查看文档草稿与索引同步状态             | `GET /api/v1/capability/documents/:id/index`      | `ova documents index status`          | `documents.index.status`  | `tenant_viewer`   |
+| `documents.index.rebuild` | 使用最新草稿重建文档索引               | `POST /api/v1/capability/documents/:id/index/rebuild` | `ova documents index rebuild`     | `documents.index.rebuild` | `tenant_operator` |
+| `documents.draft.grep`    | 对 Admin 侧文档草稿正文执行文本匹配    | `POST /api/v1/capability/documents/:id/draft/grep`   | `ova documents draft grep`        | `documents.draft.grep`    | `tenant_viewer`   |
 
 ## WebDAV 说明
 
-WebDAV 入口是外部客户端同步 adapter，不是 capability 本体，因此不会出现在 capability catalog 中。它复用 capability API key 进行 Basic Auth，路径租户和 `username` 均支持租户记录 UUID 或租户唯一标识，二者必须解析到同一租户，`password` 使用 capability API key。目录浏览走 `PROPFIND`，文档叶子 `GET` 会优先按节点 `contentUri` 转发到 OpenViking `content/download` 并流式返回正文，`HEAD` 仅返回 WebDAV 元信息。写入侧当前支持 `MKCOL` 创建目录、`PUT` 新建或覆盖受支持文件、`DELETE` 删除知识库、叶子文件或空目录，以及 `MOVE` 重命名知识库，或在同一知识库内重命名、移动文件与目录；`PUT` 新建文件时会复用本地上传导入链路创建 `sourceType=local` 导入任务，覆盖文件时则直接替换 `contentUri` 叶子。`MOVE` 只调整 Admin 侧知识树元数据，不修改稳定资源容器 URI。
+WebDAV 入口是外部客户端同步 adapter，不是 capability 本体，因此不会出现在 capability catalog 中。它复用 capability API key 进行 Basic Auth，路径租户和 `username` 均支持租户记录 UUID 或租户唯一标识，二者必须解析到同一租户，`password` 使用 capability API key。目录浏览走 `PROPFIND`，文档叶子 `GET` 会优先按最新草稿返回正文；没有草稿时回退到节点 `contentUri` 并转发 OpenViking `content/download`。写入侧当前支持 `MKCOL` 创建目录、`PUT` 新建或覆盖受支持文件、`DELETE` 删除知识库、叶子文件或空目录，以及 `MOVE` 重命名知识库，或在同一知识库内重命名、移动文件与目录；`PUT` 新建文件时会复用本地上传导入链路创建 `sourceType=local` 导入任务，覆盖文件时只保存草稿并标记索引过期。`MOVE` 只调整 Admin 侧知识树元数据，不修改稳定资源容器 URI。
 
 ## 能力契约
 
@@ -103,6 +106,7 @@ Capability 调用最终都会解析为统一 `Principal`。
 - `knowledgeBases.*` 与 `knowledgeTree.*` 是文档导入前置选择能力，只开放只读查询，不承担知识空间管理职责；归档知识库不会出现在列表中，详情与树查询会按不存在处理。
 - `documents.import.status`、`documents.import.list` 与 `documents.import.events` 对 `tenant_viewer` 开放；创建、取消和重试导入任务需要 `tenant_operator`。
 - `documents.import.create` capability 只支持 `local`、`url`、`manifest` 三类来源；飞书、钉钉、Git 等需要集成凭证的来源走导入任务 API 或控制台集成流程。WebDAV 仍用于外部客户端访问知识资源，不作为导入来源。
+- WebDAV 覆盖和在线协作编辑只保存最新草稿并标记索引过期；`documents.index.rebuild` 才会触发 OpenViking 正文写入与索引刷新。
 - WebDAV 入口当前按 `tenant -> knowledge base -> knowledge tree node` 映射，叶子节点按文件资源输出；`MKCOL`、`PUT`、`DELETE` 和 `MOVE` 至少需要 `tenant_operator` 权限。
 - Adapter 不允许覆盖能力契约中的 `minimumRole`。
 - 租户外 URI 必须显式拒绝，不做静默收敛后继续执行。

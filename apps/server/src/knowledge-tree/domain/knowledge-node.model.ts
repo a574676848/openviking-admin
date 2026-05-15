@@ -1,3 +1,5 @@
+import type { AuditActorSnapshot } from '../../common/audit-actor.types';
+
 export interface KnowledgeNodeAcl {
   roles?: string[];
   users?: string[];
@@ -5,6 +7,7 @@ export interface KnowledgeNodeAcl {
 }
 
 export type KnowledgeNodeKind = 'collection' | 'document';
+export type KnowledgeNodeIndexStatus = 'clean' | 'dirty' | 'pending' | 'indexing' | 'failed';
 
 export interface KnowledgeNodeModel {
   id: string;
@@ -18,6 +21,18 @@ export interface KnowledgeNodeModel {
   kind: KnowledgeNodeKind;
   vikingUri: string | null;
   contentUri: string | null;
+  indexStatus: KnowledgeNodeIndexStatus;
+  draftVersion: number;
+  indexedVersion: number;
+  vectorCount: number | null;
+  lastIndexedAt: Date | null;
+  indexError: string | null;
+  createdById?: string | null;
+  createdByName?: string | null;
+  updatedById?: string | null;
+  updatedByName?: string | null;
+  createdBy?: AuditActorSnapshot | null;
+  updatedBy?: AuditActorSnapshot | null;
   createdAt: Date;
   updatedAt: Date;
 }

@@ -220,4 +220,41 @@ describe('AuthService', () => {
       ).rejects.toThrow(UnauthorizedException);
     });
   });
+
+  describe('verifyAccessToken', () => {
+    it('应该返回已校验的 access token 载荷', () => {
+      jwtService.verify.mockReturnValue({
+        sub: 'user-1',
+        username: 'alice',
+        role: SystemRoles.TENANT_OPERATOR,
+        tenantId: 'tenant-1',
+        scope: 'tenant',
+        tokenType: 'access_token',
+      });
+
+      expect(service.verifyAccessToken('access-token')).toEqual({
+        sub: 'user-1',
+        username: 'alice',
+        role: SystemRoles.TENANT_OPERATOR,
+        tenantId: 'tenant-1',
+        scope: 'tenant',
+        tokenType: 'access_token',
+      });
+    });
+
+    it('token 类型不是 access token 时应该抛错', () => {
+      jwtService.verify.mockReturnValue({
+        sub: 'user-1',
+        username: 'alice',
+        role: SystemRoles.TENANT_OPERATOR,
+        tenantId: 'tenant-1',
+        scope: 'tenant',
+        tokenType: 'refresh_token',
+      });
+
+      expect(() => service.verifyAccessToken('refresh-token')).toThrow(
+        UnauthorizedException,
+      );
+    });
+  });
 });

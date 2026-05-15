@@ -44,12 +44,30 @@ const UUID_EXTENSION_SQL = 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp"';
 
 const IMPORT_TASKS_TABLE = 'import_tasks';
 const KNOWLEDGE_NODES_TABLE = 'knowledge_nodes';
+const KNOWLEDGE_BASES_TABLE = 'knowledge_bases';
 const INTEGRATIONS_TABLE = 'integrations';
+const DOCUMENT_DRAFTS_TABLE = 'document_drafts';
 const SOURCE_NAME_MAX_LENGTH = 255;
 const NODE_KIND_MAX_LENGTH = 20;
 const CONTENT_URI_MAX_LENGTH = 2048;
 const INTEGRATION_NAME_MAX_LENGTH = 64;
 const INTEGRATION_TYPE_MAX_LENGTH = 32;
+const ACTOR_FIELD_MAX_LENGTH = 64;
+const INDEX_STATUS_MAX_LENGTH = 20;
+const ACTOR_FIELD_NAMES = [
+  'created_by_id',
+  'created_by_name',
+  'updated_by_id',
+  'updated_by_name',
+] as const;
+const KNOWLEDGE_NODE_INDEX_COLUMNS = [
+  ['index_status', `VARCHAR(${INDEX_STATUS_MAX_LENGTH}) NOT NULL DEFAULT 'clean'`],
+  ['draft_version', 'INTEGER NOT NULL DEFAULT 0'],
+  ['indexed_version', 'INTEGER NOT NULL DEFAULT 0'],
+  ['vector_count', 'INTEGER'],
+  ['last_indexed_at', 'TIMESTAMPTZ'],
+  ['index_error', 'TEXT'],
+] as const;
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
@@ -384,8 +402,10 @@ async function upgradeSchemaStorage(
   context: UpgradeContext,
 ) {
   console.log(`开始升级：${context.label}`);
+  await ensureKnowledgeBases(dataSource, schema, context);
   await ensureImportTasks(dataSource, schema, context);
   await ensureKnowledgeNodes(dataSource, schema, context);
+  await ensureDocumentDrafts(dataSource, schema, context);
   await ensureIntegrations(dataSource, schema, context);
   console.log(`完成升级：${context.label}`);
 }
@@ -431,6 +451,7 @@ async function ensureImportTasks(
       ADD COLUMN IF NOT EXISTS "source_name" VARCHAR(${SOURCE_NAME_MAX_LENGTH})
     `,
   );
+  await ensureActorColumns(dataSource, schema, IMPORT_TASKS_TABLE, context);
 
   if (
     await columnExists(
@@ -450,6 +471,19 @@ async function ensureImportTasks(
       `,
     );
   }
+}
+
+async function ensureKnowledgeBases(
+  dataSource: DataSource,
+  schema: string,
+  context: UpgradeContext,
+) {
+  if (!(await tableExists(dataSource, schema, KNOWLEDGE_BASES_TABLE))) {
+    console.warn(`${context.label} 缺少 ${KNOWLEDGE_BASES_TABLE} 表，已跳过。`);
+    return;
+  }
+
+  await ensureActorColumns(dataSource, schema, KNOWLEDGE_BASES_TABLE, context);
 }
 
 async function ensureKnowledgeNodes(
@@ -486,6 +520,7 @@ async function ensureKnowledgeNodes(
       ADD COLUMN IF NOT EXISTS "content_uri" VARCHAR(${CONTENT_URI_MAX_LENGTH})
     `,
   );
+  await ensureActorColumns(dataSource, schema, KNOWLEDGE_NODES_TABLE, context);
 
   if (
     await columnExists(dataSource, schema, KNOWLEDGE_NODES_TABLE, 'viking_uri')
@@ -494,6 +529,78 @@ async function ensureKnowledgeNodes(
   }
 
   await ensureKnowledgeNodeAclJsonb(dataSource, schema, context);
+  await ensureKnowledgeNodeIndexState(dataSource, schema, context);
+}
+
+async function ensureKnowledgeNodeIndexState(
+  dataSource: DataSource,
+  schema: string,
+  context: UpgradeContext,
+) {
+  for (const [column, type] of KNOWLEDGE_NODE_INDEX_COLUMNS) {
+    await runSql(
+      dataSource,
+      context,
+      `
+        ALTER TABLE ${tableName(schema, KNOWLEDGE_NODES_TABLE)}
+        ADD COLUMN IF NOT EXISTS "${column}" ${type}
+      `,
+    );
+  }
+}
+
+async function ensureDocumentDrafts(
+  dataSource: DataSource,
+  schema: string,
+  context: UpgradeContext,
+) {
+  await runSql(
+    dataSource,
+    context,
+    `
+      CREATE TABLE IF NOT EXISTS ${tableName(schema, DOCUMENT_DRAFTS_TABLE)} (
+        "id" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        "tenant_id" VARCHAR(64),
+        "node_id" UUID NOT NULL,
+        "markdown" TEXT NOT NULL,
+        "version" INTEGER NOT NULL DEFAULT 1,
+        "created_by_id" VARCHAR(${ACTOR_FIELD_MAX_LENGTH}),
+        "created_by_name" VARCHAR(${ACTOR_FIELD_MAX_LENGTH}),
+        "updated_by_id" VARCHAR(${ACTOR_FIELD_MAX_LENGTH}),
+        "updated_by_name" VARCHAR(${ACTOR_FIELD_MAX_LENGTH}),
+        "created_at" TIMESTAMPTZ NOT NULL DEFAULT now(),
+        "updated_at" TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `,
+  );
+  await runSql(
+    dataSource,
+    context,
+    `
+      CREATE UNIQUE INDEX IF NOT EXISTS ${quoteIdentifier(
+        `idx_${schema}_${DOCUMENT_DRAFTS_TABLE}_tenant_node`,
+      )}
+      ON ${tableName(schema, DOCUMENT_DRAFTS_TABLE)} (COALESCE("tenant_id", ''), "node_id")
+    `,
+  );
+}
+
+async function ensureActorColumns(
+  dataSource: DataSource,
+  schema: string,
+  table: string,
+  context: UpgradeContext,
+) {
+  for (const column of ACTOR_FIELD_NAMES) {
+    await runSql(
+      dataSource,
+      context,
+      `
+        ALTER TABLE ${tableName(schema, table)}
+        ADD COLUMN IF NOT EXISTS "${column}" VARCHAR(${ACTOR_FIELD_MAX_LENGTH})
+      `,
+    );
+  }
 }
 
 async function backfillKnowledgeNodeContent(

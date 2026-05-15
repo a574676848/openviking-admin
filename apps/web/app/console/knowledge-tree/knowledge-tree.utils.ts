@@ -1,8 +1,20 @@
 import type { KnowledgeAcl, KnowledgeNode, TenantUserOption, TreeNode } from "./knowledge-tree.types";
+import {
+  KNOWLEDGE_NODE_KIND_DOCUMENT,
+  KNOWLEDGE_NODE_KIND_LABELS,
+} from "./knowledge-tree.constants";
 
 export const EMPTY_ACL: KnowledgeAcl = { isPublic: true, roles: [], users: [] };
 export const ACL_ROLES = ["tenant_admin", "tenant_operator", "tenant_viewer"];
 export const PIPELINE_STEPS = ["清洗", "分段", "切片", "向量化"];
+
+export function isDocumentNode(node: Pick<KnowledgeNode, "kind">) {
+  return node.kind === KNOWLEDGE_NODE_KIND_DOCUMENT;
+}
+
+export function knowledgeNodeKindLabel(node: Pick<KnowledgeNode, "kind">) {
+  return KNOWLEDGE_NODE_KIND_LABELS[node.kind];
+}
 
 export function buildTree(nodes: KnowledgeNode[]): TreeNode[] {
   const map = new Map<string, TreeNode>();

@@ -10,6 +10,8 @@ import { AppModule } from './app.module';
 import passport from 'passport';
 import { Strategy as JwtStrategy, ExtractJwt } from 'passport-jwt';
 import { assertSafeRuntimeConfig } from './common/runtime-config';
+import { DocumentCollabGateway } from './document/document-collab.gateway';
+import { DOCUMENT_COLLAB_ROUTE_PATH } from './document/constants';
 import {
   WEBDAV_ALLOW,
   WEBDAV_DAV,
@@ -66,7 +68,10 @@ async function bootstrap() {
   );
 
   app.setGlobalPrefix('api', {
-    exclude: [{ path: 'webdav/{*path}', method: RequestMethod.ALL }],
+    exclude: [
+      { path: 'webdav/{*path}', method: RequestMethod.ALL },
+      { path: DOCUMENT_COLLAB_ROUTE_PATH, method: RequestMethod.ALL },
+    ],
   });
   app.enableVersioning({
     type: VersioningType.URI,
@@ -76,9 +81,22 @@ async function bootstrap() {
   app.enableCors({
     origin: process.env.FRONTEND_URL || 'http://localhost:6002',
   });
+  app.enableShutdownHooks();
 
   const port = process.env.PORT ?? 6001;
   await app.listen(port);
+  await (await app.resolve(DocumentCollabGateway)).attachToHttpServer(
+    app.getHttpServer(),
+  );
+  const banner = [
+    '╔══════════════════════════════════════════════════════╗',
+    '║            OpenViking 知识管理平台                    ║',
+    '║          企业级 AI 知识库管理平台                      ║',
+    '║                                                      ║',
+    '║  设计与开发：github.com/a574676848/openviking-admin    ║',
+    '╚══════════════════════════════════════════════════════╝',
+  ].join('\n');
+  Logger.log(`\n${banner}`, 'Bootstrap');
   Logger.log(
     `OpenViking 服务已启动: http://localhost:${port}/api/v1`,
     'Bootstrap',

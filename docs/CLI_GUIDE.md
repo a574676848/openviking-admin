@@ -81,7 +81,7 @@ ova setup --server http://localhost:6001 --api-key <YOUR_API_KEY>
 如果当前 profile 已有登录态，`setup` 也可以自动签发 MCP 所需凭证：
 
 ```bash
-ova auth login --server http://localhost:6001 --username admin --password acme@123 --tenant-code acme
+ova auth login --server http://localhost:6001 --username admin --password <your-password> --tenant-code acme
 ova setup
 ```
 
@@ -171,7 +171,7 @@ OAuth 授权沿用现有 SSO 机制：浏览器完成授权后，如果回跳地
 ova auth login \
   --server http://localhost:6001 \
   --username admin \
-  --password acme@123 \
+  --password <your-password> \
   --tenant-code acme
 ```
 
@@ -204,7 +204,7 @@ Profile 用于隔离本地、测试、生产等环境。
 ova auth login \
   --server http://localhost:6001 \
   --username admin \
-  --password acme@123 \
+  --password <your-password> \
   --tenant-code acme \
   --profile dev
 

@@ -16,6 +16,10 @@ describe('KnowledgeCapabilityGateway', () => {
     cancel: jest.fn(),
     retry: jest.fn(),
   };
+  const documentService = {
+    indexContent: jest.fn(),
+    loadContent: jest.fn(),
+  };
   const knowledgeBaseService = {
     findAll: jest.fn(),
     findOne: jest.fn(),
@@ -29,6 +33,7 @@ describe('KnowledgeCapabilityGateway', () => {
     knowledgeBaseService as never,
     knowledgeTreeService as never,
     importTaskService as never,
+    documentService as never,
   );
 
   const principal: Principal = {
@@ -110,6 +115,35 @@ describe('KnowledgeCapabilityGateway', () => {
       }),
       expect.anything(),
       undefined,
+    );
+  });
+
+  it('创建文档导入任务时应透传来源展示名', async () => {
+    knowledgeBaseService.findOne.mockResolvedValue({
+      id: 'kb-1',
+      vikingUri: 'viking://resources/tenants/tenant-a/kb-1/',
+    });
+    importTaskService.create.mockResolvedValue({
+      id: 'task-1',
+      status: 'pending',
+      sourceName: '产品手册.md',
+    });
+
+    await gateway.createDocumentImport(principal, {
+      knowledgeBaseId: 'kb-1',
+      sourceType: 'url',
+      sourceUrl: 'https://docs.example.com/manual.md',
+      sourceName: '产品手册.md',
+    });
+
+    expect(importTaskService.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceName: '产品手册.md',
+      }),
+      'tenant-a',
+      expect.objectContaining({
+        id: 'user-1',
+      }),
     );
   });
 });

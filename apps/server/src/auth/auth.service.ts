@@ -20,6 +20,10 @@ type AuthTokenPayload = {
   isAdminSwitch?: boolean;
 };
 
+export type VerifiedAccessTokenPayload = AuthTokenPayload & {
+  tokenType: typeof ACCESS_TOKEN_TYPE;
+};
+
 type SessionUserPayload = {
   id: string;
   username: string;
@@ -42,6 +46,10 @@ const CUSTOM_OV_CONFIG_FIELDS: Array<keyof TenantOvConfig> = [
   'rerankApiKey',
   'rerankModel',
 ];
+const ACCESS_TOKEN_TYPE = 'access_token';
+const REFRESH_TOKEN_TYPE = 'refresh_token';
+const ACCESS_TOKEN_EXPIRES_IN_SECONDS = 2 * 60 * 60;
+const REFRESH_TOKEN_EXPIRES_IN_SECONDS = 7 * 24 * 60 * 60;
 
 @Injectable()
 export class AuthService {
@@ -193,6 +201,24 @@ export class AuthService {
     return this.issueTokenPair(payload);
   }
 
+  verifyAccessToken(token: string): VerifiedAccessTokenPayload {
+    let payload: AuthTokenPayload & { tokenType?: string };
+
+    try {
+      payload = this.jwtService.verify<AuthTokenPayload & { tokenType?: string }>(
+        token,
+      );
+    } catch {
+      throw new UnauthorizedException('access token 无效或已过期');
+    }
+
+    if (payload.tokenType !== ACCESS_TOKEN_TYPE) {
+      throw new UnauthorizedException('access token 类型错误');
+    }
+
+    return { ...payload, tokenType: ACCESS_TOKEN_TYPE };
+  }
+
   async refreshAccessToken(refreshToken: string) {
     let payload: AuthTokenPayload & { tokenType?: string };
 
@@ -204,7 +230,7 @@ export class AuthService {
       throw new UnauthorizedException('refresh token 无效或已过期');
     }
 
-    if (payload.tokenType !== 'refresh_token') {
+    if (payload.tokenType !== REFRESH_TOKEN_TYPE) {
       throw new UnauthorizedException('refresh token 类型错误');
     }
 
@@ -259,20 +285,17 @@ export class AuthService {
   }
 
   private issueTokenPair(payload: AuthTokenPayload) {
-    const accessExpiresInSeconds = 2 * 60 * 60;
-    const refreshExpiresInSeconds = 7 * 24 * 60 * 60;
-
     return {
       accessToken: this.jwtService.sign(
-        { ...payload, tokenType: 'access_token' },
-        { expiresIn: `${accessExpiresInSeconds}s` },
+        { ...payload, tokenType: ACCESS_TOKEN_TYPE },
+        { expiresIn: `${ACCESS_TOKEN_EXPIRES_IN_SECONDS}s` },
       ),
       refreshToken: this.jwtService.sign(
-        { ...payload, tokenType: 'refresh_token' },
-        { expiresIn: `${refreshExpiresInSeconds}s` },
+        { ...payload, tokenType: REFRESH_TOKEN_TYPE },
+        { expiresIn: `${REFRESH_TOKEN_EXPIRES_IN_SECONDS}s` },
       ),
-      expiresInSeconds: accessExpiresInSeconds,
-      refreshExpiresInSeconds,
+      expiresInSeconds: ACCESS_TOKEN_EXPIRES_IN_SECONDS,
+      refreshExpiresInSeconds: REFRESH_TOKEN_EXPIRES_IN_SECONDS,
     };
   }
 

@@ -2,11 +2,14 @@ import { Type } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
+  IsIn,
   IsNumber,
   IsOptional,
   IsString,
   ValidateNested,
 } from 'class-validator';
+import { KNOWLEDGE_NODE_KINDS } from '../constants';
+import type { KnowledgeNodeKind } from '../domain/knowledge-node.model';
 
 class KnowledgeAclDto {
   @IsOptional()
@@ -46,6 +49,10 @@ export class CreateNodeDto {
   @IsOptional()
   @IsString()
   vikingUri?: string;
+
+  @IsOptional()
+  @IsIn(KNOWLEDGE_NODE_KINDS)
+  kind?: KnowledgeNodeKind;
 }
 
 export class UpdateNodeDto {

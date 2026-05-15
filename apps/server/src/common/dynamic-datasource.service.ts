@@ -4,6 +4,7 @@ import { KnowledgeNode } from '../knowledge-tree/entities/knowledge-node.entity'
 import { ImportTask } from '../import-task/entities/import-task.entity';
 import { KnowledgeBase } from '../knowledge-base/entities/knowledge-base.entity';
 import { Integration } from '../tenant/entities/integration.entity';
+import { DocumentDraft } from '../document/entities/document-draft.entity';
 
 interface DbConfig {
   host?: string;
@@ -23,6 +24,7 @@ export class DynamicDataSourceService implements OnModuleDestroy {
     ImportTask,
     KnowledgeBase,
     Integration,
+    DocumentDraft,
   ];
 
   async getTenantDataSource(

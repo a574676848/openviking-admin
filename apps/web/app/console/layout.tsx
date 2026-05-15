@@ -3,8 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
+import { toast } from "sonner";
 import { useApp } from "@/components/app-provider";
 import { ThemeSwitcher } from "@/components/theme-switcher";
+import { buildKnowledgeSiteIndexRoute } from "./knowledge-tree/knowledge-tree.constants";
+import {
+  KNOWLEDGE_SITE_POPUP_BLOCKED_MESSAGE,
+  openKnowledgeSiteInNewTab,
+} from "@/lib/knowledge-site-launch";
 import { getShellButtonClass, getShellPanelClass, getShellTileClass, type ShellTheme } from "@/components/ui/shell-primitives";
 import { SquareTerminal, Database, Network, FileText, Search, Activity, MessageSquare, Users2, Link2, ClipboardList, MonitorCheck, LogOut, Bot, Menu, X, ChevronLeft, KeyRound } from "lucide-react";
 
@@ -32,7 +38,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const shellTheme: ShellTheme = theme === "starry" ? "starry" : "neo";
-  const isStarry = shellTheme === "starry";
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -62,12 +67,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     [user?.hasCustomOvConfig],
   );
 
-  const activeItem = useMemo(
-    () => visibleNavItems.find((item) => pathname.startsWith(item.href)) ?? visibleNavItems[0],
-    [pathname, visibleNavItems]
-  );
-
   if (!mounted || isLoading || !user) return null;
+
+  function handleOpenKnowledgeSite() {
+    const opened = openKnowledgeSiteInNewTab(buildKnowledgeSiteIndexRoute());
+    if (!opened) {
+      toast.error(KNOWLEDGE_SITE_POPUP_BLOCKED_MESSAGE);
+    }
+  }
 
   return (
     <div className="relative flex h-screen bg-transparent text-[var(--text-primary)]">
@@ -101,6 +108,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <ChevronLeft size={16} className={`transition-transform ${sidebarCollapsed ? 'rotate-180' : ''}`} />
             </button>
           </div>
+          {!sidebarCollapsed && (
+            <div className="mt-5 flex items-center gap-3">
+              <div className="h-px flex-1 bg-[var(--border)] opacity-40"></div>
+              <p className="font-sans text-[9px] font-bold text-[var(--text-muted)] whitespace-nowrap uppercase tracking-tighter">
+                设计与开发：<a href="https://github.com/a574676848/openviking-admin" target="_blank" rel="noopener noreferrer" className="text-[var(--brand)] opacity-80 hover:opacity-100 transition-all">OpenViking Admin</a>
+              </p>
+              <div className="h-px flex-1 bg-[var(--border)] opacity-40"></div>
+            </div>
+          )}
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 py-4">
@@ -133,20 +149,35 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
         </nav>
 
-        <div className="mt-auto border-t border-[var(--border)] px-4 py-4">
-          <div className={`flex ${sidebarCollapsed ? 'flex-col items-center gap-3' : 'flex-row items-center gap-2'}`}>
-            <ThemeSwitcher className={sidebarCollapsed ? '' : 'flex-1 min-w-0'} placement="top" compact={sidebarCollapsed} />
+        <div className="mt-auto">
+          <div className={`px-4 py-2 ${sidebarCollapsed ? 'flex justify-center' : ''}`}>
             <button
               type="button"
-              onClick={logout}
-              className={getShellButtonClass(shellTheme, "danger", `flex h-11 ${sidebarCollapsed ? 'w-11 px-0 justify-center' : 'px-3 shrink-0'}`)}
-              title="退出系统"
+              onClick={handleOpenKnowledgeSite}
+              className={getShellButtonClass(shellTheme, "default", sidebarCollapsed ? "h-11 w-11 p-0" : "w-full h-10 px-4 flex items-center justify-center gap-2")}
+              title="进入知识空间"
             >
-              <div className={getShellTileClass(shellTheme, "p-1.5 bg-[var(--danger)]/10")}>
-                <LogOut size={14} strokeWidth={2.5} />
+              <div className={sidebarCollapsed ? getShellTileClass(shellTheme, "p-1.5 bg-[var(--brand-muted)] text-[var(--brand)]") : ""}>
+                <Link2 size={14} strokeWidth={2.5} />
               </div>
-              {!sidebarCollapsed && <span className="ml-1">退出系统</span>}
+              {!sidebarCollapsed && <span>进入知识空间</span>}
             </button>
+          </div>
+          <div className="border-t border-[var(--border)] px-4 py-4">
+            <div className={`flex ${sidebarCollapsed ? 'flex-col items-center gap-3' : 'flex-row items-center gap-2'}`}>
+              <ThemeSwitcher className={sidebarCollapsed ? '' : 'flex-1 min-w-0'} placement="top" compact={sidebarCollapsed} />
+              <button
+                type="button"
+                onClick={logout}
+                className={getShellButtonClass(shellTheme, "danger", `flex h-11 ${sidebarCollapsed ? 'w-11 px-0 justify-center' : 'px-3 shrink-0'}`)}
+                title="退出系统"
+              >
+                <div className={getShellTileClass(shellTheme, "p-1.5 bg-[var(--danger)]/10")}>
+                  <LogOut size={14} strokeWidth={2.5} />
+                </div>
+                {!sidebarCollapsed && <span className="ml-1">退出系统</span>}
+              </button>
+            </div>
           </div>
         </div>
       </aside>
@@ -165,6 +196,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               {mobileNavOpen ? <X size={18} strokeWidth={2.4} /> : <Menu size={18} strokeWidth={2.4} />}
             </button>
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleOpenKnowledgeSite}
+                className={getShellButtonClass(shellTheme, "default", "flex h-11 px-4")}
+                aria-label="进入知识空间"
+                title="进入知识空间"
+              >
+                进入知识空间
+              </button>
               <ThemeSwitcher align="right" />
               <button
                 type="button"

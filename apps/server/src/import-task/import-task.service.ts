@@ -24,6 +24,11 @@ import type { IKnowledgeBaseRepository } from '../knowledge-base/domain/reposito
 import { IKnowledgeNodeRepository } from '../knowledge-tree/domain/repositories/knowledge-node.repository.interface';
 import type { KnowledgeNodeModel } from '../knowledge-tree/domain/knowledge-node.model';
 import type { IKnowledgeNodeRepository as IKnowledgeNodeRepositoryType } from '../knowledge-tree/domain/repositories/knowledge-node.repository.interface';
+import {
+  applyCreatedAuditActor,
+  applyUpdatedAuditActor,
+  type AuditActorSnapshot,
+} from '../common/audit-actor.types';
 
 const AUTO_TARGET_SEGMENTS: Record<string, string> = {
   git: 'imports/git',
@@ -36,10 +41,6 @@ const AUTO_TARGET_SEGMENTS: Record<string, string> = {
 const RESOURCE_URI_PREFIX = 'viking://resources/';
 const TENANT_RESOURCE_PREFIX = 'viking://resources/tenants/';
 const GIT_REPOSITORY_SUFFIX = '.git';
-
-type CreateImportTaskInput = CreateImportTaskDto & {
-  sourceNames?: string[];
-};
 
 @Injectable()
 export class ImportTaskService {
@@ -67,7 +68,11 @@ export class ImportTaskService {
     return task;
   }
 
-  async create(dto: CreateImportTaskInput, tenantId: string) {
+  async create(
+    dto: CreateImportTaskDto,
+    tenantId: string,
+    actor?: AuditActorSnapshot | null,
+  ) {
     if (['git', 'feishu', 'dingtalk'].includes(dto.sourceType) && !dto.integrationId) {
       throw new BadRequestException('该来源类型必须选择集成凭证');
     }
@@ -78,16 +83,22 @@ export class ImportTaskService {
     }
     this.assertLocalSources(dto.sourceType, sourceUrls);
     const targetUri = await this.resolveTargetUri(dto, tenantId);
+    const { sourceName: _sourceName, sourceNames: _sourceNames, ...taskDto } = dto;
 
     const dispatch = sourceUrls.map((sourceUrl, index) =>
-      this.taskRepo.create({
-        ...dto,
-        sourceUrl,
-        sourceName: this.resolveSourceName(dto, sourceUrl, index),
-        targetUri,
-        tenantId,
-        status: TaskStatus.PENDING,
-      } as Partial<ImportTaskModel>),
+      this.taskRepo.create(
+        applyCreatedAuditActor(
+          {
+            ...taskDto,
+            sourceUrl,
+            sourceName: this.resolveSourceName(dto, sourceUrl, index),
+            targetUri,
+            tenantId,
+            status: TaskStatus.PENDING,
+          } as Partial<ImportTaskModel>,
+          actor,
+        ),
+      ),
     );
     const saved = await this.taskRepo.save(
       dispatch.length === 1 ? dispatch[0] : dispatch,
@@ -99,6 +110,7 @@ export class ImportTaskService {
     dto: CreateLocalImportTaskDto,
     files: LocalImportUploadFile[],
     tenantId: string,
+    actor?: AuditActorSnapshot | null,
   ) {
     if (files.length === 0) {
       throw new BadRequestException('请先上传文件');
@@ -120,6 +132,7 @@ export class ImportTaskService {
           targetUri: dto.targetUri,
         },
         tenantId,
+        actor,
       );
     } catch (error) {
       await Promise.all(
@@ -221,11 +234,11 @@ export class ImportTaskService {
   }
 
   private resolveSourceName(
-    dto: CreateImportTaskInput,
+    dto: CreateImportTaskDto,
     sourceUrl: string,
     index: number,
   ) {
-    const explicitName = dto.sourceNames?.[index]?.trim();
+    const explicitName = this.resolveExplicitSourceName(dto, index);
     if (explicitName) {
       return this.truncateSourceName(explicitName);
     }
@@ -234,7 +247,28 @@ export class ImportTaskService {
       return this.resolveGitRepositoryName(sourceUrl);
     }
 
+    if (this.shouldInferSourceNameFromUrl(dto.sourceType)) {
+      return this.resolvePathSourceName(sourceUrl);
+    }
+
     return null;
+  }
+
+  private resolveExplicitSourceName(dto: CreateImportTaskDto, index: number) {
+    const indexedName = dto.sourceNames?.[index]?.trim();
+    if (indexedName) {
+      return indexedName;
+    }
+
+    if (index === 0) {
+      return dto.sourceName?.trim() || null;
+    }
+
+    return null;
+  }
+
+  private shouldInferSourceNameFromUrl(sourceType: string) {
+    return ['local', 'url', 'manifest'].includes(sourceType);
   }
 
   private resolveGitRepositoryName(sourceUrl: string) {
@@ -253,6 +287,20 @@ export class ImportTaskService {
       ? decodedName.slice(0, -GIT_REPOSITORY_SUFFIX.length)
       : decodedName;
     return this.truncateSourceName(displayName);
+  }
+
+  private resolvePathSourceName(sourceUrl: string) {
+    const sourcePath = this.resolveSourcePath(sourceUrl);
+    const fileName = sourcePath
+      .split(/[\\/]/)
+      .filter(Boolean)
+      .at(-1)
+      ?.trim();
+    if (!fileName) {
+      return null;
+    }
+
+    return this.truncateSourceName(this.decodePathSegment(fileName));
   }
 
   private resolveSourcePath(sourceUrl: string) {
@@ -368,7 +416,11 @@ export class ImportTaskService {
     return Array.isArray(result) ? result.length : 0;
   }
 
-  async retry(id: string, tenantId: string | null) {
+  async retry(
+    id: string,
+    tenantId: string | null,
+    actor?: AuditActorSnapshot | null,
+  ) {
     const task = await this.findOne(id, tenantId);
     if (
       ![TaskStatus.FAILED, TaskStatus.CANCELLED].includes(
@@ -378,15 +430,25 @@ export class ImportTaskService {
       throw new ConflictException('只有失败或已取消的任务才能重试');
     }
 
-    await this.taskRepo.update(id, {
-      status: TaskStatus.PENDING,
-      errorMsg: null,
-      updatedAt: new Date(),
-    });
+    await this.taskRepo.update(
+      id,
+      applyUpdatedAuditActor(
+        {
+          status: TaskStatus.PENDING,
+          errorMsg: null,
+          updatedAt: new Date(),
+        },
+        actor,
+      ),
+    );
     return this.taskRepo.findById(id, tenantId);
   }
 
-  async cancel(id: string, tenantId: string | null) {
+  async cancel(
+    id: string,
+    tenantId: string | null,
+    actor?: AuditActorSnapshot | null,
+  ) {
     const task = await this.findOne(id, tenantId);
     if (task.status === TaskStatus.RUNNING) {
       throw new ConflictException('任务已进入执行阶段，当前版本不支持中途停止');
@@ -395,11 +457,17 @@ export class ImportTaskService {
       throw new ConflictException('只有排队中的任务才能取消');
     }
 
-    await this.taskRepo.update(id, {
-      status: TaskStatus.CANCELLED,
-      errorMsg: '用户已取消排队任务',
-      updatedAt: new Date(),
-    });
+    await this.taskRepo.update(
+      id,
+      applyUpdatedAuditActor(
+        {
+          status: TaskStatus.CANCELLED,
+          errorMsg: '用户已取消排队任务',
+          updatedAt: new Date(),
+        },
+        actor,
+      ),
+    );
     if (task.sourceType === 'local') {
       await this.localImportStorage.deleteBySourceUrl(task.sourceUrl);
     }

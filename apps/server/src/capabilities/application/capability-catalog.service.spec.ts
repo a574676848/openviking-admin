@@ -179,6 +179,36 @@ describe('CapabilityCatalogService', () => {
           CapabilitiesController.prototype.watchDocumentImportEvents,
         ),
       },
+      'documents.index.status': {
+        path: Reflect.getMetadata(
+          PATH_METADATA,
+          CapabilitiesController.prototype.getDocumentIndexStatus,
+        ),
+        method: Reflect.getMetadata(
+          METHOD_METADATA,
+          CapabilitiesController.prototype.getDocumentIndexStatus,
+        ),
+      },
+      'documents.index.rebuild': {
+        path: Reflect.getMetadata(
+          PATH_METADATA,
+          CapabilitiesController.prototype.rebuildDocumentIndex,
+        ),
+        method: Reflect.getMetadata(
+          METHOD_METADATA,
+          CapabilitiesController.prototype.rebuildDocumentIndex,
+        ),
+      },
+      'documents.draft.grep': {
+        path: Reflect.getMetadata(
+          PATH_METADATA,
+          CapabilitiesController.prototype.grepDocumentDraft,
+        ),
+        method: Reflect.getMetadata(
+          METHOD_METADATA,
+          CapabilitiesController.prototype.grepDocumentDraft,
+        ),
+      },
     };
 
     expect(toolNames).toEqual(contracts.map((contract) => contract.id).sort());

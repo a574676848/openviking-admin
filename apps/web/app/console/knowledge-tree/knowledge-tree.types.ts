@@ -1,3 +1,5 @@
+import type { KnowledgeNodeKind } from "./knowledge-tree.constants";
+
 export interface KnowledgeBase {
   id: string;
   name: string;
@@ -17,6 +19,11 @@ export interface TenantUserOption {
   active: boolean;
 }
 
+export interface ActorInfo {
+  id: string | null;
+  username: string | null;
+}
+
 export interface KnowledgeNode {
   id: string;
   kbId: string;
@@ -25,8 +32,19 @@ export interface KnowledgeNode {
   path: string;
   sortOrder: number;
   vikingUri: string | null;
+  contentUri: string | null;
+  kind: KnowledgeNodeKind;
   acl: KnowledgeAcl | null;
+  indexStatus?: "clean" | "dirty" | "pending" | "indexing" | "failed";
+  draftVersion?: number;
+  indexedVersion?: number;
+  vectorCount?: number | null;
+  lastIndexedAt?: string | null;
+  indexError?: string | null;
+  createdBy?: ActorInfo | null;
+  updatedBy?: ActorInfo | null;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface TreeNode extends KnowledgeNode {

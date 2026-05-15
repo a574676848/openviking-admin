@@ -316,6 +316,84 @@ describe("ova cli", () => {
     );
   });
 
+  it("CLI 本地 Markdown 导入应走 multipart 上传并解析父节点 targetUri", async () => {
+    setStateFile(
+      buildStateFile({
+        apiKey: "ov-sk-demo",
+      }),
+    );
+    mockReadFileSync.mockImplementation((filePath: unknown) => {
+      const normalized = normalizePath(filePath);
+      if (normalized === AUTH_STATE_PATH) {
+        return currentStateRaw;
+      }
+      if (normalized === "E:\\repo\\guide.md") {
+        return "# 手册\n\n正文";
+      }
+      if (normalized.includes(SKILL_ASSET_SEGMENT)) {
+        return SAMPLE_SKILL_CONTENT;
+      }
+      return "{}";
+    });
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce(
+        createJsonResponse({
+          data: {
+            item: {
+              id: "node-parent",
+              vikingUri: "viking://resources/tenants/acme/kb-1/node-parent/",
+            },
+          },
+          traceId: "trace-parent",
+        }),
+      )
+      .mockResolvedValueOnce(
+        createJsonResponse({
+          data: {
+            items: [{ id: "task-local-1", status: "pending" }],
+          },
+          traceId: "trace-local-upload",
+        }),
+      ) as unknown as typeof fetch;
+
+    await bootstrap([
+      "documents",
+      "import",
+      "E:\\repo\\guide.md",
+      "--kb",
+      "kb-1",
+      "--type",
+      "local",
+      "--parent",
+      "node-parent",
+      "--output",
+      "json",
+    ]);
+
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      1,
+      "http://localhost:6001/api/v1/capability/knowledge-tree/node-parent",
+      expect.anything(),
+    );
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      2,
+      "http://localhost:6001/api/v1/import-tasks/local-upload",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.any(FormData),
+      }),
+    );
+    const uploadRequest = (global.fetch as jest.Mock).mock.calls[1][1] as {
+      body: FormData;
+    };
+    expect(uploadRequest.body.get("kbId")).toBe("kb-1");
+    expect(uploadRequest.body.get("targetUri")).toBe(
+      "viking://resources/tenants/acme/kb-1/node-parent/",
+    );
+    expect(uploadRequest.body.getAll("files")).toHaveLength(1);
+  });
+
   it("应该通过 configure 保存 API Key profile", async () => {
     await bootstrap([
       "configure",

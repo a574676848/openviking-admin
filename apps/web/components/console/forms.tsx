@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, type ComponentProps, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, Check } from "lucide-react";
+import { ChevronDown, Check, Search, X } from "lucide-react";
 import { cx } from "./shared";
 
 export function ConsoleButton({
@@ -177,6 +177,185 @@ export function ConsoleSelect({
                 {opt.value === value && <Check size={16} strokeWidth={3} />}
               </button>
             ))}
+          </div>
+          <div className="h-1 w-full bg-gradient-to-r from-transparent via-[var(--brand)] to-transparent opacity-30" />
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
+export function ConsoleMultiSelect({
+  value = [],
+  onChange,
+  options = [],
+  placeholder = "请选择...",
+  disabled,
+  className,
+  triggerClassName,
+}: {
+  value?: string[];
+  onChange?: (value: string[]) => void;
+  options: ConsoleSelectOption[];
+  placeholder?: string;
+  disabled?: boolean;
+  className?: string;
+  triggerClassName?: string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
+
+  const filteredOptions = options.filter((opt) =>
+    opt.label.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const updateCoords = () => {
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      setCoords({
+        top: rect.bottom + window.scrollY + 8,
+        left: rect.left + window.scrollX,
+        width: rect.width,
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      updateCoords();
+      window.addEventListener("scroll", updateCoords, true);
+      window.addEventListener("resize", updateCoords);
+      const handleClickOutside = (e: MouseEvent) => {
+        if (
+          containerRef.current &&
+          !containerRef.current.contains(e.target as Node) &&
+          dropdownRef.current &&
+          !dropdownRef.current.contains(e.target as Node)
+        ) {
+          setIsOpen(false);
+        }
+      };
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => {
+        window.removeEventListener("scroll", updateCoords, true);
+        window.removeEventListener("resize", updateCoords);
+        document.removeEventListener("mousedown", handleClickOutside);
+      };
+    } else {
+      setSearchQuery("");
+    }
+  }, [isOpen]);
+
+  const toggleOption = (val: string) => {
+    const next = value.includes(val)
+      ? value.filter((v) => v !== val)
+      : [...value, val];
+    onChange?.(next);
+  };
+
+  const selectedLabels = value
+    .map((v) => options.find((opt) => opt.value === v)?.label)
+    .filter(Boolean);
+
+  return (
+    <div ref={containerRef} className={cx("relative w-full", className)}>
+      <div
+        className={cx(
+          "ov-input flex min-h-[52px] w-full flex-wrap items-center justify-between gap-2 px-3 py-2 font-sans text-sm font-bold transition-all duration-300",
+          "bg-[var(--bg-input)] border-[var(--border)] text-[var(--text-primary)]",
+          !disabled && "cursor-pointer hover:border-[var(--brand)] hover:bg-[var(--bg-card)]",
+          isOpen && !disabled && "ring-4 ring-[var(--brand-muted)] border-[var(--brand)] shadow-lg",
+          disabled && "cursor-not-allowed opacity-50 bg-[var(--bg-elevated)]",
+          triggerClassName
+        )}
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+      >
+        <div className="flex flex-1 flex-wrap gap-1.5">
+          {selectedLabels.length > 0 ? (
+            selectedLabels.map((label, idx) => (
+              <span
+                key={idx}
+                className="flex items-center gap-1 rounded-md bg-[var(--brand)] px-2.5 py-1 text-xs text-[var(--brand-text)]"
+              >
+                {label}
+                <X
+                  size={12}
+                  className="cursor-pointer opacity-70 hover:opacity-100"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const val = value[idx];
+                    toggleOption(val);
+                  }}
+                />
+              </span>
+            ))
+          ) : (
+            <span className="text-[var(--text-muted)] font-normal ml-1">{placeholder}</span>
+          )}
+        </div>
+        <ChevronDown
+          size={18}
+          className={cx("text-[var(--text-muted)] transition-transform duration-300 shrink-0", isOpen && "rotate-180 text-[var(--brand)]")}
+        />
+      </div>
+
+      {isOpen && !disabled && typeof document !== "undefined" && createPortal(
+        <div
+          ref={dropdownRef}
+          style={{
+            position: "absolute",
+            top: coords.top,
+            left: coords.left,
+            width: coords.width,
+            zIndex: 9999,
+          }}
+          className={cx(
+            "animate-in fade-in zoom-in-95 duration-200 overflow-hidden rounded-2xl border shadow-2xl backdrop-blur-xl flex flex-col",
+            "bg-[var(--bg-card)] border-[var(--border)]"
+          )}
+        >
+          <div className="p-2 border-b border-[var(--border)]">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" size={14} />
+              <input
+                autoFocus
+                className="w-full bg-[var(--bg-input)] border border-[var(--border)] rounded-xl pl-9 pr-4 py-2 text-sm outline-none focus:border-[var(--brand)] transition-colors"
+                placeholder="搜索成员..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+          </div>
+          <div className="max-h-[260px] overflow-y-auto p-1.5 scrollbar-thin">
+            {filteredOptions.length === 0 ? (
+              <div className="px-4 py-8 text-center text-xs text-[var(--text-muted)]">
+                没有找到匹配的成员
+              </div>
+            ) : (
+              filteredOptions.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleOption(opt.value);
+                  }}
+                  className={cx(
+                    "flex w-full items-center justify-between rounded-xl px-4 py-3 text-left text-sm font-bold transition-all duration-200 mb-0.5 last:mb-0",
+                    value.includes(opt.value)
+                      ? "bg-[var(--brand)] text-[var(--brand-text)] shadow-md"
+                      : "text-[var(--text-primary)] hover:bg-[var(--brand-muted)] hover:text-[var(--brand)]"
+                  )}
+                >
+                  <span className="truncate">{opt.label}</span>
+                  {value.includes(opt.value) && <Check size={16} strokeWidth={3} />}
+                </button>
+              ))
+            )}
           </div>
           <div className="h-1 w-full bg-gradient-to-r from-transparent via-[var(--brand)] to-transparent opacity-30" />
         </div>,

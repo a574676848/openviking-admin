@@ -5,18 +5,31 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
+import { DataSource } from 'typeorm';
 import { CreateNodeDto, UpdateNodeDto } from './dto/node.dto';
 import { IKnowledgeNodeRepository } from './domain/repositories/knowledge-node.repository.interface';
 import type {
+  KnowledgeNodeIndexStatus,
   KnowledgeNodeKind,
   KnowledgeNodeModel,
 } from './domain/knowledge-node.model';
 import { SettingsService } from '../settings/settings.service';
+import { DynamicDataSourceService } from '../common/dynamic-datasource.service';
+import { TenantIsolationLevel } from '../common/constants/system.enum';
 import {
   OVClientService,
   type OVConnection,
 } from '../common/ov-client.service';
+import { DocumentSessionRegistry } from '../common/document-session-registry';
+import {
+  applyCreatedAuditActor,
+  applyUpdatedAuditActor,
+  type AuditActorSnapshot,
+} from '../common/audit-actor.types';
+import { KnowledgeNode } from './entities/knowledge-node.entity';
+import { TenantCacheService } from '../tenant/tenant-cache.service';
 
 type OpenVikingDeleteConfig = Partial<Omit<OVConnection, 'user'>> & {
   user?: string | null;
@@ -32,6 +45,7 @@ const OPENVIKING_FS_PATH = '/api/v1/fs';
 const OPENVIKING_DELETE_LABEL = 'OpenViking 资源删除';
 const DEFAULT_OPENVIKING_ACCOUNT = 'default';
 const DIRECTORY_URI_SUFFIX = '/';
+const FILE_EXTENSION_PATTERN = /\.[^.\s/\\]+$/;
 
 @Injectable()
 export class KnowledgeTreeService {
@@ -46,6 +60,10 @@ export class KnowledgeTreeService {
     private readonly nodeRepo: IKnowledgeNodeRepository,
     private readonly settingsService: SettingsService,
     private readonly ovClientService: OVClientService,
+    private readonly documentSessionRegistry: DocumentSessionRegistry,
+    @Optional() private readonly defaultDataSource?: DataSource,
+    @Optional() private readonly dynamicDataSourceService?: DynamicDataSourceService,
+    @Optional() private readonly tenantCacheService?: TenantCacheService,
   ) {}
 
   async findByKb(
@@ -58,6 +76,26 @@ export class KnowledgeTreeService {
       where,
       order: { sortOrder: 'ASC', createdAt: 'ASC' },
     });
+  }
+
+  async findChildrenWithCount(
+    kbId: string,
+    parentId: string | null,
+    tenantId: string | null,
+  ): Promise<(KnowledgeNodeModel & { childrenCount: number })[]> {
+    return this.nodeRepo.findChildrenWithCount(kbId, parentId, tenantId);
+  }
+
+  aggregateKnowledgeBaseStats(kbId: string, tenantId: string | null) {
+    return this.nodeRepo.aggregateKnowledgeBaseStats(kbId, tenantId);
+  }
+
+  async findLineageWithSiblings(
+    kbId: string,
+    nodeId: string,
+    tenantId: string | null,
+  ): Promise<(KnowledgeNodeModel & { childrenCount: number })[]> {
+    return this.nodeRepo.findLineageWithSiblings(kbId, nodeId, tenantId);
   }
 
   async getGraphData(kbId: string, tenantId: string | null) {
@@ -85,14 +123,25 @@ export class KnowledgeTreeService {
 
   async create(
     dto: CreateNodeDto & { tenantId: string },
+    actor?: AuditActorSnapshot | null,
   ): Promise<KnowledgeNodeModel> {
-    return this.nodeRepo.createWithGeneratedUri(dto);
+    return this.nodeRepo.createWithGeneratedUri(
+      applyCreatedAuditActor(dto, actor),
+    );
   }
 
   async createFile(
     dto: CreateNodeDto & { tenantId: string; fileExtension: string },
+    actor?: AuditActorSnapshot | null,
   ): Promise<KnowledgeNodeModel> {
-    return this.nodeRepo.createFileWithGeneratedUri(dto);
+    const fileDto = {
+      ...dto,
+      name: this.ensureFileNameExtension(dto.name, dto.fileExtension),
+    };
+
+    return this.nodeRepo.createFileWithGeneratedUri(
+      applyCreatedAuditActor(fileDto, actor),
+    );
   }
 
   async findOne(
@@ -101,15 +150,126 @@ export class KnowledgeTreeService {
   ): Promise<KnowledgeNodeModel> {
     const where: Record<string, string> = { id };
     if (tenantId) where.tenantId = tenantId;
-    const node = await this.nodeRepo.findOne({ where });
+    const node =
+      (await this.nodeRepo.findOne({ where })) ??
+      (tenantId ? await this.findOneWithTenantRouting(id, tenantId) : null);
     if (!node) throw new NotFoundException(`节点不存在`);
     return node;
+  }
+
+  private async findOneWithTenantRouting(
+    id: string,
+    tenantId: string,
+  ): Promise<KnowledgeNodeModel | null> {
+    if (
+      !this.defaultDataSource ||
+      !this.dynamicDataSourceService ||
+      !this.tenantCacheService
+    ) {
+      return null;
+    }
+
+    const isolationConfig =
+      await this.tenantCacheService.getIsolationConfig(tenantId);
+    if (!isolationConfig) {
+      return null;
+    }
+
+    if (isolationConfig.level === TenantIsolationLevel.LARGE) {
+      if (!isolationConfig.dbConfig) {
+        return null;
+      }
+
+      const tenantDataSource =
+        await this.dynamicDataSourceService.getTenantDataSource(
+          isolationConfig.tenantId,
+          isolationConfig.dbConfig,
+        );
+      const entity = await tenantDataSource.getRepository(KnowledgeNode).findOne({
+        where: { id, tenantId },
+      });
+      return entity ? this.toModel(entity) : null;
+    }
+
+    if (isolationConfig.level === TenantIsolationLevel.MEDIUM) {
+      const queryRunner = this.defaultDataSource.createQueryRunner();
+      await queryRunner.connect();
+      try {
+        await queryRunner.query(
+          `SET search_path TO "tenant_${tenantId.replace(/-/g, '_')}", public`,
+        );
+        const entity = await queryRunner.manager.getRepository(KnowledgeNode).findOne({
+          where: { id, tenantId },
+        });
+        return entity ? this.toModel(entity) : null;
+      } finally {
+        if (!queryRunner.isReleased) {
+          await queryRunner.release();
+        }
+      }
+    }
+
+    const entity = await this.defaultDataSource.getRepository(KnowledgeNode).findOne({
+      where: { id, tenantId },
+    });
+    return entity ? this.toModel(entity) : null;
+  }
+
+  private toModel(entity: KnowledgeNode): KnowledgeNodeModel {
+    const kind =
+      entity.kind === 'collection' || entity.kind === 'document'
+        ? entity.kind
+        : entity.vikingUri?.endsWith(DIRECTORY_URI_SUFFIX)
+          ? 'collection'
+          : 'document';
+    const contentUri =
+      entity.contentUri ??
+      (kind === 'document' &&
+      entity.vikingUri &&
+      !entity.vikingUri.endsWith(DIRECTORY_URI_SUFFIX)
+        ? entity.vikingUri
+        : null);
+
+    return {
+      id: entity.id,
+      tenantId: entity.tenantId,
+      kbId: entity.kbId,
+      parentId: entity.parentId,
+      name: entity.name,
+      path: entity.path,
+      sortOrder: entity.sortOrder,
+      acl: entity.acl,
+      kind,
+      vikingUri: entity.vikingUri,
+      contentUri,
+      indexStatus: entity.indexStatus ?? 'clean',
+      draftVersion: entity.draftVersion ?? 0,
+      indexedVersion: entity.indexedVersion ?? 0,
+      vectorCount: entity.vectorCount ?? null,
+      lastIndexedAt: entity.lastIndexedAt ?? null,
+      indexError: entity.indexError ?? null,
+      createdById: entity.createdById,
+      createdByName: entity.createdByName,
+      updatedById: entity.updatedById,
+      updatedByName: entity.updatedByName,
+      createdBy:
+        entity.createdById || entity.createdByName
+          ? { id: entity.createdById, username: entity.createdByName }
+          : null,
+      updatedBy:
+        entity.updatedById || entity.updatedByName
+          ? { id: entity.updatedById, username: entity.updatedByName }
+          : null,
+      createdAt: entity.createdAt,
+      updatedAt: entity.updatedAt,
+    };
   }
 
   async update(
     id: string,
     dto: UpdateNodeDto,
     tenantId: string | null,
+    actor?: AuditActorSnapshot | null,
   ): Promise<KnowledgeNodeModel> {
     const node = await this.findOne(id, tenantId);
     if (
@@ -126,29 +286,69 @@ export class KnowledgeTreeService {
     ) {
       throw new BadRequestException('字段 contentUri 不允许修改。');
     }
-    Object.assign(node, dto);
+    if (this.isSubtreeAffectingUpdate(dto, node)) {
+      const nodeIds = await this.collectSubtreeNodeIds(id, tenantId);
+      this.documentSessionRegistry.assertNoActiveSessionInNodes(nodeIds);
+    }
+    Object.assign(node, applyUpdatedAuditActor(dto, actor));
     return this.nodeRepo.save(node);
   }
 
   async touch(
     id: string,
     tenantId: string | null,
+    actor?: AuditActorSnapshot | null,
   ): Promise<KnowledgeNodeModel> {
     const node = await this.findOne(id, tenantId);
-    return this.nodeRepo.save({ ...node, updatedAt: new Date() });
+    return this.nodeRepo.save(
+      applyUpdatedAuditActor({ ...node, updatedAt: new Date() }, actor),
+    );
   }
 
   async syncContentUri(
     id: string,
     contentUri: string,
     tenantId: string | null,
+    actor?: AuditActorSnapshot | null,
   ): Promise<KnowledgeNodeModel> {
     const node = await this.findOne(id, tenantId);
-    return this.nodeRepo.save({
-      ...node,
-      contentUri,
-      updatedAt: new Date(),
-    });
+    return this.nodeRepo.save(
+      applyUpdatedAuditActor(
+        {
+          ...node,
+          contentUri,
+          updatedAt: new Date(),
+        },
+        actor,
+      ),
+    );
+  }
+
+  async syncIndexState(
+    id: string,
+    tenantId: string | null,
+    state: {
+      contentUri?: string | null;
+      indexStatus?: KnowledgeNodeIndexStatus;
+      draftVersion?: number;
+      indexedVersion?: number;
+      vectorCount?: number | null;
+      lastIndexedAt?: Date | null;
+      indexError?: string | null;
+    },
+    actor?: AuditActorSnapshot | null,
+  ): Promise<KnowledgeNodeModel> {
+    const node = await this.findOne(id, tenantId);
+    return this.nodeRepo.save(
+      applyUpdatedAuditActor(
+        {
+          ...node,
+          ...state,
+          updatedAt: new Date(),
+        },
+        actor,
+      ),
+    );
   }
 
   async remove(
@@ -156,8 +356,52 @@ export class KnowledgeTreeService {
     tenantId: string | null,
     context?: OpenVikingDeleteContext,
   ): Promise<void> {
+    await this.findOne(id, tenantId);
+    const nodeIds = await this.collectSubtreeNodeIds(id, tenantId);
+    this.documentSessionRegistry.assertNoActiveSessionInNodes(nodeIds);
+
     const ovConfig = await this.resolveOpenVikingConfig(tenantId, context);
     await this.removeNode(id, tenantId, ovConfig, context?.skipOpenViking);
+  }
+
+  private isSubtreeAffectingUpdate(
+    dto: UpdateNodeDto,
+    node: KnowledgeNodeModel,
+  ): boolean {
+    if ('parentId' in dto && dto.parentId !== undefined) {
+      return dto.parentId !== node.parentId;
+    }
+
+    if ('name' in dto && dto.name !== undefined) {
+      return dto.name !== node.name;
+    }
+
+    if ('path' in dto && dto.path !== undefined) {
+      return dto.path !== node.path;
+    }
+
+    return false;
+  }
+
+  private ensureFileNameExtension(name: string, fileExtension: string): string {
+    const normalizedName = name.trim();
+    return FILE_EXTENSION_PATTERN.test(normalizedName)
+      ? normalizedName
+      : `${normalizedName}${fileExtension}`;
+  }
+
+  private async collectSubtreeNodeIds(
+    id: string,
+    tenantId: string | null,
+  ): Promise<string[]> {
+    const children = await this.nodeRepo.find({
+      where: { parentId: id, tenantId: tenantId ?? undefined },
+    });
+    const childNodeIds = await Promise.all(
+      children.map((child) => this.collectSubtreeNodeIds(child.id, tenantId)),
+    );
+
+    return [id, ...childNodeIds.flat()];
   }
 
   private async removeNode(

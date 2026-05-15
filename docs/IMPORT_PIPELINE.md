@@ -213,10 +213,10 @@ LOCAL_IMPORT_KEEP_FILES_AFTER_DONE=false
 
 - `LOCAL_IMPORT_UPLOAD_DIR` 是 Admin 服务的上传暂存目录；生产环境必须显式配置。
 - 上传接口生成的临时文件会写入 `LOCAL_IMPORT_UPLOAD_DIR/managed`，Worker 只读取该受控子目录下的文件。
-- 导入任务会保存来源展示名称到 `sourceName`：Git 来源保存仓库名，飞书、钉钉等企业文档保存解析后的文档名，本地上传保存用户上传时的原文件名；历史任务或无法解析名称时回退展示 `sourceUrl`。
+- 导入任务会保存来源展示名称到 `sourceName`：创建接口可显式传 `sourceName`，批量来源可传与 `sourceUrls` 对齐的 `sourceNames`；未显式传入时，服务层会为 Git 解析仓库名，为 `url`、`local`、`manifest` 解析来源路径末尾文件名。飞书、钉钉等企业文档默认由 Worker 读取平台文档后写入解析出的文档名；历史任务或无法解析名称时回退展示 `sourceUrl`。
 - 本地文件统一转成 OpenViking `temp_file_id` 后再注入，不向 OpenViking 传递 `file://` 路径。
 - 默认导入成功后会删除暂存文件；失败任务会保留文件，便于排查和重试。
-- WebDAV `PUT` 新建文件时复用受控上传链路：WebDAV adapter 接收请求正文，新建白名单内文件时创建文档叶子节点并分配稳定资源容器 URI，并创建 `sourceType=local` 导入任务。Worker 导入成功后会把当前正文叶子的实际 `contentUri` 回写到知识树节点。覆盖已有白名单文件时，直接替换目标叶子的 `contentUri` 内容（Atomic Swap），不再创建导入任务，也不清空容器，以此保护媒体附件。WebDAV 本身仍是同步 adapter，不新增独立导入来源。
+- WebDAV `PUT` 新建文件时复用受控上传链路：WebDAV adapter 接收请求正文，新建白名单内文件时创建文档叶子节点并分配稳定资源容器 URI，并创建 `sourceType=local` 导入任务。Worker 导入成功后会把当前正文叶子的实际 `contentUri` 回写到知识树节点。覆盖已有白名单文件时，只保存 Admin 侧最新草稿并把文档节点索引状态标记为 `dirty`，不再创建导入任务，也不主动触发 OpenViking 语义化或向量化；需要用户在编辑器或 capability 中显式执行 `documents.index.rebuild`。WebDAV 本身仍是同步 adapter，不新增独立导入来源。
 - WebDAV `DELETE` 不创建导入任务；它复用知识树服务层删除语义，对带 `vikingUri` 的叶子文件或空目录先调用 OpenViking `/api/v1/fs` 删除资源和向量，再删除 Admin 侧知识树节点。控制台知识树和知识库删除同样走这条服务层语义，避免只删 Admin 元数据。
 - WebDAV `MOVE` 不创建导入任务，也不触发 OpenViking 移动或重索引；它只更新 Admin 侧知识树节点名称、父节点、排序和展示路径，保持稳定资源容器 URI 不变。
 
@@ -255,14 +255,15 @@ POST /api/v1/capability/import-tasks/documents
   "sourceType": "url",
   "knowledgeBaseId": "knowledge_base_uuid",
   "parentNodeId": "knowledge_node_uuid",
-  "sourceUrl": "https://example.com/product.pdf"
+  "sourceUrl": "https://example.com/product.pdf",
+  "sourceName": "产品手册.pdf"
 }
 ```
 
 CLI 等价命令：
 
 ```bash
-ova documents import "https://example.com/product.pdf" --kb <kbId> --parent <nodeId> --type url
+ova documents import "https://example.com/product.pdf" --kb <kbId> --parent <nodeId> --type url --name "产品手册.pdf"
 ```
 
 Capability 与 CLI 导入入口面向不依赖平台集成凭证的来源，`sourceType` 支持 `local`、`url`、`manifest`。其中 `manifest` 用于批量导入清单，`local` 只通过 `/api/v1/import-tasks/local-upload` 的文件上传入口进入系统。飞书、钉钉、Git 等需要集成凭证的来源走导入任务 API 或控制台集成流程，并提供 `integrationId`。
@@ -321,7 +322,7 @@ GET /api/v1/import-tasks/:id/sync
 
 手动从 OpenViking 引擎拉取最新状态，更新 `nodeCount` 和 `vectorCount`。`nodeCount` 会合并目标目录的直接子节点数与递归子节点数，`vectorCount` 来自向量统计接口。
 
-`import_tasks.nodeCount/vectorCount` 只代表该任务目标目录的快照，不等同于整个知识库根目录汇总。控制台知识库页读取 `/api/v1/knowledge-bases` 时，会按知识库根 `vikingUri` 重新同步 `doc_count/vector_count`；其中 `doc_count` 统计文件数，`vector_count` 统计根目录下的总向量数。
+`import_tasks.nodeCount/vectorCount` 只代表该任务目标目录的快照，不等同于整个知识库根目录汇总。控制台知识库页读取 `/api/v1/knowledge-bases` 时，直接展示数据库中已持久化的 `doc_count/vector_count`，不再在读接口内额外触发 OpenViking 根目录探测。
 
 导入任务失败时会把 `nodeCount` 和 `vectorCount` 统一清零，控制台任务进度也会回落为 `0%`，避免把失败任务误展示为已完成。
 
