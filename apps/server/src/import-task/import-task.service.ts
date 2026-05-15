@@ -46,6 +46,7 @@ const RESOURCE_URI_PREFIX = 'viking://resources/';
 const TENANT_RESOURCE_PREFIX = 'viking://resources/tenants/';
 const GIT_REPOSITORY_SUFFIX = '.git';
 const AUTO_DOCUMENT_SOURCE_TYPES = ['local', 'url', 'feishu', 'dingtalk'];
+const TARGET_RESOURCE_DELETE_SOURCE_TYPES = ['git'];
 const DEFAULT_IMPORT_DOCUMENT_EXTENSION = '.md';
 const DOCUMENT_NAME_EXTENSION_PATTERN = /\.[^./\\]+$/;
 
@@ -588,6 +589,7 @@ export class ImportTaskService {
     }
     await this.runInTenantTransaction(async () => {
       await this.deleteAutoCreatedNode(task);
+      await this.deleteTaskTargetResources(task);
       await this.taskRepo.delete(id, tenantId);
     });
     return task;
@@ -610,6 +612,19 @@ export class ImportTaskService {
     }
 
     await this.knowledgeTreeService.remove(node.id, task.tenantId);
+  }
+
+  private async deleteTaskTargetResources(
+    task: ImportTaskModel,
+  ): Promise<void> {
+    if (
+      task.autoCreatedNodeId ||
+      !TARGET_RESOURCE_DELETE_SOURCE_TYPES.includes(task.sourceType)
+    ) {
+      return;
+    }
+
+    await this.clearTaskTargetResources(task, 'OpenViking 任务资源删除');
   }
 
   private async runInTenantTransaction<T>(operation: () => Promise<T>) {
@@ -667,6 +682,13 @@ export class ImportTaskService {
   }
 
   private async clearRetryTargetResources(task: ImportTaskModel) {
+    await this.clearTaskTargetResources(task, 'OpenViking 重试资源清理');
+  }
+
+  private async clearTaskTargetResources(
+    task: ImportTaskModel,
+    serviceLabel: string,
+  ) {
     const rawConn = await this.settings.resolveOVConfig(task.tenantId);
     const conn = {
       baseUrl: rawConn.baseUrl || '',
@@ -684,7 +706,7 @@ export class ImportTaskService {
         'DELETE',
         undefined,
         { user: conn.user || undefined },
-        { serviceLabel: 'OpenViking 重试资源清理' },
+        { serviceLabel },
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : '未知错误';

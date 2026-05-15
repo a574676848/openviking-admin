@@ -331,6 +331,65 @@ describe('ImportTaskService', () => {
     );
   });
 
+  it('物理删除失败的 Git 任务时会清理目标 OpenViking 资源', async () => {
+    taskRepo.findById.mockResolvedValueOnce({
+      id: 'task-git-failed',
+      tenantId: 'tenant-a',
+      kbId: 'kb-1',
+      status: TaskStatus.FAILED,
+      sourceType: 'git',
+      sourceUrl: 'https://example.com/repo.git',
+      targetUri: 'viking://resources/tenants/tenant-a/kb-1/imports/git/',
+      autoCreatedNodeId: null,
+    });
+    settings.resolveOVConfig.mockResolvedValue({
+      baseUrl: 'http://ov.local',
+      apiKey: 'ov-key',
+      account: 'tenant-a',
+      user: 'worker-user',
+    });
+    ovClient.request.mockResolvedValueOnce({ status: 'ok' });
+
+    await service.deleteFailed('task-git-failed', 'tenant-a');
+
+    expect(ovClient.request).toHaveBeenCalledWith(
+      expect.objectContaining({ account: 'tenant-a' }),
+      '/api/v1/fs?uri=viking%3A%2F%2Fresources%2Ftenants%2Ftenant-a%2Fkb-1%2Fimports%2Fgit%2F&recursive=true',
+      'DELETE',
+      undefined,
+      { user: 'worker-user' },
+      { serviceLabel: 'OpenViking 任务资源删除' },
+    );
+    expect(taskRepo.delete).toHaveBeenCalledWith('task-git-failed', 'tenant-a');
+  });
+
+  it('物理删除失败的 Git 任务时目标资源不存在也会删除任务记录', async () => {
+    taskRepo.findById.mockResolvedValueOnce({
+      id: 'task-git-missing-target',
+      tenantId: 'tenant-a',
+      kbId: 'kb-1',
+      status: TaskStatus.FAILED,
+      sourceType: 'git',
+      sourceUrl: 'https://example.com/repo.git',
+      targetUri: 'viking://resources/tenants/tenant-a/kb-1/imports/git/',
+      autoCreatedNodeId: null,
+    });
+    settings.resolveOVConfig.mockResolvedValue({
+      baseUrl: 'http://ov.local',
+      apiKey: 'ov-key',
+      account: 'tenant-a',
+      user: 'worker-user',
+    });
+    ovClient.request.mockRejectedValueOnce(new Error('NOT_FOUND'));
+
+    await service.deleteFailed('task-git-missing-target', 'tenant-a');
+
+    expect(taskRepo.delete).toHaveBeenCalledWith(
+      'task-git-missing-target',
+      'tenant-a',
+    );
+  });
+
   it('物理删除自动文档节点失败时应回滚且保留任务', async () => {
     taskRepo.findById.mockResolvedValueOnce({
       id: 'task-auto-node-delete-failed',

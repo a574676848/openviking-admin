@@ -702,7 +702,7 @@ MCP JSON-RPC 消息接口。
 - 自动创建的新文档节点首次导入不会预先递归删除 OpenViking 稳定资源容器；只有目标文档节点已有 `contentUri`、属于覆盖已有正文时，Worker 才会在写入前清空目标容器
 - `POST /api/v1/import-tasks/:id/retry` 重试 `failed` 任务时会先删除任务 `targetUri` 下已有的 OpenViking 资源和向量，并清零 `nodeCount/vectorCount` 后重新排队，避免部分失败结果和新一轮导入叠加；重试 `cancelled` 任务只重新排队并清零统计
 - WebDAV `PUT` 新建文件时会复用本地上传链路，但不把 WebDAV 注册为新的 `sourceType`；导入任务仍以 `sourceType=local` 入队。覆盖文件时只保存最新草稿并标记索引过期，不创建导入任务。
-- `DELETE /api/v1/import-tasks/:id` 仅允许删除 `failed` 状态的任务；若任务来源是受控本地上传文件，服务端会一并清理暂存文件；若任务关联自动创建的文档节点，服务端会同步删除该节点，并刷新知识库 `docCount/vectorCount`。节点、知识库统计和任务的 Admin 数据库变更在同一事务内提交；OpenViking 资源删除失败时保留任务，允许再次删除
+- `DELETE /api/v1/import-tasks/:id` 仅允许删除 `failed` 状态的任务；若任务来源是受控本地上传文件，服务端会一并清理暂存文件；若任务关联自动创建的文档节点，服务端会同步删除该节点，并刷新知识库 `docCount/vectorCount`；若任务为 Git 导入，服务端会递归删除该任务 `targetUri` 下的 OpenViking 资源和向量。节点、知识库统计和任务的 Admin 数据库变更在同一事务内提交；OpenViking 资源删除失败时保留任务，允许再次删除
 - 控制台默认不再传 `targetUri`，服务端会按知识库 `vikingUri` 自动生成导入目标路径；选择知识树目录时，`local`、`url`、`feishu`、`dingtalk` 的自动文档节点会挂到该目录下
 - OpenViking 资源接口只接收 `path` 或 `temp_file_id`；平台 Token 不会作为 `config` 透传给 OpenViking
 - WebDAV 不作为导入来源；外部客户端访问知识资源请使用 WebDAV 配置页或资源 capability
