@@ -6,16 +6,17 @@ import Link from "next/link";
 import { useApp } from "@/components/app-provider";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { getShellButtonClass, getShellPanelClass, getShellTileClass, type ShellTheme } from "@/components/ui/shell-primitives";
-import { SquareTerminal, Users2, Building2, Settings, ClipboardList, MonitorCheck, LogOut, LineChart, Menu, X, ChevronLeft } from "lucide-react";
+import { SquareTerminal, Users2, Building2, Settings, ClipboardList, MonitorCheck, LogOut, LineChart, Menu, X, ChevronLeft, Database } from "lucide-react";
 
 const navItems = [
   { id: "01", href: "/platform/dashboard", label: "平台总览", icon: SquareTerminal, full: "平台总览" },
   { id: "02", href: "/platform/tenants", label: "租户管理", icon: Building2, full: "租户管理" },
-  { id: "03", href: "/platform/analytics", label: "全局分析", icon: LineChart, full: "全平台数据分析" },
-  { id: "04", href: "/platform/users", label: "全局用户", icon: Users2, full: "全局用户" },
-  { id: "05", href: "/platform/audit", label: "全局审计", icon: ClipboardList, full: "全局审计日志" },
-  { id: "06", href: "/platform/system", label: "全局监控", icon: MonitorCheck, full: "全局系统监控" },
-  { id: "07", href: "/platform/settings", label: "平台设置", icon: Settings, full: "平台配置管理" },
+  { id: "03", href: "/platform/database-migrations", label: "数据库迁移平台", icon: Database, full: "数据库迁移平台" },
+  { id: "04", href: "/platform/analytics", label: "全局分析", icon: LineChart, full: "全平台数据分析" },
+  { id: "05", href: "/platform/users", label: "全局用户", icon: Users2, full: "全局用户" },
+  { id: "06", href: "/platform/audit", label: "全局审计", icon: ClipboardList, full: "全局审计日志" },
+  { id: "07", href: "/platform/system", label: "全局监控", icon: MonitorCheck, full: "全局系统监控" },
+  { id: "08", href: "/platform/settings", label: "平台设置", icon: Settings, full: "平台配置管理" },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

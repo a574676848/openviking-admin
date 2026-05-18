@@ -31,5 +31,21 @@
 - 租户可配置专属的 `OpenViking` 端点。
 - 向量化与推理请求携带租户专属 `X-API-KEY`，在算力侧实现命名空间隔离。
 
+## 5. 数据库迁移平台
+
+平台管理内提供 **数据库迁移平台**，同时覆盖平台公共表 migration 与租户业务存储迁移。平台公共表用于升级控制库 `public` schema，例如 `tenant_migration_tasks`；租户业务存储用于按租户当前配置规格补齐 `small`、`medium`、`large` 对应的业务表结构。
+
+租户业务存储迁移采用异步执行：
+
+1. 选择租户后，服务端读取 `tenants.isolation_level` 与 `tenants.db_config`，不由前端选择目标规格。
+2. 对当前规格 `medium` 检查 Schema 创建权限，对当前规格 `large` 检查目标 PostgreSQL 连接。
+3. 准备目标存储结构，复用 `SchemaInitializerService` 的 Schema / 独立库初始化能力。
+4. 复制核心租户业务表：`knowledge_bases`、`knowledge_nodes`、`import_tasks`、`integrations`、`document_drafts`。
+5. 数据复制完成后刷新租户缓存。
+
+平台公共表 migration 会调用 TypeORM migration 机制，执行 `apps/server/src/migrations` 中尚未落库的迁移文件。该能力用于控制平面公共表，不会进入租户独立库。
+
+任务成功后不会主动清理源侧旧数据。源侧保留用于人工复核和异常回退，后续如需释放空间，应通过独立的清理流程处理。
+
 ---
 > 下一步建议：阅读 [能力平台](./CAPABILITIES.md) 了解 HTTP、CLI、MCP 和 Skill 如何共享统一 capability 契约。

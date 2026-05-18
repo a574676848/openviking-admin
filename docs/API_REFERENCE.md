@@ -566,6 +566,36 @@ MCP JSON-RPC 消息接口。
 | `DELETE` | `/api/v1/tenants/:id`              | 软删除租户                      |
 | `GET`    | `/api/v1/tenants/check-auth/:code` | 公开接口，检查租户可用 SSO 方式 |
 
+## 数据库迁移平台接口
+
+数据库迁移平台接口需要 `super_admin`。平台公共表迁移会执行控制库 TypeORM migration；租户业务存储迁移会读取租户当前 `isolationLevel` / `dbConfig`，按既有规格准备目标存储并补齐业务表结构。
+
+| Method | Path                                | 说明                                             |
+| ------ | ----------------------------------- | ------------------------------------------------ |
+| `GET`  | `/api/v1/tenant-migrations/tenants` | 获取可迁移租户列表                               |
+| `POST` | `/api/v1/tenant-migrations/precheck` | 执行租户业务存储预检，不写入业务数据             |
+| `POST` | `/api/v1/tenant-migrations/tasks`   | 创建租户业务存储迁移任务                         |
+| `POST` | `/api/v1/tenant-migrations/platform/precheck` | 执行平台公共表 migration 预检          |
+| `POST` | `/api/v1/tenant-migrations/platform/tasks` | 创建平台公共表 migration 任务              |
+| `GET`  | `/api/v1/tenant-migrations/tasks`   | 获取最近 50 条迁移任务                           |
+| `GET`  | `/api/v1/tenant-migrations/tasks/:id` | 获取单个迁移任务详情                           |
+
+租户业务存储迁移请求体：
+
+```json
+{
+  "tenantId": "acme"
+}
+```
+
+说明：
+
+- 租户迁移不再由前端提交 `targetLevel`，服务端始终读取 `tenants.isolation_level` 作为当前配置规格。
+- 当前规格为 `medium` 时，服务端会检查控制库账号是否具备创建 Schema 的权限。
+- 当前规格为 `large` 时，服务端会读取 `tenants.db_config` 并检查目标 PostgreSQL 连接。
+- 平台公共表迁移会调用 TypeORM `runMigrations()`，用于落库 `tenant_migration_tasks` 这类控制平面公共表结构。
+- 为降低在线迁移风险，租户迁移任务成功后不主动删除源侧旧数据。
+
 创建租户请求体：
 
 ```json
