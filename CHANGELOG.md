@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.10] - 2026-05-18
+
+### Changed
+
+- `ova setup` 生成的 MCP server 名称从 `openviking` 调整为 `ova_mcp`，并兼容清理旧配置段。
+- OVA CLI 本地配置目录从 `.openviking` 调整为 `.ova_cli`。
+- 同步更新 README、CLI、MCP、Skill 与 examples 文档中的配置示例。
+
 ## [0.1.3] - 2026-05-06
 
 ### Added

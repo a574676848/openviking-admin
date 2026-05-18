@@ -2,6 +2,9 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
 
+const OVA_CLI_CONFIG_DIR = '.ova_cli';
+const OVA_CLI_AUTH_FILE = 'auth.json';
+
 export interface CliProfile {
     serverUrl: string;
     oauthUrl?: string;
@@ -38,7 +41,7 @@ export interface CredentialStore {
 
 export class FileCredentialStore implements CredentialStore {
     getStatePath() {
-        return join(homedir(), '.openviking', 'ova', 'auth.json');
+        return join(homedir(), OVA_CLI_CONFIG_DIR, OVA_CLI_AUTH_FILE);
     }
 
     readStateFile(): CliStateFile {
@@ -56,7 +59,7 @@ export class FileCredentialStore implements CredentialStore {
     }
 
     saveStateFile(state: CliStateFile) {
-        mkdirSync(join(homedir(), '.openviking', 'ova'), { recursive: true });
+        mkdirSync(join(homedir(), OVA_CLI_CONFIG_DIR), { recursive: true });
         writeFileSync(this.getStatePath(), JSON.stringify(state, null, 2), 'utf8');
     }
 }

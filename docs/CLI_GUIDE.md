@@ -112,7 +112,7 @@ ova init --path <repo>
 
 它会在目标仓库生成或更新：
 
-- `.openviking/capabilities.json`
+- `.ova_cli/capabilities.json`
 - `.claude/skills/openviking-admin/SKILL.md`
 - `.agents/skills/openviking-admin/SKILL.md`
 - `AGENTS.md` 中的 OpenViking 注入块
@@ -191,7 +191,7 @@ ova auth status
 CLI 会把登录态保存到：
 
 ```text
-~/.openviking/ova/auth.json
+~/.ova_cli/auth.json
 ```
 
 状态文件采用多 profile 结构。当 `accessToken` 过期或接近过期时，CLI 会自动调用 `/api/v1/auth/refresh`。如果 `refreshToken` 也失效，需要重新登录。如果 profile 只配置了 API Key，CLI 会对 capability、knowledge、resources 等能力接口自动注入 `x-capability-key`。

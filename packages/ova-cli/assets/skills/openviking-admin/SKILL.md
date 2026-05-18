@@ -124,7 +124,7 @@ Claude Desktop / MCP remote 示例：
 ```json
 {
   "mcpServers": {
-    "openviking": {
+    "ova_mcp": {
       "command": "npx",
       "args": [
         "-y",

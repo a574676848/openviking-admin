@@ -40,7 +40,7 @@ MCP -> OVA CLI -> 配置指引
 ```text
 Agent 运行环境
   -> 先读取 AGENTS.md / CLAUDE.md 中的 OpenViking 注入块
-  -> 如存在 .openviking/capabilities.json，可优先读取最新快照
+  -> 如存在 .ova_cli/capabilities.json，可优先读取最新快照
   -> 读取 Skill 指令
   -> 探测 ova 是否可用
   -> 调用 GET /api/v1/capabilities 或 ova capabilities list

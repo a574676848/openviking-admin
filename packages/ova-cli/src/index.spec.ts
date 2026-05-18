@@ -4,7 +4,7 @@ const mockWriteFileSync = jest.fn();
 const mockMkdirSync = jest.fn();
 const mockSpawn = jest.fn(() => ({ unref: jest.fn() }));
 
-const AUTH_STATE_PATH = "C:\\Users\\tester\\.openviking\\ova\\auth.json";
+const AUTH_STATE_PATH = "C:\\Users\\tester\\.ova_cli\\auth.json";
 const SKILL_ASSET_SEGMENT = "assets\\skills\\openviking-admin\\SKILL.md";
 const SAMPLE_SKILL_CONTENT = "# OpenViking Admin\n";
 
@@ -585,7 +585,7 @@ describe("ova cli", () => {
     );
   });
 
-  it("应该保留 Codex 其他配置并只替换 openviking MCP 段落", async () => {
+  it("应该保留 Codex 其他配置并只替换旧 openviking MCP 段落为 ova_mcp", async () => {
     setStateFile(
       buildStateFile({
         apiKey: "ov-sk-demo",
@@ -652,7 +652,8 @@ describe("ova cli", () => {
     expect(codexText).toContain('type = "stdio"');
     expect(codexText).toContain("[projects.'\\\\?\\E:\\repo']");
     expect(codexText).toContain("[mcp_servers.gitnexus]");
-    expect(codexText).toContain("[mcp_servers.openviking]");
+    expect(codexText).toContain("[mcp_servers.ova_mcp]");
+    expect(codexText).not.toContain("[mcp_servers.openviking]");
     expect(codexText).toContain('type = "stdio"');
     expect(codexText).toContain("mcp-remote");
     expect(codexText).toContain('"--transport","sse-only"');
@@ -660,10 +661,10 @@ describe("ova cli", () => {
     expect(codexText).not.toContain("@anthropic-ai/mcp-remote");
     expect(codexText).not.toContain('command = "legacy"');
     expect(codexText).not.toContain('TOKEN = "legacy"');
-    expect(codexText.match(/\[mcp_servers\.openviking\]/g)).toHaveLength(1);
+    expect(codexText.match(/\[mcp_servers\.ova_mcp\]/g)).toHaveLength(1);
   });
 
-  it("应该稳妥替换带注释和子段的 Codex openviking 配置", async () => {
+  it("应该稳妥替换带注释和子段的 Codex openviking 配置为 ova_mcp", async () => {
     setStateFile(
       buildStateFile({
         apiKey: "ov-sk-demo",
@@ -725,7 +726,8 @@ describe("ova cli", () => {
     expect(codexText).toContain('args = ["/c", "npx", "-y", "@modelcontextprotocol/server-memory"]');
     expect(codexText).toContain("[[profiles]]");
     expect(codexText).toContain("[projects.'E:\\\\repo']");
-    expect(codexText).toContain("[mcp_servers.openviking]");
+    expect(codexText).toContain("[mcp_servers.ova_mcp]");
+    expect(codexText).not.toContain("[mcp_servers.openviking]");
     expect(codexText).toContain('type = "stdio"');
     expect(codexText).toContain('"--transport","sse-only"');
     expect(codexText).not.toContain('"--url"');
@@ -791,7 +793,7 @@ describe("ova cli", () => {
     await bootstrap(["init", "--path", "E:\\repo", "--output", "json"]);
 
     expect(
-      findWritePath("E:\\repo\\.openviking\\capabilities.json"),
+      findWritePath("E:\\repo\\.ova_cli\\capabilities.json"),
     ).toBeTruthy();
     expect(findWritePath("E:\\repo\\AGENTS.md")).toBeTruthy();
     expect(findWritePath("E:\\repo\\CLAUDE.md")).toBeTruthy();

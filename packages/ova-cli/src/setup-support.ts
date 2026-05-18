@@ -12,19 +12,22 @@ import {
 } from './state-store';
 import { isExpired } from './token';
 
-const OPENVIKING_SERVER_NAME = 'openviking';
+const OVA_MCP_SERVER_NAME = 'ova_mcp';
+const LEGACY_OPENVIKING_SERVER_NAME = 'openviking';
 const OPENVIKING_SECTION_START = '<!-- openviking:start -->';
 const OPENVIKING_SECTION_END = '<!-- openviking:end -->';
 const DEFAULT_CLIENT_KEY_NAME = 'ova-mcp';
 const DEFAULT_CREDENTIAL_KIND = 'api-key';
-const DEFAULT_OUTPUT_PATH = '.openviking/capabilities.json';
+const OVA_CLI_CONFIG_DIR = '.ova_cli';
+const DEFAULT_OUTPUT_PATH = `${OVA_CLI_CONFIG_DIR}/capabilities.json`;
 const MCP_REMOTE_PACKAGE_NAME = 'mcp-remote';
 const MCP_REMOTE_TRANSPORT_FLAG = '--transport';
 const MCP_REMOTE_SSE_ONLY_TRANSPORT = 'sse-only';
 const CODEX_MCP_SERVER_TYPE = 'stdio';
 const TOML_SECTION_HEADER_RE = /^\s*\[\[?.+\]\]?\s*(?:#.*)?$/;
 const TOML_SECTION_NAME_RE = /^\s*\[\[?\s*([^\]]+?)\s*\]\]?\s*(?:#.*)?$/;
-const OPENVIKING_MCP_SECTION_NAME = 'mcp_servers.openviking';
+const OVA_MCP_SECTION_NAME = `mcp_servers.${OVA_MCP_SERVER_NAME}`;
+const LEGACY_OPENVIKING_MCP_SECTION_NAME = `mcp_servers.${LEGACY_OPENVIKING_SERVER_NAME}`;
 const SUPPORTED_EDITORS = ['claude', 'cursor', 'codex'] as const;
 const LOCAL_SKILL_TARGETS = [
     '.claude/skills/openviking-admin/SKILL.md',
@@ -429,7 +432,8 @@ function buildMcpEntry(mcpUrl: string) {
 function upsertJsonMcpConfig(filePath: string, mcpEntry: { command: string; args: string[] }) {
     const current = readJsonObject(filePath);
     const mcpServers = getRecord(current, 'mcpServers', filePath);
-    mcpServers[OPENVIKING_SERVER_NAME] = mcpEntry;
+    delete mcpServers[LEGACY_OPENVIKING_SERVER_NAME];
+    mcpServers[OVA_MCP_SERVER_NAME] = mcpEntry;
     current.mcpServers = mcpServers;
     writeJson(filePath, current);
 }
@@ -445,7 +449,7 @@ function upsertTomlMcpConfig(filePath: string, mcpUrl: string) {
 
 function buildTomlMcpSection(mcpUrl: string) {
     return [
-        '[mcp_servers.openviking]',
+        `[mcp_servers.${OVA_MCP_SERVER_NAME}]`,
         `type = "${CODEX_MCP_SERVER_TYPE}"`,
         'command = "npx"',
         `args = ${JSON.stringify(buildMcpRemoteArgs(mcpUrl))}`,
@@ -484,8 +488,10 @@ function removeOpenVikingTomlSections(content: string) {
 function isOpenVikingTomlSection(line: string) {
     const sectionName = line.match(TOML_SECTION_NAME_RE)?.[1]?.trim();
     return (
-        sectionName === OPENVIKING_MCP_SECTION_NAME ||
-        sectionName?.startsWith(`${OPENVIKING_MCP_SECTION_NAME}.`) === true
+        sectionName === OVA_MCP_SECTION_NAME ||
+        sectionName?.startsWith(`${OVA_MCP_SECTION_NAME}.`) === true ||
+        sectionName === LEGACY_OPENVIKING_MCP_SECTION_NAME ||
+        sectionName?.startsWith(`${LEGACY_OPENVIKING_MCP_SECTION_NAME}.`) === true
     );
 }
 

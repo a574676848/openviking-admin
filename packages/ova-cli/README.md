@@ -46,7 +46,7 @@ ova bootstrap --path <repo>
 ```
 
 也就是一次完成 MCP、Skills 和仓库 prompt 注入。
-MCP 配置按固定 server 名 `openviking` 增量写入；重复执行只刷新同名配置，不会删除其他 MCP server 或 Codex 的 `[projects.*]` 配置。
+MCP 配置按固定 server 名 `ova_mcp` 增量写入；重复执行只刷新同名配置，不会删除其他 MCP server 或 Codex 的 `[projects.*]` 配置。
 
 如果是首次发布 scoped package，需要使用：
 
@@ -148,7 +148,7 @@ ova config show
 Profile 状态文件：
 
 ```text
-~/.openviking/ova/auth.json
+~/.ova_cli/auth.json
 ```
 
 CLI 会按 profile 保存 `accessToken`、`refreshToken`、过期时间和可选的派生 capability 凭证。登录 token 过期前会自动刷新。如果 profile 只保存了 API Key，能力接口会自动使用 `x-capability-key` 调用。

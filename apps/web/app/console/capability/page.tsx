@@ -56,7 +56,7 @@ const clientPresets: ClientPreset[] = [
     buildSnippet: ({ mcpUrl }) => [
       "{",
       '  "mcpServers": {',
-      '    "openviking": {',
+      '    "ova_mcp": {',
       '      "transport": "sse",',
       `      "url": "${mcpUrl}"`,
       "    }",

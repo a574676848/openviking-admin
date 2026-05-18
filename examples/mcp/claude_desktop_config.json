@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "openviking": {
+    "ova_mcp": {
       "command": "npx",
       "args": [
         "@anthropic-ai/mcp-remote",

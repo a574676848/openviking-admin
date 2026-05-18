@@ -141,7 +141,7 @@ Agent 运行环境
 | 客户端      | 建议                                                                  |
 | ----------- | --------------------------------------------------------------------- |
 | Web         | 使用浏览器会话存储或更安全的服务端 session 模式                       |
-| CLI         | 使用 `~/.openviking/ova/auth.json` profile，后续可替换为系统 keychain |
+| CLI         | 使用 `~/.ova_cli/auth.json` profile，后续可替换为系统 keychain |
 | MCP Desktop | 使用桌面客户端配置文件保存 API key，优先使用可吊销 key                |
 | CI          | 使用环境变量或 secret manager 注入 API key                            |
 | Skill       | 不在 Skill 文件中硬编码凭证，由宿主环境注入                           |

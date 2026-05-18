@@ -79,7 +79,7 @@ ova bootstrap --path <repo>
 ```json
 {
   "mcpServers": {
-    "openviking": {
+    "ova_mcp": {
       "command": "npx",
       "args": [
         "-y",
@@ -98,7 +98,7 @@ ova bootstrap --path <repo>
 ```json
 {
   "mcpServers": {
-    "openviking": {
+    "ova_mcp": {
       "command": "npx",
       "args": [
         "-y",
@@ -117,7 +117,7 @@ ova bootstrap --path <repo>
 ```json
 {
   "mcpServers": {
-    "openviking": {
+    "ova_mcp": {
       "command": "npx",
       "args": [
         "-y",
@@ -134,7 +134,7 @@ ova bootstrap --path <repo>
 ## Codex 配置
 
 ```toml
-[mcp_servers.openviking]
+[mcp_servers.ova_mcp]
 type = "stdio"
 command = "npx"
 args = ["-y", "mcp-remote", "http://localhost:6001/api/v1/mcp/sse?key=<ov-sk-...>", "--transport", "sse-only"]
