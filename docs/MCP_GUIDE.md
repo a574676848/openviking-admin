@@ -18,8 +18,10 @@ MCP 是协议入口，不是独立业务层。MCP 暴露的工具来自统一 ca
 | `resources.tree` | `resources.tree` | 获取租户资源树 |
 | `knowledgeBases.list` | `knowledgeBases.list` | 列出当前租户可导入的知识库 |
 | `knowledgeBases.detail` | `knowledgeBases.detail` | 查看知识库详情与导入根路径 |
+| `knowledgeBases.delete` | `knowledgeBases.delete` | 删除 ACL 可见的知识库 |
 | `knowledgeTree.list` | `knowledgeTree.list` | 列出知识库下可导入节点 |
 | `knowledgeTree.detail` | `knowledgeTree.detail` | 查看知识树节点详情与导入路径 |
+| `knowledgeTree.delete` | `knowledgeTree.delete` | 删除 ACL 可见的知识树节点 |
 | `documents.import.create` | `documents.import.create` | 创建本地、URL 或 manifest 文档导入任务 |
 | `documents.import.status` | `documents.import.status` | 查看文档导入任务进度 |
 | `documents.import.list` | `documents.import.list` | 列出当前租户文档导入任务 |

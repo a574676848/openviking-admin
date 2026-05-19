@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { TenantGuard } from '../common/tenant.guard';
-import { SearchService } from './search.service';
+import { SearchService, type SearchGrepResponse } from './search.service';
 import { FindDto, GrepDto, FeedbackDto } from './dto/search.dto';
 import { AuditService } from '../audit/audit.service';
 import type { AuthenticatedRequest } from '../common/authenticated-request.interface';
@@ -35,7 +35,10 @@ export class SearchController {
   }
 
   @Post('grep')
-  grep(@Body() body: GrepDto, @Req() req: AuthenticatedRequest) {
+  grep(
+    @Body() body: GrepDto,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<SearchGrepResponse> {
     return this.searchService.grep(
       body.pattern,
       body.uri,

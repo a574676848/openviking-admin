@@ -293,6 +293,60 @@ describe("ova cli", () => {
     );
   });
 
+  it("知识库删除命令应调用 capability 删除接口", async () => {
+    setStateFile(
+      buildStateFile({
+        apiKey: "ov-sk-demo",
+      }),
+    );
+    global.fetch = jest.fn().mockResolvedValueOnce(
+      createJsonResponse({
+        data: {
+          item: { id: "kb-1", name: "EPAAS", status: "active" },
+        },
+        traceId: "trace-kb-delete",
+      }),
+    ) as unknown as typeof fetch;
+
+    await bootstrap(["kb", "delete", "--id", "kb-1"]);
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "http://localhost:6001/api/v1/capability/knowledge-bases/kb-1",
+      expect.objectContaining({
+        method: "DELETE",
+      }),
+    );
+  });
+
+  it("知识树删除命令应调用 capability 删除接口", async () => {
+    setStateFile(
+      buildStateFile({
+        apiKey: "ov-sk-demo",
+      }),
+    );
+    global.fetch = jest.fn().mockResolvedValueOnce(
+      createJsonResponse({
+        data: {
+          item: {
+            id: "node-1",
+            name: "README",
+            vikingUri: "viking://resources/tenants/acme/kb-1/README.md",
+          },
+        },
+        traceId: "trace-tree-delete",
+      }),
+    ) as unknown as typeof fetch;
+
+    await bootstrap(["tree", "delete", "--id", "node-1"]);
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "http://localhost:6001/api/v1/capability/knowledge-tree/node-1",
+      expect.objectContaining({
+        method: "DELETE",
+      }),
+    );
+  });
+
   it("文档导入命令应调用 capability 命名空间接口", async () => {
     setStateFile(
       buildStateFile({

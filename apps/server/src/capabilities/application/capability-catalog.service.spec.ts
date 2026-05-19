@@ -15,7 +15,9 @@ describe('CapabilityCatalogService', () => {
         expect.objectContaining({ id: 'resources.list' }),
         expect.objectContaining({ id: 'resources.tree' }),
         expect.objectContaining({ id: 'knowledgeBases.list' }),
+        expect.objectContaining({ id: 'knowledgeBases.delete' }),
         expect.objectContaining({ id: 'knowledgeTree.list' }),
+        expect.objectContaining({ id: 'knowledgeTree.delete' }),
         expect.objectContaining({ id: 'documents.import.create' }),
       ]),
     );
@@ -99,6 +101,16 @@ describe('CapabilityCatalogService', () => {
           CapabilitiesController.prototype.getKnowledgeBaseDetail,
         ),
       },
+      'knowledgeBases.delete': {
+        path: Reflect.getMetadata(
+          PATH_METADATA,
+          CapabilitiesController.prototype.deleteKnowledgeBase,
+        ),
+        method: Reflect.getMetadata(
+          METHOD_METADATA,
+          CapabilitiesController.prototype.deleteKnowledgeBase,
+        ),
+      },
       'knowledgeTree.list': {
         path: Reflect.getMetadata(
           PATH_METADATA,
@@ -117,6 +129,16 @@ describe('CapabilityCatalogService', () => {
         method: Reflect.getMetadata(
           METHOD_METADATA,
           CapabilitiesController.prototype.getKnowledgeTreeDetail,
+        ),
+      },
+      'knowledgeTree.delete': {
+        path: Reflect.getMetadata(
+          PATH_METADATA,
+          CapabilitiesController.prototype.deleteKnowledgeTree,
+        ),
+        method: Reflect.getMetadata(
+          METHOD_METADATA,
+          CapabilitiesController.prototype.deleteKnowledgeTree,
         ),
       },
       'documents.import.create': {
@@ -218,6 +240,8 @@ describe('CapabilityCatalogService', () => {
       const expectedHttpMethod =
         contract.http.method === 'POST'
           ? RequestMethod.POST
+          : contract.http.method === 'DELETE'
+            ? RequestMethod.DELETE
           : RequestMethod.GET;
 
       expect(controllerRoute).toEqual(

@@ -1,6 +1,6 @@
 {
   "name": "@openviking-admin/ova-cli",
-  "version": "0.1.11",
+  "version": "0.1.14",
   "description": "OpenViking Admin capability-first CLI",
   "keywords": [
     "openviking",
@@ -11,7 +11,7 @@
   "homepage": "https://github.com/openviking/openviking-knowdge",
   "repository": {
     "type": "git",
-    "url": "https://github.com/openviking/openviking-knowdge.git",
+    "url": "git+https://github.com/openviking/openviking-knowdge.git",
     "directory": "packages/ova-cli"
   },
   "bugs": {

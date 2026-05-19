@@ -14,17 +14,23 @@ export async function handleKnowledgeTree(
 ) {
   const output = resolveOutputMode(options);
   const { profileName } = readProfile(store, options);
+  const isDetail = command === "detail";
+  const isDelete = command === "delete";
+  const nodeId = String(options.id ?? "");
+  if ((isDetail || isDelete) && !nodeId) {
+    throw new Error("知识树命令必须提供 --id <nodeId>。");
+  }
   const response = await callApi(
-    command === "detail"
-      ? `${KNOWLEDGE_TREE_API}/${encodeURIComponent(String(options.id ?? ""))}`
+    isDetail || isDelete
+      ? `${KNOWLEDGE_TREE_API}/${encodeURIComponent(nodeId)}`
       : `${KNOWLEDGE_BASES_API}/${encodeURIComponent(String(options.kb ?? options.kbId ?? ""))}/tree`,
-    {},
+    isDelete ? { method: "DELETE" } : {},
     options,
     store,
   );
   const data = response.data as Record<string, unknown>;
   const items =
-    command === "detail"
+    isDetail || isDelete
       ? [data.item as Record<string, unknown>]
       : ((data.items ?? []) as Array<Record<string, unknown>>);
 

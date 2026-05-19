@@ -11,6 +11,7 @@ import { ImportTaskService } from '../../import-task/import-task.service';
 import { DocumentService } from '../../document/document.service';
 import { SearchService } from '../../search/search.service';
 import { createAuditActorSnapshot } from '../../common/audit-actor.types';
+import { AuditService } from '../../audit/audit.service';
 import type { KnowledgeBaseModel } from '../../knowledge-base/domain/knowledge-base.model';
 import type { KnowledgeNodeModel } from '../../knowledge-tree/domain/knowledge-node.model';
 import type { ImportTaskModel } from '../../import-task/domain/import-task.model';
@@ -52,6 +53,7 @@ export class KnowledgeCapabilityGateway {
     private readonly importTaskService: ImportTaskService,
     private readonly documentService: DocumentService,
     private readonly searchService: SearchService,
+    private readonly auditService: AuditService,
   ) {}
 
   async search(
@@ -243,6 +245,36 @@ export class KnowledgeCapabilityGateway {
     return { item: this.toKnowledgeBaseItem(item) };
   }
 
+  async deleteKnowledgeBase(
+    principal: Principal,
+    input: Record<string, unknown>,
+    trace?: TraceContext,
+  ) {
+    const tenantId = this.requireTenantId(principal);
+    const accessPrincipal = this.toNodeAccessPrincipal(principal);
+    const item = await this.knowledgeBaseService.findOne(
+      String(input.id),
+      tenantId,
+    );
+    await this.assertKnowledgeBaseVisible(item.id, tenantId, accessPrincipal);
+    await this.knowledgeBaseService.remove(item.id, tenantId, {
+      user: principal.username ?? principal.userId,
+    });
+    await this.auditService.log({
+      tenantId,
+      userId: principal.userId,
+      username: principal.username,
+      action: 'delete_knowledge_base',
+      target: item.id,
+      meta: {
+        requestId: trace?.requestId,
+        traceId: trace?.traceId,
+        channel: trace?.channel,
+      },
+    });
+    return { item: this.toKnowledgeBaseItem(item) };
+  }
+
   async listKnowledgeTree(
     principal: Principal,
     input: Record<string, unknown>,
@@ -281,6 +313,37 @@ export class KnowledgeCapabilityGateway {
       item,
       this.toNodeAccessPrincipal(principal),
     );
+    return { item: this.toKnowledgeNodeItem(item) };
+  }
+
+  async deleteKnowledgeTree(
+    principal: Principal,
+    input: Record<string, unknown>,
+    trace?: TraceContext,
+  ) {
+    const tenantId = this.requireTenantId(principal);
+    const accessPrincipal = this.toNodeAccessPrincipal(principal);
+    const item = await this.knowledgeTreeService.findOne(
+      String(input.id),
+      tenantId,
+    );
+    this.knowledgeNodeAclService.assertCanReadNode(item, accessPrincipal);
+    await this.knowledgeTreeService.remove(item.id, tenantId, {
+      user: principal.username ?? principal.userId,
+    });
+    await this.auditService.log({
+      tenantId,
+      userId: principal.userId,
+      username: principal.username,
+      action: 'delete_knowledge_node',
+      target: item.id,
+      meta: {
+        kbId: item.kbId,
+        requestId: trace?.requestId,
+        traceId: trace?.traceId,
+        channel: trace?.channel,
+      },
+    });
     return { item: this.toKnowledgeNodeItem(item) };
   }
 

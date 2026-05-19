@@ -5,8 +5,10 @@ export type CapabilityId =
   | 'resources.tree'
   | 'knowledgeBases.list'
   | 'knowledgeBases.detail'
+  | 'knowledgeBases.delete'
   | 'knowledgeTree.list'
   | 'knowledgeTree.detail'
+  | 'knowledgeTree.delete'
   | 'documents.import.create'
   | 'documents.import.status'
   | 'documents.import.list'
@@ -73,7 +75,7 @@ export interface CapabilityContract {
   minimumRole?: CapabilityRoleRequirement;
   auditLevel: 'standard';
   http: {
-    method: 'GET' | 'POST';
+    method: 'GET' | 'POST' | 'DELETE';
     path: string;
   };
   cli: {

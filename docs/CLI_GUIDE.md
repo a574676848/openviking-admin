@@ -289,6 +289,7 @@ ova resources tree --uri "viking://resources/tenants/acme/" --depth 2
 ```bash
 ova kb list
 ova kb detail --id <kbId>
+ova kb delete --id <kbId>
 ```
 
 选择导入目标知识树节点：
@@ -296,6 +297,7 @@ ova kb detail --id <kbId>
 ```bash
 ova tree list --kb <kbId>
 ova tree detail --id <nodeId>
+ova tree delete --id <nodeId>
 ```
 
 创建文档导入任务并查看进度：
@@ -406,8 +408,10 @@ ova resources list [--uri <uri>]
 ova resources tree [--uri <uri>] [--depth <n>]
 ova kb list
 ova kb detail --id <kbId>
+ova kb delete --id <kbId>
 ova tree list --kb <kbId>
 ova tree detail --id <nodeId>
+ova tree delete --id <nodeId>
 ova documents import <url> --kb <kbId> [--type url|manifest|local] [--parent <nodeId>]
 ova documents import status --task <taskId> [--watch]
 ova documents import list

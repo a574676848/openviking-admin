@@ -3,6 +3,9 @@ import { KnowledgeCapabilityGateway } from './knowledge-capability.gateway';
 import type { Principal, TraceContext } from '../domain/capability.types';
 
 describe('KnowledgeCapabilityGateway', () => {
+  const auditService = {
+    log: jest.fn(),
+  };
   const ovKnowledgeGateway = {
     findKnowledge: jest.fn(),
     grepKnowledge: jest.fn(),
@@ -44,6 +47,7 @@ describe('KnowledgeCapabilityGateway', () => {
     importTaskService as never,
     documentService as never,
     searchService as never,
+    auditService as never,
   );
 
   const principal: Principal = {
@@ -65,6 +69,112 @@ describe('KnowledgeCapabilityGateway', () => {
     knowledgeNodeAclService.getAllowedUris.mockResolvedValue([
       'viking://resources/tenants/tenant-a/doc-1',
     ]);
+  });
+
+  it('删除知识库时应执行 ACL 校验并记录审计', async () => {
+    knowledgeBaseService.findOne.mockResolvedValue({
+      id: 'kb-1',
+      name: 'EPAAS',
+      status: 'active',
+      vikingUri: 'viking://resources/tenants/tenant-a/kb-1/',
+    });
+    knowledgeTreeService.findByKb.mockResolvedValue([{ id: 'node-1', acl: null }]);
+    knowledgeBaseService.remove = jest.fn().mockResolvedValue({
+      id: 'kb-1',
+      name: 'EPAAS',
+      status: 'active',
+      vikingUri: 'viking://resources/tenants/tenant-a/kb-1/',
+    });
+
+    const result = await gateway.deleteKnowledgeBase(
+      { ...principal, username: 'alice' },
+      { id: 'kb-1' },
+      {
+        traceId: 'trace-1',
+        spanId: 'span-1',
+        requestId: 'request-1',
+        tenantId: 'tenant-a',
+        userId: 'user-1',
+        channel: 'cli',
+        clientType: 'service',
+        credentialType: 'jwt_access_token',
+        capability: 'knowledgeBases.delete',
+      },
+    );
+
+    expect(knowledgeBaseService.remove).toHaveBeenCalledWith('kb-1', 'tenant-a', {
+      user: 'alice',
+    });
+    expect(auditService.log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'delete_knowledge_base',
+        target: 'kb-1',
+        meta: expect.objectContaining({
+          requestId: 'request-1',
+          traceId: 'trace-1',
+          channel: 'cli',
+        }),
+      }),
+    );
+    expect(result.item).toEqual(expect.objectContaining({ id: 'kb-1' }));
+  });
+
+  it('删除知识树节点时应执行 ACL 校验并记录审计', async () => {
+    knowledgeTreeService.findOne.mockResolvedValue({
+      id: 'node-1',
+      kbId: 'kb-1',
+      name: 'node',
+      kind: 'document',
+      vikingUri: 'viking://resources/tenants/tenant-a/kb-1/node-1.md',
+      contentUri: 'viking://resources/tenants/tenant-a/kb-1/node-1.md',
+      acl: null,
+    });
+    knowledgeTreeService.remove = jest.fn().mockResolvedValue({
+      id: 'node-1',
+      kbId: 'kb-1',
+      name: 'node',
+      kind: 'document',
+      vikingUri: 'viking://resources/tenants/tenant-a/kb-1/node-1.md',
+      contentUri: 'viking://resources/tenants/tenant-a/kb-1/node-1.md',
+      acl: null,
+    });
+
+    const result = await gateway.deleteKnowledgeTree(
+      { ...principal, username: 'alice' },
+      { id: 'node-1' },
+      {
+        traceId: 'trace-2',
+        spanId: 'span-2',
+        requestId: 'request-2',
+        tenantId: 'tenant-a',
+        userId: 'user-1',
+        channel: 'mcp',
+        clientType: 'service',
+        credentialType: 'jwt_access_token',
+        capability: 'knowledgeTree.delete',
+      },
+    );
+
+    expect(knowledgeNodeAclService.assertCanReadNode).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'node-1' }),
+      { userId: 'user-1', role: 'tenant_operator' },
+    );
+    expect(knowledgeTreeService.remove).toHaveBeenCalledWith('node-1', 'tenant-a', {
+      user: 'alice',
+    });
+    expect(auditService.log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'delete_knowledge_node',
+        target: 'node-1',
+        meta: expect.objectContaining({
+          kbId: 'kb-1',
+          requestId: 'request-2',
+          traceId: 'trace-2',
+          channel: 'mcp',
+        }),
+      }),
+    );
+    expect(result.item).toEqual(expect.objectContaining({ id: 'node-1' }));
   });
 
   it('should reject cross-tenant resource access', async () => {

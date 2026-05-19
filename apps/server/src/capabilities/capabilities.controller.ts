@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Headers,
   Param,
@@ -173,6 +174,25 @@ export class CapabilitiesController {
     );
   }
 
+  @Delete('capability/knowledge-bases/:id')
+  async deleteKnowledgeBase(
+    @Param('id') id: string,
+    @Headers('x-capability-key') capabilityKey: string | undefined,
+    @Headers('authorization') authorization: string | undefined,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.executeCapability(
+      'knowledgeBases.delete',
+      { id },
+      this.resolveClientType('http'),
+      req,
+      res,
+      capabilityKey,
+      authorization,
+    );
+  }
+
   @Get('capability/knowledge-bases/:id/tree')
   async listKnowledgeTree(
     @Param('id') id: string,
@@ -202,6 +222,25 @@ export class CapabilitiesController {
   ) {
     return this.executeCapability(
       'knowledgeTree.detail',
+      { id },
+      this.resolveClientType('http'),
+      req,
+      res,
+      capabilityKey,
+      authorization,
+    );
+  }
+
+  @Delete('capability/knowledge-tree/:id')
+  async deleteKnowledgeTree(
+    @Param('id') id: string,
+    @Headers('x-capability-key') capabilityKey: string | undefined,
+    @Headers('authorization') authorization: string | undefined,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.executeCapability(
+      'knowledgeTree.delete',
       { id },
       this.resolveClientType('http'),
       req,

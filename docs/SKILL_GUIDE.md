@@ -94,8 +94,10 @@ CLI 模式适合有本地 profile 的 Agent 宿主机。Agent 不需要自己管
 - `resources.tree`：优先执行 `ova resources tree --output json`，不可用时回退到 `GET /api/v1/resources/tree`。
 - `knowledgeBases.list`：优先执行 `ova kb list --output json`，不可用时回退到 `GET /api/v1/capability/knowledge-bases`。
 - `knowledgeBases.detail`：优先执行 `ova kb detail --id <kbId> --output json`，不可用时回退到 `GET /api/v1/capability/knowledge-bases/:id`。
+- `knowledgeBases.delete`：优先执行 `ova kb delete --id <kbId> --output json`，不可用时回退到 `DELETE /api/v1/capability/knowledge-bases/:id`。
 - `knowledgeTree.list`：优先执行 `ova tree list --kb <kbId> --output json`，不可用时回退到 `GET /api/v1/capability/knowledge-bases/:id/tree`。
 - `knowledgeTree.detail`：优先执行 `ova tree detail --id <nodeId> --output json`，不可用时回退到 `GET /api/v1/capability/knowledge-tree/:id`。
+- `knowledgeTree.delete`：优先执行 `ova tree delete --id <nodeId> --output json`，不可用时回退到 `DELETE /api/v1/capability/knowledge-tree/:id`。
 - `documents.import.create`：优先执行 `ova documents import <url> --kb <kbId> --output json`，不可用时回退到 `POST /api/v1/capability/import-tasks/documents`。
 - `documents.import.status`：优先执行 `ova documents import status --task <taskId> --output json`，不可用时回退到 `GET /api/v1/capability/import-tasks/:id`。
 - `documents.import.list`：优先执行 `ova documents import list --output json`，不可用时回退到 `GET /api/v1/capability/import-tasks`。

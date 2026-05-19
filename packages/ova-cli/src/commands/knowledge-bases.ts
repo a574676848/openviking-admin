@@ -13,17 +13,23 @@ export async function handleKnowledgeBases(
 ) {
   const output = resolveOutputMode(options);
   const { profileName } = readProfile(store, options);
+  const isDetail = command === "detail";
+  const isDelete = command === "delete";
+  const resourceId = String(options.id ?? "");
+  if ((isDetail || isDelete) && !resourceId) {
+    throw new Error("知识库命令必须提供 --id <kbId>。");
+  }
   const response = await callApi(
-    command === "detail"
-      ? `${KNOWLEDGE_BASES_API}/${encodeURIComponent(String(options.id ?? ""))}`
+    isDetail || isDelete
+      ? `${KNOWLEDGE_BASES_API}/${encodeURIComponent(resourceId)}`
       : KNOWLEDGE_BASES_API,
-    {},
+    isDelete ? { method: "DELETE" } : {},
     options,
     store,
   );
   const data = response.data as Record<string, unknown>;
   const items =
-    command === "detail"
+    isDetail || isDelete
       ? [data.item as Record<string, unknown>]
       : ((data.items ?? []) as Array<Record<string, unknown>>);
 

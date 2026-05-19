@@ -12,8 +12,10 @@ type GatewayHandlerName = keyof Pick<
   | 'treeResources'
   | 'listKnowledgeBases'
   | 'getKnowledgeBaseDetail'
+  | 'deleteKnowledgeBase'
   | 'listKnowledgeTree'
   | 'getKnowledgeTreeDetail'
+  | 'deleteKnowledgeTree'
   | 'createDocumentImport'
   | 'getDocumentImportStatus'
   | 'listDocumentImports'
@@ -207,6 +209,36 @@ export const capabilityRegistry: Record<CapabilityId, CapabilityRegistryEntry> =
         cli: { command: 'ova kb detail' },
       },
     },
+    'knowledgeBases.delete': {
+      gatewayHandler: 'deleteKnowledgeBase',
+      contract: {
+        id: 'knowledgeBases.delete',
+        version: 'v1',
+        displayName: 'Knowledge Base Delete',
+        description: '删除当前租户可见的知识库',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', description: '知识库 ID' },
+          },
+          required: ['id'],
+        },
+        outputSchema: {
+          type: 'object',
+          properties: {
+            item: { type: 'object' },
+          },
+        },
+        permissionRequirement: 'tenant',
+        minimumRole: 'tenant_operator',
+        auditLevel: 'standard',
+        http: {
+          method: 'DELETE',
+          path: capabilityHttpPath('/knowledge-bases/:id'),
+        },
+        cli: { command: 'ova kb delete' },
+      },
+    },
     'knowledgeTree.list': {
       gatewayHandler: 'listKnowledgeTree',
       contract: {
@@ -265,6 +297,36 @@ export const capabilityRegistry: Record<CapabilityId, CapabilityRegistryEntry> =
           path: capabilityHttpPath('/knowledge-tree/:id'),
         },
         cli: { command: 'ova tree detail' },
+      },
+    },
+    'knowledgeTree.delete': {
+      gatewayHandler: 'deleteKnowledgeTree',
+      contract: {
+        id: 'knowledgeTree.delete',
+        version: 'v1',
+        displayName: 'Knowledge Tree Delete',
+        description: '删除当前租户可见的知识树节点',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', description: '知识树节点 ID' },
+          },
+          required: ['id'],
+        },
+        outputSchema: {
+          type: 'object',
+          properties: {
+            item: { type: 'object' },
+          },
+        },
+        permissionRequirement: 'tenant',
+        minimumRole: 'tenant_operator',
+        auditLevel: 'standard',
+        http: {
+          method: 'DELETE',
+          path: capabilityHttpPath('/knowledge-tree/:id'),
+        },
+        cli: { command: 'ova tree delete' },
       },
     },
     'documents.import.create': {

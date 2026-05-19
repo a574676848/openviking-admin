@@ -43,14 +43,14 @@ interface OVSearchResponse {
   };
 }
 
-interface OVGrepMatch {
+export interface SearchGrepMatch {
   uri: string;
   [key: string]: unknown;
 }
 
-interface OVGrepResponse {
+export interface SearchGrepResponse {
   result?: {
-    matches?: OVGrepMatch[];
+    matches?: SearchGrepMatch[];
     [key: string]: unknown;
   };
   [key: string]: unknown;
@@ -191,7 +191,7 @@ export class SearchService {
     tenantId: string,
     user: { id: string; role: string },
     meta?: OVRequestMeta,
-  ) {
+  ): Promise<SearchGrepResponse> {
     const config = await this.settings.resolveOVConfig(tenantId);
     const allowedUris = await this.nodeRepo.findAllowedUris(tenantId, user);
     if (!this.isScopeAccessible(uri, allowedUris)) {
@@ -207,7 +207,7 @@ export class SearchService {
       }),
       { pattern, uri, caseInsensitive: true },
       meta,
-    )) as OVGrepResponse;
+    )) as SearchGrepResponse;
 
     return {
       ...response,
@@ -332,7 +332,7 @@ export class SearchService {
   }
 
   private filterGrepMatchesByScope(
-    matches: OVGrepMatch[],
+    matches: SearchGrepMatch[],
     allowedUris: string[],
     requestedScope?: string,
   ) {

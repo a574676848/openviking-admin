@@ -440,8 +440,10 @@ LDAP / AD 域账号直接登录。服务端会使用租户 LDAP 集成中的 `bi
 | ------------------------- | ------ | --------------------------------------------- | ---------------------------- |
 | `knowledgeBases.list`     | `GET`  | `/api/v1/capability/knowledge-bases`          | 列出当前租户可导入的知识库   |
 | `knowledgeBases.detail`   | `GET`  | `/api/v1/capability/knowledge-bases/:id`      | 查看知识库详情与导入根路径   |
+| `knowledgeBases.delete`   | `DELETE` | `/api/v1/capability/knowledge-bases/:id`    | 删除 ACL 可见的知识库        |
 | `knowledgeTree.list`      | `GET`  | `/api/v1/capability/knowledge-bases/:id/tree` | 列出知识库下可导入节点       |
 | `knowledgeTree.detail`    | `GET`  | `/api/v1/capability/knowledge-tree/:id`       | 查看知识树节点详情与导入路径 |
+| `knowledgeTree.delete`    | `DELETE` | `/api/v1/capability/knowledge-tree/:id`     | 删除 ACL 可见的知识树节点    |
 | `documents.import.create` | `POST` | `/api/v1/capability/import-tasks/documents`   | 创建文档导入任务             |
 | `documents.import.create` | `POST` | `/api/v1/capability/import-tasks/local-upload` | 上传本地文件并创建导入任务   |
 | `documents.import.status` | `GET`  | `/api/v1/capability/import-tasks/:id`         | 查看导入进度                 |
@@ -455,7 +457,7 @@ LDAP / AD 域账号直接登录。服务端会使用租户 LDAP 集成中的 `bi
 
 导入任务列表、详情、状态和 capability 投影会返回 `createdBy`、`updatedBy`。创建任务时两个字段均为当前操作者；重试和取消会更新 `updatedBy`；Worker 自动推进任务状态不会覆盖人工操作人。capability `documents.import.status`、`documents.import.list`、`documents.import.events`、`documents.import.cancel` 与 `documents.import.retry` 在最低角色校验通过后，还会继续按目标知识库/节点 ACL 收敛。
 
-失败任务的物理删除当前仅提供给控制台/JWT 管理接口，尚未纳入 capability、CLI 和 MCP 契约。
+失败任务的物理删除当前仅提供给控制台/JWT 管理接口，尚未纳入 capability、CLI 和 MCP 契约。知识空间删除则已纳入 capability、CLI 和 MCP 契约：`knowledgeBases.delete` 与 `knowledgeTree.delete` 在最低角色校验通过后，会继续按目标知识库/节点 ACL 校验，并同时写入 `capability.invoke` 与领域删除审计。
 
 创建导入任务请求体：
 

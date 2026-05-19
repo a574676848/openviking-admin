@@ -193,7 +193,7 @@ export class TaskWorkerService implements OnModuleInit {
           currentTenant.tenantId,
           task.targetUri,
         );
-        if (this.isDocumentNode(targetNode)) {
+        if (targetNode && this.isDocumentNode(targetNode)) {
           this.documentSessionRegistry.assertNoActiveWriteSession(
             targetNode.id,
           );
@@ -254,6 +254,17 @@ export class TaskWorkerService implements OnModuleInit {
           this.toEngineResourceUri(task.targetUri),
         );
         if (targetNode && this.isDocumentNode(targetNode)) {
+          await this.syncDocumentContentUri(
+            context,
+            conn,
+            targetNode,
+            task.targetUri,
+            resourceStats.vectorCount,
+          );
+        } else if (
+          targetNode &&
+          task.autoCreatedNodeId === targetNode.id
+        ) {
           await this.syncDocumentContentUri(
             context,
             conn,
