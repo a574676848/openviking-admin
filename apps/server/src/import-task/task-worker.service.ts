@@ -6,7 +6,11 @@ import {
   Repository,
   type QueryRunner,
 } from 'typeorm';
-import { OPENVIKING_RESOURCE_ENDPOINTS, QUEUE_CONFIG } from './constants';
+import {
+  OPENVIKING_RESOURCE_ENDPOINTS,
+  OPENVIKING_RESOURCE_INJECT_DEFAULT_WAIT,
+  QUEUE_CONFIG,
+} from './constants';
 import { OVClientService } from '../common/ov-client.service';
 import { DynamicDataSourceService } from '../common/dynamic-datasource.service';
 import { EncryptionService } from '../common/encryption.service';
@@ -180,7 +184,7 @@ export class TaskWorkerService implements OnModuleInit {
           path: task.sourceUrl,
           to: this.toEngineResourceUri(task.targetUri),
           reason: `Queue Task: ${task.id}`,
-          wait: true,
+          wait: OPENVIKING_RESOURCE_INJECT_DEFAULT_WAIT,
         };
         const targetNode = await this.findTargetNode(
           context,
@@ -223,7 +227,8 @@ export class TaskWorkerService implements OnModuleInit {
                 resolved.tempFile,
               );
               injectBody.wait =
-                resolved.waitForCompletion ?? this.isInitialImportTask(task);
+                resolved.waitForCompletion ??
+                OPENVIKING_RESOURCE_INJECT_DEFAULT_WAIT;
               delete injectBody.path;
             } else if (resolved.path) {
               injectBody.path = resolved.path;

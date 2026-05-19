@@ -445,7 +445,7 @@ LDAP / AD 域账号直接登录。服务端会使用租户 LDAP 集成中的 `bi
 
 导入任务响应中的 `sourceName` 用于展示来源名称。创建任务时可传 `sourceName`，批量 `sourceUrls` 可传同下标的 `sourceNames`；未显式传入时，服务层会统一为 Git 解析仓库名，为 `url`、`local`、`manifest` 解析来源路径末尾文件名。飞书、钉钉等企业文档创建自动文档节点时会先从 URL 路径解析展示名，Worker 读取平台文档后再写入解析出的真实文档名。历史任务或无法解析名称的来源可能返回 `null`，调用端应回退展示 `sourceUrl`。
 
-Capability 与 CLI 导入入口的 `sourceType` 支持 `local`、`url`、`manifest`。飞书、钉钉、Git 等需要集成凭证的来源走导入任务 API 或控制台集成流程，并提供 `integrationId`。`parentNodeId` 可省略，省略时导入到知识库根路径。`local`、`url`、`feishu`、`dingtalk` 会在所选知识树目录下自动创建文档子节点，并把任务 `targetUri` 指向该文档节点稳定资源容器；`git` 仍导入到资源目录，不自动创建知识树文档节点。
+Capability 与 CLI 导入入口的 `sourceType` 支持 `local`、`url`、`manifest`。飞书、钉钉、Git 等需要集成凭证的来源走导入任务 API 或控制台集成流程，并提供 `integrationId`。`parentNodeId` 可省略，省略时导入到知识库根路径。`local`、`url`、`feishu`、`dingtalk` 会在所选知识树目录下自动创建文档子节点，并把任务 `targetUri` 指向该文档节点稳定资源容器；`git` 仍导入到资源目录，不自动创建知识树文档节点，且每个 Git 任务会使用独立资源目录。
 
 ## 可观测性接口
 
@@ -707,7 +707,7 @@ MCP JSON-RPC 消息接口。
 | `GET`    | `/api/v1/import-tasks/:id/sync`     | 同步任务执行结果               |
 | `POST`   | `/api/v1/import-tasks/:id/retry`    | 重试失败或已取消的导入任务     |
 | `POST`   | `/api/v1/import-tasks/:id/cancel`   | 取消排队中的导入任务           |
-| `DELETE` | `/api/v1/import-tasks/:id`          | 物理删除失败的导入任务         |
+| `DELETE` | `/api/v1/import-tasks/:id`          | 物理删除失败或成功的导入任务   |
 
 导入来源：
 
@@ -728,14 +728,16 @@ MCP JSON-RPC 消息接口。
 - `sourceType=local` 只能由 `/api/v1/import-tasks/local-upload` 生成，不能直接提交任意 `file://` 路径
 - `/api/v1/import-tasks/local-upload` 使用 `multipart/form-data`，字段为 `kbId`、可选 `targetUri`，以及 `files`
 - 导入任务会在响应中返回 `sourceName`，用于控制台和调用端展示仓库名、企业文档名、URL 文件名或本地上传原文件名；普通 JSON 创建接口可传 `sourceName` 或与 `sourceUrls` 对齐的 `sourceNames`
-- `local`、`url`、`feishu`、`dingtalk` 创建任务时会在所选知识树目录下自动创建文档节点，响应中的 `targetUri` 指向该节点稳定资源容器，并返回 `autoCreatedNodeId` 用于失败删除时识别自动节点；自动文档节点和导入任务在 Admin 数据库内同事务提交；`git` 不自动创建知识树节点
+- `local`、`url`、`feishu`、`dingtalk` 创建任务时会在所选知识树目录下自动创建文档节点，响应中的 `targetUri` 指向该节点稳定资源容器，并返回 `autoCreatedNodeId` 用于删除任务时识别自动节点；自动文档节点和导入任务在 Admin 数据库内同事务提交；`git` 不自动创建知识树节点，但每个 Git 任务会生成独立 `imports/git/{repo}-{suffix}/` 目标目录，避免多条任务共享同一个 OpenViking 资源路径
 - 自动创建的新文档节点首次导入不会预先递归删除 OpenViking 稳定资源容器；只有目标文档节点已有 `contentUri`、属于覆盖已有正文时，Worker 才会在写入前清空目标容器
 - `POST /api/v1/import-tasks/:id/retry` 重试 `failed` 任务时会先删除任务 `targetUri` 下已有的 OpenViking 资源和向量，并清零 `nodeCount/vectorCount` 后重新排队，避免部分失败结果和新一轮导入叠加；重试 `cancelled` 任务只重新排队并清零统计
 - WebDAV `PUT` 新建文件时会复用本地上传链路，但不把 WebDAV 注册为新的 `sourceType`；导入任务仍以 `sourceType=local` 入队。覆盖文件时只保存最新草稿并标记索引过期，不创建导入任务。
-- `DELETE /api/v1/import-tasks/:id` 仅允许删除 `failed` 状态的任务；若任务来源是受控本地上传文件，服务端会一并清理暂存文件；若任务关联自动创建的文档节点，服务端会同步删除该节点，并刷新知识库 `docCount/vectorCount`；若任务为 Git 导入，服务端会递归删除该任务 `targetUri` 下的 OpenViking 资源和向量。节点、知识库统计和任务的 Admin 数据库变更在同一事务内提交；OpenViking 资源删除失败时保留任务，允许再次删除
+- `DELETE /api/v1/import-tasks/:id` 允许删除 `failed` 或 `done` 状态的任务；若任务来源是受控本地上传文件，服务端会一并清理暂存文件；若任务关联自动创建的文档节点，服务端会同步删除该节点，并刷新知识库 `docCount/vectorCount`；若任务为 Git 导入，服务端会递归删除该任务 `targetUri` 下的 OpenViking 资源和向量。节点、知识库统计和任务的 Admin 数据库变更在同一事务内提交；OpenViking 资源删除失败时保留任务，允许再次删除
 - 控制台默认不再传 `targetUri`，服务端会按知识库 `vikingUri` 自动生成导入目标路径；选择知识树目录时，`local`、`url`、`feishu`、`dingtalk` 的自动文档节点会挂到该目录下
 - OpenViking 资源接口只接收 `path` 或 `temp_file_id`；平台 Token 不会作为 `config` 透传给 OpenViking
 - WebDAV 不作为导入来源；外部客户端访问知识资源请使用 WebDAV 配置页或资源 capability
+- 导入 Worker 调用 OpenViking `/api/v1/resources` 时默认使用 `wait=false`，Git archive 导入也显式采用异步注入。大文件或大仓库导入会先完成任务入队与资源注入请求，再通过延迟统计同步补偿 `nodeCount/vectorCount`，避免 HTTP 请求长时间同步等待导致超时。
+- 点击重试失败任务前，服务端会先读取目标 URI 在 OpenViking 侧的资源统计与向量数量；若向量已产出则同步任务为 `done`，若资源已存在但向量暂未产出则同步为 `running`，不会清理目标资源或重新导入。
 
 ## 搜索接口
 

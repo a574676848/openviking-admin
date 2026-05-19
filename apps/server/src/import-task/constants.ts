@@ -54,3 +54,6 @@ export const OPENVIKING_RESOURCE_ENDPOINTS = {
   TEMP_UPLOAD: '/api/v1/resources/temp_upload',
   INJECT: '/api/v1/resources',
 } as const;
+
+/** OpenViking 资源注入默认等待策略 */
+export const OPENVIKING_RESOURCE_INJECT_DEFAULT_WAIT = false;

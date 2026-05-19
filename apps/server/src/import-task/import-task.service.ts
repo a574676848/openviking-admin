@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import {
   BadRequestException,
   ConflictException,
@@ -49,6 +50,9 @@ const AUTO_DOCUMENT_SOURCE_TYPES = ['local', 'url', 'feishu', 'dingtalk'];
 const TARGET_RESOURCE_DELETE_SOURCE_TYPES = ['git'];
 const DEFAULT_IMPORT_DOCUMENT_EXTENSION = '.md';
 const DOCUMENT_NAME_EXTENSION_PATTERN = /\.[^./\\]+$/;
+const ACTIVE_OV_RESOURCE_NODE_THRESHOLD = 0;
+const COMPLETED_OV_RESOURCE_VECTOR_THRESHOLD = 0;
+const GIT_TASK_TARGET_SEGMENT_SUFFIX_LENGTH = 8;
 
 @Injectable()
 export class ImportTaskService {
@@ -121,7 +125,13 @@ export class ImportTaskService {
                 ...taskDto,
                 sourceUrl,
                 sourceName,
-                targetUri: autoNode?.vikingUri ?? baseTargetUri,
+                targetUri:
+                  autoNode?.vikingUri ??
+                  this.resolveTaskTargetUri(
+                    dto,
+                    baseTargetUri,
+                    sourceName ?? sourceUrl,
+                  ),
                 autoCreatedNodeId: autoNode?.id ?? null,
                 tenantId,
                 status: TaskStatus.PENDING,
@@ -232,6 +242,35 @@ export class ImportTaskService {
     }
 
     return `${TENANT_RESOURCE_PREFIX}${uri.slice(RESOURCE_URI_PREFIX.length)}`;
+  }
+
+  private resolveTaskTargetUri(
+    dto: CreateImportTaskDto,
+    baseTargetUri: string,
+    sourceUrl: string,
+  ) {
+    if (dto.sourceType !== 'git') {
+      return baseTargetUri;
+    }
+    const normalizedBaseTargetUri = this.normalizeTargetUri(baseTargetUri);
+    return `${normalizedBaseTargetUri}${this.createGitTaskTargetSegment(
+      sourceUrl,
+    )}/`;
+  }
+
+  private createGitTaskTargetSegment(sourceSeed: string) {
+    const normalized = sourceSeed
+      .trim()
+      .replace(GIT_REPOSITORY_SUFFIX, '')
+      .replace(/[^a-zA-Z0-9._-]+/g, '-')
+      .replace(/-{2,}/g, '-')
+      .replace(/^[-_.]+|[-_.]+$/g, '');
+    const baseSegment = normalized.length > 0 ? normalized : 'git';
+    const uniqueSuffix = randomUUID().replace(/-/g, '').slice(
+      0,
+      GIT_TASK_TARGET_SEGMENT_SUFFIX_LENGTH,
+    );
+    return `${baseSegment}-${uniqueSuffix}`;
   }
 
   private validateExplicitTargetUri(
@@ -439,49 +478,13 @@ export class ImportTaskService {
     const task = await this.findOne(id, tenantId);
     if (!task) return null;
 
-    const rawConn = await this.settings.resolveOVConfig(task.tenantId);
-    const conn = {
-      baseUrl: rawConn.baseUrl || '',
-      apiKey: rawConn.apiKey || '',
-      account: rawConn.account || 'default',
-      user: rawConn.user || '',
-      rerankEndpoint: rawConn.rerankEndpoint || '',
-      rerankModel: rawConn.rerankModel || '',
-    };
     try {
-      const statData = await this.ovClient.request(
+      const conn = await this.resolveOpenVikingConnection(task.tenantId);
+      const stats = await this.fetchResourceStats(
         conn,
-        `/api/v1/fs/stat?uri=${encodeURIComponent(task.targetUri)}`,
-        'GET',
-        undefined,
-        { user: conn.user || undefined },
+        this.toEngineResourceUri(task.targetUri),
       );
-      const statResult = statData?.result as
-        | Record<string, unknown>
-        | undefined;
-      let nodeCount = this.resolveNodeCountFromStat(statResult);
-      if (nodeCount === null) {
-        const treeData = await this.ovClient.request(
-          conn,
-          `/api/v1/fs/tree?uri=${encodeURIComponent(task.targetUri)}&depth=2`,
-          'GET',
-          undefined,
-          { user: conn.user || undefined },
-        );
-        nodeCount = this.countTreeItems(treeData?.result);
-      }
-
-      const vecData = await this.ovClient.request(
-        conn,
-        `/api/v1/debug/vector/count?uri=${encodeURIComponent(task.targetUri)}`,
-        'GET',
-        undefined,
-        { user: conn.user || undefined },
-      );
-      const vecResult = vecData?.result as Record<string, unknown> | undefined;
-      const vectorCount = this.toNonNegativeNumber(vecResult?.count);
-
-      await this.taskRepo.update(id, { nodeCount, vectorCount });
+      await this.taskRepo.update(id, stats);
       await this.refreshKnowledgeBaseStatsFromOpenViking(task, conn);
       return this.taskRepo.findById(id, tenantId);
     } catch (err) {
@@ -599,6 +602,14 @@ export class ImportTaskService {
       throw new ConflictException('只有失败或已取消的任务才能重试');
     }
 
+    const syncedTask = await this.syncTaskFromOpenVikingBeforeRetry(
+      task,
+      actor,
+    );
+    if (syncedTask) {
+      return syncedTask;
+    }
+
     if (task.status === TaskStatus.FAILED) {
       await this.clearRetryTargetResources(task);
     }
@@ -617,6 +628,57 @@ export class ImportTaskService {
       ),
     );
     return this.taskRepo.findById(id, tenantId);
+  }
+
+  private async syncTaskFromOpenVikingBeforeRetry(
+    task: ImportTaskModel,
+    actor?: AuditActorSnapshot | null,
+  ) {
+    try {
+      const conn = await this.resolveOpenVikingConnection(task.tenantId);
+      const stats = await this.fetchResourceStats(
+        conn,
+        this.toEngineResourceUri(task.targetUri),
+      );
+      const status = this.resolveRetrySyncStatus(stats);
+      if (!status) {
+        return null;
+      }
+
+      await this.taskRepo.update(
+        task.id,
+        applyUpdatedAuditActor(
+          {
+            status,
+            errorMsg: null,
+            nodeCount: stats.nodeCount,
+            vectorCount: stats.vectorCount,
+            updatedAt: new Date(),
+          },
+          actor,
+        ),
+      );
+      await this.refreshKnowledgeBaseStatsFromOpenViking(task, conn);
+      return this.taskRepo.findById(task.id, task.tenantId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '未知错误';
+      this.logger.warn(
+        `Retry pre-sync for task ${task.id} failed: ${message}`,
+      );
+      return null;
+    }
+  }
+
+  private resolveRetrySyncStatus(
+    stats: Pick<ImportTaskModel, 'nodeCount' | 'vectorCount'>,
+  ) {
+    if ((stats.vectorCount ?? 0) > COMPLETED_OV_RESOURCE_VECTOR_THRESHOLD) {
+      return TaskStatus.DONE;
+    }
+    if ((stats.nodeCount ?? 0) > ACTIVE_OV_RESOURCE_NODE_THRESHOLD) {
+      return TaskStatus.RUNNING;
+    }
+    return null;
   }
 
   async cancel(
@@ -651,8 +713,8 @@ export class ImportTaskService {
 
   async deleteFailed(id: string, tenantId: string | null) {
     const task = await this.findOne(id, tenantId);
-    if (task.status !== TaskStatus.FAILED) {
-      throw new ConflictException('只有失败任务才能物理删除');
+    if (![TaskStatus.FAILED, TaskStatus.DONE].includes(task.status)) {
+      throw new ConflictException('只有失败或成功任务才能物理删除');
     }
 
     if (task.sourceType === 'local') {
@@ -661,9 +723,22 @@ export class ImportTaskService {
     await this.runInTenantTransaction(async () => {
       await this.deleteAutoCreatedNode(task);
       await this.deleteTaskTargetResources(task);
+      await this.refreshKnowledgeBaseStatsAfterTaskDelete(task);
       await this.taskRepo.delete(id, tenantId);
     });
     return task;
+  }
+
+  private async refreshKnowledgeBaseStatsAfterTaskDelete(
+    task: ImportTaskModel,
+  ) {
+    try {
+      const conn = await this.resolveOpenVikingConnection(task.tenantId);
+      await this.refreshKnowledgeBaseStatsFromOpenViking(task, conn);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '未知错误';
+      this.logger.warn(`删除任务后刷新知识库统计失败: ${message}`);
+    }
   }
 
   private async deleteAutoCreatedNode(task: ImportTaskModel): Promise<void> {
@@ -760,13 +835,7 @@ export class ImportTaskService {
     task: ImportTaskModel,
     serviceLabel: string,
   ) {
-    const rawConn = await this.settings.resolveOVConfig(task.tenantId);
-    const conn = {
-      baseUrl: rawConn.baseUrl || '',
-      apiKey: rawConn.apiKey || '',
-      account: rawConn.account || 'default',
-      user: rawConn.user || '',
-    };
+    const conn = await this.resolveOpenVikingConnection(task.tenantId);
 
     try {
       await this.ovClient.request(
@@ -786,5 +855,17 @@ export class ImportTaskService {
       }
       throw error;
     }
+  }
+
+  private async resolveOpenVikingConnection(tenantId: string | null) {
+    const rawConn = await this.settings.resolveOVConfig(tenantId);
+    return {
+      baseUrl: rawConn.baseUrl || '',
+      apiKey: rawConn.apiKey || '',
+      account: rawConn.account || 'default',
+      user: rawConn.user || '',
+      rerankEndpoint: rawConn.rerankEndpoint || '',
+      rerankModel: rawConn.rerankModel || '',
+    };
   }
 }

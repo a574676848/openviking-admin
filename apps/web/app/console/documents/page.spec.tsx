@@ -134,7 +134,9 @@ describe("DocumentsPage", () => {
     );
     expect(actionButtons.map((button) => button.textContent?.trim())).toEqual(["同步", "重试", "取消", "删除"]);
     expect(actionButtons[0]?.disabled).toBe(false);
-    expect(actionButtons.slice(1).every((button) => button.disabled)).toBe(true);
+    expect(actionButtons[1]?.disabled).toBe(true);
+    expect(actionButtons[2]?.disabled).toBe(true);
+    expect(actionButtons[3]?.disabled).toBe(false);
 
     const failedDeleteButton = Array.from(failedRow?.querySelectorAll("button") ?? []).find(
       (button) => button.textContent?.trim() === "删除",
@@ -143,7 +145,7 @@ describe("DocumentsPage", () => {
     expect(failedDeleteButton?.disabled).toBe(false);
   });
 
-  it("确认后会删除失败任务", async () => {
+  it("确认后会删除导入任务", async () => {
     getMock.mockResolvedValueOnce([
       {
         id: "task-failed",
@@ -176,7 +178,7 @@ describe("DocumentsPage", () => {
 
     expect(confirmMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        title: "删除失败任务",
+        title: "删除导入任务",
         confirmText: "确认删除",
       }),
     );

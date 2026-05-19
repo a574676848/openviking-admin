@@ -180,7 +180,7 @@ export class ImportTaskController {
       tenantId: req.tenantScope ?? undefined,
       userId: req.user.id,
       username: req.user.username,
-      action: 'delete_failed_import_task',
+      action: 'delete_import_task',
       target: id,
       meta: { status: removed.status, requestId: req.headers['x-request-id'] },
       ip: req.ip,

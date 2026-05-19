@@ -142,8 +142,8 @@ export default function DocumentsPage() {
 
   async function handleDelete(id: string) {
     const approved = await confirm({
-      title: "删除失败任务",
-      description: "该操作会物理删除失败任务记录。本地上传来源还会一并清理受控上传文件。",
+      title: "删除导入任务",
+      description: "该操作会物理删除任务记录，并同步清理对应的 OpenViking 资源。本地上传来源还会一并清理受控上传文件。",
       confirmText: "确认删除",
       cancelText: "继续保留",
       tone: "danger",
@@ -153,8 +153,8 @@ export default function DocumentsPage() {
     }
 
     await runTaskAction(id, () => apiClient.delete(`/import-tasks/${id}`), {
-      loading: "正在删除失败任务...",
-      success: "失败任务已删除",
+      loading: "正在删除导入任务...",
+      success: "导入任务已删除",
       error: "删除失败",
     });
     setSelectedIds((current) => current.filter((taskId) => taskId !== id));

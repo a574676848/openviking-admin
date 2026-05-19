@@ -179,6 +179,114 @@ describe('ImportTaskService', () => {
     );
   });
 
+  it('重试前发现 OV 侧已有向量时应同步为完成，不重新导入', async () => {
+    taskRepo.findById
+      .mockResolvedValueOnce({
+        id: 'task-ov-done',
+        tenantId: 'tenant-a',
+        kbId: 'kb-1',
+        status: TaskStatus.FAILED,
+        targetUri: 'viking://resources/tenants/tenant-a/kb-1/imports/git/',
+      })
+      .mockResolvedValueOnce({
+        id: 'task-ov-done',
+        status: TaskStatus.DONE,
+        nodeCount: 7,
+        vectorCount: 9,
+      });
+    settings.resolveOVConfig.mockResolvedValue({
+      baseUrl: 'http://ov.local',
+      apiKey: 'ov-key',
+      account: 'tenant-a',
+      user: 'worker-user',
+    });
+    ovClient.request
+      .mockResolvedValueOnce({
+        result: { children_count: 3, descendant_count: 4 },
+      })
+      .mockResolvedValueOnce({ result: { count: 9 } });
+
+    const result = await service.retry('task-ov-done', 'tenant-a');
+
+    expect(taskRepo.update).toHaveBeenCalledWith(
+      'task-ov-done',
+      expect.objectContaining({
+        status: TaskStatus.DONE,
+        errorMsg: null,
+        nodeCount: 7,
+        vectorCount: 9,
+      }),
+    );
+    expect(ovClient.request).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.stringContaining('/api/v1/fs?'),
+      'DELETE',
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+    );
+    expect(result).toEqual(
+      expect.objectContaining({
+        id: 'task-ov-done',
+        status: TaskStatus.DONE,
+      }),
+    );
+  });
+
+  it('重试前发现 OV 侧已有资源但未产出向量时应同步为运行中', async () => {
+    taskRepo.findById
+      .mockResolvedValueOnce({
+        id: 'task-ov-running',
+        tenantId: 'tenant-a',
+        kbId: 'kb-1',
+        status: TaskStatus.FAILED,
+        targetUri: 'viking://resources/tenant-a/kb-1/imports/git/',
+      })
+      .mockResolvedValueOnce({
+        id: 'task-ov-running',
+        status: TaskStatus.RUNNING,
+        nodeCount: 2,
+        vectorCount: 0,
+      });
+    settings.resolveOVConfig.mockResolvedValue({
+      baseUrl: 'http://ov.local',
+      apiKey: 'ov-key',
+      account: 'tenant-a',
+      user: 'worker-user',
+    });
+    ovClient.request
+      .mockResolvedValueOnce({
+        result: { children_count: 2, descendant_count: 0 },
+      })
+      .mockResolvedValueOnce({ result: { count: 0 } });
+
+    const result = await service.retry('task-ov-running', 'tenant-a');
+
+    expect(taskRepo.update).toHaveBeenCalledWith(
+      'task-ov-running',
+      expect.objectContaining({
+        status: TaskStatus.RUNNING,
+        errorMsg: null,
+        nodeCount: 2,
+        vectorCount: 0,
+      }),
+    );
+    expect(ovClient.request).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.stringContaining('/api/v1/fs?'),
+      'DELETE',
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+    );
+    expect(result).toEqual(
+      expect.objectContaining({
+        id: 'task-ov-running',
+        status: TaskStatus.RUNNING,
+      }),
+    );
+  });
+
   it('重试已取消任务时不清理目标资源', async () => {
     taskRepo.findById
       .mockResolvedValueOnce({
@@ -195,7 +303,14 @@ describe('ImportTaskService', () => {
 
     await service.retry('task-cancelled', 'tenant-a');
 
-    expect(ovClient.request).not.toHaveBeenCalled();
+    expect(ovClient.request).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.stringContaining('/api/v1/fs?'),
+      'DELETE',
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+    );
     expect(taskRepo.update).toHaveBeenCalledWith(
       'task-cancelled',
       expect.objectContaining({
@@ -422,16 +537,49 @@ describe('ImportTaskService', () => {
     expect(taskRepo.delete).not.toHaveBeenCalled();
   });
 
-  it('拒绝物理删除非失败任务', async () => {
+  it('允许物理删除成功的 Git 任务并清理目标 OpenViking 资源', async () => {
     taskRepo.findById.mockResolvedValueOnce({
       id: 'task-done',
+      tenantId: 'tenant-a',
+      kbId: 'kb-1',
       status: TaskStatus.DONE,
+      sourceType: 'git',
+      sourceUrl: 'https://example.com/repo.git',
+      targetUri:
+        'viking://resources/tenants/tenant-a/kb-1/imports/git/repo-a-12345678/',
+      autoCreatedNodeId: null,
+    });
+    settings.resolveOVConfig.mockResolvedValue({
+      baseUrl: 'http://ov.local',
+      apiKey: 'ov-key',
+      account: 'tenant-a',
+      user: 'worker-user',
+    });
+    ovClient.request.mockResolvedValueOnce({ status: 'ok' });
+
+    await service.deleteFailed('task-done', 'tenant-a');
+
+    expect(ovClient.request).toHaveBeenCalledWith(
+      expect.objectContaining({ account: 'tenant-a' }),
+      '/api/v1/fs?uri=viking%3A%2F%2Fresources%2Ftenants%2Ftenant-a%2Fkb-1%2Fimports%2Fgit%2Frepo-a-12345678%2F&recursive=true',
+      'DELETE',
+      undefined,
+      { user: 'worker-user' },
+      { serviceLabel: 'OpenViking 任务资源删除' },
+    );
+    expect(taskRepo.delete).toHaveBeenCalledWith('task-done', 'tenant-a');
+  });
+
+  it('拒绝物理删除未完成任务', async () => {
+    taskRepo.findById.mockResolvedValueOnce({
+      id: 'task-running',
+      status: TaskStatus.RUNNING,
       sourceType: 'url',
-      sourceUrl: 'https://example.com/done.pdf',
+      sourceUrl: 'https://example.com/running.pdf',
     });
 
     await expect(
-      service.deleteFailed('task-done', 'tenant-a'),
+      service.deleteFailed('task-running', 'tenant-a'),
     ).rejects.toBeInstanceOf(ConflictException);
     expect(taskRepo.delete).not.toHaveBeenCalled();
   });
@@ -459,22 +607,28 @@ describe('ImportTaskService', () => {
     );
 
     expect(taskRepo.create).toHaveBeenCalledTimes(2);
-    expect(taskRepo.save).toHaveBeenCalledWith([
+    const savedTasks = taskRepo.save.mock.calls[0][0];
+    expect(savedTasks).toEqual([
       expect.objectContaining({
         sourceUrl: 'https://example.com/repo-a.git',
         sourceName: 'repo-a',
-        targetUri: 'viking://resources/tenants/tenant-a/kb-1/imports/git/',
+        targetUri: expect.stringMatching(
+          /^viking:\/\/resources\/tenants\/tenant-a\/kb-1\/imports\/git\/repo-a-[a-f0-9]{8}\/$/,
+        ),
         autoCreatedNodeId: null,
         tenantId: 'tenant-a',
       }),
       expect.objectContaining({
         sourceUrl: 'https://example.com/repo-b.git',
         sourceName: 'repo-b',
-        targetUri: 'viking://resources/tenants/tenant-a/kb-1/imports/git/',
+        targetUri: expect.stringMatching(
+          /^viking:\/\/resources\/tenants\/tenant-a\/kb-1\/imports\/git\/repo-b-[a-f0-9]{8}\/$/,
+        ),
         autoCreatedNodeId: null,
         tenantId: 'tenant-a',
       }),
     ]);
+    expect(savedTasks[0].targetUri).not.toBe(savedTasks[1].targetUri);
     expect(nodeRepo.createFileWithGeneratedUri).not.toHaveBeenCalled();
     expect(result).toEqual(
       expect.objectContaining({
@@ -1004,12 +1158,14 @@ describe('ImportTaskService', () => {
 
     expect(result).toEqual(
       expect.objectContaining({
-        targetUri: 'viking://resources/tenants/tenant-a/kb-3/node-1/',
+        targetUri: expect.stringMatching(
+          /^viking:\/\/resources\/tenants\/tenant-a\/kb-3\/node-1\/repo-[a-f0-9]{8}\/$/,
+        ),
       }),
     );
   });
 
-  it('显式 targetUri 指向文件节点时不应追加目录斜杠', async () => {
+  it('Git 显式 targetUri 指向文件节点时仍会生成独立子目录', async () => {
     taskRepo.create.mockImplementation((payload) => payload);
     taskRepo.save.mockImplementation(async (payload) => payload);
     kbRepo.findById.mockResolvedValue({
@@ -1036,7 +1192,9 @@ describe('ImportTaskService', () => {
 
     expect(result).toEqual(
       expect.objectContaining({
-        targetUri: 'viking://resources/tenants/tenant-a/kb-3/node-file.md',
+        targetUri: expect.stringMatching(
+          /^viking:\/\/resources\/tenants\/tenant-a\/kb-3\/node-file.md\/repo-[a-f0-9]{8}\/$/,
+        ),
       }),
     );
   });

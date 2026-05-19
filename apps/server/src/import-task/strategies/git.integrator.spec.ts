@@ -80,7 +80,7 @@ describe('GitIntegrator', () => {
       buffer: Buffer.from('api-zip'),
       mimeType: 'application/zip',
     });
-    expect(result.waitForCompletion).toBe(true);
+    expect(result.waitForCompletion).toBe(false);
   });
 
   it('GitLab 应通过 API archive 下载 zip 并注入 tempFile', async () => {
@@ -109,7 +109,7 @@ describe('GitIntegrator', () => {
       buffer: Buffer.from('gitlab-api-zip'),
       mimeType: 'application/zip',
     });
-    expect(result.waitForCompletion).toBe(true);
+    expect(result.waitForCompletion).toBe(false);
   });
 
   it('API 失败后应尝试 CLI archive', async () => {

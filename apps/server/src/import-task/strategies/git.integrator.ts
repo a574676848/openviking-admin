@@ -22,6 +22,7 @@ const GITHUB_CLI = 'gh';
 const GITLAB_CLI = 'glab';
 const API_USER_AGENT = 'openviking-admin';
 const MAX_ARCHIVE_REDIRECTS = 5;
+const GIT_ARCHIVE_WAIT_FOR_COMPLETION = false;
 type GitArchivePlatform = 'github' | 'gitlab';
 
 interface GitRepositoryInfo {
@@ -118,7 +119,7 @@ export class GitIntegrator implements IPlatformIntegrator {
         buffer,
         mimeType: ARCHIVE_MIME_TYPE,
       },
-      waitForCompletion: true,
+      waitForCompletion: GIT_ARCHIVE_WAIT_FOR_COMPLETION,
     };
   }
 
@@ -226,7 +227,7 @@ export class GitIntegrator implements IPlatformIntegrator {
         buffer: output,
         mimeType: ARCHIVE_MIME_TYPE,
       },
-      waitForCompletion: true,
+      waitForCompletion: GIT_ARCHIVE_WAIT_FOR_COMPLETION,
     };
   }
 

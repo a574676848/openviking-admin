@@ -36,7 +36,7 @@ export interface ActorInfo {
 
 export const DOCUMENT_SUCCESS_STATUS = "done";
 export const DOCUMENT_CANCELLABLE_STATUS = "pending";
-export const DOCUMENT_DELETABLE_STATUS = "failed";
+export const DOCUMENT_DELETABLE_STATUSES = ["failed", "done"] as const;
 export const DOCUMENT_RETRYABLE_STATUSES = ["failed", "cancelled"] as const;
 
 export function canSyncDocumentTask(_task: Pick<ImportTask, "status">) {
@@ -54,7 +54,9 @@ export function canCancelDocumentTask(task: Pick<ImportTask, "status">) {
 }
 
 export function canDeleteDocumentTask(task: Pick<ImportTask, "status">) {
-  return task.status === DOCUMENT_DELETABLE_STATUS;
+  return DOCUMENT_DELETABLE_STATUSES.includes(
+    task.status as (typeof DOCUMENT_DELETABLE_STATUSES)[number],
+  );
 }
 
 export const DOCUMENT_STATUS_MAP: Record<
