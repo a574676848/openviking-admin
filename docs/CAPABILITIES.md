@@ -37,7 +37,7 @@
 
 ## WebDAV 说明
 
-WebDAV 入口是外部客户端同步 adapter，不是 capability 本体，因此不会出现在 capability catalog 中。它复用 capability API key 进行 Basic Auth，路径租户和 `username` 均支持租户记录 UUID 或租户唯一标识，二者必须解析到同一租户，`password` 使用 capability API key。目录浏览走 `PROPFIND`，文档叶子 `GET` 会优先按最新草稿返回正文；没有草稿时回退到节点 `contentUri` 并转发 OpenViking `content/download`。写入侧当前支持 `MKCOL` 创建目录、`PUT` 新建或覆盖受支持文件、`DELETE` 删除知识库、叶子文件或空目录，以及 `MOVE` 重命名知识库，或在同一知识库内重命名、移动文件与目录；`PUT` 新建文件时会复用本地上传导入链路创建 `sourceType=local` 导入任务，覆盖文件时只保存草稿并标记索引过期。`MOVE` 只调整 Admin 侧知识树元数据，不修改稳定资源容器 URI。
+WebDAV 入口是外部客户端同步 adapter，不是 capability 本体，因此不会出现在 capability catalog 中。它复用 capability API key 进行 Basic Auth，路径租户和 `username` 均支持租户记录 UUID 或租户唯一标识，二者必须解析到同一租户，`password` 使用 capability API key。目录浏览走 `PROPFIND`，文档叶子 `GET` 复用 `DocumentService.loadContent()`，会优先返回最新草稿；没有草稿时才回退到节点 `contentUri` 或文档容器内已有正文叶子。写入侧当前支持 `MKCOL` 创建目录、`PUT` 新建或覆盖受支持文件、`DELETE` 删除知识库、叶子文件或空目录，以及 `MOVE` 重命名知识库，或在同一知识库内重命名、移动文件与目录；`PUT` 新建和覆盖文件都会直接保存草稿并标记索引过期，不再派生本地导入任务。`MOVE` 只调整 Admin 侧知识树元数据，不修改稳定资源容器 URI。
 
 ## 能力契约
 

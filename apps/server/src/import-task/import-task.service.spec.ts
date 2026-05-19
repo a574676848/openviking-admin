@@ -917,6 +917,80 @@ describe('ImportTaskService', () => {
     );
   });
 
+  it('显式 targetUri 命中文档节点时不应再自动补建根目录文档', async () => {
+    taskRepo.create.mockImplementation((payload) => payload);
+    taskRepo.save.mockImplementation(async (payload) => payload);
+    localImportStorage.saveFiles.mockResolvedValue([
+      {
+        originalName: '会议纪要.md',
+        sourceUrl: 'file:///data/openviking/imports/minutes.md',
+        size: 64,
+        mimeType: 'text/markdown',
+      },
+    ]);
+    localImportStorage.isManagedFileUrl.mockReturnValue(true);
+    kbRepo.findById.mockResolvedValue({
+      id: 'kb-1',
+      vikingUri: 'viking://resources/tenant-a/kb-1/',
+    });
+    nodeRepo.find.mockResolvedValue([
+      {
+        id: 'node-existing-doc',
+        tenantId: 'tenant-a',
+        kbId: 'kb-1',
+        name: '会议纪要.md',
+        kind: 'document',
+        vikingUri: 'viking://resources/tenants/tenant-a/kb-1/node-existing-doc/',
+      },
+    ]);
+    nodeRepo.findOne.mockResolvedValue({
+      id: 'node-existing-doc',
+      tenantId: 'tenant-a',
+      kbId: 'kb-1',
+      name: '会议纪要.md',
+      kind: 'document',
+      vikingUri: 'viking://resources/tenants/tenant-a/kb-1/node-existing-doc/',
+      contentUri: null,
+    });
+
+    const result = await service.createLocalUpload(
+      {
+        kbId: 'kb-1',
+        targetUri:
+          'viking://resources/tenants/tenant-a/kb-1/node-existing-doc/',
+      },
+      [
+        {
+          originalname: '会议纪要.md',
+          size: 64,
+          buffer: Buffer.from('# meeting'),
+          mimetype: 'text/markdown',
+        },
+      ],
+      'tenant-a',
+    );
+
+    expect(nodeRepo.createFileWithGeneratedUri).not.toHaveBeenCalled();
+    expect(taskRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceType: 'local',
+        sourceUrl: 'file:///data/openviking/imports/minutes.md',
+        sourceName: '会议纪要.md',
+        targetUri:
+          'viking://resources/tenants/tenant-a/kb-1/node-existing-doc/',
+        autoCreatedNodeId: null,
+      }),
+    );
+    expect(result).toEqual(
+      expect.objectContaining({
+        sourceUrl: 'file:///data/openviking/imports/minutes.md',
+        targetUri:
+          'viking://resources/tenants/tenant-a/kb-1/node-existing-doc/',
+        autoCreatedNodeId: null,
+      }),
+    );
+  });
+
   it('受控本地 file URL 直接创建任务时应从路径解析来源名称', async () => {
     taskRepo.create.mockImplementation((payload) => payload);
     taskRepo.save.mockImplementation(async (payload) => payload);

@@ -14,6 +14,7 @@ import {
 const getMock = vi.fn();
 const requestMock = vi.fn();
 const stateMock = vi.fn();
+const fetchMock = vi.fn();
 const {
   bindDocumentCollabStatusMock,
   blockNoteEditorMock,
@@ -48,7 +49,7 @@ const {
   collabSessionMock: {
     doc: { id: "mock-doc" },
     fragment: { name: "document-store" },
-    provider: { awareness: {} },
+    provider: { awareness: {}, forceSync: vi.fn() },
     serverUrl: "ws://localhost:6002/collab",
     user: { name: "张三", color: "var(--collab-cursor-1)" },
   },
@@ -212,6 +213,9 @@ async function triggerCollabStatus(status: DocumentEditorStatus) {
 describe("DocumentEditor", () => {
   beforeEach(() => {
     (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    vi.stubGlobal("fetch", fetchMock);
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
     getMock.mockReset();
     requestMock.mockReset();
     stateMock.mockReset();
@@ -226,6 +230,7 @@ describe("DocumentEditor", () => {
     });
     createDocumentCollabSessionMock.mockReset();
     createDocumentCollabSessionMock.mockReturnValue(collabSessionMock);
+    (collabSessionMock.provider.forceSync as ReturnType<typeof vi.fn>).mockReset();
     documentAssetRememberUploadedAssetMock.mockReset();
     documentAssetResolveFileUrlMock.mockReset();
     documentAssetRevokeAllMock.mockReset();
@@ -263,6 +268,7 @@ describe("DocumentEditor", () => {
       root = null;
     }
     container?.remove();
+    vi.unstubAllGlobals();
   });
 
   it("加载正文 blocks 后创建可编辑 BlockNote 实例", async () => {
@@ -368,6 +374,40 @@ describe("DocumentEditor", () => {
     });
     expect(stateMock).toHaveBeenCalledWith(
       expect.objectContaining({ status: "saved", updatedAt: "2026-05-12T08:01:00.000Z" }),
+    );
+  });
+
+  it("REST 模式有未保存改动时，卸载前会补发一次 keepalive 保存", async () => {
+    getMock.mockResolvedValueOnce({
+      nodeId: "node-doc",
+      kbId: "kb-1",
+      name: "协作方案",
+      contentUri: "viking://content.md",
+      blocks: [{ id: "block-1", type: "paragraph", content: [] }],
+      updatedAt: "2026-05-12T08:00:00.000Z",
+    });
+
+    await renderEditor();
+
+    const editButton = Array.from(container.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("模拟编辑"),
+    );
+    await act(async () => {
+      editButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    await act(async () => {
+      root?.unmount();
+    });
+    root = null;
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/editor/node-doc/content",
+      expect.objectContaining({
+        method: "PUT",
+        keepalive: true,
+        body: JSON.stringify({ blocks: blockNoteEditorMock.document }),
+      }),
     );
   });
 
@@ -556,6 +596,40 @@ describe("DocumentEditor", () => {
     });
   });
 
+  it("协作连接超时回退到本地编辑时显示原因提示", async () => {
+    vi.useFakeTimers();
+    getMock.mockResolvedValueOnce({
+      nodeId: "node-doc",
+      kbId: "kb-1",
+      name: "协作方案",
+      contentUri: "viking://content.md",
+      blocks: [{ id: "block-1", type: "paragraph", content: [] }],
+      updatedAt: "2026-05-12T08:00:00.000Z",
+    });
+
+    try {
+      await renderEditor(0, false, {
+        path: "/collab",
+        documentName: "document:tenant-a:node-doc",
+      });
+
+      await act(async () => {
+        vi.advanceTimersByTime(5000);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(container.textContent).toContain("已切换到本地编辑模式");
+      expect(container.textContent).toContain(
+        "协作服务在 5 秒内未完成连接，无法确认实时同步状态。",
+      );
+      expect(container.textContent).toContain("点击上方“重连”重新进入在线协作");
+      expect(getMock).toHaveBeenCalledWith("/editor/node-doc/content");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("协作模式卸载时释放 Provider", async () => {
     await renderEditor(0, false, {
       path: "/collab",
@@ -676,6 +750,38 @@ A-->B</code></pre>
           },
         },
       ],
+    );
+  });
+
+  it("协作模式有本地改动时，离开前会 forceSync 并补发一次保存", async () => {
+    const collab = {
+      path: "/collab",
+      documentName: "document:tenant-a:node-doc",
+    };
+
+    await renderEditor(0, false, collab);
+    await triggerCollabStatus("collabConnected");
+
+    const editButton = Array.from(container.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("模拟编辑"),
+    );
+    await act(async () => {
+      editButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    await act(async () => {
+      root?.unmount();
+    });
+    root = null;
+
+    expect(collabSessionMock.provider.forceSync).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/editor/node-doc/content",
+      expect.objectContaining({
+        method: "PUT",
+        keepalive: true,
+        body: JSON.stringify({ blocks: blockNoteEditorMock.document }),
+      }),
     );
   });
 

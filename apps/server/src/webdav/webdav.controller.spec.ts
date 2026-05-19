@@ -156,6 +156,18 @@ describe('WebdavController', () => {
   };
 
   const documentService = {
+    loadContent: jest.fn(async (nodeId: string) => ({
+      nodeId,
+      kbId: 'kb-1',
+      name: '说明.md',
+      contentUri: `viking://resources/tenants/tenant-a/kb-1/${nodeId}/content.md`,
+      draftVersion: 1,
+      indexedVersion: 0,
+      indexStatus: 'queued',
+      markdown: '# 标题\n正文',
+      blocks: [],
+      updatedAt: new Date('2026-05-09T00:00:00.000Z'),
+    })),
     saveMarkdownContent: jest.fn(
       async (nodeId: string, _tenantId: string, content: string) => ({
         nodeId,
@@ -689,7 +701,7 @@ describe('WebdavController', () => {
     );
   });
 
-  it('GET 叶子节点应返回 Markdown 正文', async () => {
+  it('GET 叶子节点应通过文档服务返回 Markdown 正文', async () => {
     const response = await webdavRequest(
       'GET',
       '/webdav/tenant-a/kb-1/node-dir/node-file',
@@ -702,97 +714,26 @@ describe('WebdavController', () => {
 
     expect(response.headers['content-type']).toContain('text/markdown');
     expect(response.text).toBe('# 标题\n正文');
-    expect(ovClientService.requestStream).toHaveBeenCalledWith(
-      expect.objectContaining({
-        baseUrl: 'https://ov.example.com',
-        apiKey: 'ov-sk-test',
-        account: 'tenant-a',
-      }),
-      '/api/v1/content/download?uri=' +
-        encodeURIComponent(
-          'viking://resources/tenants/tenant-a/kb-1/node-file/content.md',
-        ),
-      'GET',
-      undefined,
-      undefined,
-      expect.objectContaining({
-        serviceLabel: 'OpenViking 内容下载',
-      }),
+    expect(documentService.loadContent).toHaveBeenCalledWith(
+      'node-file',
+      'tenant-a',
     );
-    expect(ovClientService.requestStream.mock.calls[0]?.[0]).not.toHaveProperty(
-      'user',
-    );
+    expect(ovClientService.requestStream).not.toHaveBeenCalled();
   });
 
-  it('GET 叶子节点在 ovConfig.user 存在时应透传 OpenViking 用户头', async () => {
-    capabilityCredentialService.resolvePrincipalFromApiKey.mockResolvedValueOnce(
-      {
-        tenantId: principal.tenantId,
-        userId: principal.userId,
-        username: 'alice',
-        role: 'tenant_viewer',
-        scope: 'tenant',
-        credentialType: 'api_key',
-        clientType: 'service',
-        ovConfig: {
-          baseUrl: 'https://ov.example.com',
-          apiKey: 'ov-sk-test',
-          account: 'tenant-a',
-          user: 'tenant-ov-user',
-        },
-      } as any,
-    );
-
-    await webdavRequest('GET', '/webdav/tenant-a/kb-1/node-dir/node-file')
-      .set(
-        'Authorization',
-        'Basic ' + Buffer.from('tenant-a:ov-sk-test').toString('base64'),
-      )
-      .expect(200);
-
-    expect(ovClientService.requestStream.mock.calls[0]?.[0]).toMatchObject({
-      user: 'tenant-ov-user',
-    });
-  });
-
-  it('GET 叶子节点在 resolver 提供全局 OV_USER 时应透传该用户', async () => {
-    ovConfigResolver.resolve.mockResolvedValueOnce({
-      baseUrl: 'https://ov.example.com',
-      apiKey: 'ov-sk-test',
-      account: 'tenant-a',
-      user: 'global-admin',
-      rerankEndpoint: null,
-      rerankApiKey: null,
-      rerankModel: null,
-    });
-
-    await webdavRequest('GET', '/webdav/tenant-a/kb-1/node-dir/node-file')
-      .set(
-        'Authorization',
-        'Basic ' + Buffer.from('tenant-a:ov-sk-test').toString('base64'),
-      )
-      .expect(200);
-
-    expect(ovClientService.requestStream.mock.calls[0]?.[0]).toMatchObject({
-      user: 'global-admin',
-    });
-  });
-
-  it('GET 命中文件容器 URI 时应回退到唯一叶子正文', async () => {
-    ovClientService.requestStream
-      .mockRejectedValueOnce(new HttpException('not found', 404))
-      .mockResolvedValueOnce({
-        stream: Readable.from(['报告1']),
-        contentType: 'text/plain; charset=utf-8',
-        contentLength: '7',
-      });
-    ovClientService.request.mockResolvedValueOnce({
-      result: [
-        {
-          uri: 'viking://resources/tenants/tenant-a/kb-1/node-file/child.md',
-          isDir: false,
-        },
-      ],
+  it('GET 叶子节点应优先返回文档草稿正文', async () => {
+    documentService.loadContent.mockResolvedValueOnce({
+      nodeId: 'node-file',
+      kbId: 'kb-1',
+      name: '说明.md',
+      contentUri:
+        'viking://resources/tenants/tenant-a/kb-1/node-file/content.md',
+      draftVersion: 2,
+      indexedVersion: 1,
+      indexStatus: 'dirty',
+      markdown: '# 草稿标题\n草稿正文',
+      blocks: [],
+      updatedAt: new Date('2026-05-10T00:00:00.000Z'),
     });
 
     const response = await webdavRequest(
@@ -805,43 +746,8 @@ describe('WebdavController', () => {
       )
       .expect(200);
 
-    expect(response.text).toBe('报告1');
-    expect(ovClientService.request).toHaveBeenCalledWith(
-      expect.objectContaining({
-        baseUrl: 'https://ov.example.com',
-        apiKey: 'ov-sk-test',
-        account: 'tenant-a',
-      }),
-      '/api/v1/fs/tree?uri=' +
-        encodeURIComponent(
-          'viking://resources/tenants/tenant-a/kb-1/node-file/',
-        ) +
-        '&depth=1',
-      'GET',
-      undefined,
-      undefined,
-      expect.objectContaining({
-        serviceLabel: 'OpenViking 资源树',
-      }),
-    );
-    expect(ovClientService.requestStream).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({
-        baseUrl: 'https://ov.example.com',
-        apiKey: 'ov-sk-test',
-        account: 'tenant-a',
-      }),
-      '/api/v1/content/download?uri=' +
-        encodeURIComponent(
-          'viking://resources/tenants/tenant-a/kb-1/node-file/child.md',
-        ),
-      'GET',
-      undefined,
-      undefined,
-      expect.objectContaining({
-        serviceLabel: 'OpenViking 内容下载',
-      }),
-    );
+    expect(response.text).toBe('# 草稿标题\n草稿正文');
+    expect(ovClientService.requestStream).not.toHaveBeenCalled();
   });
 
   it('GET 目录资源应返回稳定错误，不触发正文下载', async () => {
@@ -854,6 +760,7 @@ describe('WebdavController', () => {
 
     expect(response.headers.allow).toContain('PROPFIND');
     expect(response.text).toContain('当前仅支持');
+    expect(documentService.loadContent).not.toHaveBeenCalled();
     expect(ovClientService.requestStream).not.toHaveBeenCalled();
   });
 
@@ -865,11 +772,12 @@ describe('WebdavController', () => {
       )
       .expect(405);
 
+    expect(documentService.loadContent).not.toHaveBeenCalled();
     expect(ovClientService.requestStream).not.toHaveBeenCalled();
   });
 
   it('GET 正文上游失败时应返回 WebDAV 文本错误', async () => {
-    ovClientService.requestStream.mockRejectedValueOnce(
+    documentService.loadContent.mockRejectedValueOnce(
       new HttpException('上游拒绝读取', 400),
     );
 
@@ -886,6 +794,7 @@ describe('WebdavController', () => {
     expect(response.headers['content-type']).toContain('text/plain');
     expect(response.text).toBe('WebDAV 正文读取失败。');
     expect(response.text).not.toContain('"data"');
+    expect(ovClientService.requestStream).not.toHaveBeenCalled();
   });
 
   it('GET 无权限节点应返回 404', async () => {
@@ -896,6 +805,7 @@ describe('WebdavController', () => {
       )
       .expect(404);
 
+    expect(documentService.loadContent).not.toHaveBeenCalled();
     expect(ovClientService.requestStream).not.toHaveBeenCalled();
   });
 
@@ -924,7 +834,11 @@ describe('WebdavController', () => {
       )
       .expect(200);
 
-    expect(ovClientService.requestStream).toHaveBeenCalled();
+    expect(documentService.loadContent).toHaveBeenCalledWith(
+      'node-denied',
+      'tenant-a',
+    );
+    expect(ovClientService.requestStream).not.toHaveBeenCalled();
   });
 
   it('HEAD 叶子节点应返回元信息但不返回正文', async () => {
@@ -940,6 +854,7 @@ describe('WebdavController', () => {
 
     expect(response.headers['content-type']).toContain('text/markdown');
     expect(response.text ?? '').toBe('');
+    expect(documentService.loadContent).not.toHaveBeenCalled();
     expect(ovClientService.requestStream).not.toHaveBeenCalled();
   });
 
@@ -1117,7 +1032,7 @@ describe('WebdavController', () => {
     expect(knowledgeTreeService.create).not.toHaveBeenCalled();
   });
 
-  it('PUT 应新建受支持文件节点、创建导入任务并写入审计', async () => {
+  it('PUT 应新建受支持文件节点、保存草稿并写入审计', async () => {
     capabilityCredentialService.resolvePrincipalFromApiKey.mockResolvedValueOnce(
       {
         tenantId: principal.tenantId,
@@ -1149,9 +1064,7 @@ describe('WebdavController', () => {
       .expect(201);
 
     expect(response.text).toBe('');
-    expect(response.headers['x-openviking-import-task-id']).toBe(
-      'task-webdav-put-1',
-    );
+    expect(response.headers['x-openviking-import-task-id']).toBeUndefined();
     expect(knowledgeTreeService.createFile).toHaveBeenCalledWith(
       {
         kbId: 'kb-1',
@@ -1164,23 +1077,14 @@ describe('WebdavController', () => {
       },
       auditActor,
     );
-    expect(importTaskService.createLocalUpload).toHaveBeenCalledWith(
-      {
-        kbId: 'kb-1',
-        targetUri:
-          'viking://resources/tenants/tenant-a/kb-1/node-created-file/',
-      },
-      [
-        expect.objectContaining({
-          originalname: '新文档.md',
-          mimetype: 'text/markdown; charset=utf-8',
-          size: Buffer.byteLength('# 新文档\n正文', 'utf8'),
-          buffer: Buffer.from('# 新文档\n正文'),
-        }),
-      ],
+    expect(documentService.saveMarkdownContent).toHaveBeenCalledWith(
+      'node-created-file',
       'tenant-a',
+      '# 新文档\n正文',
+      {},
       auditActor,
     );
+    expect(importTaskService.createLocalUpload).not.toHaveBeenCalled();
     expect(auditService.log).toHaveBeenCalledWith(
       expect.objectContaining({
         tenantId: 'tenant-a',
@@ -1189,10 +1093,13 @@ describe('WebdavController', () => {
         action: 'webdav_put_create',
         target: 'node-created-file',
         meta: expect.objectContaining({
-          taskId: 'task-webdav-put-1',
           kbId: 'kb-1',
           parentId: 'node-dir',
           name: '新文档.md',
+          contentUri:
+            'viking://resources/tenants/tenant-a/kb-1/node-created-file/content.md',
+          draftVersion: 1,
+          indexStatus: 'queued',
           credentialType: 'api_key',
           clientType: 'service',
           requestId: 'request-put-1',
@@ -1201,7 +1108,7 @@ describe('WebdavController', () => {
     );
   });
 
-  it('PUT 命中已有文件 href 时应直接替换正文叶子且不创建导入任务', async () => {
+  it('PUT 命中已有文件 href 时应直接更新草稿且不创建导入任务', async () => {
     capabilityCredentialService.resolvePrincipalFromApiKey.mockResolvedValueOnce(
       {
         tenantId: principal.tenantId,
@@ -1306,20 +1213,14 @@ describe('WebdavController', () => {
       }),
       auditActor,
     );
-    expect(importTaskService.createLocalUpload).toHaveBeenCalledWith(
-      expect.objectContaining({
-        targetUri:
-          'viking://resources/tenants/tenant-a/kb-1/node-created-file/',
-      }),
-      [
-        expect.objectContaining({
-          originalname: 'app.json',
-          mimetype: 'application/json; charset=utf-8',
-        }),
-      ],
+    expect(documentService.saveMarkdownContent).toHaveBeenCalledWith(
+      'node-created-file',
       'tenant-a',
+      '{"theme":"obsidian"}',
+      {},
       auditActor,
     );
+    expect(importTaskService.createLocalUpload).not.toHaveBeenCalled();
   });
 
   it('PUT 无扩展名探测文件时应允许创建', async () => {
@@ -1361,20 +1262,14 @@ describe('WebdavController', () => {
       }),
       auditActor,
     );
-    expect(importTaskService.createLocalUpload).toHaveBeenCalledWith(
-      expect.objectContaining({
-        targetUri:
-          'viking://resources/tenants/tenant-a/kb-1/node-created-file/',
-      }),
-      [
-        expect.objectContaining({
-          originalname: 'rs-test-file-probe',
-          mimetype: 'application/octet-stream',
-        }),
-      ],
+    expect(documentService.saveMarkdownContent).toHaveBeenCalledWith(
+      'node-created-file',
       'tenant-a',
+      'obsidian probe',
+      {},
       auditActor,
     );
+    expect(importTaskService.createLocalUpload).not.toHaveBeenCalled();
   });
 
   it('PUT 租户根目录写探针时应返回合成成功且不落库', async () => {
@@ -1561,15 +1456,17 @@ describe('WebdavController', () => {
       }),
       auditActor,
     );
-    expect(importTaskService.createLocalUpload).toHaveBeenCalledWith(
-      expect.any(Object),
-      [expect.objectContaining({ originalname: '中文 space.md' })],
+    expect(documentService.saveMarkdownContent).toHaveBeenCalledWith(
+      'node-created-file',
       'tenant-a',
+      '# 中文标题',
+      {},
       auditActor,
     );
+    expect(importTaskService.createLocalUpload).not.toHaveBeenCalled();
   });
 
-  it('PUT 权限不足时应返回 403 且不创建任务', async () => {
+  it('PUT 权限不足时应返回 403 且不创建文档', async () => {
     await webdavRequest(
       'PUT',
       '/webdav/tenant-a/kb-1/%E6%96%B0%E6%96%87%E6%A1%A3.md',

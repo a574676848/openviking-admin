@@ -13,17 +13,13 @@ import { AuditService } from '../audit/audit.service';
 import { TenantIsolationLevel } from '../common/constants/system.enum';
 import type { AuthenticatedRequest } from '../common/authenticated-request.interface';
 import { DynamicDataSourceService } from '../common/dynamic-datasource.service';
-import { OVClientService } from '../common/ov-client.service';
 import { LOCAL_IMPORT_UPLOAD_CONFIG } from '../import-task/constants';
-import { ImportTaskService } from '../import-task/import-task.service';
-import type { LocalImportUploadFile } from '../import-task/local-import-storage.service';
 import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
 import { KnowledgeTreeService } from '../knowledge-tree/knowledge-tree.service';
 import type { Principal } from '../capabilities/domain/capability.types';
 import { CapabilityCredentialService } from '../capabilities/infrastructure/capability-credential.service';
 import { TenantCacheService } from '../tenant/tenant-cache.service';
 import { SystemRoles, type UserRole } from '../users/entities/user.entity';
-import { OvConfigResolverService } from '../settings/ov-config-resolver.service';
 import { DocumentSessionRegistry } from '../common/document-session-registry';
 import { createAuditActorSnapshot } from '../common/audit-actor.types';
 import { DocumentService } from '../document/document.service';
@@ -37,8 +33,6 @@ import {
 const WEBDAV_REALM = 'OpenViking WebDAV';
 const WEBDAV_XML_CONTENT_TYPE = 'application/xml; charset=utf-8';
 const WEBDAV_MARKDOWN_CONTENT_TYPE = 'text/markdown; charset=utf-8';
-const WEBDAV_CONTENT_DOWNLOAD_PATH = '/api/v1/content/download';
-const WEBDAV_FS_TREE_PATH = '/api/v1/fs/tree';
 const WEBDAV_SUCCESS_STATUS = 'HTTP/1.1 200 OK';
 const WEBDAV_DIRECTORY_URI_SUFFIX = '/';
 const WEBDAV_MAX_PATH_SEGMENT_LENGTH = 255;
@@ -58,15 +52,6 @@ const WEBDAV_AUTH_CREDENTIAL_RESOLVE_FAILED_REASON =
   'credential_resolve_failed';
 const WEBDAV_TENANT_CONTEXT_INIT_FAILED_REASON = 'tenant_context_init_failed';
 const WEBDAV_PROPFIND_FAILED_REASON = 'propfind_failed';
-const WEBDAV_TEXTLIKE_CONTENT_TYPES: Record<string, string> = {
-  '.md': 'text/markdown; charset=utf-8',
-  '.markdown': 'text/markdown; charset=utf-8',
-  '.txt': 'text/plain; charset=utf-8',
-  '.json': 'application/json; charset=utf-8',
-  '.canvas': 'application/json; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.js': 'text/javascript; charset=utf-8',
-};
 const WEBDAV_ROLE_WEIGHT: Record<UserRole, number> = {
   [SystemRoles.TENANT_VIEWER]: 1,
   [SystemRoles.TENANT_OPERATOR]: 2,
@@ -142,13 +127,6 @@ interface WebdavKnowledgeBaseLike {
   updatedAt: Date;
 }
 
-interface WebdavOVConnection {
-  baseUrl: string;
-  apiKey: string;
-  account: string;
-  user?: string;
-}
-
 type WebdavTarget =
   | WebdavTargetRoot
   | WebdavTargetKnowledgeBase
@@ -164,11 +142,8 @@ export class WebdavService {
     private readonly dynamicDataSourceService: DynamicDataSourceService,
     private readonly knowledgeBaseService: KnowledgeBaseService,
     private readonly knowledgeTreeService: KnowledgeTreeService,
-    private readonly importTaskService: ImportTaskService,
-    private readonly ovClientService: OVClientService,
     private readonly auditService: AuditService,
     private readonly dataSource: DataSource,
-    private readonly ovConfigResolver: OvConfigResolverService,
     private readonly documentSessionRegistry: DocumentSessionRegistry,
     private readonly documentService: DocumentService,
   ) {}
@@ -1116,26 +1091,23 @@ export class WebdavService {
       };
     }
 
-    const contentStream = await this.readOpenVikingContentStream(
-      principal,
-      node.contentUri ?? node.vikingUri ?? '',
-      node.vikingUri ?? '',
-    );
-    if (!contentStream) {
+    try {
+      const snapshot = await this.documentService.loadContent(
+        node.id,
+        tenantScope,
+      );
+      commonHeaders['Content-Length'] = String(
+        Buffer.byteLength(snapshot.markdown, 'utf8'),
+      );
+
+      return {
+        status: 200,
+        headers: commonHeaders,
+        body: snapshot.markdown,
+      };
+    } catch {
       return this.createBadGatewayResponse('WebDAV 正文读取失败。');
     }
-    if (contentStream.contentType) {
-      commonHeaders['Content-Type'] = contentStream.contentType;
-    }
-    if (contentStream.contentLength) {
-      commonHeaders['Content-Length'] = contentStream.contentLength;
-    }
-
-    return {
-      status: 200,
-      headers: commonHeaders,
-      body: contentStream.stream,
-    };
   }
 
   private async buildMkcolResponse(
@@ -1401,16 +1373,11 @@ export class WebdavService {
         throw new Error('WebDAV 文件节点缺少资源 URI。');
       }
 
-      const uploadFile: LocalImportUploadFile = {
-        ...this.createLocalImportFile(fileName, bodyResult.body),
-      };
-      const task = await this.importTaskService.createLocalUpload(
-        {
-          kbId: knowledgeBase.id,
-          targetUri: created.vikingUri ?? undefined,
-        },
-        [uploadFile],
+      const saved = await this.documentService.saveMarkdownContent(
+        created.id,
         tenantScope,
+        bodyResult.body.toString('utf8'),
+        {},
         createAuditActorSnapshot(principal),
       );
       shouldCleanupCreatedNode = false;
@@ -1422,12 +1389,14 @@ export class WebdavService {
         action: 'webdav_put_create',
         target: created.id,
         meta: {
-          taskId: task.id,
           kbId: created.kbId,
           parentId: created.parentId,
           name: created.name,
           path: resourcePath ?? '',
           vikingUri: created.vikingUri,
+          contentUri: saved.contentUri,
+          draftVersion: saved.draftVersion,
+          indexStatus: saved.indexStatus,
           credentialType: principal.credentialType,
           clientType: principal.clientType,
           requestId: request.header('x-request-id'),
@@ -1435,9 +1404,7 @@ export class WebdavService {
         ip: request.ip,
       });
 
-      return this.createCreatedResponse({
-        'X-OpenViking-Import-Task-Id': task.id,
-      });
+      return this.createCreatedResponse();
     } catch (error) {
       if (createdNodeId && shouldCleanupCreatedNode) {
         await this.knowledgeTreeService.remove(createdNodeId, tenantScope);
@@ -2060,21 +2027,6 @@ export class WebdavService {
     return this.createCreatedResponse();
   }
 
-  private createLocalImportFile(
-    fileName: string,
-    body: Buffer,
-  ): LocalImportUploadFile {
-    const fileExtension = extname(fileName).toLowerCase();
-    return {
-      originalname: fileName,
-      mimetype:
-        WEBDAV_TEXTLIKE_CONTENT_TYPES[fileExtension] ??
-        'application/octet-stream',
-      size: body.length,
-      buffer: body,
-    };
-  }
-
   private resolveMkcolParent(
     parentTarget: Exclude<WebdavTarget, WebdavTargetRoot>,
     knowledgeNodes: WebdavKnowledgeNode[],
@@ -2593,105 +2545,6 @@ export class WebdavService {
     }
 
     return { ok: true, body: Buffer.concat(chunks, totalSize) };
-  }
-
-  private async readOpenVikingContentStream(
-    principal: Principal,
-    downloadUri: string,
-    resourceUri: string,
-  ) {
-    const connection = await this.resolveOpenVikingConnection(principal);
-    try {
-      return await this.ovClientService.requestStream(
-        connection,
-        `${WEBDAV_CONTENT_DOWNLOAD_PATH}?uri=${encodeURIComponent(downloadUri)}`,
-        'GET',
-        undefined,
-        undefined,
-        {
-          serviceLabel: 'OpenViking 内容下载',
-        },
-      );
-    } catch (error) {
-      if (error instanceof HttpException) {
-        const fallbackUri = await this.resolveDownloadableLeafUri(
-          connection,
-          resourceUri,
-        );
-        if (!fallbackUri || fallbackUri === downloadUri) {
-          return null;
-        }
-
-        try {
-          return await this.ovClientService.requestStream(
-            connection,
-            `${WEBDAV_CONTENT_DOWNLOAD_PATH}?uri=${encodeURIComponent(fallbackUri)}`,
-            'GET',
-            undefined,
-            undefined,
-            {
-              serviceLabel: 'OpenViking 内容下载',
-            },
-          );
-        } catch (fallbackError) {
-          if (fallbackError instanceof HttpException) {
-            return null;
-          }
-          throw fallbackError;
-        }
-      }
-      throw error;
-    }
-  }
-
-  private async resolveDownloadableLeafUri(
-    connection: WebdavOVConnection,
-    vikingUri: string,
-  ) {
-    try {
-      const response = await this.ovClientService.request(
-        connection,
-        `${WEBDAV_FS_TREE_PATH}?uri=${encodeURIComponent(vikingUri)}&depth=1`,
-        'GET',
-        undefined,
-        connection.user ? { user: connection.user } : undefined,
-        {
-          serviceLabel: 'OpenViking 资源树',
-        },
-      );
-      const entries = Array.isArray(response?.result) ? response.result : [];
-      const leaf = entries.find(
-        (entry): entry is { uri: string; isDir?: boolean } =>
-          Boolean(
-            entry &&
-            typeof entry === 'object' &&
-            typeof (entry as { uri?: unknown }).uri === 'string' &&
-            (entry as { isDir?: unknown }).isDir === false,
-          ),
-      );
-      return leaf?.uri ?? null;
-    } catch (error) {
-      if (error instanceof HttpException) {
-        return null;
-      }
-      throw error;
-    }
-  }
-
-  private async resolveOpenVikingConnection(
-    principal: Principal,
-  ): Promise<WebdavOVConnection> {
-    const resolved = principal.tenantId
-      ? await this.ovConfigResolver.resolve(principal.tenantId)
-      : principal.ovConfig;
-    const user = resolved.user || principal.ovConfig.user || undefined;
-
-    return {
-      baseUrl: resolved.baseUrl || principal.ovConfig.baseUrl,
-      apiKey: resolved.apiKey || principal.ovConfig.apiKey,
-      account: resolved.account || principal.ovConfig.account || 'default',
-      ...(user ? { user } : {}),
-    };
   }
 
   private renderMultiStatusXml(resources: WebdavResource[]) {

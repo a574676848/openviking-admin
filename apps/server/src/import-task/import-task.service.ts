@@ -359,17 +359,21 @@ export class ImportTaskService {
       return null;
     }
 
-    const parentNode = await this.findTargetCollectionNode(
+    const targetNode = await this.findTargetNodeByUri(
       dto.kbId,
       tenantId,
       baseTargetUri,
     );
+    if (targetNode?.kind === 'document') {
+      return null;
+    }
+
     return this.nodeRepo.createFileWithGeneratedUri(
       applyCreatedAuditActor(
         {
           tenantId,
           kbId: dto.kbId,
-          parentId: parentNode?.id ?? null,
+          parentId: targetNode?.id ?? null,
           name: this.resolveAutoDocumentNodeName(sourceName, sourceUrl),
           sortOrder: 0,
           kind: 'document',
@@ -381,19 +385,18 @@ export class ImportTaskService {
     );
   }
 
-  private async findTargetCollectionNode(
+  private async findTargetNodeByUri(
     kbId: string,
     tenantId: string,
     targetUri: string,
   ) {
-    const node = await this.nodeRepo.findOne({
+    return this.nodeRepo.findOne({
       where: {
         kbId,
         tenantId,
         vikingUri: targetUri,
       },
     });
-    return node?.kind === 'collection' ? node : null;
   }
 
   private resolveAutoDocumentNodeName(

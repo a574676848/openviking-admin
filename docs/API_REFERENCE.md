@@ -42,7 +42,7 @@ WebDAV 不走 `/api/v1` 前缀，根路径为 `/webdav/:tenantId/`。`:tenantId`
 | `DELETE`   | `/webdav/:tenantId/:kbName[/:nodeName...]` | 删除知识库、叶子文件或空目录，成功返回 `204 No Content`                     |
 | `MOVE`     | `/webdav/:tenantId/:kbName[/:nodeName...]` | 重命名知识库，或在同一知识库内重命名/移动文件与目录，成功返回 `201 Created` |
 
-WebDAV 响应不使用统一 JSON envelope。知识库始终映射为目录资源，知识树节点分为目录节点（`collection`）与文档叶子（`document`）。`GET` / `HEAD` 仅面向 ACL 允许访问的文档叶子；目录资源仍通过 `PROPFIND` 浏览。文档叶子会同时维护稳定资源容器 URI 与当前正文 `contentUri`，读取正文时优先走 `contentUri`，缺失时再回退到资源容器下探测唯一叶子文件。`MKCOL`、`PUT`、`DELETE` 与 `MOVE` 需要至少 `tenant_operator` 权限；成功后分别写入 `webdav_mkcol`、`webdav_put_create`、`webdav_put_update`、`webdav_delete` 或 `webdav_move` 审计日志。
+WebDAV 响应不使用统一 JSON envelope。知识库始终映射为目录资源，知识树节点分为目录节点（`collection`）与文档叶子（`document`）。`GET` / `HEAD` 仅面向 ACL 允许访问的文档叶子；目录资源仍通过 `PROPFIND` 浏览。文档叶子会同时维护稳定资源容器 URI 与当前正文 `contentUri`，`GET` 会复用 `DocumentService.loadContent()`，优先返回最新草稿；没有草稿时再回退到 `contentUri` 或容器内已有正文叶子。`MKCOL`、`PUT`、`DELETE` 与 `MOVE` 需要至少 `tenant_operator` 权限；成功后分别写入 `webdav_mkcol`、`webdav_put_create`、`webdav_put_update`、`webdav_delete` 或 `webdav_move` 审计日志。
 
 ### 资源映射
 
@@ -50,13 +50,13 @@ WebDAV 响应不使用统一 JSON envelope。知识库始终映射为目录资�
 - `/webdav/:tenantId/:kbName/` 映射到知识库目录，`Depth: 1` 返回该知识库下的一级知识树节点。
 - `/webdav/:tenantId/:kbName/:nodeName...` 按知识树父子关系继续下钻；目录节点继续映射为目录资源，文档叶子映射为文件资源。
 - WebDAV 复用知识树节点 ACL；无权限节点不会出现在目录列表中，直接访问时返回未找到类错误，避免泄露资源存在性。
-- 叶子节点的 `GET` 会转发到 OpenViking 的 `content/download` 能力，并以流式响应返回 Markdown 正文；`HEAD` 仅返回 WebDAV 元信息，不主动下载正文。
+- 叶子节点的 `GET` 会复用文档服务正文读取链路，并优先返回最新草稿；`HEAD` 仅返回 WebDAV 元信息，不主动下载正文。
 - 资源响应会返回 `displayname`、`resourcetype`、`getcontenttype`、`getcontentlength`、`getetag`、`getlastmodified` 与 `creationdate`。
 - 当前读侧 `href` 对外使用知识库名和节点名路径，便于标准 WebDAV 客户端直接挂载租户根目录并浏览全部可访问知识库。
 - 为兼容 `sunmagicshow/obsidian-webdav` 一类客户端的写权限探测，只要 `PUT` 或 `DELETE` 目标路径最后一段命中 `.webdav_write_test_*` 前缀，服务端都会直接返回合成成功响应，不会读取正文、持久化任何资源，也不会创建导入任务或删除真实节点。
-- `PUT` 当前支持与本地导入白名单一致的文件扩展名，默认包括 `.md`、`.markdown`、`.txt`、`.json`、`.canvas`、`.css`、`.js`、`.pdf`、`.doc`、`.docx` 与 `.zip`。新建文件时服务端会先创建文档叶子节点，并为该叶子分配稳定资源容器 URI，再通过受控本地上传链路写入正文内容，成功返回 `201 Created`。
+- `PUT` 当前支持与本地导入白名单一致的文件扩展名，默认包括 `.md`、`.markdown`、`.txt`、`.json`、`.canvas`、`.css`、`.js`、`.pdf`、`.doc`、`.docx` 与 `.zip`。新建文件时服务端会先创建文档叶子节点，并为该叶子分配稳定资源容器 URI，然后直接保存最新草稿并标记索引过期，成功返回 `201 Created`。
 - `PUT` 命中已有文档叶子 `href` 时，会保留原节点与稳定资源容器 URI，只保存最新草稿并将索引状态标记为 `dirty`，成功返回 `204 No Content`。
-- `PUT` 新建文件时响应头会返回 `X-OpenViking-Import-Task-Id`，用于关联后续导入任务进度。覆盖写入只更新草稿，不返回导入任务头。
+- `PUT` 新建与覆盖文件都会直接更新文档草稿，不再派生导入任务，因此不会返回导入任务头。
 - `DELETE /webdav/:tenantId/:kbName` 会映射为知识库递归删除，并复用知识库服务层与 OpenViking 资源清理逻辑；`DELETE /webdav/:tenantId/:kbName/:nodeName...` 仍只删除叶子文件或空目录，非空目录返回 `409 Conflict`，无 ACL 权限的节点按不存在处理。
 - `DELETE` 对带资源容器 URI 的节点会进入知识树服务层：目录节点会递归删除资源容器；文档叶子会删除该叶子的资源容器与正文内容，并刷新知识库 `docCount/vectorCount`。OpenViking 返回 `404` 时按幂等删除处理。
 - `MOVE /webdav/:tenantId/:kbName` 会把租户根目录下的知识库目录重命名为新的知识库名，只更新 Admin 侧知识库名称，不修改系统生成的 `vikingUri`，也不调用 OpenViking 移动接口。
@@ -754,7 +754,7 @@ MCP JSON-RPC 消息接口。
 - `sourceType=local` 只能由受控上传接口生成，不能直接提交任意 `file://` 路径
 - `/api/v1/import-tasks/local-upload` 使用 JWT 登录态，服务控制台使用；`/api/v1/capability/import-tasks/local-upload` 使用 capability 凭证，CLI、MCP 和自动化调用使用。二者都采用 `multipart/form-data`，字段为 `kbId`、可选 `targetUri`，以及 `files`
 - 导入任务会在响应中返回 `sourceName`，用于控制台和调用端展示仓库名、企业文档名、URL 文件名或本地上传原文件名；普通 JSON 创建接口可传 `sourceName` 或与 `sourceUrls` 对齐的 `sourceNames`
-- `local`、`url`、`feishu`、`dingtalk` 创建任务时会在所选知识树目录下自动创建文档节点，响应中的 `targetUri` 指向该节点稳定资源容器，并返回 `autoCreatedNodeId` 用于删除任务时识别自动节点；自动文档节点和导入任务在 Admin 数据库内同事务提交；`git` 不自动创建知识树节点，但每个 Git 任务会生成独立 `imports/git/{repo}-{suffix}/` 目标目录，避免多条任务共享同一个 OpenViking 资源路径
+- `local`、`url`、`feishu`、`dingtalk` 创建任务时，若 `targetUri` 省略或指向知识库根/目录节点，服务端会在该目录下自动创建文档节点，响应中的 `targetUri` 指向新节点稳定资源容器，并返回 `autoCreatedNodeId` 用于删除任务时识别自动节点；若 `targetUri` 已显式指向当前知识库内的文档节点，则任务会直接复用该节点，不再额外补建同名文档。自动文档节点和导入任务在 Admin 数据库内同事务提交；`git` 不自动创建知识树节点，但每个 Git 任务会生成独立 `imports/git/{repo}-{suffix}/` 目标目录，避免多条任务共享同一个 OpenViking 资源路径
 - 自动创建的新文档节点首次导入不会预先递归删除 OpenViking 稳定资源容器；只有目标文档节点已有 `contentUri`、属于覆盖已有正文时，Worker 才会在写入前清空目标容器
 - `POST /api/v1/import-tasks/:id/retry` 重试 `failed` 任务时会先删除任务 `targetUri` 下已有的 OpenViking 资源和向量，并清零 `nodeCount/vectorCount` 后重新排队，避免部分失败结果和新一轮导入叠加；重试 `cancelled` 任务只重新排队并清零统计
 - WebDAV `PUT` 新建文件时会复用本地上传链路，但不把 WebDAV 注册为新的 `sourceType`；导入任务仍以 `sourceType=local` 入队。覆盖文件时只保存最新草稿并标记索引过期，不创建导入任务。

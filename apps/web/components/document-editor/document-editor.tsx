@@ -30,6 +30,7 @@ import { defaultBlockSpecs, BlockNoteSchema, createExtension } from "@blocknote/
 import { MermaidBlock } from "./mermaid-block";
 import { CustomCodeBlock } from "./code-block";
 import { apiClient } from "@/lib/apiClient";
+import { readSessionToken } from "@/lib/session";
 import {
   createDocumentAssetObjectUrlStore,
   uploadDocumentAsset,
@@ -135,6 +136,8 @@ interface DocumentEditorSurfaceProps {
 }
 
 const DOCUMENT_CONTENT_ENDPOINT_SUFFIX = "content";
+const API_V1_PREFIX = "/api/v1";
+const JSON_CONTENT_TYPE = "application/json";
 const EMPTY_DOCUMENT_BLOCKS: PartialBlock[] = [{ type: "paragraph", content: "" }];
 const ASSET_UPLOAD_MESSAGE = "图片上传中";
 const ASSET_UPLOAD_DIRTY_MESSAGE = "图片已插入，尚未保存";
@@ -384,6 +387,10 @@ function buildDocumentContentEndpoint(nodeId: string): string {
   return `/editor/${encodeURIComponent(nodeId)}/${DOCUMENT_CONTENT_ENDPOINT_SUFFIX}`;
 }
 
+function buildDocumentContentRequestUrl(nodeId: string): string {
+  return `${API_V1_PREFIX}${buildDocumentContentEndpoint(nodeId)}`;
+}
+
 function buildDocumentIndexEndpoint(nodeId: string): string {
   return `/editor/${encodeURIComponent(nodeId)}/index`;
 }
@@ -442,6 +449,26 @@ function normalizeTableColumnWidths(
 
 function toSerializableBlocks(blocks: any[]): PartialBlock[] {
   return JSON.parse(JSON.stringify(blocks)) as PartialBlock[];
+}
+
+function triggerDocumentExitSave(
+  nodeId: string,
+  blocks: PartialBlock[],
+): void {
+  const headers = new Headers();
+  headers.set("Content-Type", JSON_CONTENT_TYPE);
+
+  const token = readSessionToken();
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  void fetch(buildDocumentContentRequestUrl(nodeId), {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ blocks }),
+    keepalive: true,
+  }).catch(() => undefined);
 }
 
 function useDocumentAssetUpload(
@@ -740,6 +767,7 @@ function DocumentCollaborativeEditor({
   const [connectionAttempt, setConnectionAttempt] = useState(0);
   // 协作连接超时后降级为离线 REST 编辑模式（拥有完整的撤销/恢复功能）
   const [fallbackToRest, setFallbackToRest] = useState(false);
+  const [fallbackReason, setFallbackReason] = useState<string | null>(null);
   const handledReconnectRequestRef = useRef(reconnectRequestId);
 
   useEffect(() => {
@@ -756,6 +784,7 @@ function DocumentCollaborativeEditor({
     setSession(null);
     setConnectionError("");
     setFallbackToRest(false);
+    setFallbackReason(null);
     onStateChange({
       status: "collabConnecting",
       message: COLLAB_STATUS_MESSAGE.collabConnecting,
@@ -822,6 +851,9 @@ function DocumentCollaborativeEditor({
         sessionToCleanup = null;
         unbindStatus = null;
         setSession(null);
+        setFallbackReason(
+          "协作服务在 5 秒内未完成连接，无法确认实时同步状态。为避免阻塞编辑，系统已自动切换到本地编辑模式。",
+        );
         setFallbackToRest(true);
       }
     }, COLLAB_CONNECTION_TIMEOUT_MS);
@@ -838,12 +870,32 @@ function DocumentCollaborativeEditor({
   // 协作连接超时后降级为 REST 编辑器（拥有完整的 Prosemirror History 撤销/恢复支持）
   if (fallbackToRest) {
     return (
-      <DocumentRestEditor
-        nodeId={nodeId}
-        readOnly={readOnly}
-        saveRequestId={saveRequestId}
-        onStateChange={onStateChange}
-      />
+      <div className="space-y-4 py-4">
+        <div className="rounded-[var(--radius-base)] border border-[color:color-mix(in_srgb,var(--warning)_36%,var(--border))] bg-[color:color-mix(in_srgb,var(--warning)_11%,var(--bg-card))] px-4 py-4 shadow-[var(--shadow-base)]">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[color:color-mix(in_srgb,var(--warning)_16%,transparent)] text-[var(--warning)]">
+              <AlertCircle size={18} strokeWidth={1.9} />
+            </div>
+            <div className="min-w-0 space-y-1.5">
+              <p className="text-sm font-semibold tracking-[0.01em] text-[var(--text-primary)]">
+                已切换到本地编辑模式
+              </p>
+              <p className="text-sm leading-6 text-[var(--text-secondary)]">
+                {fallbackReason ?? "协作服务暂时不可用，已切换到本地编辑模式。"}
+              </p>
+              <p className="text-xs leading-5 text-[var(--text-muted)]">
+                你可以继续编辑并保存草稿，待协作服务恢复后，可点击上方“重连”重新进入在线协作。
+              </p>
+            </div>
+          </div>
+        </div>
+        <DocumentRestEditor
+          nodeId={nodeId}
+          readOnly={readOnly}
+          saveRequestId={saveRequestId}
+          onStateChange={onStateChange}
+        />
+      </div>
     );
   }
 
@@ -925,6 +977,26 @@ function DocumentCollaborativeEditorSurface({
   );
   const [indexing, setIndexing] = useState(false);
   const handledIndexRequestRef = useRef(indexRequestId);
+  const hasLocalChangesRef = useRef(false);
+  const exitSaveTriggeredRef = useRef(false);
+
+  const triggerExitSave = useCallback(() => {
+    if (
+      readOnly ||
+      exitSaveTriggeredRef.current ||
+      !hasLocalChangesRef.current
+    ) {
+      return;
+    }
+
+    exitSaveTriggeredRef.current = true;
+    hasLocalChangesRef.current = false;
+    session.provider.forceSync();
+    triggerDocumentExitSave(
+      nodeId,
+      toSerializableBlocks(editor.document),
+    );
+  }, [editor, nodeId, readOnly, session]);
 
   const indexContent = useCallback(async () => {
     if (readOnly || indexing) {
@@ -962,6 +1034,25 @@ function DocumentCollaborativeEditorSurface({
       void indexContent();
     }
   }, [indexContent, indexRequestId]);
+
+  useEffect(() => {
+    if (readOnly) {
+      return;
+    }
+
+    const handlePageHide = () => {
+      triggerExitSave();
+    };
+
+    window.addEventListener("pagehide", handlePageHide);
+    window.addEventListener("beforeunload", handlePageHide);
+
+    return () => {
+      window.removeEventListener("pagehide", handlePageHide);
+      window.removeEventListener("beforeunload", handlePageHide);
+      triggerExitSave();
+    };
+  }, [readOnly, triggerExitSave]);
 
   // 简单标志位方案：Ctrl+A 置标记 → Backspace/Delete 清空编辑器 → 其他操作重置标记
   const selectAllFlagRef = useRef(false);
@@ -1058,6 +1149,7 @@ function DocumentCollaborativeEditorSurface({
           slashMenu={false}
           onChange={() => {
             if (!readOnly) {
+              hasLocalChangesRef.current = true;
               onStateChange({
                 status: "collabSyncing",
                 message: COLLAB_STATUS_MESSAGE.collabSyncing,
@@ -1090,6 +1182,8 @@ function DocumentEditorSurface({
 }: DocumentEditorSurfaceProps) {
   const handledSaveRequestRef = useRef(saveRequestId);
   const handledIndexRequestRef = useRef(indexRequestId);
+  const hasLocalChangesRef = useRef(false);
+  const exitSaveTriggeredRef = useRef(false);
   const assetStore = useDocumentAssetResolver(nodeId);
   const uploadFile = useDocumentAssetUpload(
     nodeId,
@@ -1135,6 +1229,8 @@ function DocumentEditorSurface({
         message: "已保存",
         updatedAt: result.updatedAt,
       });
+      hasLocalChangesRef.current = false;
+      exitSaveTriggeredRef.current = false;
     } catch (error: unknown) {
       onStateChange({
         status: "error",
@@ -1142,6 +1238,23 @@ function DocumentEditorSurface({
       });
     }
   }, [editor, nodeId, onStateChange, readOnly]);
+
+  const triggerExitSave = useCallback(() => {
+    if (
+      readOnly ||
+      exitSaveTriggeredRef.current ||
+      !hasLocalChangesRef.current
+    ) {
+      return;
+    }
+
+    exitSaveTriggeredRef.current = true;
+    hasLocalChangesRef.current = false;
+    triggerDocumentExitSave(
+      nodeId,
+      toSerializableBlocks(editor.document),
+    );
+  }, [editor, nodeId, readOnly]);
 
   const indexContent = useCallback(async () => {
     if (readOnly || indexing) {
@@ -1191,6 +1304,25 @@ function DocumentEditorSurface({
     }
   }, [indexContent, indexRequestId]);
 
+  useEffect(() => {
+    if (readOnly) {
+      return;
+    }
+
+    const handlePageHide = () => {
+      triggerExitSave();
+    };
+
+    window.addEventListener("pagehide", handlePageHide);
+    window.addEventListener("beforeunload", handlePageHide);
+
+    return () => {
+      window.removeEventListener("pagehide", handlePageHide);
+      window.removeEventListener("beforeunload", handlePageHide);
+      triggerExitSave();
+    };
+  }, [readOnly, triggerExitSave]);
+
   // 简单标志位方案：Ctrl+A 置标记 → Backspace/Delete 清空编辑器 → 其他操作重置标记
   const selectAllFlagRef = useRef(false);
 
@@ -1286,6 +1418,7 @@ function DocumentEditorSurface({
           slashMenu={false}
           onChange={() => {
             if (!readOnly) {
+              hasLocalChangesRef.current = true;
               onStateChange({ status: "dirty", message: "未保存" });
             }
           }}

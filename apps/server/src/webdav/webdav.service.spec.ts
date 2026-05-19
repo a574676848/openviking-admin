@@ -59,10 +59,7 @@ describe('WebdavService 日志', () => {
       {} as never,
       knowledgeBaseService as never,
       knowledgeTreeService as never,
-      {} as never,
-      ovClientService as never,
       auditService as never,
-      {} as never,
       {} as never,
       documentSessionRegistry as never,
       documentService as never,
@@ -231,23 +228,10 @@ describe('WebdavService 日志', () => {
         result: { status: 'success' },
       }),
     };
-    const importTaskService = {
-      createLocalUpload: jest.fn(),
-    };
     const { service, auditService, documentSessionRegistry } = createService({
       knowledgeTreeService,
       ovClientService,
     });
-    (
-      service as unknown as { importTaskService: typeof importTaskService }
-    ).importTaskService = importTaskService;
-    (
-      service as unknown as {
-        ovConfigResolver: { resolve: jest.Mock };
-      }
-    ).ovConfigResolver = {
-      resolve: jest.fn(async () => ({ ...principal.ovConfig, user: '张三' })),
-    };
 
     const response = await (
       service as unknown as {
@@ -284,7 +268,6 @@ describe('WebdavService 日志', () => {
       {},
       { id: 'user-1', username: '张三' },
     );
-    expect(importTaskService.createLocalUpload).not.toHaveBeenCalled();
     expect(auditService.log).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'webdav_put_update',
