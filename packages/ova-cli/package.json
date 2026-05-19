@@ -1,6 +1,6 @@
 {
   "name": "@openviking-admin/ova-cli",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "OpenViking Admin capability-first CLI",
   "keywords": [
     "openviking",
