@@ -707,6 +707,10 @@ describe('TaskWorkerService', () => {
     expect(nodeRepo.update).toHaveBeenCalledWith('node-file', {
       contentUri:
         'viking://resources/tenants/small-a/kb-1/node-file/content.md',
+      indexStatus: 'clean',
+      indexedVersion: 0,
+      lastIndexedAt: expect.any(Date),
+      indexError: null,
       updatedAt: expect.any(Date),
     });
   });
@@ -737,6 +741,8 @@ describe('TaskWorkerService', () => {
         kind: 'document',
         vikingUri: 'viking://resources/tenants/small-a/kb-1/node-new-doc/',
         contentUri: null,
+        draftVersion: 0,
+        indexedVersion: 0,
       }),
       update: jest.fn(),
     };
@@ -827,6 +833,11 @@ describe('TaskWorkerService', () => {
     expect(nodeRepo.update).toHaveBeenCalledWith('node-new-doc', {
       contentUri:
         'viking://resources/tenants/small-a/kb-1/node-new-doc/new-doc.md',
+      indexStatus: 'clean',
+      indexedVersion: 0,
+      vectorCount: 3,
+      lastIndexedAt: expect.any(Date),
+      indexError: null,
       updatedAt: expect.any(Date),
     });
     expect(taskRepo.update).toHaveBeenLastCalledWith('local-auto-doc-task', {

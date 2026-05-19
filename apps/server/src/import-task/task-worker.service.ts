@@ -51,6 +51,8 @@ interface TargetKnowledgeNode {
   kind: string | null;
   vikingUri: string | null;
   contentUri: string | null;
+  draftVersion?: number;
+  indexedVersion?: number;
 }
 
 const FALLBACK_ERROR_PREVIEW_LIMIT = 240;
@@ -257,6 +259,7 @@ export class TaskWorkerService implements OnModuleInit {
             conn,
             targetNode,
             task.targetUri,
+            resourceStats.vectorCount,
           );
         }
 
@@ -692,6 +695,7 @@ export class TaskWorkerService implements OnModuleInit {
     },
     node: TargetKnowledgeNode,
     targetUri: string,
+    vectorCount?: number | null,
   ) {
     const treeData = await this.ovClient.request(
       conn,
@@ -724,8 +728,14 @@ export class TaskWorkerService implements OnModuleInit {
       return;
     }
 
+    const indexedVersion = node.draftVersion ?? node.indexedVersion ?? 0;
     await context.nodeRepo.update(node.id, {
       contentUri: leafResources[0].uri,
+      indexStatus: 'clean',
+      indexedVersion,
+      ...(vectorCount !== undefined ? { vectorCount } : {}),
+      lastIndexedAt: new Date(),
+      indexError: null,
       updatedAt: new Date(),
     });
   }
