@@ -247,6 +247,15 @@ curl -X POST "$ADMIN_BASE_URL/api/v1/import-tasks/local-upload" \
   -F "files=@./产品手册.md"
 ```
 
+CLI、MCP、自动化脚本或其他 capability 客户端应优先使用 capability 命名空间下的本地上传入口：
+
+```bash
+curl -X POST "$ADMIN_BASE_URL/api/v1/capability/import-tasks/local-upload" \
+  -H "x-capability-key: $CAPABILITY_API_KEY" \
+  -F "kbId=knowledge_base_uuid" \
+  -F "files=@./产品手册.md"
+```
+
 支持格式：
 
 - PDF (`.pdf`)
@@ -261,7 +270,7 @@ curl -X POST "$ADMIN_BASE_URL/api/v1/import-tasks/local-upload" \
 
 - 单次最多 10 个文件
 - 单文件最大 25 MB
-- `sourceType=local` 只能由上传接口生成，普通 `POST /api/v1/import-tasks` 不接受任意本地路径
+- `sourceType=local` 只能由上传接口生成，普通 `POST /api/v1/import-tasks` 不接受任意本地路径；使用业务操作员账号派生的 API key、session key 或 capability access token 时，应走 `/api/v1/capability/import-tasks/local-upload`
 - 裸 HTTP 如需导入本地目录，应先在调用端打成 `.zip`，再作为文件上传
 - WebDAV `PUT` 与本地上传白名单保持一致，默认支持 `.pdf`、`.md`、`.markdown`、`.json`、`.canvas`、`.css`、`.js`、`.doc`、`.docx`、`.txt` 与 `.zip`；同时兼容 Obsidian 首连时写入的无扩展名 `rs-test-file-*` 探测文件，大小限制与本地上传单文件限制一致
 
@@ -284,7 +293,7 @@ CLI 等价命令：
 ova documents import "https://example.com/product.pdf" --kb <kbId> --parent <nodeId> --type url --name "产品手册.pdf"
 ```
 
-Capability 与 CLI 导入入口面向不依赖平台集成凭证的来源，`sourceType` 支持 `local`、`url`、`manifest`。其中 `manifest` 用于批量导入清单，`local` 只通过 `/api/v1/import-tasks/local-upload` 的文件上传入口进入系统。飞书、钉钉、Git 等需要集成凭证的来源走导入任务 API 或控制台集成流程，并提供 `integrationId`。
+Capability 与 CLI 导入入口面向不依赖平台集成凭证的来源，`sourceType` 支持 `local`、`url`、`manifest`。其中 `manifest` 用于批量导入清单，`local` 通过 `/api/v1/capability/import-tasks/local-upload` 的文件上传入口进入系统；控制台 JWT 入口 `/api/v1/import-tasks/local-upload` 仅保留给 Web 控制台和兼容调用。飞书、钉钉、Git 等需要集成凭证的来源走导入任务 API 或控制台集成流程，并提供 `integrationId`。
 
 ---
 

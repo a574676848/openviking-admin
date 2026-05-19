@@ -116,6 +116,16 @@ ova configure \
   --open-browser
 ```
 
+传入 `--open-browser` 后，CLI 会启动本机临时回调服务，默认地址为 `http://127.0.0.1:63637/callback`。服务端回跳 `sso_ticket` 后，CLI 会自动换取 JWT 并保存到当前 profile。授权地址既可以使用企业 SSO 入口，也可以使用 OpenViking Admin 自身账号授权入口：
+
+```bash
+ova configure \
+  --server http://localhost:6001 \
+  --oauth-url "http://localhost:6001/api/v1/auth/sso/authorize?tenantCode=acme" \
+  --open-browser \
+  --env debug
+```
+
 ```bash
 ova auth login \
   --server http://localhost:6001 \
@@ -143,6 +153,15 @@ ova auth login \
 ova config set --server https://prod.example.com --profile prod
 ova config use --profile prod
 ova config show
+```
+
+`--env <name>` 是 `--profile <name>` 的别名，适合在 debug、test、prod 等服务环境之间切换：
+
+```bash
+ova configure --env debug --server http://localhost:6001 --api-key <DEBUG_KEY>
+ova configure --env prod --server https://admin.example.com --api-key <PROD_KEY>
+ova config use --env debug
+ova doctor --env prod
 ```
 
 Profile 状态文件：

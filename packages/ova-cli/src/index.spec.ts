@@ -200,6 +200,19 @@ describe("ova cli", () => {
     );
   });
 
+  it("应该支持通过 env 切换默认服务环境", async () => {
+    await bootstrap(["config", "use", "--env", "debug", "--output", "json"]);
+
+    expect(mockWriteFileSync).toHaveBeenCalledWith(
+      AUTH_STATE_PATH,
+      expect.stringContaining('"currentProfile": "debug"'),
+      "utf8",
+    );
+    expect(stdoutWrite).toHaveBeenCalledWith(
+      expect.stringContaining('"currentEnv": "debug"'),
+    );
+  });
+
   it("应该支持 jsonl 输出", async () => {
     setStateFile(
       buildStateFile({
@@ -378,15 +391,17 @@ describe("ova cli", () => {
     );
     expect(global.fetch).toHaveBeenNthCalledWith(
       2,
-      "http://localhost:6001/api/v1/import-tasks/local-upload",
+      "http://localhost:6001/api/v1/capability/import-tasks/local-upload",
       expect.objectContaining({
         method: "POST",
         body: expect.any(FormData),
       }),
     );
     const uploadRequest = (global.fetch as jest.Mock).mock.calls[1][1] as {
+      headers: Headers;
       body: FormData;
     };
+    expect(uploadRequest.headers.get("x-capability-key")).toBe("ov-sk-demo");
     expect(uploadRequest.body.get("kbId")).toBe("kb-1");
     expect(uploadRequest.body.get("targetUri")).toBe(
       "viking://resources/tenants/acme/kb-1/node-parent/",
@@ -415,6 +430,34 @@ describe("ova cli", () => {
     );
   });
 
+  it("应该通过 configure 按 env 保存独立环境配置", async () => {
+    await bootstrap([
+      "configure",
+      "--env",
+      "debug",
+      "--server",
+      "https://debug.example.com",
+      "--api-key",
+      "ov-sk-debug",
+      "--output",
+      "json",
+    ]);
+
+    expect(mockWriteFileSync).toHaveBeenCalledWith(
+      AUTH_STATE_PATH,
+      expect.stringContaining('"debug"'),
+      "utf8",
+    );
+    expect(mockWriteFileSync).toHaveBeenCalledWith(
+      AUTH_STATE_PATH,
+      expect.stringContaining('"serverUrl": "https://debug.example.com"'),
+      "utf8",
+    );
+    expect(stdoutWrite).toHaveBeenCalledWith(
+      expect.stringContaining('"profile": "debug"'),
+    );
+  });
+
   it("应该通过 configure 保存 OAuth 地址并打开浏览器", async () => {
     await bootstrap([
       "configure",
@@ -422,7 +465,6 @@ describe("ova cli", () => {
       "https://admin.example.com",
       "--oauth-url",
       "https://sso.example.com/oauth",
-      "--open-browser",
       "--output",
       "json",
     ]);
@@ -432,9 +474,8 @@ describe("ova cli", () => {
       expect.stringContaining('"oauthUrl": "https://sso.example.com/oauth"'),
       "utf8",
     );
-    expect(mockSpawn).toHaveBeenCalled();
     expect(stdoutWrite).toHaveBeenCalledWith(
-      expect.stringContaining('"openedBrowser": true'),
+      expect.stringContaining('"openedBrowser": false'),
     );
   });
 

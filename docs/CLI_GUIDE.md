@@ -159,7 +159,24 @@ ova configure \
   --open-browser
 ```
 
-OAuth 授权沿用现有 SSO 机制：浏览器完成授权后，如果回跳地址包含 `sso_ticket`，可以在交互式配置中粘贴该 ticket，或单独执行 `ova auth sso --ticket <ticket>`。
+OAuth 授权沿用现有 SSO 机制。传入 `--open-browser` 时，CLI 会在本机启动临时回调服务，默认监听 `127.0.0.1:63637/callback`，并把该地址作为 `redirect` 参数追加到 `--oauth-url`。浏览器授权成功后，服务端会把一次性 `sso_ticket` 回跳到本机回调地址，CLI 随即调用 `/api/v1/auth/sso/exchange` 换取 JWT 并写入当前环境配置。
+
+如果默认端口被占用或需要固定端口，可显式传入：
+
+```bash
+ova configure \
+  --server http://localhost:6001 \
+  --oauth-url "http://localhost:6001/api/v1/auth/sso/authorize?tenantCode=acme" \
+  --open-browser \
+  --callback-port 63638
+```
+
+`--oauth-url` 可以指向企业 SSO 重定向入口，也可以指向 OpenViking Admin 自身的授权页：
+
+- 企业 SSO：`/api/v1/auth/sso/redirect/:tenantId/:type`
+- OpenViking Admin 授权登录：`/api/v1/auth/sso/authorize?tenantCode=<tenantCode>`
+
+无浏览器或不能回跳本机时，仍可单独执行 `ova auth sso --ticket <ticket>`。
 
 `configure` 只负责 profile 和凭证准备；如果要连带写入 MCP / Skills / Prompt 注入，应使用 `setup` 或 `bootstrap`。
 
@@ -215,9 +232,19 @@ ova config show
 
 规则：
 
+- `--env <name>` 与 `--profile <name>` 等价，推荐用于表达 debug、test、prod 等服务环境。
 - `--profile <name>` 覆盖当前命令使用的 profile。
-- `ova config use --profile <name>` 切换默认 profile。
+- `ova config use --env <name>` 或 `ova config use --profile <name>` 切换默认环境。
 - 未显式指定时使用状态文件里的 `currentProfile`。
+
+示例：
+
+```bash
+ova configure --env debug --server http://localhost:6001 --api-key <DEBUG_KEY>
+ova configure --env prod --server https://admin.example.com --api-key <PROD_KEY>
+ova config use --env debug
+ova doctor --env prod
+```
 
 ## 能力发现
 

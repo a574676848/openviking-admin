@@ -13,12 +13,14 @@ import { CapabilityDiscoveryService } from '../src/capabilities/application/capa
 import { CapabilityExecutionService } from '../src/capabilities/application/capability-execution.service';
 import { CapabilityObservabilityService } from '../src/capabilities/application/capability-observability.service';
 import { CapabilityCredentialService } from '../src/capabilities/infrastructure/capability-credential.service';
+import { CapabilityAuthorizationService } from '../src/capabilities/application/capability-authorization.service';
 import { CredentialExchangeService } from '../src/capabilities/application/credential-exchange.service';
 import { CapabilityPrometheusExporterService } from '../src/capabilities/infrastructure/capability-prometheus-exporter.service';
 import { JwtAuthGuard } from '../src/auth/jwt-auth.guard';
 import { McpService } from '../src/mcp/mcp.service';
 import { McpSessionService } from '../src/mcp/mcp-session.service';
 import { AuditService } from '../src/audit/audit.service';
+import { ImportTaskService } from '../src/import-task/import-task.service';
 import type { Principal } from '../src/capabilities/domain/capability.types';
 
 describe('Capability Platform (e2e)', () => {
@@ -122,6 +124,16 @@ describe('Capability Platform (e2e)', () => {
       expiresAt: null,
     })),
   };
+  const authorizationService = {
+    authorize: jest.fn(),
+  };
+  const importTaskService = {
+    createLocalUpload: jest.fn(async () => ({
+      id: 'task-local-1',
+      status: 'pending',
+      sourceType: 'local',
+    })),
+  };
   const exchangeService = {
     exchangeAccessToken: jest.fn(async () => ({
       credentialType: 'capability_access_token',
@@ -173,11 +185,16 @@ describe('Capability Platform (e2e)', () => {
         { provide: CapabilityCatalogService, useValue: catalogService },
         { provide: CapabilityExecutionService, useValue: executionService },
         {
+          provide: CapabilityAuthorizationService,
+          useValue: authorizationService,
+        },
+        {
           provide: CapabilityObservabilityService,
           useValue: observabilityService,
         },
         { provide: CapabilityCredentialService, useValue: credentialService },
         { provide: CredentialExchangeService, useValue: exchangeService },
+        { provide: ImportTaskService, useValue: importTaskService },
         {
           provide: CapabilityPrometheusExporterService,
           useValue: prometheusExporterService,
@@ -349,10 +366,7 @@ describe('Capability Platform (e2e)', () => {
         id: '1',
         method: 'tools/list',
       })
-      .expect(201)
-      .expect({
-        status: 'ok',
-      });
+      .expect(202);
 
     expect(mcpSessionService.validateSession).toHaveBeenCalledWith(
       's-1',
@@ -379,7 +393,7 @@ describe('Capability Platform (e2e)', () => {
           arguments: { query: 'platform' },
         },
       })
-      .expect(201);
+      .expect(202);
 
     expect(executionService.execute).toHaveBeenCalledWith(
       'knowledge.search',
@@ -393,6 +407,73 @@ describe('Capability Platform (e2e)', () => {
     expect(mcpSessionService.enqueueEvent).toHaveBeenCalledWith(
       's-1',
       expect.stringContaining('viking://knowledge/doc-1'),
+    );
+  });
+
+  it('业务操作员 API Key 应能通过 capability 本地上传入口创建文档导入任务', async () => {
+    credentialService.resolvePrincipalFromApiKey.mockResolvedValueOnce({
+      ...principal,
+      role: 'tenant_operator',
+      credentialType: 'api_key',
+    });
+
+    const response = await request(app.getHttpServer())
+      .post('/api/capability/import-tasks/local-upload')
+      .set('x-capability-key', 'ov-sk-operator')
+      .field('kbId', 'kb-1')
+      .attach('files', Buffer.from('# 手册\n'), 'guide.md')
+      .expect(201);
+
+    expect(response.body.id).toBe('task-local-1');
+    expect(authorizationService.authorize).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'documents.import.create',
+        minimumRole: 'tenant_operator',
+      }),
+      expect.objectContaining({
+        role: 'tenant_operator',
+        credentialType: 'api_key',
+      }),
+    );
+    expect(importTaskService.createLocalUpload).toHaveBeenCalledWith(
+      expect.objectContaining({ kbId: 'kb-1' }),
+      expect.any(Array),
+      'tenant-1',
+      expect.objectContaining({ id: 'user-1' }),
+    );
+  });
+
+  it('业务操作员 session key 应能通过 MCP 调用文档更新索引能力', async () => {
+    credentialService.resolvePrincipalFromJwt.mockResolvedValue({
+      ...principal,
+      role: 'tenant_operator',
+      credentialType: 'session_key',
+    });
+
+    await request(app.getHttpServer())
+      .post(
+        '/api/mcp/message?sessionId=s-1&sessionToken=t-1&sessionKey=session-key',
+      )
+      .send({
+        jsonrpc: '2.0',
+        id: '3',
+        method: 'tools/call',
+        params: {
+          name: 'documents.index.rebuild',
+          arguments: { nodeId: 'node-1' },
+        },
+      })
+      .expect(202);
+
+    expect(executionService.execute).toHaveBeenCalledWith(
+      'documents.index.rebuild',
+      { nodeId: 'node-1' },
+      expect.objectContaining({
+        principal: expect.objectContaining({
+          role: 'tenant_operator',
+          credentialType: 'session_key',
+        }),
+      }),
     );
   });
 });

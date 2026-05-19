@@ -25,7 +25,7 @@
 | `knowledgeBases.detail`   | 查看未归档知识库详情与导入根路径       | `GET /api/v1/capability/knowledge-bases/:id`      | `ova kb detail`                       | `knowledgeBases.detail`   | `tenant_viewer`   |
 | `knowledgeTree.list`      | 列出未归档知识库下可作为导入目标的节点 | `GET /api/v1/capability/knowledge-bases/:id/tree` | `ova tree list`                       | `knowledgeTree.list`      | `tenant_viewer`   |
 | `knowledgeTree.detail`    | 查看知识树节点详情与导入路径           | `GET /api/v1/capability/knowledge-tree/:id`       | `ova tree detail`                     | `knowledgeTree.detail`    | `tenant_viewer`   |
-| `documents.import.create` | 创建本地、URL 或 manifest 文档导入任务 | `POST /api/v1/capability/import-tasks/documents`  | `ova documents import`                | `documents.import.create` | `tenant_operator` |
+| `documents.import.create` | 创建本地、URL 或 manifest 文档导入任务 | `POST /api/v1/capability/import-tasks/documents`；本地文件上传：`POST /api/v1/capability/import-tasks/local-upload` | `ova documents import` | `documents.import.create` | `tenant_operator` |
 | `documents.import.status` | 查看文档导入任务进度                   | `GET /api/v1/capability/import-tasks/:id`         | `ova documents import status`         | `documents.import.status` | `tenant_viewer`   |
 | `documents.import.list`   | 列出当前租户文档导入任务               | `GET /api/v1/capability/import-tasks`             | `ova documents import list`           | `documents.import.list`   | `tenant_viewer`   |
 | `documents.import.cancel` | 取消排队中的文档导入任务               | `POST /api/v1/capability/import-tasks/:id/cancel` | `ova documents import cancel`         | `documents.import.cancel` | `tenant_operator` |
@@ -105,7 +105,7 @@ Capability 调用最终都会解析为统一 `Principal`。
 - `resources.*` 最低角色为 `tenant_operator`，避免低权限用户枚举资源结构。
 - `knowledgeBases.*` 与 `knowledgeTree.*` 是文档导入前置选择能力，只开放只读查询，不承担知识空间管理职责；归档知识库不会出现在列表中，详情与树查询会按不存在处理。
 - `documents.import.status`、`documents.import.list` 与 `documents.import.events` 对 `tenant_viewer` 开放；创建、取消和重试导入任务需要 `tenant_operator`。
-- `documents.import.create` capability 只支持 `local`、`url`、`manifest` 三类来源；飞书、钉钉、Git 等需要集成凭证的来源走导入任务 API 或控制台集成流程。WebDAV 仍用于外部客户端访问知识资源，不作为导入来源。
+- `documents.import.create` capability 只支持 `local`、`url`、`manifest` 三类来源；本地文件使用 capability 命名空间下的 multipart 上传入口，因此 CLI、HTTP 和 MCP 派生的业务操作员凭证都能保持同一套授权语义。飞书、钉钉、Git 等需要集成凭证的来源走导入任务 API 或控制台集成流程。WebDAV 仍用于外部客户端访问知识资源，不作为导入来源。
 - WebDAV 覆盖和在线协作编辑只保存最新草稿并标记索引过期；`documents.index.rebuild` 才会触发 OpenViking 正文写入与索引刷新。
 - WebDAV 入口当前按 `tenant -> knowledge base -> knowledge tree node` 映射，叶子节点按文件资源输出；`MKCOL`、`PUT`、`DELETE` 和 `MOVE` 至少需要 `tenant_operator` 权限。
 - Adapter 不允许覆盖能力契约中的 `minimumRole`。

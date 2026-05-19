@@ -11,6 +11,7 @@ import {
     saveProfile,
 } from './state-store';
 import { isExpired } from './token';
+import { completeBrowserOAuthLogin } from './commands/configure';
 
 const OVA_MCP_SERVER_NAME = 'ova_mcp';
 const LEGACY_OPENVIKING_SERVER_NAME = 'openviking';
@@ -263,6 +264,10 @@ function persistSetupOptions(options: Record<string, string | boolean>, store: C
         nextProfile.sessionKey = options['session-key'].trim();
         changed = true;
     }
+    if (typeof options['oauth-url'] === 'string' && options['oauth-url'].trim()) {
+        nextProfile.oauthUrl = options['oauth-url'].trim();
+        changed = true;
+    }
     if (!changed) {
         return profileContext;
     }
@@ -301,6 +306,11 @@ async function resolveMcpCredential(
     if (profile.sessionKey && !isExpired(profile.sessionKeyExpiresAt, 0)) {
         return { kind: 'session-key', value: profile.sessionKey, source: 'profile' };
     }
+    if (shouldRunOAuthSetup(options, profile)) {
+        await completeSetupOAuthLogin(options, store, profile);
+        const nextContext = readProfile(store, options);
+        return resolveMcpCredential(options, store, nextContext.profile);
+    }
 
     throw new Error('setup 需要 API key、session key，或已登录的 ova profile。可先运行 ova configure / ova auth login。');
 }
@@ -317,6 +327,61 @@ function resolveCredentialKind(options: Record<string, string | boolean>): Crede
 
 function profileHasJwt(profile: CliProfile) {
     return Boolean(profile.accessToken || profile.refreshToken);
+}
+
+function shouldRunOAuthSetup(options: Record<string, string | boolean>, profile: CliProfile) {
+    return (
+        (options['open-browser'] === true || options['open-browser'] === 'true') &&
+        Boolean(resolveOAuthUrl(options, profile))
+    );
+}
+
+async function completeSetupOAuthLogin(
+    options: Record<string, string | boolean>,
+    store: CredentialStore,
+    profile: CliProfile,
+) {
+    const profileContext = readProfile(store, options);
+    const oauthUrl = resolveOAuthUrl(options, profileContext.profile) ?? resolveOAuthUrl(options, profile);
+    if (!oauthUrl) {
+        return;
+    }
+    const login = await completeBrowserOAuthLogin(
+        profileContext.profile.serverUrl,
+        oauthUrl,
+        resolveCallbackPort(options),
+    );
+    saveProfile(
+        store,
+        profileContext.profileName,
+        {
+            ...profileContext.profile,
+            oauthUrl,
+            ...login.tokens,
+        },
+        profileContext.stateFile,
+    );
+}
+
+function resolveOAuthUrl(
+    options: Record<string, string | boolean>,
+    profile: CliProfile,
+) {
+    if (typeof options['oauth-url'] === 'string' && options['oauth-url'].trim()) {
+        return options['oauth-url'].trim();
+    }
+    return profile.oauthUrl;
+}
+
+function resolveCallbackPort(options: Record<string, string | boolean>) {
+    if (typeof options['callback-port'] !== 'string') {
+        return undefined;
+    }
+    const value = Number(options['callback-port']);
+    if (!Number.isInteger(value) || value < 0 || value > 65535) {
+        throw new Error('--callback-port 必须是 0-65535 之间的整数');
+    }
+    return value;
 }
 
 async function issueApiKey(

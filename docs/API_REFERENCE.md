@@ -156,9 +156,34 @@ WebDAV 响应不使用统一 JSON envelope。知识库始终映射为目录资�
 | `tenantId` | path | 租户 ID                        |
 | `type`     | path | `feishu`、`dingtalk` 或 `oidc` |
 
+可选查询参数：
+
+| 参数       | 位置  | 说明                                                                      |
+| ---------- | ----- | ------------------------------------------------------------------------- |
+| `redirect` | query | CLI / MCP 本机回调地址。仅允许 `localhost` 或 `127.0.0.1` 的 HTTP(S) 地址 |
+
 ### GET /api/v1/auth/sso/callback/:tenantId/:type
 
-SSO Provider 回调入口。认证成功后重定向到前端并携带一次性 ticket。
+SSO Provider 回调入口。认证成功后生成一次性 ticket。如果 state 中包含合法本机 `redirect`，回跳到该地址；否则重定向到 `FRONTEND_URL` 对应的前端 `/login` 并携带 `sso_ticket`。
+
+### GET /api/v1/auth/sso/authorize
+
+OpenViking Admin 自身账号授权页，用于 CLI、MCP 或其他本地工具通过租户账号密码完成授权回调登录。
+
+| 参数         | 位置  | 说明                                                                      |
+| ------------ | ----- | ------------------------------------------------------------------------- |
+| `tenantCode` | query | 租户标识，可预填授权页租户输入框                                          |
+| `redirect`   | query | CLI / MCP 本机回调地址。仅允许 `localhost` 或 `127.0.0.1` 的 HTTP(S) 地址 |
+
+### POST /api/v1/auth/sso/authorize
+
+提交 OpenViking Admin 自身账号授权登录。成功后生成一次性 ticket，按 `redirect` 或 `FRONTEND_URL` 规则重定向。
+
+请求体支持 `application/x-www-form-urlencoded`：
+
+```text
+tenantCode=acme&username=admin&password=******&state=<encoded-state>
+```
 
 ### POST /api/v1/auth/sso/exchange
 
@@ -418,6 +443,7 @@ LDAP / AD 域账号直接登录。服务端会使用租户 LDAP 集成中的 `bi
 | `knowledgeTree.list`      | `GET`  | `/api/v1/capability/knowledge-bases/:id/tree` | 列出知识库下可导入节点       |
 | `knowledgeTree.detail`    | `GET`  | `/api/v1/capability/knowledge-tree/:id`       | 查看知识树节点详情与导入路径 |
 | `documents.import.create` | `POST` | `/api/v1/capability/import-tasks/documents`   | 创建文档导入任务             |
+| `documents.import.create` | `POST` | `/api/v1/capability/import-tasks/local-upload` | 上传本地文件并创建导入任务   |
 | `documents.import.status` | `GET`  | `/api/v1/capability/import-tasks/:id`         | 查看导入进度                 |
 | `documents.import.list`   | `GET`  | `/api/v1/capability/import-tasks`             | 列出导入任务                 |
 | `documents.import.cancel` | `POST` | `/api/v1/capability/import-tasks/:id/cancel`  | 取消排队中的导入任务         |
@@ -445,7 +471,7 @@ LDAP / AD 域账号直接登录。服务端会使用租户 LDAP 集成中的 `bi
 
 导入任务响应中的 `sourceName` 用于展示来源名称。创建任务时可传 `sourceName`，批量 `sourceUrls` 可传同下标的 `sourceNames`；未显式传入时，服务层会统一为 Git 解析仓库名，为 `url`、`local`、`manifest` 解析来源路径末尾文件名。飞书、钉钉等企业文档创建自动文档节点时会先从 URL 路径解析展示名，Worker 读取平台文档后再写入解析出的真实文档名。历史任务或无法解析名称的来源可能返回 `null`，调用端应回退展示 `sourceUrl`。
 
-Capability 与 CLI 导入入口的 `sourceType` 支持 `local`、`url`、`manifest`。飞书、钉钉、Git 等需要集成凭证的来源走导入任务 API 或控制台集成流程，并提供 `integrationId`。`parentNodeId` 可省略，省略时导入到知识库根路径。`local`、`url`、`feishu`、`dingtalk` 会在所选知识树目录下自动创建文档子节点，并把任务 `targetUri` 指向该文档节点稳定资源容器；`git` 仍导入到资源目录，不自动创建知识树文档节点，且每个 Git 任务会使用独立资源目录。
+Capability 与 CLI 导入入口的 `sourceType` 支持 `local`、`url`、`manifest`。本地文件导入使用 `/api/v1/capability/import-tasks/local-upload`，支持 `x-capability-key`、`Authorization: Bearer <capability_access_token>` 和 `Authorization: Bearer <session_key>`，最低角色同样是 `tenant_operator`。飞书、钉钉、Git 等需要集成凭证的来源走导入任务 API 或控制台集成流程，并提供 `integrationId`。`parentNodeId` 可省略，省略时导入到知识库根路径。`local`、`url`、`feishu`、`dingtalk` 会在所选知识树目录下自动创建文档子节点，并把任务 `targetUri` 指向该文档节点稳定资源容器；`git` 仍导入到资源目录，不自动创建知识树文档节点，且每个 Git 任务会使用独立资源目录。
 
 ## 可观测性接口
 
@@ -725,8 +751,8 @@ MCP JSON-RPC 消息接口。
 - `POST /api/v1/import-tasks` 至少需要 `kbId`、`sourceType` 与来源地址（`sourceUrl` 或 `sourceUrls`）
 - `sourceType=feishu` / `sourceType=dingtalk` 必须提供 `integrationId`，Worker 会在 Admin 侧读取平台文档内容后通过 OpenViking `temp_upload` 注入
 - `sourceType=git` 建议提供 `integrationId`，用于读取平台凭证、分支和路径配置
-- `sourceType=local` 只能由 `/api/v1/import-tasks/local-upload` 生成，不能直接提交任意 `file://` 路径
-- `/api/v1/import-tasks/local-upload` 使用 `multipart/form-data`，字段为 `kbId`、可选 `targetUri`，以及 `files`
+- `sourceType=local` 只能由受控上传接口生成，不能直接提交任意 `file://` 路径
+- `/api/v1/import-tasks/local-upload` 使用 JWT 登录态，服务控制台使用；`/api/v1/capability/import-tasks/local-upload` 使用 capability 凭证，CLI、MCP 和自动化调用使用。二者都采用 `multipart/form-data`，字段为 `kbId`、可选 `targetUri`，以及 `files`
 - 导入任务会在响应中返回 `sourceName`，用于控制台和调用端展示仓库名、企业文档名、URL 文件名或本地上传原文件名；普通 JSON 创建接口可传 `sourceName` 或与 `sourceUrls` 对齐的 `sourceNames`
 - `local`、`url`、`feishu`、`dingtalk` 创建任务时会在所选知识树目录下自动创建文档节点，响应中的 `targetUri` 指向该节点稳定资源容器，并返回 `autoCreatedNodeId` 用于删除任务时识别自动节点；自动文档节点和导入任务在 Admin 数据库内同事务提交；`git` 不自动创建知识树节点，但每个 Git 任务会生成独立 `imports/git/{repo}-{suffix}/` 目标目录，避免多条任务共享同一个 OpenViking 资源路径
 - 自动创建的新文档节点首次导入不会预先递归删除 OpenViking 稳定资源容器；只有目标文档节点已有 `contentUri`、属于覆盖已有正文时，Worker 才会在写入前清空目标容器

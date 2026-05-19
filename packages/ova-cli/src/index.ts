@@ -39,17 +39,17 @@ function printUsage() {
 用法:
   ova --help | ova -h | ova help
   ova --version | ova -v | ova version
-  ova auth login --server http://localhost:6001 --username admin --password admin123 --tenant-code acme [--profile dev]
-  ova auth sso --ticket sso-ticket [--profile dev]
-  ova auth whoami [--profile dev] [--output json|jsonl]
-  ova auth status [--profile dev] [--output json|jsonl]
-  ova auth credential-options [--profile dev] [--output json|jsonl]
-  ova auth token-exchange [--profile dev] [--save] [--output json|jsonl]
-  ova auth session-exchange [--profile dev] [--save] [--output json|jsonl]
-  ova auth client-credentials [--name cli-client] [--profile dev] [--save] [--output json|jsonl]
-  ova auth logout [--profile dev] [--output json|jsonl]
-  ova configure [--server http://localhost:6001] [--api-key ov-sk-...] [--oauth-url https://...] [--open-browser] [--profile dev]
-  ova capabilities list [--profile dev] [--output json|jsonl]
+  ova auth login --server http://localhost:6001 --username admin --password admin123 --tenant-code acme [--env debug]
+  ova auth sso --ticket sso-ticket [--env debug]
+  ova auth whoami [--env debug] [--output json|jsonl]
+  ova auth status [--env debug] [--output json|jsonl]
+  ova auth credential-options [--env debug] [--output json|jsonl]
+  ova auth token-exchange [--env debug] [--save] [--output json|jsonl]
+  ova auth session-exchange [--env debug] [--save] [--output json|jsonl]
+  ova auth client-credentials [--name cli-client] [--env debug] [--save] [--output json|jsonl]
+  ova auth logout [--env debug] [--output json|jsonl]
+  ova configure [--server http://localhost:6001] [--api-key ov-sk-...] [--oauth-url https://...] [--open-browser] [--env debug]
+  ova capabilities list [--env debug] [--output json|jsonl]
   ova capabilities inspect --id knowledge.search [--profile dev] [--output json|jsonl]
   ova knowledge search --query "多租户隔离" [--limit 5] [--profile dev] [--output json|jsonl]
   ova knowledge grep --pattern "tenant" [--uri viking://resources/tenants/acme/] [--profile dev] [--output json|jsonl]
@@ -68,17 +68,23 @@ function printUsage() {
   ova documents index status --node <nodeId> [--profile dev] [--output json|jsonl]
   ova documents index rebuild --node <nodeId> [--profile dev] [--output json|jsonl]
   ova documents draft grep --node <nodeId> --pattern "关键词" [--profile dev] [--output json|jsonl]
-  ova config show [--profile dev] [--output json|jsonl]
-  ova config set --server http://localhost:6001 [--profile dev] [--output json|jsonl]
-  ova config use --profile dev [--output json|jsonl]
-  ova doctor [--profile dev] [--output json|jsonl]
-  ova setup [--profile dev] [--server http://localhost:6001] [--credential api-key|session-key] [--editor claude,cursor,codex] [--output json|jsonl]
-  ova init [--path <repoPath>] [--profile dev] [--output json|jsonl]
-  ova bootstrap [--path <repoPath>] [--profile dev] [--editor claude,cursor,codex] [--skip-setup] [--skip-init] [--output json|jsonl]`);
+  ova config show [--env debug] [--output json|jsonl]
+  ova config set --server http://localhost:6001 [--env debug] [--output json|jsonl]
+  ova config use --env debug [--output json|jsonl]
+  ova doctor [--env debug] [--output json|jsonl]
+  ova setup [--env debug] [--server http://localhost:6001] [--credential api-key|session-key] [--editor claude,cursor,codex] [--output json|jsonl]
+  ova init [--path <repoPath>] [--env debug] [--output json|jsonl]
+  ova bootstrap [--path <repoPath>] [--env debug] [--editor claude,cursor,codex] [--skip-setup] [--skip-init] [--output json|jsonl]
+
+说明:
+  --env <name> 是 --profile <name> 的别名，用于切换 debug、prod 等服务环境。`);
 }
 
 export async function bootstrap(argv = process.argv.slice(2)) {
     const { group, command, options } = parseOptions(argv);
+    if (options.env && !options.profile) {
+        options.profile = options.env;
+    }
 
     if (isHelpArg(group)) {
         printUsage();

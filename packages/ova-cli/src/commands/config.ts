@@ -13,10 +13,13 @@ export async function handleConfig(
     if (command === 'show') {
         const payload = {
             currentProfile: stateFile.currentProfile,
+            currentEnv: stateFile.currentProfile,
             profile: profileName,
+            env: profileName,
             serverUrl: profile.serverUrl,
             statePath: store.getStatePath(),
             profiles: Object.keys(stateFile.profiles),
+            environments: Object.keys(stateFile.profiles),
         };
 
         emitOutput(
@@ -25,10 +28,12 @@ export async function handleConfig(
             () =>
                 [
                     `currentProfile: ${payload.currentProfile}`,
+                    `currentEnv: ${payload.currentEnv}`,
                     `profile: ${payload.profile}`,
+                    `env: ${payload.env}`,
                     `serverUrl: ${payload.serverUrl}`,
                     `statePath: ${payload.statePath}`,
-                    `profiles: ${payload.profiles.join(', ')}`,
+                    `environments: ${payload.environments.join(', ')}`,
                 ].join('\n'),
             [payload],
         );
@@ -51,9 +56,9 @@ export async function handleConfig(
     }
 
     if (command === 'use') {
-        const nextProfileName = String(options.profile ?? '');
+        const nextProfileName = String(options.env ?? options.profile ?? '');
         if (!nextProfileName) {
-            throw new Error('config use 需要 --profile');
+            throw new Error('config use 需要 --env 或 --profile');
         }
 
         const nextState = {
@@ -68,9 +73,10 @@ export async function handleConfig(
 
         const payload = {
             currentProfile: nextProfileName,
+            currentEnv: nextProfileName,
             statePath: store.getStatePath(),
         };
-        emitOutput(output, payload, () => `已切换 currentProfile=${nextProfileName}`, [payload]);
+        emitOutput(output, payload, () => `已切换 currentEnv=${nextProfileName}`, [payload]);
         return;
     }
 

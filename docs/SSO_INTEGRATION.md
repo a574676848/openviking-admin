@@ -23,7 +23,7 @@ JIT Provisioning: 自动创建/更新本地用户（默认角色 tenant_viewer�
     ↓
 SsoTicketService.create() → 生成一次性 ticket（60 秒过期）
     ↓
-302 重定向到 /login?sso_ticket=xxx
+302 重定向到 FRONTEND_URL /login?sso_ticket=xxx
     ↓
 POST /api/v1/auth/sso/exchange → 返回 JWT Token
 ```
@@ -200,6 +200,42 @@ SSO 回调成功后，系统生成一次性 ticket：
 
 ---
 
+## OpenViking Admin 自身授权登录
+
+除企业 SSO 外，OpenViking Admin 也提供项目自身的账号授权页，供 CLI、MCP 或其他本地工具发起浏览器授权：
+
+```text
+GET /api/v1/auth/sso/authorize?tenantCode=<tenantCode>&redirect=http://127.0.0.1:63637/callback
+```
+
+授权页标题为 `OpenViking Admin 授权登录`。用户使用项目自身租户账号和密码登录后，服务端会生成一次性 `sso_ticket`，并按以下规则重定向：
+
+- 如果请求携带合法 `redirect`，只允许回跳到 `localhost` 或 `127.0.0.1`，用于 CLI / MCP 本机授权回调。
+- 如果没有携带 `redirect`，默认回跳到后端环境变量 `FRONTEND_URL` 对应的前端地址，并追加 `sso_ticket` 或 `error` 查询参数。
+
+CLI 示例：
+
+```bash
+ova configure \
+  --server http://localhost:6001 \
+  --oauth-url "http://localhost:6001/api/v1/auth/sso/authorize?tenantCode=acme" \
+  --open-browser \
+  --env debug
+```
+
+MCP 初始化也可以先走同一授权流，再派生 session key：
+
+```bash
+ova setup \
+  --server http://localhost:6001 \
+  --oauth-url "http://localhost:6001/api/v1/auth/sso/authorize?tenantCode=acme" \
+  --open-browser \
+  --credential session-key \
+  --env debug
+```
+
+---
+
 ## 前端集成
 
 登录页 (`/login`) 自动检测租户可用的 SSO 方式：
@@ -209,6 +245,8 @@ SSO 回调成功后，系统生成一次性 ticket：
 3. 如果启用飞书、钉钉或 OIDC，点击按钮跳转到 `GET /api/v1/auth/sso/redirect/:tenantId/:type`
 4. OAuth 回调后页面接收 `sso_ticket` 参数
 5. 自动调用 `POST /api/v1/auth/sso/exchange` 完成登录
+
+后端所有无本机回调的 SSO 成功或失败重定向都以 `FRONTEND_URL` 为前端基准地址，生产环境必须配置为真实控制台域名。
 
 ---
 

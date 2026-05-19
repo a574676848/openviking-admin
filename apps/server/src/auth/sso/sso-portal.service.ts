@@ -17,6 +17,13 @@ interface SSOUserResult {
   displayName?: string;
 }
 
+interface AuthorizationUrlInput {
+  tenantId: string;
+  type: IntegrationType;
+  callbackUrl: string;
+  state?: string;
+}
+
 @Injectable()
 export class SSOPortalService {
   constructor(
@@ -60,6 +67,29 @@ export class SSOPortalService {
     return this.syncUser(ssoUser, tenantId, type);
   }
 
+  async createAuthorizationUrl(input: AuthorizationUrlInput) {
+    const config = await this.integrationService.findActiveByType(
+      input.tenantId,
+      input.type,
+    );
+
+    if (!config) throw new UnauthorizedException('该租户尚未开启相关企业集成');
+
+    if (input.type === IntegrationType.FEISHU) {
+      return this.buildFeishuAuthorizationUrl(config, input);
+    }
+
+    if (input.type === IntegrationType.DINGTALK) {
+      return this.buildDingTalkAuthorizationUrl(config, input);
+    }
+
+    if (input.type === IntegrationType.OIDC) {
+      return this.buildOidcAuthorizationUrl(config, input);
+    }
+
+    throw new Error(`认证协议适配器 ${input.type} 不支持浏览器授权跳转`);
+  }
+
   private async syncUser(
     ssoUser: SSOUserResult,
     tenantId: string,
@@ -82,5 +112,53 @@ export class SSOPortalService {
       user = (Array.isArray(created) ? created[0] : created) as UserModel;
     }
     return user;
+  }
+
+  private buildFeishuAuthorizationUrl(
+    config: Awaited<ReturnType<IntegrationService['findActiveByType']>>,
+    input: AuthorizationUrlInput,
+  ) {
+    const appId = config?.credentials?.appId ?? '';
+    const url = new URL('https://open.feishu.cn/open-apis/authen/v1/authorize');
+    url.searchParams.set('app_id', appId);
+    url.searchParams.set('redirect_uri', input.callbackUrl);
+    if (input.state) {
+      url.searchParams.set('state', input.state);
+    }
+    return url.toString();
+  }
+
+  private buildDingTalkAuthorizationUrl(
+    config: Awaited<ReturnType<IntegrationService['findActiveByType']>>,
+    input: AuthorizationUrlInput,
+  ) {
+    const appId = config?.credentials?.appId ?? '';
+    const url = new URL('https://login.dingtalk.com/oauth2/auth');
+    url.searchParams.set('redirect_uri', input.callbackUrl);
+    url.searchParams.set('response_type', 'code');
+    url.searchParams.set('client_id', appId);
+    url.searchParams.set('scope', 'openid');
+    url.searchParams.set('prompt', 'consent');
+    if (input.state) {
+      url.searchParams.set('state', input.state);
+    }
+    return url.toString();
+  }
+
+  private buildOidcAuthorizationUrl(
+    config: Awaited<ReturnType<IntegrationService['findActiveByType']>>,
+    input: AuthorizationUrlInput,
+  ) {
+    const issuer = (config?.credentials?.issuer ?? '').replace(/\/$/, '');
+    const clientId = config?.credentials?.clientId ?? '';
+    const url = new URL(`${issuer}/protocol/openid-connect/auth`);
+    url.searchParams.set('client_id', clientId);
+    url.searchParams.set('redirect_uri', input.callbackUrl);
+    url.searchParams.set('response_type', 'code');
+    url.searchParams.set('scope', 'openid profile email');
+    if (input.state) {
+      url.searchParams.set('state', input.state);
+    }
+    return url.toString();
   }
 }

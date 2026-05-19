@@ -292,6 +292,10 @@ describe('TaskWorkerService', () => {
     const taskRepo = {
       update: jest.fn(),
     };
+    const nodeRepo = {
+      findOne: jest.fn(),
+      save: jest.fn(),
+    };
     const integrationRepo = {
       findOne: jest.fn().mockResolvedValue({
         id: 'integration-1',
@@ -384,7 +388,7 @@ describe('TaskWorkerService', () => {
       expect.objectContaining({
         temp_file_id: 'platform_feishu.md',
         to: 'viking://resources/tenants/large-a/kb-1/imports/feishu/',
-        wait: true,
+        wait: false,
       }),
       { user: 'worker-user' },
     );
@@ -435,6 +439,14 @@ describe('TaskWorkerService', () => {
     };
     const taskRepo = {
       update: jest.fn(),
+    };
+    const nodeRepo = {
+      findOne: jest.fn(),
+      save: jest.fn(),
+    };
+    const kbRepo = {
+      findOne: jest.fn(),
+      save: jest.fn(),
     };
     const defaultDataSource = {
       getRepository: jest.fn((entity) => {
@@ -1042,6 +1054,10 @@ describe('TaskWorkerService', () => {
     const taskRepo = {
       update: jest.fn(),
     };
+    const nodeRepo = {
+      findOne: jest.fn(),
+      update: jest.fn(),
+    };
     const integrationRepo = {
       findOne: jest.fn().mockResolvedValue({
         id: 'integration-1',
@@ -1164,6 +1180,14 @@ describe('TaskWorkerService', () => {
       findOne: jest.fn().mockResolvedValue(tenant),
     };
     const taskRepo = {
+      update: jest.fn(),
+    };
+    const nodeRepo = {
+      findOne: jest.fn(),
+      update: jest.fn(),
+    };
+    const kbRepo = {
+      findOne: jest.fn(),
       update: jest.fn(),
     };
     const integrationRepo = {

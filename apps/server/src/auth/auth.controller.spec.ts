@@ -3,6 +3,7 @@ import type { AuthenticatedRequest } from '../common/authenticated-request.inter
 import { AuthService } from './auth.service';
 import { SSOPortalService } from './sso/sso-portal.service';
 import { SsoTicketService } from './sso/sso-ticket.service';
+import { ConfigService } from '@nestjs/config';
 
 describe('AuthController', () => {
   let controller: AuthController;
@@ -17,6 +18,7 @@ describe('AuthController', () => {
       authService as unknown as AuthService,
       {} as SSOPortalService,
       {} as SsoTicketService,
+      { get: jest.fn() } as unknown as ConfigService,
     );
   });
 

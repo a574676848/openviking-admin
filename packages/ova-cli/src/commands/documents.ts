@@ -249,7 +249,7 @@ async function uploadLocalDocument(
   body.append("files", file);
 
   const response = await uploadMultipartApi(
-    "/api/v1/import-tasks/local-upload",
+    `${IMPORT_TASKS_API}/local-upload`,
     body,
     options,
     store,

@@ -69,4 +69,64 @@ describe('CapabilityAuthorizationService', () => {
       ),
     ).toThrow('tenant_operator');
   });
+
+  it('should allow tenant operator to execute document import and update capabilities', () => {
+    const principal = {
+      userId: 'user-operator',
+      tenantId: 'tenant-1',
+      role: 'tenant_operator',
+      scope: 'tenant',
+      credentialType: 'api_key' as const,
+      clientType: 'cli' as const,
+      ovConfig: {
+        baseUrl: 'http://ov.local',
+        apiKey: 'secret',
+        account: 'default',
+      },
+    };
+
+    expect(() =>
+      service.authorize(
+        {
+          id: 'documents.import.create',
+          version: 'v1',
+          displayName: 'Documents Import Create',
+          description: 'import',
+          inputSchema: { type: 'object', properties: {} },
+          outputSchema: { type: 'object', properties: {} },
+          permissionRequirement: 'tenant',
+          minimumRole: 'tenant_operator',
+          auditLevel: 'standard',
+          http: {
+            method: 'POST',
+            path: '/api/v1/capability/import-tasks/documents',
+          },
+          cli: { command: 'ova documents import' },
+        },
+        principal,
+      ),
+    ).not.toThrow();
+
+    expect(() =>
+      service.authorize(
+        {
+          id: 'documents.index.rebuild',
+          version: 'v1',
+          displayName: 'Documents Index Rebuild',
+          description: 'index',
+          inputSchema: { type: 'object', properties: {} },
+          outputSchema: { type: 'object', properties: {} },
+          permissionRequirement: 'tenant',
+          minimumRole: 'tenant_operator',
+          auditLevel: 'standard',
+          http: {
+            method: 'POST',
+            path: '/api/v1/capability/documents/:id/index/rebuild',
+          },
+          cli: { command: 'ova documents index rebuild' },
+        },
+        principal,
+      ),
+    ).not.toThrow();
+  });
 });

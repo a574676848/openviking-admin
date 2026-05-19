@@ -8,15 +8,26 @@ import {
   Query,
   Req,
   Res,
+  UseInterceptors,
+  UploadedFiles,
   UnauthorizedException,
 } from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
 import type { Request, Response } from 'express';
 import { CapabilityDiscoveryService } from './application/capability-discovery.service';
 import { CapabilityExecutionService } from './application/capability-execution.service';
 import { CapabilityObservabilityService } from './application/capability-observability.service';
+import { CapabilityAuthorizationService } from './application/capability-authorization.service';
+import { getCapabilityRegistryEntry } from './application/capability-registry';
 import { CapabilityCredentialService } from './infrastructure/capability-credential.service';
 import { CapabilityId, ClientType, Principal } from './domain/capability.types';
 import { ensureRequestTrace } from '../common/request-trace';
+import { ImportTaskService } from '../import-task/import-task.service';
+import { AuditService } from '../audit/audit.service';
+import { CreateLocalImportTaskDto } from '../import-task/dto/create-local-import-task.dto';
+import { LOCAL_IMPORT_UPLOAD_CONFIG } from '../import-task/constants';
+import type { LocalImportUploadFile } from '../import-task/local-import-storage.service';
+import { createAuditActorSnapshot } from '../common/audit-actor.types';
 
 @Controller()
 export class CapabilitiesController {
@@ -24,7 +35,10 @@ export class CapabilitiesController {
     private readonly capabilityDiscoveryService: CapabilityDiscoveryService,
     private readonly capabilityExecutionService: CapabilityExecutionService,
     private readonly capabilityObservabilityService: CapabilityObservabilityService,
+    private readonly capabilityAuthorizationService: CapabilityAuthorizationService,
     private readonly capabilityCredentialService: CapabilityCredentialService,
+    private readonly importTaskService: ImportTaskService,
+    private readonly auditService: AuditService,
   ) {}
 
   @Get('capabilities')
@@ -214,6 +228,62 @@ export class CapabilitiesController {
       capabilityKey,
       authorization,
     );
+  }
+
+  @Post('capability/import-tasks/local-upload')
+  @UseInterceptors(
+    FilesInterceptor(
+      LOCAL_IMPORT_UPLOAD_CONFIG.FIELD_NAME,
+      LOCAL_IMPORT_UPLOAD_CONFIG.MAX_FILES,
+      {
+        limits: {
+          files: LOCAL_IMPORT_UPLOAD_CONFIG.MAX_FILES,
+          fileSize: LOCAL_IMPORT_UPLOAD_CONFIG.MAX_FILE_SIZE_BYTES,
+        },
+      },
+    ),
+  )
+  async createLocalDocumentImport(
+    @UploadedFiles() files: LocalImportUploadFile[],
+    @Body() body: CreateLocalImportTaskDto,
+    @Headers('x-capability-key') capabilityKey: string | undefined,
+    @Headers('authorization') authorization: string | undefined,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    ensureRequestTrace(req, res);
+    const principal = await this.resolvePrincipal(
+      capabilityKey,
+      authorization,
+      this.resolveClientType('http'),
+    );
+    this.capabilityAuthorizationService.authorize(
+      getCapabilityRegistryEntry('documents.import.create').contract,
+      principal,
+    );
+    const created = await this.importTaskService.createLocalUpload(
+      body,
+      files ?? [],
+      principal.tenantId ?? '',
+      createAuditActorSnapshot(principal),
+    );
+    await this.auditService.log({
+      tenantId: principal.tenantId ?? undefined,
+      userId: principal.userId,
+      username: principal.username,
+      action: 'create_local_import_task',
+      target: created.id,
+      meta: {
+        sourceType: created.sourceType,
+        fileCount: files?.length ?? 0,
+        credentialType: principal.credentialType,
+        clientType: principal.clientType,
+        requestId: req.headers['x-request-id'],
+      },
+      ip: req.ip,
+    });
+
+    return created;
   }
 
   @Get('capability/import-tasks/:id')
