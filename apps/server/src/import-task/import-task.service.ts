@@ -53,6 +53,7 @@ const DOCUMENT_NAME_EXTENSION_PATTERN = /\.[^./\\]+$/;
 const ACTIVE_OV_RESOURCE_NODE_THRESHOLD = 0;
 const COMPLETED_OV_RESOURCE_VECTOR_THRESHOLD = 0;
 const GIT_TASK_TARGET_SEGMENT_SUFFIX_LENGTH = 8;
+const DELETABLE_IMPORT_TASK_STATUSES = ['failed', 'done'] as const;
 
 @Injectable()
 export class ImportTaskService {
@@ -713,7 +714,7 @@ export class ImportTaskService {
 
   async deleteFailed(id: string, tenantId: string | null) {
     const task = await this.findOne(id, tenantId);
-    if (![TaskStatus.FAILED, TaskStatus.DONE].includes(task.status)) {
+    if (!this.isDeletableImportTaskStatus(task.status)) {
       throw new ConflictException('只有失败或成功任务才能物理删除');
     }
 
@@ -727,6 +728,12 @@ export class ImportTaskService {
       await this.taskRepo.delete(id, tenantId);
     });
     return task;
+  }
+
+  private isDeletableImportTaskStatus(status: ImportTaskModel['status']) {
+    return DELETABLE_IMPORT_TASK_STATUSES.includes(
+      status as (typeof DELETABLE_IMPORT_TASK_STATUSES)[number],
+    );
   }
 
   private async refreshKnowledgeBaseStatsAfterTaskDelete(
