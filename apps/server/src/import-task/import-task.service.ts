@@ -401,7 +401,7 @@ export class ImportTaskService {
         {
           tenantId,
           kbId: dto.kbId,
-          parentId: targetNode?.id ?? null,
+          parentId: targetNode?.id ?? undefined,
           name: this.resolveAutoCollectionNodeName(sourceName, sourceUrl),
           sortOrder: 0,
           kind: 'collection',
