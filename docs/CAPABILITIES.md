@@ -13,6 +13,8 @@
 - 所有入口统一认证、授权、审计、限流、日志追踪和错误语义。
 - 新能力必须先进入 capability catalog，再由 adapter 投影出去。
 
+当前 `knowledge.search` 已复用管理侧 `SearchService.find()`：HTTP、CLI、MCP 和 Skill 四种入口会共享同一套节点 ACL 过滤、`scope ∩ allowedUris` 收敛、Rerank 策略与 `search_logs` 统计口径，因此 dashboard、历史搜索和 capability 检索的命中统计保持一致。
+
 ## 当前能力
 
 | 能力                      | 说明                                   | HTTP                                              | CLI                                   | MCP 工具                  | 最低角色          |
@@ -102,11 +104,14 @@ Capability 调用最终都会解析为统一 `Principal`。
 ## 权限边界
 
 - `knowledge.*` 最低角色为 `tenant_viewer`，只允许在租户内检索。
+- `knowledge.search`、`knowledge.grep`、`resources.*`、`knowledgeBases.*`、`knowledgeTree.*` 均会在最低角色校验通过后继续套用知识节点 ACL；租户内用户也不能借 capability 越过 `knowledge_nodes.acl` 读取受限节点或资源范围。
 - `resources.*` 最低角色为 `tenant_operator`，避免低权限用户枚举资源结构。
 - `knowledgeBases.*` 与 `knowledgeTree.*` 是文档导入前置选择能力，只开放只读查询，不承担知识空间管理职责；归档知识库不会出现在列表中，详情与树查询会按不存在处理。
 - `documents.import.status`、`documents.import.list` 与 `documents.import.events` 对 `tenant_viewer` 开放；创建、取消和重试导入任务需要 `tenant_operator`。
+- `documents.import.status`、`documents.import.list`、`documents.import.events`、`documents.import.cancel` 与 `documents.import.retry` 在角色校验通过后，也会继续按目标知识库/节点 ACL 收敛；用户只能查看和操作自己可见范围内的导入任务。
 - `documents.import.create` capability 只支持 `local`、`url`、`manifest` 三类来源；本地文件使用 capability 命名空间下的 multipart 上传入口，因此 CLI、HTTP 和 MCP 派生的业务操作员凭证都能保持同一套授权语义。飞书、钉钉、Git 等需要集成凭证的来源走导入任务 API 或控制台集成流程。WebDAV 仍用于外部客户端访问知识资源，不作为导入来源。
 - WebDAV 覆盖和在线协作编辑只保存最新草稿并标记索引过期；`documents.index.rebuild` 才会触发 OpenViking 正文写入与索引刷新。
+- `documents.index.status`、`documents.index.rebuild`、`documents.draft.grep` 以及控制台 `/api/v1/editor/:nodeId*` 文档读写入口都会先检查文档节点 ACL，再决定是否返回草稿、索引状态或执行重建。
 - WebDAV 入口当前按 `tenant -> knowledge base -> knowledge tree node` 映射，叶子节点按文件资源输出；`MKCOL`、`PUT`、`DELETE` 和 `MOVE` 至少需要 `tenant_operator` 权限。
 - Adapter 不允许覆盖能力契约中的 `minimumRole`。
 - 租户外 URI 必须显式拒绝，不做静默收敛后继续执行。

@@ -2,9 +2,14 @@ import { ForbiddenException, Injectable } from '@nestjs/common';
 import { OVConnection } from '../../common/ov-client.service';
 import { OVKnowledgeGatewayService } from '../../common/ov-knowledge-gateway.service';
 import { KnowledgeBaseService } from '../../knowledge-base/knowledge-base.service';
+import {
+  KnowledgeNodeAclService,
+  type KnowledgeNodeAccessPrincipal,
+} from '../../knowledge-tree/knowledge-node-acl.service';
 import { KnowledgeTreeService } from '../../knowledge-tree/knowledge-tree.service';
 import { ImportTaskService } from '../../import-task/import-task.service';
 import { DocumentService } from '../../document/document.service';
+import { SearchService } from '../../search/search.service';
 import { createAuditActorSnapshot } from '../../common/audit-actor.types';
 import type { KnowledgeBaseModel } from '../../knowledge-base/domain/knowledge-base.model';
 import type { KnowledgeNodeModel } from '../../knowledge-tree/domain/knowledge-node.model';
@@ -43,8 +48,10 @@ export class KnowledgeCapabilityGateway {
     private readonly ovKnowledgeGateway: OVKnowledgeGatewayService,
     private readonly knowledgeBaseService: KnowledgeBaseService,
     private readonly knowledgeTreeService: KnowledgeTreeService,
+    private readonly knowledgeNodeAclService: KnowledgeNodeAclService,
     private readonly importTaskService: ImportTaskService,
     private readonly documentService: DocumentService,
+    private readonly searchService: SearchService,
   ) {}
 
   async search(
@@ -52,23 +59,31 @@ export class KnowledgeCapabilityGateway {
     input: Record<string, unknown>,
     trace?: TraceContext,
   ) {
-    const connection = this.toConnection(principal);
     const scope = this.getTenantScope(principal);
-    const response = await this.ovKnowledgeGateway.findKnowledge(
-      connection,
+    const requestedScope = input.uri
+      ? this.resolveScopedUri(scope, input.uri)
+      : undefined;
+    const response = await this.searchService.find(
       {
         query: String(input.query ?? ''),
         topK: Number(input.limit ?? 5),
         scoreThreshold: Number(input.scoreThreshold ?? 0.5),
-        filterUris: [scope],
+        uri: requestedScope,
+        useRerank:
+          input.useRerank === undefined ? undefined : Boolean(input.useRerank),
+      },
+      this.requireTenantId(principal),
+      {
+        id: principal.userId,
+        role: principal.role ?? 'tenant_viewer',
       },
       this.toMeta(trace),
+      {
+        connection: this.toConnection(principal),
+      },
     );
 
-    const items = (
-      (response.result as { resources?: SearchResource[] } | undefined)
-        ?.resources ?? []
-    ).map((resource) => ({
+    const items = response.resources.map((resource) => ({
       uri: resource.uri,
       score: resource.score,
       abstract: resource.abstract ?? null,
@@ -83,9 +98,14 @@ export class KnowledgeCapabilityGateway {
     input: Record<string, unknown>,
     trace?: TraceContext,
   ) {
+    const allowedUris = await this.knowledgeNodeAclService.getAllowedUris(
+      this.requireTenantId(principal),
+      this.toNodeAccessPrincipal(principal),
+    );
     const connection = this.toConnection(principal);
     const scope = this.getTenantScope(principal);
     const targetUri = this.resolveScopedUri(scope, input.uri);
+    this.assertScopeAccessible(targetUri, allowedUris);
     const response = await this.ovKnowledgeGateway.grepKnowledge(
       connection,
       {
@@ -101,11 +121,15 @@ export class KnowledgeCapabilityGateway {
 
     const items = (
       (response.result as { matches?: GrepMatch[] } | undefined)?.matches ?? []
-    ).map((match) => ({
-      line: match.line,
-      uri: match.uri,
-      content: match.content,
-    }));
+    )
+      .filter((match) =>
+        this.isMatchedResourceVisible(match.uri, allowedUris, targetUri),
+      )
+      .map((match) => ({
+        line: match.line,
+        uri: match.uri,
+        content: match.content,
+      }));
 
     return { items };
   }
@@ -115,22 +139,27 @@ export class KnowledgeCapabilityGateway {
     input: Record<string, unknown>,
     trace?: TraceContext,
   ) {
+    const allowedUris = await this.knowledgeNodeAclService.getAllowedUris(
+      this.requireTenantId(principal),
+      this.toNodeAccessPrincipal(principal),
+    );
     const connection = this.toConnection(principal);
     const scope = this.getTenantScope(principal);
     const targetUri = this.resolveScopedUri(scope, input.uri);
+    this.assertScopeAccessible(targetUri, allowedUris);
     const response = await this.ovKnowledgeGateway.listResources(
       connection,
       targetUri,
       this.toMeta(trace),
     );
 
-    const items = ((response.result as ResourceNode[] | undefined) ?? []).map(
-      (node) => ({
+    const items = ((response.result as ResourceNode[] | undefined) ?? [])
+      .filter((node) => this.isListedResourceVisible(node.uri, allowedUris))
+      .map((node) => ({
         uri: node.uri,
         isDir: node.isDir,
         relPath: node.rel_path ?? null,
-      }),
-    );
+      }));
 
     return { items };
   }
@@ -140,9 +169,14 @@ export class KnowledgeCapabilityGateway {
     input: Record<string, unknown>,
     trace?: TraceContext,
   ) {
+    const allowedUris = await this.knowledgeNodeAclService.getAllowedUris(
+      this.requireTenantId(principal),
+      this.toNodeAccessPrincipal(principal),
+    );
     const connection = this.toConnection(principal);
     const scope = this.getTenantScope(principal);
     const targetUri = this.resolveScopedUri(scope, input.uri);
+    this.assertScopeAccessible(targetUri, allowedUris);
     const depth = Number(input.depth ?? 2);
     const response = await this.ovKnowledgeGateway.treeResources(
       connection,
@@ -150,13 +184,13 @@ export class KnowledgeCapabilityGateway {
       this.toMeta(trace),
     );
 
-    const items = ((response.result as ResourceNode[] | undefined) ?? []).map(
-      (node) => ({
+    const items = ((response.result as ResourceNode[] | undefined) ?? [])
+      .filter((node) => this.isListedResourceVisible(node.uri, allowedUris))
+      .map((node) => ({
         uri: node.uri,
         isDir: node.isDir,
         relPath: node.rel_path ?? null,
-      }),
-    );
+      }));
 
     const renderedTree = items
       .map((node) => {
@@ -172,19 +206,39 @@ export class KnowledgeCapabilityGateway {
   }
 
   async listKnowledgeBases(principal: Principal) {
-    const items = await this.knowledgeBaseService.findAll(
-      this.requireTenantId(principal),
+    const tenantId = this.requireTenantId(principal);
+    const accessPrincipal = this.toNodeAccessPrincipal(principal);
+    const items = await this.knowledgeBaseService.findAll(tenantId);
+    const visibleItems = await Promise.all(
+      items.map(async (item) => ({
+        item,
+        visible: await this.canAccessKnowledgeBase(
+          item.id,
+          tenantId,
+          accessPrincipal,
+        ),
+      })),
     );
-    return { items: items.map((item) => this.toKnowledgeBaseItem(item)) };
+    return {
+      items: visibleItems
+        .filter((entry) => entry.visible)
+        .map((entry) => this.toKnowledgeBaseItem(entry.item)),
+    };
   }
 
   async getKnowledgeBaseDetail(
     principal: Principal,
     input: Record<string, unknown>,
   ) {
+    const tenantId = this.requireTenantId(principal);
     const item = await this.knowledgeBaseService.findOne(
       String(input.id),
-      this.requireTenantId(principal),
+      tenantId,
+    );
+    await this.assertKnowledgeBaseVisible(
+      item.id,
+      tenantId,
+      this.toNodeAccessPrincipal(principal),
     );
     return { item: this.toKnowledgeBaseItem(item) };
   }
@@ -193,15 +247,26 @@ export class KnowledgeCapabilityGateway {
     principal: Principal,
     input: Record<string, unknown>,
   ) {
+    const tenantId = this.requireTenantId(principal);
+    const accessPrincipal = this.toNodeAccessPrincipal(principal);
     await this.knowledgeBaseService.findOne(
       String(input.kbId),
-      this.requireTenantId(principal),
+      tenantId,
+    );
+    await this.assertKnowledgeBaseVisible(
+      String(input.kbId),
+      tenantId,
+      accessPrincipal,
     );
     const items = await this.knowledgeTreeService.findByKb(
       String(input.kbId),
-      this.requireTenantId(principal),
+      tenantId,
     );
-    return { items: items.map((item) => this.toKnowledgeNodeItem(item)) };
+    return {
+      items: this.knowledgeNodeAclService
+        .filterReadableNodes(items, accessPrincipal)
+        .map((item) => this.toKnowledgeNodeItem(item)),
+    };
   }
 
   async getKnowledgeTreeDetail(
@@ -212,6 +277,10 @@ export class KnowledgeCapabilityGateway {
       String(input.id),
       this.requireTenantId(principal),
     );
+    this.knowledgeNodeAclService.assertCanReadNode(
+      item,
+      this.toNodeAccessPrincipal(principal),
+    );
     return { item: this.toKnowledgeNodeItem(item) };
   }
 
@@ -220,16 +289,27 @@ export class KnowledgeCapabilityGateway {
     input: Record<string, unknown>,
   ) {
     const tenantId = this.requireTenantId(principal);
+    const accessPrincipal = this.toNodeAccessPrincipal(principal);
     const parentNodeId = input.parentNodeId ? String(input.parentNodeId) : null;
-    const targetUri = parentNodeId
-      ? (await this.knowledgeTreeService.findOne(parentNodeId, tenantId))
-          .vikingUri
-      : (
-          await this.knowledgeBaseService.findOne(
-            String(input.knowledgeBaseId),
-            tenantId,
-          )
-        ).vikingUri;
+    let targetUri: string | null = null;
+    if (parentNodeId) {
+      const parentNode = await this.knowledgeTreeService.findOne(
+        parentNodeId,
+        tenantId,
+      );
+      this.knowledgeNodeAclService.assertCanReadNode(parentNode, accessPrincipal);
+      targetUri = parentNode.vikingUri;
+    } else {
+      await this.knowledgeBaseService.findOne(
+        String(input.knowledgeBaseId),
+        tenantId,
+      );
+      await this.assertKnowledgeBaseVisible(
+        String(input.knowledgeBaseId),
+        tenantId,
+        accessPrincipal,
+      );
+    }
     const task = await this.importTaskService.create(
       {
         kbId: String(input.knowledgeBaseId),
@@ -242,6 +322,7 @@ export class KnowledgeCapabilityGateway {
       },
       tenantId,
       createAuditActorSnapshot(principal),
+      accessPrincipal,
     );
 
     return {
@@ -255,28 +336,65 @@ export class KnowledgeCapabilityGateway {
     principal: Principal,
     input: Record<string, unknown>,
   ) {
+    const tenantId = this.requireTenantId(principal);
+    const accessPrincipal = this.toNodeAccessPrincipal(principal);
+    const allowedUris = await this.knowledgeNodeAclService.getAllowedUris(
+      tenantId,
+      accessPrincipal,
+    );
     const task = await this.importTaskService.findOne(
       String(input.taskId),
-      this.requireTenantId(principal),
+      tenantId,
+      accessPrincipal,
+    );
+    await this.assertImportTaskVisible(
+      task,
+      tenantId,
+      accessPrincipal,
+      allowedUris,
     );
     return this.toImportTaskStatus(task);
   }
 
   async listDocumentImports(principal: Principal) {
-    const items = await this.importTaskService.findAll(
-      this.requireTenantId(principal),
+    const tenantId = this.requireTenantId(principal);
+    const accessPrincipal = this.toNodeAccessPrincipal(principal);
+    const allowedUris = await this.knowledgeNodeAclService.getAllowedUris(
+      tenantId,
+      accessPrincipal,
     );
-    return { items: items.map((item) => this.toImportTaskItem(item)) };
+    const items = await this.importTaskService.findAll(tenantId, accessPrincipal);
+    return {
+      items: items.map((item) => this.toImportTaskItem(item)),
+    };
   }
 
   async cancelDocumentImport(
     principal: Principal,
     input: Record<string, unknown>,
   ) {
+    const tenantId = this.requireTenantId(principal);
+    const accessPrincipal = this.toNodeAccessPrincipal(principal);
+    const allowedUris = await this.knowledgeNodeAclService.getAllowedUris(
+      tenantId,
+      accessPrincipal,
+    );
+    const taskBeforeCancel = await this.importTaskService.findOne(
+      String(input.taskId),
+      tenantId,
+      accessPrincipal,
+    );
+    await this.assertImportTaskVisible(
+      taskBeforeCancel,
+      tenantId,
+      accessPrincipal,
+      allowedUris,
+    );
     const task = await this.importTaskService.cancel(
       String(input.taskId),
-      this.requireTenantId(principal),
+      tenantId,
       createAuditActorSnapshot(principal),
+      accessPrincipal,
     );
     return {
       taskId: task?.id ?? String(input.taskId),
@@ -289,10 +407,28 @@ export class KnowledgeCapabilityGateway {
     principal: Principal,
     input: Record<string, unknown>,
   ) {
+    const tenantId = this.requireTenantId(principal);
+    const accessPrincipal = this.toNodeAccessPrincipal(principal);
+    const allowedUris = await this.knowledgeNodeAclService.getAllowedUris(
+      tenantId,
+      accessPrincipal,
+    );
+    const taskBeforeRetry = await this.importTaskService.findOne(
+      String(input.taskId),
+      tenantId,
+      accessPrincipal,
+    );
+    await this.assertImportTaskVisible(
+      taskBeforeRetry,
+      tenantId,
+      accessPrincipal,
+      allowedUris,
+    );
     const task = await this.importTaskService.retry(
       String(input.taskId),
-      this.requireTenantId(principal),
+      tenantId,
       createAuditActorSnapshot(principal),
+      accessPrincipal,
     );
     return {
       taskId: task?.id ?? String(input.taskId),
@@ -305,9 +441,22 @@ export class KnowledgeCapabilityGateway {
     principal: Principal,
     input: Record<string, unknown>,
   ) {
+    const tenantId = this.requireTenantId(principal);
+    const accessPrincipal = this.toNodeAccessPrincipal(principal);
+    const allowedUris = await this.knowledgeNodeAclService.getAllowedUris(
+      tenantId,
+      accessPrincipal,
+    );
     const task = await this.importTaskService.findOne(
       String(input.taskId),
-      this.requireTenantId(principal),
+      tenantId,
+      accessPrincipal,
+    );
+    await this.assertImportTaskVisible(
+      task,
+      tenantId,
+      accessPrincipal,
+      allowedUris,
     );
     return {
       events: [
@@ -330,6 +479,10 @@ export class KnowledgeCapabilityGateway {
       String(input.nodeId),
       this.requireTenantId(principal),
     );
+    this.knowledgeNodeAclService.assertCanReadNode(
+      node,
+      this.toNodeAccessPrincipal(principal),
+    );
     return { item: this.toDocumentIndexItem(node) };
   }
 
@@ -341,6 +494,7 @@ export class KnowledgeCapabilityGateway {
       String(input.nodeId),
       this.requireTenantId(principal),
       createAuditActorSnapshot(principal),
+      this.toNodeAccessPrincipal(principal),
     );
     return { item };
   }
@@ -352,6 +506,7 @@ export class KnowledgeCapabilityGateway {
     const snapshot = await this.documentService.loadContent(
       String(input.nodeId),
       this.requireTenantId(principal),
+      this.toNodeAccessPrincipal(principal),
     );
     const pattern = String(input.pattern ?? '');
     const caseInsensitive =
@@ -511,12 +666,150 @@ export class KnowledgeCapabilityGateway {
     return principal.tenantId;
   }
 
+  private toNodeAccessPrincipal(principal: Principal): KnowledgeNodeAccessPrincipal {
+    return {
+      userId: principal.userId,
+      role: principal.role ?? null,
+    };
+  }
+
   private toStringArray(value: unknown) {
     return Array.isArray(value)
       ? value
           .map((item) => String(item))
           .filter((item) => item.trim().length > 0)
       : undefined;
+  }
+
+  private async canAccessKnowledgeBase(
+    kbId: string,
+    tenantId: string,
+    principal: KnowledgeNodeAccessPrincipal,
+  ) {
+    const nodes =
+      (await this.knowledgeTreeService.findByKb(kbId, tenantId)) ?? [];
+    if (nodes.length === 0) {
+      return true;
+    }
+
+    return (
+      this.knowledgeNodeAclService.filterReadableNodes(nodes, principal).length >
+      0
+    );
+  }
+
+  private async assertKnowledgeBaseVisible(
+    kbId: string,
+    tenantId: string,
+    principal: KnowledgeNodeAccessPrincipal,
+  ) {
+    if (!(await this.canAccessKnowledgeBase(kbId, tenantId, principal))) {
+      throw new ForbiddenException('当前用户无权访问该知识库');
+    }
+  }
+
+  private async canAccessImportTask(
+    task: ImportTaskModel,
+    tenantId: string,
+    principal: KnowledgeNodeAccessPrincipal,
+    allowedUris: string[],
+  ) {
+    if (!(await this.canAccessKnowledgeBase(task.kbId, tenantId, principal))) {
+      return false;
+    }
+
+    if (task.autoCreatedNodeId) {
+      try {
+        const node = await this.knowledgeTreeService.findOne(
+          task.autoCreatedNodeId,
+          tenantId,
+        );
+        return this.knowledgeNodeAclService.canReadNode(node, principal);
+      } catch {
+        return false;
+      }
+    }
+
+    if (allowedUris.length === 0 || !task.targetUri) {
+      return true;
+    }
+
+    return allowedUris.some(
+      (allowedUri) =>
+        this.isUriWithinScope(allowedUri, task.targetUri) ||
+        this.isUriWithinScope(task.targetUri, allowedUri),
+    );
+  }
+
+  private async assertImportTaskVisible(
+    task: ImportTaskModel,
+    tenantId: string,
+    principal: KnowledgeNodeAccessPrincipal,
+    allowedUris: string[],
+  ) {
+    if (!(await this.canAccessImportTask(task, tenantId, principal, allowedUris))) {
+      throw new ForbiddenException('当前用户无权访问该导入任务');
+    }
+  }
+
+  private assertScopeAccessible(targetUri: string, allowedUris: string[]) {
+    const accessible = allowedUris.some(
+      (allowedUri) =>
+        this.isUriWithinScope(allowedUri, targetUri) ||
+        this.isUriWithinScope(targetUri, allowedUri),
+    );
+    if (!accessible) {
+      throw new ForbiddenException('当前用户无权访问该资源范围');
+    }
+  }
+
+  private isMatchedResourceVisible(
+    candidateUri: string,
+    allowedUris: string[],
+    requestedScope?: string,
+  ) {
+    const allowed = allowedUris.some((allowedUri) =>
+      this.isUriWithinScope(candidateUri, allowedUri),
+    );
+    if (!allowed) {
+      return false;
+    }
+
+    if (!requestedScope) {
+      return true;
+    }
+
+    return this.isUriWithinScope(candidateUri, requestedScope);
+  }
+
+  private isListedResourceVisible(candidateUri: string, allowedUris: string[]) {
+    return allowedUris.some(
+      (allowedUri) =>
+        this.isUriWithinScope(candidateUri, allowedUri) ||
+        this.isUriWithinScope(allowedUri, candidateUri),
+    );
+  }
+
+  private isUriWithinScope(candidateUri: string, scopeUri: string) {
+    const normalizedCandidate = this.normalizeUri(candidateUri);
+    const normalizedScope = this.normalizeUri(scopeUri);
+    if (!normalizedCandidate || !normalizedScope) {
+      return false;
+    }
+
+    return (
+      normalizedCandidate === normalizedScope ||
+      normalizedCandidate.startsWith(`${normalizedScope}/`)
+    );
+  }
+
+  private normalizeUri(uri?: string | null) {
+    if (!uri) {
+      return null;
+    }
+
+    const normalized = uri.trim().replace(/\/+$/, '');
+    return normalized.length > 0 ? normalized : null;
   }
 
   private toConnection(principal: Principal): OVConnection {

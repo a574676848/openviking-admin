@@ -11,16 +11,25 @@ import {
 
 describe('KnowledgeTreeController', () => {
   const treeService = {
+    findByKb: jest.fn(),
+    findChildrenWithCount: jest.fn(),
+    findLineageWithSiblings: jest.fn(),
+    findOne: jest.fn(),
     create: jest.fn(),
     createFile: jest.fn(),
     update: jest.fn(),
     remove: jest.fn(),
+  };
+  const knowledgeNodeAclService = {
+    filterReadableNodes: jest.fn((items) => items),
+    assertCanReadNode: jest.fn(),
   };
   const auditService = {
     log: jest.fn(),
   };
   const controller = new KnowledgeTreeController(
     treeService as never,
+    knowledgeNodeAclService as never,
     auditService as never,
   );
   const req = {
@@ -32,6 +41,37 @@ describe('KnowledgeTreeController', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  it('findByKb 应过滤掉当前用户无 ACL 可见权限的节点', async () => {
+    treeService.findByKb.mockResolvedValue([
+      { id: 'node-1', acl: null },
+      { id: 'node-2', acl: { isPublic: false } },
+    ]);
+    knowledgeNodeAclService.filterReadableNodes.mockImplementation(
+      (items: Array<{ acl: { isPublic?: boolean } | null }>) =>
+        items.filter((item) => !item.acl || item.acl.isPublic),
+    );
+
+    const result = await controller.findByKb('kb-1', undefined, req);
+
+    expect(result).toEqual([{ id: 'node-1', acl: null }]);
+  });
+
+  it('move 前应校验源节点 ACL 可见性', async () => {
+    treeService.findOne.mockResolvedValue({ id: 'node-1', acl: null });
+    treeService.update.mockResolvedValue({ id: 'node-1' });
+
+    await controller.move(
+      'node-1',
+      { parentId: null, sortOrder: 3 },
+      req,
+    );
+
+    expect(knowledgeNodeAclService.assertCanReadNode).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'node-1' }),
+      expect.objectContaining({ userId: 'user-1' }),
+    );
   });
 
   function createRoleContext(role: string): ExecutionContext {

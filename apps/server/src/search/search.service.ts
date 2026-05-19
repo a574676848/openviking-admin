@@ -1,4 +1,4 @@
-import { Injectable, Inject, Logger } from '@nestjs/common';
+import { ForbiddenException, Injectable, Inject, Logger } from '@nestjs/common';
 import { SEARCH_LOG_REPOSITORY } from './domain/repositories/search-log.repository.interface';
 import type { ISearchLogRepository } from './domain/repositories/search-log.repository.interface';
 import { IKnowledgeNodeRepository } from '../knowledge-tree/domain/repositories/knowledge-node.repository.interface';
@@ -12,6 +12,10 @@ export interface FindParams {
   topK?: number;
   scoreThreshold?: number;
   useRerank?: boolean;
+}
+
+export interface SearchFindOptions {
+  connection?: OVConnection;
 }
 
 export interface OVSearchResource {
@@ -37,6 +41,19 @@ interface OVSearchResponse {
   result?: {
     resources: OVSearchResource[];
   };
+}
+
+interface OVGrepMatch {
+  uri: string;
+  [key: string]: unknown;
+}
+
+interface OVGrepResponse {
+  result?: {
+    matches?: OVGrepMatch[];
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
 }
 
 interface RerankResult {
@@ -75,6 +92,7 @@ export class SearchService {
     tenantId: string,
     user: { id: string; role: string },
     meta?: OVRequestMeta,
+    options?: SearchFindOptions,
   ) {
     const config = await this.settings.resolveOVConfig(tenantId);
     const start = Date.now();
@@ -85,12 +103,14 @@ export class SearchService {
       params.useRerank !== false && !!config.rerankEndpoint;
     const stage1TopK = shouldUseRerank ? 20 : params.topK || 5;
 
-    const connection = this.toConnection({
-      baseUrl: config.baseUrl || '',
-      apiKey: config.apiKey || '',
-      account: config.account || 'default',
-      user: config.user || undefined,
-    });
+    const connection = this.toConnection(
+      options?.connection ?? {
+        baseUrl: config.baseUrl || '',
+        apiKey: config.apiKey || '',
+        account: config.account || 'default',
+        user: config.user || undefined,
+      },
+    );
     const data = (await this.ovKnowledgeGateway.findKnowledge(
       connection,
       {
@@ -169,10 +189,16 @@ export class SearchService {
     pattern: string,
     uri: string,
     tenantId: string,
+    user: { id: string; role: string },
     meta?: OVRequestMeta,
   ) {
     const config = await this.settings.resolveOVConfig(tenantId);
-    return this.ovKnowledgeGateway.grepKnowledge(
+    const allowedUris = await this.nodeRepo.findAllowedUris(tenantId, user);
+    if (!this.isScopeAccessible(uri, allowedUris)) {
+      throw new ForbiddenException('当前用户无权访问该资源范围');
+    }
+
+    const response = (await this.ovKnowledgeGateway.grepKnowledge(
       this.toConnection({
         baseUrl: config.baseUrl || '',
         apiKey: config.apiKey || '',
@@ -181,7 +207,19 @@ export class SearchService {
       }),
       { pattern, uri, caseInsensitive: true },
       meta,
-    );
+    )) as OVGrepResponse;
+
+    return {
+      ...response,
+      result: {
+        ...(response.result ?? {}),
+        matches: this.filterGrepMatchesByScope(
+          response.result?.matches ?? [],
+          allowedUris,
+          uri,
+        ),
+      },
+    };
   }
 
   async getAnalysis(tenantId: string | null) {
@@ -290,6 +328,56 @@ export class SearchService {
       }
 
       return this.isUriWithinScope(resourceUri, normalizedRequestedScope);
+    });
+  }
+
+  private filterGrepMatchesByScope(
+    matches: OVGrepMatch[],
+    allowedUris: string[],
+    requestedScope?: string,
+  ) {
+    const normalizedAllowedUris = allowedUris
+      .map((uri) => this.normalizeUri(uri))
+      .filter((uri): uri is string => !!uri);
+    const normalizedRequestedScope = this.normalizeUri(requestedScope);
+
+    return matches.filter((match) => {
+      const matchUri = this.normalizeUri(match.uri);
+      if (!matchUri) {
+        return false;
+      }
+
+      const allowedByAcl = normalizedAllowedUris.some((allowedUri) =>
+        this.isUriWithinScope(matchUri, allowedUri),
+      );
+      if (!allowedByAcl) {
+        return false;
+      }
+
+      if (!normalizedRequestedScope) {
+        return true;
+      }
+
+      return this.isUriWithinScope(matchUri, normalizedRequestedScope);
+    });
+  }
+
+  private isScopeAccessible(scopeUri: string, allowedUris: string[]) {
+    const normalizedScope = this.normalizeUri(scopeUri);
+    if (!normalizedScope) {
+      return false;
+    }
+
+    return allowedUris.some((allowedUri) => {
+      const normalizedAllowedUri = this.normalizeUri(allowedUri);
+      if (!normalizedAllowedUri) {
+        return false;
+      }
+
+      return (
+        this.isUriWithinScope(normalizedAllowedUri, normalizedScope) ||
+        this.isUriWithinScope(normalizedScope, normalizedAllowedUri)
+      );
     });
   }
 

@@ -16,6 +16,7 @@ import {
 import { DocumentSessionRegistry } from '../common/document-session-registry';
 import type { AuditActorSnapshot } from '../common/audit-actor.types';
 import { KnowledgeNodeModel } from '../knowledge-tree/domain/knowledge-node.model';
+import { KnowledgeNodeAclService } from '../knowledge-tree/knowledge-node-acl.service';
 import { KnowledgeTreeService } from '../knowledge-tree/knowledge-tree.service';
 import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
 import { SettingsService } from '../settings/settings.service';
@@ -72,6 +73,11 @@ import {
   findOpenVikingInjectedLeaf,
 } from './document-openviking-response.util';
 
+export interface DocumentAccessContext {
+  userId: string;
+  role?: string | null;
+}
+
 @Injectable()
 export class DocumentService {
   private readonly logger = new Logger(DocumentService.name);
@@ -80,6 +86,7 @@ export class DocumentService {
     private readonly ovClientService: OVClientService,
     private readonly settingsService: SettingsService,
     private readonly knowledgeTreeService: KnowledgeTreeService,
+    private readonly knowledgeNodeAclService: KnowledgeNodeAclService,
     private readonly documentContentCodec: DocumentContentCodec,
     private readonly documentSessionRegistry: DocumentSessionRegistry,
     private readonly documentDraftRepository: DocumentDraftRepository,
@@ -92,8 +99,9 @@ export class DocumentService {
     nodeId: string,
     tenantId: string | null,
     userRole: string,
+    accessContext?: DocumentAccessContext,
   ): Promise<DocumentMetadata> {
-    const node = await this.requireDocumentNode(nodeId, tenantId);
+    const node = await this.requireDocumentNode(nodeId, tenantId, accessContext);
     const canWrite = DOCUMENT_WRITE_ROLE_SET.has(userRole);
     const contentUri = this.resolveCurrentContentUri(node);
 
@@ -123,8 +131,9 @@ export class DocumentService {
   async loadContent(
     nodeId: string,
     tenantId: string | null,
+    accessContext?: DocumentAccessContext,
   ): Promise<DocumentContentSnapshot> {
-    const node = await this.requireDocumentNode(nodeId, tenantId);
+    const node = await this.requireDocumentNode(nodeId, tenantId, accessContext);
     const draft = await this.documentDraftRepository.findByNode(
       node.id,
       tenantId,
@@ -156,12 +165,13 @@ export class DocumentService {
     blocks: DocumentBlock[],
     options: DocumentSaveOptions = {},
     actor?: AuditActorSnapshot | null,
+    accessContext?: DocumentAccessContext,
   ): Promise<DocumentSaveResult> {
     if (options.assertNoActiveWriteSession) {
       this.documentSessionRegistry.assertNoActiveWriteSession(nodeId);
     }
 
-    const node = await this.requireDocumentNode(nodeId, tenantId);
+    const node = await this.requireDocumentNode(nodeId, tenantId, accessContext);
     const markdown = this.documentContentCodec.blocksToMarkdown(blocks);
     const draft = await this.documentDraftRepository.saveMarkdown(
       node.id,
@@ -195,12 +205,13 @@ export class DocumentService {
     markdown: string,
     options: DocumentSaveOptions = {},
     actor?: AuditActorSnapshot | null,
+    accessContext?: DocumentAccessContext,
   ): Promise<DocumentSaveResult> {
     if (options.assertNoActiveWriteSession) {
       this.documentSessionRegistry.assertNoActiveWriteSession(nodeId);
     }
 
-    const node = await this.requireDocumentNode(nodeId, tenantId);
+    const node = await this.requireDocumentNode(nodeId, tenantId, accessContext);
     const draft = await this.documentDraftRepository.saveMarkdown(
       node.id,
       tenantId,
@@ -231,8 +242,9 @@ export class DocumentService {
     nodeId: string,
     tenantId: string | null,
     actor?: AuditActorSnapshot | null,
+    accessContext?: DocumentAccessContext,
   ): Promise<DocumentIndexResult> {
-    const node = await this.requireDocumentNode(nodeId, tenantId);
+    const node = await this.requireDocumentNode(nodeId, tenantId, accessContext);
     const draft = await this.documentDraftRepository.findByNode(
       node.id,
       tenantId,
@@ -348,8 +360,9 @@ export class DocumentService {
     tenantId: string | null,
     file: DocumentAssetUploadFile,
     actor?: AuditActorSnapshot | null,
+    accessContext?: DocumentAccessContext,
   ): Promise<DocumentAssetUploadResult> {
-    const node = await this.requireDocumentNode(nodeId, tenantId);
+    const node = await this.requireDocumentNode(nodeId, tenantId, accessContext);
     const connection = await this.resolveOpenVikingConnection(tenantId);
     const containerUri = this.resolveDocumentContainerUri(node);
     const assetsUri = this.joinResourceUri(
@@ -421,8 +434,9 @@ export class DocumentService {
     nodeId: string,
     tenantId: string | null,
     filename: string,
+    accessContext?: DocumentAccessContext,
   ): Promise<DocumentAssetStream> {
-    const node = await this.requireDocumentNode(nodeId, tenantId);
+    const node = await this.requireDocumentNode(nodeId, tenantId, accessContext);
     const connection = await this.resolveOpenVikingConnection(tenantId);
     const containerUri = this.resolveDocumentContainerUri(node);
     const assetFileName = this.normalizeAssetFileName(filename);
@@ -475,8 +489,16 @@ export class DocumentService {
   private async requireDocumentNode(
     nodeId: string,
     tenantId: string | null,
+    accessContext?: DocumentAccessContext,
   ): Promise<KnowledgeNodeModel> {
     const node = await this.knowledgeTreeService.findOne(nodeId, tenantId);
+    if (accessContext) {
+      this.knowledgeNodeAclService.assertCanReadNode(
+        node,
+        accessContext,
+        '当前用户无权访问该文档节点。',
+      );
+    }
     if (node.kind !== 'document') {
       throw new BadRequestException('目标节点不是文档节点。');
     }

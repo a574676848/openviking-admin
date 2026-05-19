@@ -453,7 +453,7 @@ LDAP / AD 域账号直接登录。服务端会使用租户 LDAP 集成中的 `bi
 | `documents.index.rebuild` | `POST` | `/api/v1/capability/documents/:id/index/rebuild` | 使用最新草稿重建索引      |
 | `documents.draft.grep`    | `POST` | `/api/v1/capability/documents/:id/draft/grep` | 检索 Admin 侧文档草稿正文 |
 
-导入任务列表、详情、状态和 capability 投影会返回 `createdBy`、`updatedBy`。创建任务时两个字段均为当前操作者；重试和取消会更新 `updatedBy`；Worker 自动推进任务状态不会覆盖人工操作人。
+导入任务列表、详情、状态和 capability 投影会返回 `createdBy`、`updatedBy`。创建任务时两个字段均为当前操作者；重试和取消会更新 `updatedBy`；Worker 自动推进任务状态不会覆盖人工操作人。capability `documents.import.status`、`documents.import.list`、`documents.import.events`、`documents.import.cancel` 与 `documents.import.retry` 在最低角色校验通过后，还会继续按目标知识库/节点 ACL 收敛。
 
 失败任务的物理删除当前仅提供给控制台/JWT 管理接口，尚未纳入 capability、CLI 和 MCP 契约。
 
@@ -674,6 +674,8 @@ MCP JSON-RPC 消息接口。
 
 知识库列表与详情会返回操作人快照：`createdBy`、`updatedBy`。字段来自服务端从 JWT、WebDAV principal 或 capability principal 解析出的用户信息；历史数据为空时返回 `null`。
 
+管理侧 `knowledge-bases` HTTP 入口现已按知识节点 ACL 收敛：如果某个知识库下存在节点，但当前用户对其全部节点都不可见，则该知识库不会出现在列表、分页结果、详情和树查询中；更新与删除也会拒绝越权访问。
+
 ## 知识树接口
 
 需要 JWT 和租户上下文。
@@ -692,6 +694,8 @@ MCP JSON-RPC 消息接口。
 删除知识树节点由服务层统一先调用 OpenViking `/api/v1/fs` 删除节点对应资源，再删除 Admin 侧节点元数据：叶子文件使用 `recursive=false`，目录节点使用 `recursive=true`。递归删除时按子节点优先顺序清理，避免本地元数据先消失后留下 OpenViking 残留资源。
 
 创建文档节点时，请求体传 `kind:'document'`。如果 `name` 没有文件后缀，后端会自动补齐默认 Markdown 后缀 `.md`；已有后缀的名称保持不变。未传 `kind` 或传 `kind:'collection'` 时仍按目录节点创建。
+
+管理侧 `knowledge-tree` HTTP 入口现已复用同一套节点 ACL：节点列表、谱系、图谱、详情会过滤不可见节点；更新、删除、移动以及基于父节点创建新节点时，也会先校验当前用户对目标节点或目标知识库的可见性。
 
 知识树列表、详情和知识库树查询会返回 `createdBy`、`updatedBy` 操作人快照。正文保存、资产上传、节点移动和重命名会更新节点的 `updatedBy`，创建人保持不变。
 
@@ -748,6 +752,7 @@ MCP JSON-RPC 消息接口。
 
 补充说明：
 
+- `/api/v1/import-tasks` 与 capability `documents.import.*` 现在统一按目标知识库/节点 ACL 收敛；列表只返回当前用户可见任务，详情、事件、同步、重试、取消和删除都会在最低角色校验后继续检查 ACL。
 - `POST /api/v1/import-tasks` 至少需要 `kbId`、`sourceType` 与来源地址（`sourceUrl` 或 `sourceUrls`）
 - `sourceType=feishu` / `sourceType=dingtalk` 必须提供 `integrationId`，Worker 会在 Admin 侧读取平台文档内容后通过 OpenViking `temp_upload` 注入
 - `sourceType=git` 建议提供 `integrationId`，用于读取平台凭证、分支和路径配置
@@ -772,7 +777,7 @@ MCP JSON-RPC 消息接口。
 | Method | Path                               | 说明           |
 | ------ | ---------------------------------- | -------------- |
 | `POST` | `/api/v1/search/find`              | 语义检索       |
-| `POST` | `/api/v1/search/grep`              | 文本匹配       |
+| `POST` | `/api/v1/search/grep`              | 文本匹配（结果按节点 ACL 过滤） |
 | `GET`  | `/api/v1/search/analysis`          | 无答案基础分析 |
 | `GET`  | `/api/v1/search/stats-deep`        | 深度检索统计   |
 | `GET`  | `/api/v1/search/logs`              | 最近检索日志   |

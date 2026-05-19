@@ -282,6 +282,63 @@ describe('SearchService', () => {
     );
   });
 
+
+  it('grep 应只返回 ACL 可见范围内的命中', async () => {
+    settings.resolveOVConfig.mockResolvedValue({
+      baseUrl: 'http://ov.local',
+      apiKey: 'key',
+      account: 'default',
+    });
+    ovKnowledgeGateway.grepKnowledge.mockResolvedValue({
+      result: {
+        matches: [
+          { uri: 'viking://a/doc-1', line: 1, content: 'visible' },
+          { uri: 'viking://hidden/doc-2', line: 2, content: 'hidden' },
+        ],
+      },
+    });
+
+    const result = await service.grep(
+      'visible',
+      'viking://a',
+      'tenant-a',
+      { id: 'user-1', role: 'tenant_admin' },
+    );
+
+    expect(ovKnowledgeGateway.grepKnowledge).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        pattern: 'visible',
+        uri: 'viking://a',
+        caseInsensitive: true,
+      }),
+      undefined,
+    );
+    expect(result).toEqual({
+      result: {
+        matches: [{ uri: 'viking://a/doc-1', line: 1, content: 'visible' }],
+      },
+    });
+  });
+
+  it('grep 应拒绝访问无 ACL 权限的范围', async () => {
+    settings.resolveOVConfig.mockResolvedValue({
+      baseUrl: 'http://ov.local',
+      apiKey: 'key',
+      account: 'default',
+    });
+
+    await expect(
+      service.grep(
+        'hidden',
+        'viking://tenant-b',
+        'tenant-a',
+        { id: 'user-1', role: 'tenant_admin' },
+      ),
+    ).rejects.toThrow('当前用户无权访问该资源范围');
+    expect(ovKnowledgeGateway.grepKnowledge).not.toHaveBeenCalled();
+  });
+
   it('命中结果超出选中 URI_SCOPE 时应在服务端过滤', async () => {
     nodeRepo.findAllowedUris.mockResolvedValue([
       'viking://resources/tenants/test3/pre-research/',

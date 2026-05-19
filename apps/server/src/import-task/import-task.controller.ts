@@ -33,12 +33,12 @@ export class ImportTaskController {
 
   @Get()
   findAll(@Req() req: AuthenticatedRequest) {
-    return this.taskService.findAll(req.tenantScope);
+    return this.taskService.findAll(req.tenantScope, this.toAccessContext(req));
   }
 
   @Get(':id')
   findOne(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
-    return this.taskService.findOne(id, req.tenantScope);
+    return this.taskService.findOne(id, req.tenantScope, this.toAccessContext(req));
   }
 
   @Post()
@@ -75,8 +75,16 @@ export class ImportTaskController {
   ) {
     const task =
       sync === 'true'
-        ? await this.taskService.syncResult(id, req.tenantScope)
-        : await this.taskService.findOne(id, req.tenantScope);
+        ? await this.taskService.syncResult(
+            id,
+            req.tenantScope,
+            this.toAccessContext(req),
+          )
+        : await this.taskService.findOne(
+            id,
+            req.tenantScope,
+            this.toAccessContext(req),
+          );
     return {
       events: [
         {
@@ -113,6 +121,7 @@ export class ImportTaskController {
       files ?? [],
       req.tenantScope ?? '',
       createAuditActorSnapshot(req.user),
+      this.toAccessContext(req),
     );
     await this.auditService.log({
       tenantId: req.tenantScope ?? undefined,
@@ -132,7 +141,7 @@ export class ImportTaskController {
 
   @Get(':id/sync')
   syncResult(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
-    return this.taskService.syncResult(id, req.tenantScope);
+    return this.taskService.syncResult(id, req.tenantScope, this.toAccessContext(req));
   }
 
   @Post(':id/retry')
@@ -141,6 +150,7 @@ export class ImportTaskController {
       id,
       req.tenantScope,
       createAuditActorSnapshot(req.user),
+      this.toAccessContext(req),
     );
     await this.auditService.log({
       tenantId: req.tenantScope ?? undefined,
@@ -160,6 +170,7 @@ export class ImportTaskController {
       id,
       req.tenantScope,
       createAuditActorSnapshot(req.user),
+      this.toAccessContext(req),
     );
     await this.auditService.log({
       tenantId: req.tenantScope ?? undefined,
@@ -175,7 +186,11 @@ export class ImportTaskController {
 
   @Delete(':id')
   async remove(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
-    const removed = await this.taskService.deleteFailed(id, req.tenantScope);
+    const removed = await this.taskService.deleteFailed(
+      id,
+      req.tenantScope,
+      this.toAccessContext(req),
+    );
     await this.auditService.log({
       tenantId: req.tenantScope ?? undefined,
       userId: req.user.id,
@@ -197,6 +212,7 @@ export class ImportTaskController {
       dto,
       req.tenantScope ?? '',
       createAuditActorSnapshot(req.user),
+      this.toAccessContext(req),
     );
     await this.auditService.log({
       tenantId: req.tenantScope ?? undefined,
@@ -226,5 +242,12 @@ export class ImportTaskController {
     if (status === 'failed') return '导入失败';
     if (status === 'cancelled') return '导入已取消';
     return '等待导入';
+  }
+
+  private toAccessContext(req: AuthenticatedRequest) {
+    return {
+      userId: req.user.id,
+      role: req.user.role,
+    };
   }
 }

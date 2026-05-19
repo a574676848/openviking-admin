@@ -5,6 +5,7 @@ import { KnowledgeBase } from '../knowledge-base/entities/knowledge-base.entity'
 import { KnowledgeTreeService } from './knowledge-tree.service';
 import { KnowledgeTreeController } from './knowledge-tree.controller';
 import { SettingsModule } from '../settings/settings.module';
+import { KnowledgeNodeAclService } from './knowledge-node-acl.service';
 
 import { IKnowledgeNodeRepository } from './domain/repositories/knowledge-node.repository.interface';
 import { KnowledgeNodeRepositoryImpl } from './infrastructure/repositories/knowledge-node.repository.impl';
@@ -18,6 +19,7 @@ import { TypeOrmKnowledgeBaseRepository } from '../knowledge-base/infrastructure
   ],
   providers: [
     KnowledgeTreeService,
+    KnowledgeNodeAclService,
     {
       provide: IKnowledgeNodeRepository,
       useClass: KnowledgeNodeRepositoryImpl,
@@ -28,6 +30,6 @@ import { TypeOrmKnowledgeBaseRepository } from '../knowledge-base/infrastructure
     },
   ],
   controllers: [KnowledgeTreeController],
-  exports: [KnowledgeTreeService, IKnowledgeNodeRepository],
+  exports: [KnowledgeTreeService, KnowledgeNodeAclService, IKnowledgeNodeRepository],
 })
 export class KnowledgeTreeModule {}

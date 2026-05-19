@@ -4,6 +4,7 @@ import {
   Post,
   Patch,
   Delete,
+  ForbiddenException,
   Body,
   Param,
   Req,
@@ -12,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { TenantGuard } from '../common/tenant.guard';
+import { KnowledgeNodeAclService } from './knowledge-node-acl.service';
 import { KnowledgeTreeService } from './knowledge-tree.service';
 import { AuditService } from '../audit/audit.service';
 import { CreateNodeDto, UpdateNodeDto } from './dto/node.dto';
@@ -31,6 +33,7 @@ import { createAuditActorSnapshot } from '../common/audit-actor.types';
 export class KnowledgeTreeController {
   constructor(
     private readonly treeService: KnowledgeTreeService,
+    private readonly knowledgeNodeAclService: KnowledgeNodeAclService,
     private readonly auditService: AuditService,
   ) {}
 
@@ -41,32 +44,58 @@ export class KnowledgeTreeController {
     @Req() req: AuthenticatedRequest,
   ) {
     if (parentId !== undefined) {
-      return this.treeService.findChildrenWithCount(
-        kbId,
-        parentId === 'root' ? null : parentId,
-        req.tenantScope,
-      );
+      return this.findChildrenWithAcl(kbId, parentId, req);
     }
-    return this.treeService.findByKb(kbId, req.tenantScope);
+    return this.findByKbWithAcl(kbId, req);
   }
 
   @Get(':id/lineage')
-  findLineage(
+  async findLineage(
     @Param('id') id: string,
     @Query('kbId') kbId: string,
     @Req() req: AuthenticatedRequest,
   ) {
-    return this.treeService.findLineageWithSiblings(kbId, id, req.tenantScope);
+    await this.getReadableNode(id, req);
+    const items = await this.treeService.findLineageWithSiblings(
+      kbId,
+      id,
+      req.tenantScope,
+    );
+    return this.knowledgeNodeAclService.filterReadableNodes(
+      items,
+      this.toAccessPrincipal(req),
+    );
   }
 
   @Get('graph')
-  getGraphData(@Query('kbId') kbId: string, @Req() req: AuthenticatedRequest) {
-    return this.treeService.getGraphData(kbId, req.tenantScope);
+  async getGraphData(
+    @Query('kbId') kbId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    const items = await this.findByKbWithAcl(kbId, req);
+    const itemIds = new Set(items.map((item) => item.id));
+    return {
+      nodes: items.map((item) => ({
+        id: item.id,
+        name: item.name,
+        val: 1,
+        kind: item.kind,
+        vikingUri: item.vikingUri,
+        contentUri: item.contentUri,
+      })),
+      links: items
+        .filter((item) => item.parentId && itemIds.has(item.parentId))
+        .map((item) => ({
+          source: item.parentId,
+          target: item.id,
+          label: 'PARENT_OF',
+        })),
+    };
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
-    return this.treeService.findOne(id, req.tenantScope);
+  async findOne(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    return this.getReadableNode(id, req);
   }
 
   @Post()
@@ -74,6 +103,11 @@ export class KnowledgeTreeController {
   @Roles(...KNOWLEDGE_TREE_WRITE_ROLES)
   async create(@Body() dto: CreateNodeDto, @Req() req: AuthenticatedRequest) {
     const { kind = KNOWLEDGE_NODE_DEFAULT_KIND, ...nodeDto } = dto;
+    if (nodeDto.parentId) {
+      await this.getReadableNode(nodeDto.parentId, req);
+    } else {
+      await this.assertKnowledgeBaseVisible(nodeDto.kbId, req);
+    }
     const createPayload = {
       ...nodeDto,
       tenantId: req.tenantScope ?? '',
@@ -112,6 +146,7 @@ export class KnowledgeTreeController {
     @Body() dto: UpdateNodeDto,
     @Req() req: AuthenticatedRequest,
   ) {
+    await this.getReadableNode(id, req);
     const updated = await this.treeService.update(
       id,
       dto,
@@ -132,6 +167,7 @@ export class KnowledgeTreeController {
 
   @Delete(':id')
   async remove(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    await this.getReadableNode(id, req);
     const removed = await this.treeService.remove(id, req.tenantScope, {
       user: req.user.username,
     });
@@ -153,6 +189,10 @@ export class KnowledgeTreeController {
     @Body() body: { parentId: string | null; sortOrder: number },
     @Req() req: AuthenticatedRequest,
   ) {
+    await this.getReadableNode(id, req);
+    if (body.parentId) {
+      await this.getReadableNode(body.parentId, req);
+    }
     const moved = await this.treeService.update(
       id,
       { parentId: body.parentId, sortOrder: body.sortOrder },
@@ -173,5 +213,67 @@ export class KnowledgeTreeController {
       ip: req.ip,
     });
     return moved;
+  }
+
+  private async findByKbWithAcl(kbId: string, req: AuthenticatedRequest) {
+    await this.assertKnowledgeBaseVisible(kbId, req);
+    const items = await this.treeService.findByKb(kbId, req.tenantScope);
+    return this.knowledgeNodeAclService.filterReadableNodes(
+      items,
+      this.toAccessPrincipal(req),
+    );
+  }
+
+  private async findChildrenWithAcl(
+    kbId: string,
+    parentId: string,
+    req: AuthenticatedRequest,
+  ) {
+    if (parentId !== 'root') {
+      await this.getReadableNode(parentId, req);
+    } else {
+      await this.assertKnowledgeBaseVisible(kbId, req);
+    }
+    const items = await this.treeService.findChildrenWithCount(
+      kbId,
+      parentId === 'root' ? null : parentId,
+      req.tenantScope,
+    );
+    return this.knowledgeNodeAclService.filterReadableNodes(
+      items,
+      this.toAccessPrincipal(req),
+    );
+  }
+
+  private async assertKnowledgeBaseVisible(
+    kbId: string,
+    req: AuthenticatedRequest,
+  ) {
+    const items = await this.treeService.findByKb(kbId, req.tenantScope);
+    if (
+      items.length > 0 &&
+      this.knowledgeNodeAclService.filterReadableNodes(
+        items,
+        this.toAccessPrincipal(req),
+      ).length === 0
+    ) {
+      throw new ForbiddenException('当前用户无权访问该知识库');
+    }
+  }
+
+  private async getReadableNode(id: string, req: AuthenticatedRequest) {
+    const node = await this.treeService.findOne(id, req.tenantScope);
+    this.knowledgeNodeAclService.assertCanReadNode(
+      node,
+      this.toAccessPrincipal(req),
+    );
+    return node;
+  }
+
+  private toAccessPrincipal(req: AuthenticatedRequest) {
+    return {
+      userId: req.user.id,
+      role: req.user.role,
+    };
   }
 }

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   Inject,
@@ -27,6 +28,10 @@ import type { IKnowledgeBaseRepository } from '../knowledge-base/domain/reposito
 import { IKnowledgeNodeRepository } from '../knowledge-tree/domain/repositories/knowledge-node.repository.interface';
 import type { KnowledgeNodeModel } from '../knowledge-tree/domain/knowledge-node.model';
 import type { IKnowledgeNodeRepository as IKnowledgeNodeRepositoryType } from '../knowledge-tree/domain/repositories/knowledge-node.repository.interface';
+import {
+  KnowledgeNodeAclService,
+  type KnowledgeNodeAccessPrincipal,
+} from '../knowledge-tree/knowledge-node-acl.service';
 import { KnowledgeTreeService } from '../knowledge-tree/knowledge-tree.service';
 import {
   applyCreatedAuditActor,
@@ -71,17 +76,33 @@ export class ImportTaskService {
     private readonly ovClient: OVClientService,
     private readonly localImportStorage: LocalImportStorageService,
     private readonly knowledgeTreeService: KnowledgeTreeService,
+    private readonly knowledgeNodeAclService: KnowledgeNodeAclService,
     private readonly defaultDataSource: DataSource,
     @Inject(REQUEST) private readonly request: RepositoryRequest,
   ) {}
 
-  findAll(tenantId: string | null) {
-    return this.taskRepo.findAll(tenantId);
+  async findAll(
+    tenantId: string | null,
+    accessContext?: KnowledgeNodeAccessPrincipal,
+  ) {
+    const tasks = await this.taskRepo.findAll(tenantId);
+    if (!tenantId || !accessContext) {
+      return tasks;
+    }
+
+    return this.filterVisibleTasks(tasks, tenantId, accessContext);
   }
 
-  async findOne(id: string, tenantId: string | null) {
+  async findOne(
+    id: string,
+    tenantId: string | null,
+    accessContext?: KnowledgeNodeAccessPrincipal,
+  ) {
     const task = await this.taskRepo.findById(id, tenantId);
     if (!task) throw new NotFoundException(`导入任务 ${id} 不存在`);
+    if (tenantId && accessContext) {
+      await this.assertCanAccessImportTask(task, tenantId, accessContext);
+    }
     return task;
   }
 
@@ -89,6 +110,7 @@ export class ImportTaskService {
     dto: CreateImportTaskDto,
     tenantId: string,
     actor?: AuditActorSnapshot | null,
+    accessContext?: KnowledgeNodeAccessPrincipal,
   ) {
     if (
       ['git', 'feishu', 'dingtalk'].includes(dto.sourceType) &&
@@ -104,6 +126,12 @@ export class ImportTaskService {
     this.assertLocalSources(dto.sourceType, sourceUrls);
     return this.runInTenantTransaction(async () => {
       const baseTargetUri = await this.resolveTargetUri(dto, tenantId);
+      await this.assertCanAccessImportTarget(
+        dto.kbId,
+        tenantId,
+        baseTargetUri,
+        accessContext,
+      );
       const {
         sourceName: _sourceName,
         sourceNames: _sourceNames,
@@ -155,6 +183,7 @@ export class ImportTaskService {
     files: LocalImportUploadFile[],
     tenantId: string,
     actor?: AuditActorSnapshot | null,
+    accessContext?: KnowledgeNodeAccessPrincipal,
   ) {
     if (files.length === 0) {
       throw new BadRequestException('请先上传文件');
@@ -177,6 +206,7 @@ export class ImportTaskService {
         },
         tenantId,
         actor,
+        accessContext,
       );
     } catch (error) {
       await Promise.all(
@@ -513,8 +543,12 @@ export class ImportTaskService {
     }
   }
 
-  async syncResult(id: string, tenantId: string | null) {
-    const task = await this.findOne(id, tenantId);
+  async syncResult(
+    id: string,
+    tenantId: string | null,
+    accessContext?: KnowledgeNodeAccessPrincipal,
+  ) {
+    const task = await this.findOne(id, tenantId, accessContext);
     if (!task) return null;
 
     try {
@@ -525,7 +559,7 @@ export class ImportTaskService {
       );
       await this.taskRepo.update(id, stats);
       await this.refreshKnowledgeBaseStatsFromOpenViking(task, conn);
-      return this.taskRepo.findById(id, tenantId);
+      return this.findOne(id, tenantId, accessContext);
     } catch (err) {
       const message = err instanceof Error ? err.message : '未知错误';
       this.logger.warn(`Sync result for task ${id} failed: ${message}`);
@@ -631,8 +665,9 @@ export class ImportTaskService {
     id: string,
     tenantId: string | null,
     actor?: AuditActorSnapshot | null,
+    accessContext?: KnowledgeNodeAccessPrincipal,
   ) {
-    const task = await this.findOne(id, tenantId);
+    const task = await this.findOne(id, tenantId, accessContext);
     if (
       ![TaskStatus.FAILED, TaskStatus.CANCELLED].includes(
         task.status as TaskStatus,
@@ -646,7 +681,10 @@ export class ImportTaskService {
       actor,
     );
     if (syncedTask) {
-      return syncedTask;
+      if (!accessContext) {
+        return syncedTask;
+      }
+      return this.findOne(id, tenantId, accessContext);
     }
 
     if (task.status === TaskStatus.FAILED) {
@@ -666,7 +704,7 @@ export class ImportTaskService {
         actor,
       ),
     );
-    return this.taskRepo.findById(id, tenantId);
+    return this.findOne(id, tenantId, accessContext);
   }
 
   private async syncTaskFromOpenVikingBeforeRetry(
@@ -724,8 +762,9 @@ export class ImportTaskService {
     id: string,
     tenantId: string | null,
     actor?: AuditActorSnapshot | null,
+    accessContext?: KnowledgeNodeAccessPrincipal,
   ) {
-    const task = await this.findOne(id, tenantId);
+    const task = await this.findOne(id, tenantId, accessContext);
     if (task.status === TaskStatus.RUNNING) {
       throw new ConflictException('任务已进入执行阶段，当前版本不支持中途停止');
     }
@@ -747,11 +786,15 @@ export class ImportTaskService {
     if (task.sourceType === 'local') {
       await this.localImportStorage.deleteBySourceUrl(task.sourceUrl);
     }
-    return this.taskRepo.findById(id, tenantId);
+    return this.findOne(id, tenantId, accessContext);
   }
 
-  async deleteFailed(id: string, tenantId: string | null) {
-    const task = await this.findOne(id, tenantId);
+  async deleteFailed(
+    id: string,
+    tenantId: string | null,
+    accessContext?: KnowledgeNodeAccessPrincipal,
+  ) {
+    const task = await this.findOne(id, tenantId, accessContext);
     if (!this.isDeletableImportTaskStatus(task.status)) {
       throw new ConflictException('只有失败或成功任务才能物理删除');
     }
@@ -772,6 +815,192 @@ export class ImportTaskService {
     return DELETABLE_IMPORT_TASK_STATUSES.includes(
       status as (typeof DELETABLE_IMPORT_TASK_STATUSES)[number],
     );
+  }
+
+  private async assertCanAccessImportTarget(
+    kbId: string,
+    tenantId: string,
+    targetUri: string,
+    accessContext?: KnowledgeNodeAccessPrincipal,
+  ) {
+    if (!accessContext) {
+      return;
+    }
+
+    const canAccessKnowledgeBase = await this.canAccessKnowledgeBase(
+      kbId,
+      tenantId,
+      accessContext,
+    );
+    if (!canAccessKnowledgeBase) {
+      throw new ForbiddenException('当前用户无权访问该知识库');
+    }
+
+    const targetNode = await this.findTargetNodeByUri(kbId, tenantId, targetUri);
+    if (targetNode) {
+      this.knowledgeNodeAclService.assertCanReadNode(
+        targetNode,
+        accessContext,
+        '当前用户无权访问该导入目标节点',
+      );
+    }
+  }
+
+  private async filterVisibleTasks(
+    tasks: ImportTaskModel[],
+    tenantId: string,
+    accessContext: KnowledgeNodeAccessPrincipal,
+  ) {
+    const allowedUris = await this.knowledgeNodeAclService.getAllowedUris(
+      tenantId,
+      accessContext,
+    );
+    const knowledgeBaseVisibilityCache = new Map<string, boolean>();
+    const autoNodeCache = new Map<string, KnowledgeNodeModel | null>();
+    const visibleTasks = await Promise.all(
+      tasks.map(async (task) => ({
+        task,
+        visible: await this.canAccessImportTask(
+          task,
+          tenantId,
+          accessContext,
+          allowedUris,
+          knowledgeBaseVisibilityCache,
+          autoNodeCache,
+        ),
+      })),
+    );
+
+    return visibleTasks.filter((entry) => entry.visible).map((entry) => entry.task);
+  }
+
+  private async assertCanAccessImportTask(
+    task: ImportTaskModel,
+    tenantId: string,
+    accessContext: KnowledgeNodeAccessPrincipal,
+  ) {
+    const allowedUris = await this.knowledgeNodeAclService.getAllowedUris(
+      tenantId,
+      accessContext,
+    );
+    const visible = await this.canAccessImportTask(
+      task,
+      tenantId,
+      accessContext,
+      allowedUris,
+    );
+    if (!visible) {
+      throw new ForbiddenException('当前用户无权访问该导入任务');
+    }
+  }
+
+  private async canAccessImportTask(
+    task: ImportTaskModel,
+    tenantId: string,
+    accessContext: KnowledgeNodeAccessPrincipal,
+    allowedUris: string[],
+    knowledgeBaseVisibilityCache?: Map<string, boolean>,
+    autoNodeCache?: Map<string, KnowledgeNodeModel | null>,
+  ) {
+    if (
+      !(await this.canAccessKnowledgeBase(
+        task.kbId,
+        tenantId,
+        accessContext,
+        knowledgeBaseVisibilityCache,
+      ))
+    ) {
+      return false;
+    }
+
+    if (task.autoCreatedNodeId) {
+      const node = await this.findAutoCreatedNode(
+        task,
+        autoNodeCache,
+      );
+      return Boolean(
+        node && this.knowledgeNodeAclService.canReadNode(node, accessContext),
+      );
+    }
+
+    if (allowedUris.length === 0 || !task.targetUri) {
+      return true;
+    }
+
+    return allowedUris.some(
+      (allowedUri) =>
+        this.isUriWithinScope(allowedUri, task.targetUri) ||
+        this.isUriWithinScope(task.targetUri, allowedUri),
+    );
+  }
+
+  private async canAccessKnowledgeBase(
+    kbId: string,
+    tenantId: string,
+    accessContext: KnowledgeNodeAccessPrincipal,
+    cache?: Map<string, boolean>,
+  ) {
+    const cached = cache?.get(kbId);
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const nodes = await this.nodeRepo.find({
+      where: { kbId, tenantId },
+      order: { sortOrder: 'ASC', createdAt: 'ASC' },
+    });
+    const visible =
+      nodes.length === 0 ||
+      this.knowledgeNodeAclService.filterReadableNodes(nodes, accessContext)
+        .length > 0;
+    cache?.set(kbId, visible);
+    return visible;
+  }
+
+  private async findAutoCreatedNode(
+    task: Pick<ImportTaskModel, 'autoCreatedNodeId' | 'tenantId' | 'kbId'>,
+    cache?: Map<string, KnowledgeNodeModel | null>,
+  ) {
+    if (!task.autoCreatedNodeId) {
+      return null;
+    }
+
+    const cached = cache?.get(task.autoCreatedNodeId);
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const node = await this.nodeRepo.findOne({
+      where: {
+        id: task.autoCreatedNodeId,
+        tenantId: task.tenantId,
+        kbId: task.kbId,
+      },
+    });
+    cache?.set(task.autoCreatedNodeId, node);
+    return node;
+  }
+
+  private isUriWithinScope(candidateUri: string, scopeUri: string) {
+    const normalizedCandidate = this.normalizeUri(candidateUri);
+    const normalizedScope = this.normalizeUri(scopeUri);
+    if (!normalizedCandidate || !normalizedScope) {
+      return false;
+    }
+
+    return (
+      normalizedCandidate === normalizedScope ||
+      normalizedCandidate.startsWith(`${normalizedScope}/`)
+    );
+  }
+
+  private normalizeUri(uri?: string | null) {
+    if (!uri) {
+      return null;
+    }
+
+    const normalized = uri.trim().replace(/\/+$/, '');
+    return normalized.length > 0 ? normalized : null;
   }
 
   private async refreshKnowledgeBaseStatsAfterTaskDelete(

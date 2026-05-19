@@ -62,6 +62,7 @@ export class DocumentController {
       nodeId,
       req.tenantScope,
       req.user.role,
+      this.toAccessContext(req),
     );
   }
 
@@ -70,7 +71,11 @@ export class DocumentController {
     @Param('nodeId') nodeId: string,
     @Req() req: AuthenticatedRequest,
   ) {
-    return this.documentService.loadContent(nodeId, req.tenantScope);
+    return this.documentService.loadContent(
+      nodeId,
+      req.tenantScope,
+      this.toAccessContext(req),
+    );
   }
 
   @Put(':nodeId/content')
@@ -87,6 +92,7 @@ export class DocumentController {
       this.resolveBlocks(body),
       { assertNoActiveWriteSession: true },
       createAuditActorSnapshot(req.user),
+      this.toAccessContext(req),
     );
     await this.auditService.log({
       tenantId: req.tenantScope ?? undefined,
@@ -112,6 +118,7 @@ export class DocumentController {
       nodeId,
       req.tenantScope,
       req.user.role,
+      this.toAccessContext(req),
     );
   }
 
@@ -126,6 +133,7 @@ export class DocumentController {
       nodeId,
       req.tenantScope,
       createAuditActorSnapshot(req.user),
+      this.toAccessContext(req),
     );
     await this.auditService.log({
       tenantId: req.tenantScope ?? undefined,
@@ -177,6 +185,7 @@ export class DocumentController {
           req.tenantScope,
           file,
           createAuditActorSnapshot(req.user),
+          this.toAccessContext(req),
         ),
       ),
     );
@@ -208,6 +217,7 @@ export class DocumentController {
       nodeId,
       req.tenantScope,
       assetPath,
+      this.toAccessContext(req),
     );
     const contentType =
       asset.contentType ?? DOCUMENT_ASSET_DEFAULT_CONTENT_TYPE;
@@ -271,5 +281,12 @@ export class DocumentController {
   private createAttachmentDisposition(assetPath: string): string {
     const fileName = assetPath.split('/').at(-1) ?? 'asset.svg';
     return `${DOCUMENT_ASSET_DOWNLOAD_DISPOSITION}; filename*=UTF-8''${encodeURIComponent(fileName)}`;
+  }
+
+  private toAccessContext(req: AuthenticatedRequest) {
+    return {
+      userId: req.user.id,
+      role: req.user.role,
+    };
   }
 }

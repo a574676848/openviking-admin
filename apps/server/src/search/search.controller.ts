@@ -40,6 +40,7 @@ export class SearchController {
       body.pattern,
       body.uri,
       req.tenantScope ?? '',
+      req.user,
       this.toTraceMeta(req),
     );
   }

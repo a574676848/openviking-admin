@@ -4,6 +4,7 @@ import type { AuthenticatedRequest } from '../common/authenticated-request.inter
 describe('SearchController audit', () => {
   const searchService = {
     find: jest.fn(),
+    grep: jest.fn(),
     setFeedback: jest.fn(),
   };
   const auditService = {
@@ -67,6 +68,31 @@ describe('SearchController audit', () => {
       findParams,
       'tenant-alpha',
       findReq.user,
+      {
+        traceId: 'trace-1',
+        requestId: 'request-1',
+        user: 'user-1',
+      },
+    );
+  });
+
+  it('grep 请求应透传登录用户用于 ACL 过滤', async () => {
+    const grepReq = {
+      tenantScope: 'tenant-alpha',
+      user: { id: 'user-1', username: 'alice', tenantId: 'tenant-alpha' },
+      headers: {
+        'x-trace-id': 'trace-1',
+        'x-request-id': 'request-1',
+      },
+    } as unknown as AuthenticatedRequest;
+
+    controller.grep({ pattern: 'acl', uri: 'viking://resources/tenant-alpha' } as never, grepReq);
+
+    expect(searchService.grep).toHaveBeenCalledWith(
+      'acl',
+      'viking://resources/tenant-alpha',
+      'tenant-alpha',
+      grepReq.user,
       {
         traceId: 'trace-1',
         requestId: 'request-1',

@@ -1,4 +1,8 @@
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { TaskStatus } from '../common/constants/system.enum';
 import { ImportTaskService } from './import-task.service';
 
@@ -39,6 +43,12 @@ describe('ImportTaskService', () => {
   const knowledgeTreeService = {
     create: jest.fn(),
     remove: jest.fn(),
+  };
+  const knowledgeNodeAclService = {
+    getAllowedUris: jest.fn(),
+    canReadNode: jest.fn(),
+    filterReadableNodes: jest.fn(),
+    assertCanReadNode: jest.fn(),
   };
   const queryRunner = {
     isTransactionActive: false,
@@ -102,6 +112,35 @@ describe('ImportTaskService', () => {
       nodeRepo.createWithGeneratedUri(payload),
     );
     knowledgeTreeService.remove.mockResolvedValue(undefined);
+    knowledgeNodeAclService.getAllowedUris.mockResolvedValue([
+      'viking://resources/tenants/tenant-a/kb-1/nodes/visible/',
+    ]);
+    knowledgeNodeAclService.canReadNode.mockImplementation(
+      (node, principal) => {
+        const acl = node?.acl;
+        if (!acl || acl.isPublic) {
+          return true;
+        }
+
+        return Boolean(
+          (principal.role && acl.roles?.includes(principal.role)) ||
+            acl.users?.includes(principal.userId),
+        );
+      },
+    );
+    knowledgeNodeAclService.filterReadableNodes.mockImplementation(
+      (nodes, principal) =>
+        nodes.filter((node) =>
+          knowledgeNodeAclService.canReadNode(node, principal),
+        ),
+    );
+    knowledgeNodeAclService.assertCanReadNode.mockImplementation(
+      (node, principal, message) => {
+        if (!knowledgeNodeAclService.canReadNode(node, principal)) {
+          throw new ForbiddenException(message ?? 'forbidden');
+        }
+      },
+    );
     service = new ImportTaskService(
       taskRepo,
       kbRepo as never,
@@ -110,9 +149,94 @@ describe('ImportTaskService', () => {
       ovClient as never,
       localImportStorage as never,
       knowledgeTreeService as never,
+      knowledgeNodeAclService as never,
       defaultDataSource as never,
       request as never,
     );
+  });
+
+  it('按 ACL 查询任务列表时应过滤不可见任务', async () => {
+    taskRepo.findAll.mockResolvedValue([
+      {
+        id: 'task-visible',
+        kbId: 'kb-1',
+        tenantId: 'tenant-a',
+        targetUri: 'viking://resources/tenants/tenant-a/kb-1/nodes/visible/doc.md',
+      },
+      {
+        id: 'task-hidden',
+        kbId: 'kb-1',
+        tenantId: 'tenant-a',
+        targetUri: 'viking://resources/tenants/tenant-a/kb-1/nodes/hidden/doc.md',
+      },
+    ]);
+
+    const result = await service.findAll('tenant-a', {
+      userId: 'user-1',
+      role: 'tenant_viewer',
+    });
+
+    expect(result).toEqual([
+      expect.objectContaining({ id: 'task-visible' }),
+    ]);
+  });
+
+  it('按 ACL 查询单个任务时应拒绝不可见任务', async () => {
+    taskRepo.findById.mockResolvedValue({
+      id: 'task-hidden',
+      kbId: 'kb-1',
+      tenantId: 'tenant-a',
+      targetUri: 'viking://resources/tenants/tenant-a/kb-1/nodes/hidden/doc.md',
+    });
+
+    await expect(
+      service.findOne('task-hidden', 'tenant-a', {
+        userId: 'user-1',
+        role: 'tenant_viewer',
+      }),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('按 ACL 创建导入任务时应拒绝不可见目标节点', async () => {
+    kbRepo.findById.mockResolvedValue({
+      id: 'kb-1',
+      tenantId: 'tenant-a',
+      vikingUri: 'viking://resources/tenants/tenant-a/kb-1/',
+    });
+    nodeRepo.find.mockResolvedValue([
+      {
+        id: 'node-hidden',
+        kbId: 'kb-1',
+        tenantId: 'tenant-a',
+        acl: { isPublic: false, users: ['other-user'], roles: [] },
+        vikingUri: 'viking://resources/tenants/tenant-a/kb-1/nodes/hidden/',
+        sortOrder: 0,
+        createdAt: new Date(),
+      },
+    ]);
+    nodeRepo.findOne.mockResolvedValue({
+      id: 'node-hidden',
+      kbId: 'kb-1',
+      tenantId: 'tenant-a',
+      acl: { isPublic: false, users: ['other-user'], roles: [] },
+      vikingUri: 'viking://resources/tenants/tenant-a/kb-1/nodes/hidden/',
+      sortOrder: 0,
+      createdAt: new Date(),
+    });
+
+    await expect(
+      service.create(
+        {
+          kbId: 'kb-1',
+          sourceType: 'url',
+          sourceUrl: 'https://example.com/a.md',
+          targetUri: 'viking://resources/tenants/tenant-a/kb-1/nodes/hidden/',
+        },
+        'tenant-a',
+        undefined,
+        { userId: 'user-1', role: 'tenant_viewer' },
+      ),
+    ).rejects.toThrow(ForbiddenException);
   });
 
   it('允许将失败任务重新排队', async () => {
@@ -649,7 +773,6 @@ describe('ImportTaskService', () => {
       expect.objectContaining({
         kbId: 'kb-1',
         tenantId: 'tenant-a',
-        parentId: null,
         name: 'repo-a',
         kind: 'collection',
       }),
@@ -660,7 +783,6 @@ describe('ImportTaskService', () => {
       expect.objectContaining({
         kbId: 'kb-1',
         tenantId: 'tenant-a',
-        parentId: null,
         name: 'repo-b',
         kind: 'collection',
       }),

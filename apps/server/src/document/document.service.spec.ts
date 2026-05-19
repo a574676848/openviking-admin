@@ -1,4 +1,4 @@
-import { BadRequestException, HttpStatus } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, HttpStatus } from '@nestjs/common';
 import { Readable } from 'node:stream';
 import {
   OpenVikingRequestException,
@@ -11,6 +11,7 @@ import { SettingsService } from '../settings/settings.service';
 import { DocumentContentCodec } from './document-content-codec';
 import { InMemoryDocumentAssetDedupStore } from './in-memory-document-asset-dedup.store';
 import { DocumentService } from './document.service';
+import { KnowledgeNodeAclService } from '../knowledge-tree/knowledge-node-acl.service';
 
 type MockedOvClient = Pick<
   OVClientService,
@@ -52,6 +53,9 @@ describe('DocumentService', () => {
   let settingsService: MockedSettingsService;
   let knowledgeTreeService: MockedKnowledgeTreeService;
   let documentSessionRegistry: MockedDocumentSessionRegistry;
+  let knowledgeNodeAclService: {
+    assertCanReadNode: jest.Mock;
+  };
   let documentDraftRepository: {
     findByNode: jest.Mock;
     saveMarkdown: jest.Mock;
@@ -92,6 +96,9 @@ describe('DocumentService', () => {
     documentSessionRegistry = {
       assertNoActiveWriteSession: jest.fn(),
     };
+    knowledgeNodeAclService = {
+      assertCanReadNode: jest.fn(),
+    };
     documentDraftRepository = {
       findByNode: jest.fn().mockResolvedValue(null),
       saveMarkdown: jest.fn().mockResolvedValue({
@@ -106,6 +113,7 @@ describe('DocumentService', () => {
       ovClientService as unknown as OVClientService,
       settingsService as unknown as SettingsService,
       knowledgeTreeService as unknown as KnowledgeTreeService,
+      knowledgeNodeAclService as unknown as KnowledgeNodeAclService,
       new DocumentContentCodec(),
       documentSessionRegistry as unknown as DocumentSessionRegistry,
       documentDraftRepository as never,
@@ -237,6 +245,20 @@ describe('DocumentService', () => {
     expect(result.blocks).toHaveLength(1);
     expect(result.blocks[0]).toMatchObject({ type: 'paragraph', content: [] });
     expect(ovClientService.requestStream).not.toHaveBeenCalled();
+  });
+
+  it('提供访问上下文时应拒绝无 ACL 读取权限的文档', async () => {
+    knowledgeTreeService.findOne.mockResolvedValue(createNode({}));
+    knowledgeNodeAclService.assertCanReadNode.mockImplementation(() => {
+      throw new ForbiddenException('当前用户无权访问该文档节点。');
+    });
+
+    await expect(
+      service.loadContent('node-1', 'tenant-1', {
+        userId: 'user-2',
+        role: 'tenant_viewer',
+      }),
+    ).rejects.toThrow('当前用户无权访问该文档节点。');
   });
 
   it('contentUri 为空但导入目录存在 Markdown 叶子时应聚合正文', async () => {

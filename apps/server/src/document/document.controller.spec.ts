@@ -57,6 +57,7 @@ describe('DocumentController', () => {
       'node-1',
       'tenant-alpha',
       'tenant_operator',
+      { userId: 'user-1', role: 'tenant_operator' },
     );
   });
 
@@ -73,6 +74,7 @@ describe('DocumentController', () => {
     expect(documentService.loadContent).toHaveBeenCalledWith(
       'node-1',
       'tenant-alpha',
+      { userId: 'user-1', role: 'tenant_operator' },
     );
   });
 
@@ -91,6 +93,7 @@ describe('DocumentController', () => {
       [],
       { assertNoActiveWriteSession: true },
       { id: 'user-1', username: 'alice' },
+      { userId: 'user-1', role: 'tenant_operator' },
     );
     expect(auditService.log).toHaveBeenCalledWith(
       expect.objectContaining({

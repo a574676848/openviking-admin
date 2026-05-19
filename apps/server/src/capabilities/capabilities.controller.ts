@@ -266,6 +266,7 @@ export class CapabilitiesController {
       files ?? [],
       principal.tenantId ?? '',
       createAuditActorSnapshot(principal),
+      { userId: principal.userId, role: principal.role ?? null },
     );
     await this.auditService.log({
       tenantId: principal.tenantId ?? undefined,

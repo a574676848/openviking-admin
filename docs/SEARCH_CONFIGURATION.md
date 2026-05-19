@@ -6,6 +6,10 @@ OpenViking Admin 实现了二阶段语义检索系统。本文档详细说明各
 
 检索链路会先根据身份与 ACL 收敛可访问范围，再执行向量召回，并在需要时接入 Rerank 做二阶段排序。
 
+控制台历史搜索的 `/api/v1/search/find` 与 capability 的 `knowledge.search` 现已共用同一条检索实现，因此两者都会写入 `search_logs`，并对用户选择的 `scope` 与节点 ACL 可见范围取交集后再返回结果。
+
+控制台调试用的 `/api/v1/search/grep` 不写 `search_logs`，但现在也会先校验请求 `uri` 是否落在当前用户 ACL 可见范围内，并对返回的匹配结果再次做 `scope ∩ allowedUris` 过滤，避免文本匹配越过节点 ACL。
+
 ---
 
 ## 检索架构
