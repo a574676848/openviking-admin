@@ -24,6 +24,7 @@ describe('ImportTaskService', () => {
   const nodeRepo = {
     find: jest.fn(),
     findOne: jest.fn(),
+    createWithGeneratedUri: jest.fn(),
     createFileWithGeneratedUri: jest.fn(),
     remove: jest.fn(),
   };
@@ -36,6 +37,7 @@ describe('ImportTaskService', () => {
     isManagedFileUrl: jest.fn(),
   };
   const knowledgeTreeService = {
+    create: jest.fn(),
     remove: jest.fn(),
   };
   const queryRunner = {
@@ -66,6 +68,19 @@ describe('ImportTaskService', () => {
     kbRepo.save.mockImplementation(async (kb) => kb);
     nodeRepo.find.mockResolvedValue([]);
     nodeRepo.findOne.mockResolvedValue(null);
+    nodeRepo.createWithGeneratedUri.mockImplementation(async (payload) => ({
+      id: `node-${payload.name}`,
+      tenantId: payload.tenantId,
+      kbId: payload.kbId,
+      parentId: payload.parentId ?? null,
+      name: payload.name,
+      kind: payload.kind ?? 'collection',
+      vikingUri: `viking://resources/tenants/${payload.tenantId}/${payload.kbId}/nodes/${payload.name}/`,
+      contentUri: null,
+      sortOrder: payload.sortOrder ?? 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }));
     nodeRepo.createFileWithGeneratedUri.mockImplementation(
       async (payload) => ({
         id: `node-${payload.name}`,
@@ -83,6 +98,9 @@ describe('ImportTaskService', () => {
       }),
     );
     nodeRepo.remove.mockImplementation(async (node) => node);
+    knowledgeTreeService.create.mockImplementation(async (payload) =>
+      nodeRepo.createWithGeneratedUri(payload),
+    );
     knowledgeTreeService.remove.mockResolvedValue(undefined);
     service = new ImportTaskService(
       taskRepo,
@@ -612,27 +630,100 @@ describe('ImportTaskService', () => {
       expect.objectContaining({
         sourceUrl: 'https://example.com/repo-a.git',
         sourceName: 'repo-a',
-        targetUri: expect.stringMatching(
-          /^viking:\/\/resources\/tenants\/tenant-a\/kb-1\/imports\/git\/repo-a-[a-f0-9]{8}\/$/,
-        ),
-        autoCreatedNodeId: null,
+        targetUri: 'viking://resources/tenants/tenant-a/kb-1/nodes/repo-a/',
+        autoCreatedNodeId: 'node-repo-a',
         tenantId: 'tenant-a',
       }),
       expect.objectContaining({
         sourceUrl: 'https://example.com/repo-b.git',
         sourceName: 'repo-b',
-        targetUri: expect.stringMatching(
-          /^viking:\/\/resources\/tenants\/tenant-a\/kb-1\/imports\/git\/repo-b-[a-f0-9]{8}\/$/,
-        ),
-        autoCreatedNodeId: null,
+        targetUri: 'viking://resources/tenants/tenant-a/kb-1/nodes/repo-b/',
+        autoCreatedNodeId: 'node-repo-b',
         tenantId: 'tenant-a',
       }),
     ]);
     expect(savedTasks[0].targetUri).not.toBe(savedTasks[1].targetUri);
+    expect(knowledgeTreeService.create).toHaveBeenCalledTimes(2);
+    expect(knowledgeTreeService.create).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        kbId: 'kb-1',
+        tenantId: 'tenant-a',
+        parentId: null,
+        name: 'repo-a',
+        kind: 'collection',
+      }),
+      undefined,
+    );
+    expect(knowledgeTreeService.create).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        kbId: 'kb-1',
+        tenantId: 'tenant-a',
+        parentId: null,
+        name: 'repo-b',
+        kind: 'collection',
+      }),
+      undefined,
+    );
     expect(nodeRepo.createFileWithGeneratedUri).not.toHaveBeenCalled();
     expect(result).toEqual(
       expect.objectContaining({
         sourceUrl: 'https://example.com/repo-a.git',
+      }),
+    );
+  });
+
+  it('git 导入到目录节点下时应创建对应 collection 子节点', async () => {
+    taskRepo.create.mockImplementation((payload) => payload);
+    taskRepo.save.mockImplementation(async (payload) => payload);
+    kbRepo.findById.mockResolvedValue({
+      id: 'kb-1',
+      vikingUri: 'viking://resources/tenant-a/kb-1/',
+    });
+    nodeRepo.find.mockResolvedValue([
+      {
+        id: 'parent-node',
+        vikingUri: 'viking://resources/tenant-a/kb-1/collections/engineering/',
+        kind: 'collection',
+      },
+    ]);
+    nodeRepo.findOne.mockResolvedValueOnce({
+      id: 'parent-node',
+      tenantId: 'tenant-a',
+      kbId: 'kb-1',
+      kind: 'collection',
+      vikingUri:
+        'viking://resources/tenants/tenant-a/kb-1/collections/engineering/',
+    });
+
+    await service.create(
+      {
+        kbId: 'kb-1',
+        sourceType: 'git',
+        integrationId: 'integration-1',
+        sourceUrl: 'https://example.com/repo-a.git',
+        targetUri:
+          'viking://resources/tenants/tenant-a/kb-1/collections/engineering/',
+      },
+      'tenant-a',
+    );
+
+    expect(knowledgeTreeService.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kbId: 'kb-1',
+        tenantId: 'tenant-a',
+        parentId: 'parent-node',
+        name: 'repo-a',
+        kind: 'collection',
+      }),
+      undefined,
+    );
+    expect(taskRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        targetUri:
+          'viking://resources/tenants/tenant-a/kb-1/nodes/repo-a/',
+        autoCreatedNodeId: 'node-repo-a',
       }),
     );
   });
@@ -1218,6 +1309,13 @@ describe('ImportTaskService', () => {
         vikingUri: 'viking://resources/tenant-a/kb-3/node-1/',
       },
     ]);
+    nodeRepo.findOne.mockResolvedValueOnce({
+      id: 'node-1',
+      tenantId: 'tenant-a',
+      kbId: 'kb-3',
+      kind: 'collection',
+      vikingUri: 'viking://resources/tenants/tenant-a/kb-3/node-1/',
+    });
 
     const result = await service.create(
       {
@@ -1232,10 +1330,17 @@ describe('ImportTaskService', () => {
 
     expect(result).toEqual(
       expect.objectContaining({
-        targetUri: expect.stringMatching(
-          /^viking:\/\/resources\/tenants\/tenant-a\/kb-3\/node-1\/repo-[a-f0-9]{8}\/$/,
-        ),
+        targetUri: 'viking://resources/tenants/tenant-a/kb-3/nodes/repo/',
+        autoCreatedNodeId: 'node-repo',
       }),
+    );
+    expect(knowledgeTreeService.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        parentId: 'node-1',
+        name: 'repo',
+        kind: 'collection',
+      }),
+      undefined,
     );
   });
 
@@ -1252,6 +1357,13 @@ describe('ImportTaskService', () => {
         vikingUri: 'viking://resources/tenant-a/kb-3/node-file.md',
       },
     ]);
+    nodeRepo.findOne.mockResolvedValueOnce({
+      id: 'node-file',
+      tenantId: 'tenant-a',
+      kbId: 'kb-3',
+      kind: 'document',
+      vikingUri: 'viking://resources/tenants/tenant-a/kb-3/node-file.md',
+    });
 
     const result = await service.create(
       {
@@ -1269,8 +1381,10 @@ describe('ImportTaskService', () => {
         targetUri: expect.stringMatching(
           /^viking:\/\/resources\/tenants\/tenant-a\/kb-3\/node-file.md\/repo-[a-f0-9]{8}\/$/,
         ),
+        autoCreatedNodeId: null,
       }),
     );
+    expect(knowledgeTreeService.create).not.toHaveBeenCalled();
   });
 
   it('显式 targetUri 指向其他租户路径时必须拒绝', async () => {

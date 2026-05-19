@@ -441,6 +441,61 @@ describe("KnowledgeTreePage", () => {
     expect(pushMock).not.toHaveBeenCalled();
   });
 
+  it("git 导入生成的 collection 节点会在控制台知识树按目录展示", async () => {
+    getMock
+      .mockResolvedValueOnce([{ id: "kb-1", name: "知识库一", tenantId: "tenant-a" }])
+      .mockResolvedValueOnce([{ id: "user-1", username: "admin", role: "tenant_admin", active: true }])
+      .mockResolvedValueOnce([
+        {
+          id: "node-parent",
+          kbId: "kb-1",
+          parentId: null,
+          name: "工程资料",
+          path: "/工程资料",
+          sortOrder: 1,
+          vikingUri: "viking://kb-1/node-parent/",
+          contentUri: null,
+          kind: "collection",
+          acl: { isPublic: true, roles: [], users: [] },
+          createdAt: "2026-04-26T00:00:00.000Z",
+        },
+        {
+          id: "node-git-repo",
+          kbId: "kb-1",
+          parentId: "node-parent",
+          name: "repo-a",
+          path: "/工程资料/repo-a",
+          sortOrder: 1,
+          vikingUri: "viking://kb-1/node-git-repo/",
+          contentUri: null,
+          kind: "collection",
+          acl: { isPublic: true, roles: [], users: [] },
+          createdAt: "2026-04-26T00:00:00.000Z",
+        },
+      ]);
+
+    await renderPage();
+
+    expect(container.textContent).toContain("工程资料");
+    expect(container.textContent).toContain("repo-a");
+    expect(container.querySelector('button[aria-label="重建索引 repo-a"]')).toBeNull();
+
+    const repoNodeButton = Array.from(container.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("repo-a"),
+    );
+    expect(repoNodeButton).toBeTruthy();
+
+    await act(async () => {
+      repoNodeButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("节点观察器 [repo-a]");
+    expect(container.textContent).toContain("目录节点");
+    expect(container.textContent).not.toContain("文档索引");
+    expect(container.textContent).not.toContain("索引状态");
+  });
+
   it("文档节点展示索引状态并支持重建索引", async () => {
     postMock.mockResolvedValue({
       nodeId: "node-doc",

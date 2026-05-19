@@ -47,6 +47,7 @@ const RESOURCE_URI_PREFIX = 'viking://resources/';
 const TENANT_RESOURCE_PREFIX = 'viking://resources/tenants/';
 const GIT_REPOSITORY_SUFFIX = '.git';
 const AUTO_DOCUMENT_SOURCE_TYPES = ['local', 'url', 'feishu', 'dingtalk'];
+const AUTO_COLLECTION_SOURCE_TYPES = ['git'];
 const TARGET_RESOURCE_DELETE_SOURCE_TYPES = ['git'];
 const DEFAULT_IMPORT_DOCUMENT_EXTENSION = '.md';
 const DOCUMENT_NAME_EXTENSION_PATTERN = /\.[^./\\]+$/;
@@ -112,7 +113,7 @@ export class ImportTaskService {
       const dispatch = await Promise.all(
         sourceUrls.map(async (sourceUrl, index) => {
           const sourceName = this.resolveSourceName(dto, sourceUrl, index);
-          const autoNode = await this.createAutoDocumentNode(
+          const autoNode = await this.createAutoNode(
             dto,
             sourceName,
             sourceUrl,
@@ -347,7 +348,11 @@ export class ImportTaskService {
     return AUTO_DOCUMENT_SOURCE_TYPES.includes(sourceType);
   }
 
-  private async createAutoDocumentNode(
+  private shouldAutoCreateCollectionNode(sourceType: string) {
+    return AUTO_COLLECTION_SOURCE_TYPES.includes(sourceType);
+  }
+
+  private async createAutoNode(
     dto: CreateImportTaskDto,
     sourceName: string | null,
     sourceUrl: string,
@@ -355,33 +360,55 @@ export class ImportTaskService {
     tenantId: string,
     actor?: AuditActorSnapshot | null,
   ): Promise<KnowledgeNodeModel | null> {
-    if (!this.shouldAutoCreateDocumentNode(dto.sourceType)) {
-      return null;
-    }
-
     const targetNode = await this.findTargetNodeByUri(
       dto.kbId,
       tenantId,
       baseTargetUri,
     );
+
+    if (this.shouldAutoCreateDocumentNode(dto.sourceType)) {
+      if (targetNode?.kind === 'document') {
+        return null;
+      }
+
+      return this.nodeRepo.createFileWithGeneratedUri(
+        applyCreatedAuditActor(
+          {
+            tenantId,
+            kbId: dto.kbId,
+            parentId: targetNode?.id ?? null,
+            name: this.resolveAutoDocumentNodeName(sourceName, sourceUrl),
+            sortOrder: 0,
+            kind: 'document',
+            indexStatus: 'pending',
+            fileExtension: DEFAULT_IMPORT_DOCUMENT_EXTENSION,
+          },
+          actor,
+        ),
+      );
+    }
+
+    if (!this.shouldAutoCreateCollectionNode(dto.sourceType)) {
+      return null;
+    }
+
     if (targetNode?.kind === 'document') {
       return null;
     }
 
-    return this.nodeRepo.createFileWithGeneratedUri(
+    return this.knowledgeTreeService.create(
       applyCreatedAuditActor(
         {
           tenantId,
           kbId: dto.kbId,
           parentId: targetNode?.id ?? null,
-          name: this.resolveAutoDocumentNodeName(sourceName, sourceUrl),
+          name: this.resolveAutoCollectionNodeName(sourceName, sourceUrl),
           sortOrder: 0,
-          kind: 'document',
-          indexStatus: 'pending',
-          fileExtension: DEFAULT_IMPORT_DOCUMENT_EXTENSION,
+          kind: 'collection',
         },
         actor,
       ),
+      actor,
     );
   }
 
@@ -409,6 +436,14 @@ export class ImportTaskService {
       ? displayName
       : `${displayName}${DEFAULT_IMPORT_DOCUMENT_EXTENSION}`;
     return this.truncateSourceName(documentName);
+  }
+
+  private resolveAutoCollectionNodeName(
+    sourceName: string | null,
+    sourceUrl: string,
+  ) {
+    const name = sourceName?.trim() || this.resolveGitRepositoryName(sourceUrl);
+    return this.truncateSourceName(name || 'git-import');
   }
 
   private resolveGitRepositoryName(sourceUrl: string) {
