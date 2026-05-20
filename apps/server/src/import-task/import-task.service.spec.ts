@@ -91,22 +91,20 @@ describe('ImportTaskService', () => {
       createdAt: new Date(),
       updatedAt: new Date(),
     }));
-    nodeRepo.createFileWithGeneratedUri.mockImplementation(
-      async (payload) => ({
-        id: `node-${payload.name}`,
-        tenantId: payload.tenantId,
-        kbId: payload.kbId,
-        parentId: payload.parentId ?? null,
-        name: payload.name,
-        kind: 'document',
-        vikingUri: `viking://resources/tenants/${payload.tenantId}/${payload.kbId}/nodes/${payload.name}/`,
-        contentUri: null,
-        indexStatus: payload.indexStatus ?? 'pending',
-        sortOrder: payload.sortOrder ?? 0,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }),
-    );
+    nodeRepo.createFileWithGeneratedUri.mockImplementation(async (payload) => ({
+      id: `node-${payload.name}`,
+      tenantId: payload.tenantId,
+      kbId: payload.kbId,
+      parentId: payload.parentId ?? null,
+      name: payload.name,
+      kind: 'document',
+      vikingUri: `viking://resources/tenants/${payload.tenantId}/${payload.kbId}/nodes/${payload.name}/`,
+      contentUri: null,
+      indexStatus: payload.indexStatus ?? 'pending',
+      sortOrder: payload.sortOrder ?? 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }));
     nodeRepo.remove.mockImplementation(async (node) => node);
     knowledgeTreeService.create.mockImplementation(async (payload) =>
       nodeRepo.createWithGeneratedUri(payload),
@@ -124,14 +122,20 @@ describe('ImportTaskService', () => {
 
         return Boolean(
           (principal.role && acl.roles?.includes(principal.role)) ||
-            acl.users?.includes(principal.userId),
+          acl.users?.includes(principal.userId),
         );
       },
     );
     knowledgeNodeAclService.filterReadableNodes.mockImplementation(
       (nodes, principal) =>
-        nodes.filter((node) =>
-          knowledgeNodeAclService.canReadNode(node, principal),
+        nodes.filter(
+          (node: {
+            acl?: {
+              isPublic?: boolean;
+              roles?: string[];
+              users?: string[];
+            } | null;
+          }) => knowledgeNodeAclService.canReadNode(node, principal),
         ),
     );
     knowledgeNodeAclService.assertCanReadNode.mockImplementation(
@@ -161,13 +165,15 @@ describe('ImportTaskService', () => {
         id: 'task-visible',
         kbId: 'kb-1',
         tenantId: 'tenant-a',
-        targetUri: 'viking://resources/tenants/tenant-a/kb-1/nodes/visible/doc.md',
+        targetUri:
+          'viking://resources/tenants/tenant-a/kb-1/nodes/visible/doc.md',
       },
       {
         id: 'task-hidden',
         kbId: 'kb-1',
         tenantId: 'tenant-a',
-        targetUri: 'viking://resources/tenants/tenant-a/kb-1/nodes/hidden/doc.md',
+        targetUri:
+          'viking://resources/tenants/tenant-a/kb-1/nodes/hidden/doc.md',
       },
     ]);
 
@@ -176,9 +182,7 @@ describe('ImportTaskService', () => {
       role: 'tenant_viewer',
     });
 
-    expect(result).toEqual([
-      expect.objectContaining({ id: 'task-visible' }),
-    ]);
+    expect(result).toEqual([expect.objectContaining({ id: 'task-visible' })]);
   });
 
   it('按 ACL 查询单个任务时应拒绝不可见任务', async () => {
@@ -666,9 +670,7 @@ describe('ImportTaskService', () => {
       kbId: 'kb-1',
       kind: 'document',
     });
-    knowledgeTreeService.remove.mockRejectedValueOnce(
-      new Error('OV 删除失败'),
-    );
+    knowledgeTreeService.remove.mockRejectedValueOnce(new Error('OV 删除失败'));
 
     await expect(
       service.deleteFailed('task-auto-node-delete-failed', 'tenant-a'),
@@ -843,8 +845,7 @@ describe('ImportTaskService', () => {
     );
     expect(taskRepo.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        targetUri:
-          'viking://resources/tenants/tenant-a/kb-1/nodes/repo-a/',
+        targetUri: 'viking://resources/tenants/tenant-a/kb-1/nodes/repo-a/',
         autoCreatedNodeId: 'node-repo-a',
       }),
     );
@@ -887,8 +888,7 @@ describe('ImportTaskService', () => {
         sourceType: 'url',
         sourceUrl: 'https://docs.example.com/page',
         sourceName: 'page',
-        targetUri:
-          'viking://resources/tenants/tenant-a/kb-url/nodes/page.md/',
+        targetUri: 'viking://resources/tenants/tenant-a/kb-url/nodes/page.md/',
         autoCreatedNodeId: 'node-page.md',
       }),
     );
@@ -1047,8 +1047,7 @@ describe('ImportTaskService', () => {
 
     expect(taskRepo.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        targetUri:
-          'viking://resources/tenants/tenant-a/kb-url/nodes/page.md/',
+        targetUri: 'viking://resources/tenants/tenant-a/kb-url/nodes/page.md/',
         autoCreatedNodeId: 'node-page.md',
       }),
     );
@@ -1153,7 +1152,8 @@ describe('ImportTaskService', () => {
         kbId: 'kb-1',
         name: '会议纪要.md',
         kind: 'document',
-        vikingUri: 'viking://resources/tenants/tenant-a/kb-1/node-existing-doc/',
+        vikingUri:
+          'viking://resources/tenants/tenant-a/kb-1/node-existing-doc/',
       },
     ]);
     nodeRepo.findOne.mockResolvedValue({
@@ -1259,16 +1259,14 @@ describe('ImportTaskService', () => {
     expect(kbRepo.findById).toHaveBeenCalledWith('kb-2', 'tenant-a');
     expect(result).toEqual(
       expect.objectContaining({
-        targetUri:
-          'viking://resources/tenants/tenant-a/kb-2/nodes/abc.md/',
+        targetUri: 'viking://resources/tenants/tenant-a/kb-2/nodes/abc.md/',
         autoCreatedNodeId: 'node-abc.md',
       }),
     );
     expect(taskRepo.create).toHaveBeenCalledWith(
       expect.objectContaining({
         sourceName: null,
-        targetUri:
-          'viking://resources/tenants/tenant-a/kb-2/nodes/abc.md/',
+        targetUri: 'viking://resources/tenants/tenant-a/kb-2/nodes/abc.md/',
         autoCreatedNodeId: 'node-abc.md',
       }),
     );

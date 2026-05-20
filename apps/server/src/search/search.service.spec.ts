@@ -282,7 +282,6 @@ describe('SearchService', () => {
     );
   });
 
-
   it('grep 应只返回 ACL 可见范围内的命中', async () => {
     settings.resolveOVConfig.mockResolvedValue({
       baseUrl: 'http://ov.local',
@@ -298,12 +297,10 @@ describe('SearchService', () => {
       },
     });
 
-    const result = await service.grep(
-      'visible',
-      'viking://a',
-      'tenant-a',
-      { id: 'user-1', role: 'tenant_admin' },
-    );
+    const result = await service.grep('visible', 'viking://a', 'tenant-a', {
+      id: 'user-1',
+      role: 'tenant_admin',
+    });
 
     expect(ovKnowledgeGateway.grepKnowledge).toHaveBeenCalledWith(
       expect.anything(),
@@ -329,12 +326,10 @@ describe('SearchService', () => {
     });
 
     await expect(
-      service.grep(
-        'hidden',
-        'viking://tenant-b',
-        'tenant-a',
-        { id: 'user-1', role: 'tenant_admin' },
-      ),
+      service.grep('hidden', 'viking://tenant-b', 'tenant-a', {
+        id: 'user-1',
+        role: 'tenant_admin',
+      }),
     ).rejects.toThrow('当前用户无权访问该资源范围');
     expect(ovKnowledgeGateway.grepKnowledge).not.toHaveBeenCalled();
   });

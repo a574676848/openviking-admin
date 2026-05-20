@@ -32,7 +32,9 @@ async function resolveTargetSchemas(queryRunner: DataSource) {
     ORDER BY table_schema
   `);
 
-  return (rows as Array<{ table_schema: string }>).map((row) => row.table_schema);
+  return (rows as Array<{ table_schema: string }>).map(
+    (row) => row.table_schema,
+  );
 }
 
 async function applyKnowledgeNodeColumns(

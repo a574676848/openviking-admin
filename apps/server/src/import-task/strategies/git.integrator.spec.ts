@@ -140,9 +140,7 @@ describe('GitIntegrator', () => {
 
     expect(result).toEqual({
       path: 'http://oauth2:gl-token@git.example.com/group/repo',
-      fallbackPaths: [
-        'https://oauth2:gl-token@git.example.com/group/repo',
-      ],
+      fallbackPaths: ['https://oauth2:gl-token@git.example.com/group/repo'],
     });
   });
 

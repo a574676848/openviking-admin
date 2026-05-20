@@ -253,18 +253,12 @@ export class TaskWorkerService implements OnModuleInit {
           conn,
           this.toEngineResourceUri(task.targetUri),
         );
-        if (targetNode && this.isDocumentNode(targetNode)) {
-          await this.syncDocumentContentUri(
-            context,
-            conn,
-            targetNode,
-            task.targetUri,
-            resourceStats.vectorCount,
-          );
-        } else if (
-          targetNode &&
-          task.autoCreatedNodeId === targetNode.id
-        ) {
+        const autoCreatedTargetMatch =
+          !!targetNode && task.autoCreatedNodeId === targetNode.id;
+        const shouldSyncDocumentContentUri =
+          autoCreatedTargetMatch ||
+          (targetNode ? this.isDocumentNode(targetNode) : false);
+        if (shouldSyncDocumentContentUri && targetNode) {
           await this.syncDocumentContentUri(
             context,
             conn,
@@ -417,7 +411,9 @@ export class TaskWorkerService implements OnModuleInit {
     );
   }
 
-  private scheduleDelayedStatsSync(task: Pick<ImportTaskModel, 'id' | 'tenantId'>) {
+  private scheduleDelayedStatsSync(
+    task: Pick<ImportTaskModel, 'id' | 'tenantId'>,
+  ) {
     if (this.scheduledStatsSyncTaskIds.has(task.id)) {
       return;
     }
@@ -441,9 +437,7 @@ export class TaskWorkerService implements OnModuleInit {
     setTimeout(() => {
       void this.syncDelayedTaskStats(task, attempt).catch((error) => {
         const message = error instanceof Error ? error.message : '未知错误';
-        this.logger.warn(
-          `导入任务 ${task.id} 延迟统计同步失败: ${message}`,
-        );
+        this.logger.warn(`导入任务 ${task.id} 延迟统计同步失败: ${message}`);
         this.scheduleDelayedStatsSyncAttempt(task, attempt + 1);
       });
     }, delayMs);
@@ -480,7 +474,11 @@ export class TaskWorkerService implements OnModuleInit {
           ...taskStats,
           updatedAt: new Date(),
         });
-        await this.refreshKnowledgeBaseStats(context, conn, this.toTaskModel(task));
+        await this.refreshKnowledgeBaseStats(
+          context,
+          conn,
+          this.toTaskModel(task),
+        );
         if ((taskStats.vectorCount ?? 0) > 0) {
           this.scheduledStatsSyncTaskIds.delete(taskRef.id);
           return false;

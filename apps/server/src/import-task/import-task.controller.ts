@@ -38,7 +38,11 @@ export class ImportTaskController {
 
   @Get(':id')
   findOne(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
-    return this.taskService.findOne(id, req.tenantScope, this.toAccessContext(req));
+    return this.taskService.findOne(
+      id,
+      req.tenantScope,
+      this.toAccessContext(req),
+    );
   }
 
   @Post()
@@ -141,7 +145,11 @@ export class ImportTaskController {
 
   @Get(':id/sync')
   syncResult(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
-    return this.taskService.syncResult(id, req.tenantScope, this.toAccessContext(req));
+    return this.taskService.syncResult(
+      id,
+      req.tenantScope,
+      this.toAccessContext(req),
+    );
   }
 
   @Post(':id/retry')

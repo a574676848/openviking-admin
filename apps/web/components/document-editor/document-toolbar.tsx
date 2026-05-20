@@ -119,15 +119,21 @@ function ToolbarButton({
 // ─── 主组件 ───
 
 export function DocumentToolbar({ editor }: DocumentToolbarProps) {
-  if (!editor) return null;
-
   const handleUndo = useCallback(() => {
+    if (!editor) {
+      return;
+    }
     executeEditorUndo(editor);
   }, [editor]);
 
   const handleRedo = useCallback(() => {
+    if (!editor) {
+      return;
+    }
     executeEditorRedo(editor);
   }, [editor]);
+
+  if (!editor) return null;
 
   const isActive = (style: string) => {
     if (typeof editor?.getActiveStyles !== "function") {

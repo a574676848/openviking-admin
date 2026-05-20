@@ -62,11 +62,7 @@ describe('KnowledgeTreeController', () => {
     treeService.findOne.mockResolvedValue({ id: 'node-1', acl: null });
     treeService.update.mockResolvedValue({ id: 'node-1' });
 
-    await controller.move(
-      'node-1',
-      { parentId: null, sortOrder: 3 },
-      req,
-    );
+    await controller.move('node-1', { parentId: null, sortOrder: 3 }, req);
 
     expect(knowledgeNodeAclService.assertCanReadNode).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'node-1' }),

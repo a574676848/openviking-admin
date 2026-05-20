@@ -69,10 +69,12 @@ describe('UsersService', () => {
   });
 
   it('tenantScope 是 UUID 时应该同时支持按租户记录 ID 和租户标识解析', async () => {
-    tenantRepo.findOne.mockResolvedValue(createTenant({
-      id: '4de41489-ffd3-4148-8d55-15610ad1673a',
-      tenantId: 'mem',
-    }));
+    tenantRepo.findOne.mockResolvedValue(
+      createTenant({
+        id: '4de41489-ffd3-4148-8d55-15610ad1673a',
+        tenantId: 'mem',
+      }),
+    );
     userRepo.findAll.mockResolvedValue([]);
 
     await service.findAll('4de41489-ffd3-4148-8d55-15610ad1673a');

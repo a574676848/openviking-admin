@@ -86,10 +86,12 @@ describe('AuthService', () => {
 
   describe('login', () => {
     it('应该在密码错误时抛出 UnauthorizedException', async () => {
-      mockUserRepo.findByUsername.mockResolvedValue(createUser({
-        username: 'test',
-        passwordHash: await bcrypt.hash('correct', 10),
-      }));
+      mockUserRepo.findByUsername.mockResolvedValue(
+        createUser({
+          username: 'test',
+          passwordHash: await bcrypt.hash('correct', 10),
+        }),
+      );
 
       await expect(
         service.login({ username: 'test', password: 'wrong' }),
@@ -134,11 +136,13 @@ describe('AuthService', () => {
       });
 
       mockTenantRepo.findByTenantId.mockResolvedValue(createTenant());
-      mockTenantRepo.findById.mockResolvedValue(createTenant({
-        ovConfig: {
-          baseUrl: 'http://tenant-ov.local',
-        },
-      }));
+      mockTenantRepo.findById.mockResolvedValue(
+        createTenant({
+          ovConfig: {
+            baseUrl: 'http://tenant-ov.local',
+          },
+        }),
+      );
       mockUserRepo.findByUsername
         .mockResolvedValueOnce(tenantUser)
         .mockResolvedValueOnce(superAdmin);
@@ -176,12 +180,14 @@ describe('AuthService', () => {
       mockTenantRepo.findByTenantId.mockResolvedValue(
         createTenant({ tenantId: 'test3' }),
       );
-      mockTenantRepo.findById.mockResolvedValue(createTenant({
-        tenantId: 'test3',
-        ovConfig: {
-          baseUrl: 'http://tenant-ov.local',
-        },
-      }));
+      mockTenantRepo.findById.mockResolvedValue(
+        createTenant({
+          tenantId: 'test3',
+          ovConfig: {
+            baseUrl: 'http://tenant-ov.local',
+          },
+        }),
+      );
       mockUserRepo.findByUsername
         .mockResolvedValueOnce(null)
         .mockResolvedValueOnce(superAdmin);
@@ -222,12 +228,14 @@ describe('AuthService', () => {
         scope: 'tenant',
         tokenType: 'refresh_token',
       });
-      mockUserRepo.findById.mockResolvedValue(createUser({
-        id: 'user-1',
-        username: 'alice',
-        role: SystemRoles.TENANT_ADMIN,
-        tenantId: 'tenant-1',
-      }));
+      mockUserRepo.findById.mockResolvedValue(
+        createUser({
+          id: 'user-1',
+          username: 'alice',
+          role: SystemRoles.TENANT_ADMIN,
+          tenantId: 'tenant-1',
+        }),
+      );
 
       const result = await service.refreshAccessToken('refresh-token');
 

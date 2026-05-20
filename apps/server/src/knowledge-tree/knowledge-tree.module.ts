@@ -30,6 +30,10 @@ import { TypeOrmKnowledgeBaseRepository } from '../knowledge-base/infrastructure
     },
   ],
   controllers: [KnowledgeTreeController],
-  exports: [KnowledgeTreeService, KnowledgeNodeAclService, IKnowledgeNodeRepository],
+  exports: [
+    KnowledgeTreeService,
+    KnowledgeNodeAclService,
+    IKnowledgeNodeRepository,
+  ],
 })
 export class KnowledgeTreeModule {}

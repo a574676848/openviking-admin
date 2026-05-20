@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class AddTenantMigrationTaskScope1747300000000
-  implements MigrationInterface
-{
+export class AddTenantMigrationTaskScope1747300000000 implements MigrationInterface {
   name = 'AddTenantMigrationTaskScope1747300000000';
 
   async up(queryRunner: QueryRunner): Promise<void> {

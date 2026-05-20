@@ -161,45 +161,41 @@ export class GitIntegrator implements IPlatformIntegrator {
     return new Promise((resolve, reject) => {
       const url = new URL(archiveUrl);
       const request = url.protocol === 'http:' ? httpRequest : httpsRequest;
-      const req = request(
-        url,
-        { method: 'GET', headers },
-        (response) => {
-          const statusCode = response.statusCode ?? 0;
-          const location = response.headers.location;
-          if (statusCode >= 300 && statusCode < 400 && location) {
-            response.resume();
-            if (redirects >= MAX_ARCHIVE_REDIRECTS) {
-              reject(new Error('HTTP archive 下载重定向次数过多'));
-              return;
-            }
-            this.requestArchiveBuffer(
-              new URL(location, url).toString(),
-              headers,
-              redirects + 1,
-            )
-              .then(resolve)
-              .catch(reject);
+      const req = request(url, { method: 'GET', headers }, (response) => {
+        const statusCode = response.statusCode ?? 0;
+        const location = response.headers.location;
+        if (statusCode >= 300 && statusCode < 400 && location) {
+          response.resume();
+          if (redirects >= MAX_ARCHIVE_REDIRECTS) {
+            reject(new Error('HTTP archive 下载重定向次数过多'));
             return;
           }
-          const chunks: Buffer[] = [];
-          response.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
-          response.on('end', () => {
-            const buffer = Buffer.concat(chunks);
-            if (statusCode < 200 || statusCode >= 300) {
-              reject(
-                new Error(
-                  `HTTP ${statusCode} ${response.statusMessage}: ${this.maskSensitiveText(
-                    buffer.toString('utf8').slice(0, 200),
-                  )}`,
-                ),
-              );
-              return;
-            }
-            resolve(buffer);
-          });
-        },
-      );
+          this.requestArchiveBuffer(
+            new URL(location, url).toString(),
+            headers,
+            redirects + 1,
+          )
+            .then(resolve)
+            .catch(reject);
+          return;
+        }
+        const chunks: Buffer[] = [];
+        response.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
+        response.on('end', () => {
+          const buffer = Buffer.concat(chunks);
+          if (statusCode < 200 || statusCode >= 300) {
+            reject(
+              new Error(
+                `HTTP ${statusCode} ${response.statusMessage}: ${this.maskSensitiveText(
+                  buffer.toString('utf8').slice(0, 200),
+                )}`,
+              ),
+            );
+            return;
+          }
+          resolve(buffer);
+        });
+      });
       req.setTimeout(API_TIMEOUT_MS, () => req.destroy(new Error('请求超时')));
       req.on('error', reject);
       req.end();
@@ -236,9 +232,7 @@ export class GitIntegrator implements IPlatformIntegrator {
     sourceUrl: string,
   ): GitRepositoryInfo {
     const url = new URL(sourceUrl);
-    const projectPath = url.pathname
-      .replace(/^\/+/, '')
-      .replace(/\.git$/, '');
+    const projectPath = url.pathname.replace(/^\/+/, '').replace(/\.git$/, '');
     const parts = projectPath.split('/').filter(Boolean);
     if (parts.length < 2) {
       throw new Error(`Git 仓库地址缺少 owner/group 或 repo：${sourceUrl}`);
@@ -287,7 +281,9 @@ export class GitIntegrator implements IPlatformIntegrator {
     integration: Integration,
   ) {
     if (!repoInfo.owner) {
-      throw new Error(`GitHub 仓库地址不支持多级 group：${repoInfo.projectPath}`);
+      throw new Error(
+        `GitHub 仓库地址不支持多级 group：${repoInfo.projectPath}`,
+      );
     }
     const apiBaseUrl =
       typeof integration.credentials?.apiBaseUrl === 'string'
@@ -325,10 +321,14 @@ export class GitIntegrator implements IPlatformIntegrator {
         ? ''
         : `?sha=${encodeURIComponent(repoInfo.ref)}`
     }`;
-    return this.execCli(GITLAB_CLI, ['api', '--hostname', repoInfo.host, endpoint], {
-      GITLAB_TOKEN: token ?? '',
-      GITLAB_HOST: repoInfo.host,
-    });
+    return this.execCli(
+      GITLAB_CLI,
+      ['api', '--hostname', repoInfo.host, endpoint],
+      {
+        GITLAB_TOKEN: token ?? '',
+        GITLAB_HOST: repoInfo.host,
+      },
+    );
   }
 
   private async downloadGithubArchiveByCli(
@@ -336,7 +336,9 @@ export class GitIntegrator implements IPlatformIntegrator {
     token?: string,
   ) {
     if (!repoInfo.owner) {
-      throw new Error(`GitHub 仓库地址不支持多级 group：${repoInfo.projectPath}`);
+      throw new Error(
+        `GitHub 仓库地址不支持多级 group：${repoInfo.projectPath}`,
+      );
     }
     return this.execCli(
       GITHUB_CLI,
@@ -441,7 +443,7 @@ export class GitIntegrator implements IPlatformIntegrator {
   private buildGithubCredentialPaths(
     sourceUrl: string,
     token: string,
-    credentials: Record<string, any>,
+    credentials: Record<string, unknown>,
   ) {
     const primaryPath = this.withCredential(sourceUrl, token);
     if (this.isPublicGithubHost(sourceUrl)) {
@@ -457,7 +459,7 @@ export class GitIntegrator implements IPlatformIntegrator {
   private buildGitLabCredentialPaths(
     sourceUrl: string,
     token: string,
-    credentials: Record<string, any>,
+    credentials: Record<string, unknown>,
   ) {
     const usernames = GITLAB_USERNAME_KEYS.map(
       (key) => credentials?.[key],

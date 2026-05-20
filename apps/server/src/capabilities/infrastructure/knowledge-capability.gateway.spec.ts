@@ -34,10 +34,12 @@ describe('KnowledgeCapabilityGateway', () => {
   const knowledgeBaseService = {
     findAll: jest.fn(),
     findOne: jest.fn(),
+    remove: jest.fn(),
   };
   const knowledgeTreeService = {
     findByKb: jest.fn(),
     findOne: jest.fn(),
+    remove: jest.fn(),
   };
   const gateway = new KnowledgeCapabilityGateway(
     ovKnowledgeGateway as never,
@@ -78,8 +80,10 @@ describe('KnowledgeCapabilityGateway', () => {
       status: 'active',
       vikingUri: 'viking://resources/tenants/tenant-a/kb-1/',
     });
-    knowledgeTreeService.findByKb.mockResolvedValue([{ id: 'node-1', acl: null }]);
-    knowledgeBaseService.remove = jest.fn().mockResolvedValue({
+    knowledgeTreeService.findByKb.mockResolvedValue([
+      { id: 'node-1', acl: null },
+    ]);
+    knowledgeBaseService.remove.mockResolvedValue({
       id: 'kb-1',
       name: 'EPAAS',
       status: 'active',
@@ -102,9 +106,13 @@ describe('KnowledgeCapabilityGateway', () => {
       },
     );
 
-    expect(knowledgeBaseService.remove).toHaveBeenCalledWith('kb-1', 'tenant-a', {
-      user: 'alice',
-    });
+    expect(knowledgeBaseService.remove).toHaveBeenCalledWith(
+      'kb-1',
+      'tenant-a',
+      {
+        user: 'alice',
+      },
+    );
     expect(auditService.log).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'delete_knowledge_base',
@@ -129,7 +137,7 @@ describe('KnowledgeCapabilityGateway', () => {
       contentUri: 'viking://resources/tenants/tenant-a/kb-1/node-1.md',
       acl: null,
     });
-    knowledgeTreeService.remove = jest.fn().mockResolvedValue({
+    knowledgeTreeService.remove.mockResolvedValue({
       id: 'node-1',
       kbId: 'kb-1',
       name: 'node',
@@ -159,9 +167,13 @@ describe('KnowledgeCapabilityGateway', () => {
       expect.objectContaining({ id: 'node-1' }),
       { userId: 'user-1', role: 'tenant_operator' },
     );
-    expect(knowledgeTreeService.remove).toHaveBeenCalledWith('node-1', 'tenant-a', {
-      user: 'alice',
-    });
+    expect(knowledgeTreeService.remove).toHaveBeenCalledWith(
+      'node-1',
+      'tenant-a',
+      {
+        user: 'alice',
+      },
+    );
     expect(auditService.log).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'delete_knowledge_node',
@@ -332,11 +344,15 @@ describe('KnowledgeCapabilityGateway', () => {
       role: 'tenant_operator',
     });
     expect(result.items).toHaveLength(1);
-    expect(result.items[0]).toEqual(expect.objectContaining({ id: 'task-visible' }));
+    expect(result.items[0]).toEqual(
+      expect.objectContaining({ id: 'task-visible' }),
+    );
   });
 
   it('导入任务状态查询应拒绝访问无 ACL 可见权限的任务', async () => {
-    knowledgeTreeService.findByKb.mockResolvedValue([{ id: 'node-1', acl: null }]);
+    knowledgeTreeService.findByKb.mockResolvedValue([
+      { id: 'node-1', acl: null },
+    ]);
     importTaskService.findOne.mockResolvedValue({
       id: 'task-hidden',
       kbId: 'kb-1',
@@ -361,7 +377,9 @@ describe('KnowledgeCapabilityGateway', () => {
   });
 
   it('导入任务事件查询应拒绝访问无 ACL 可见权限的任务', async () => {
-    knowledgeTreeService.findByKb.mockResolvedValue([{ id: 'node-1', acl: null }]);
+    knowledgeTreeService.findByKb.mockResolvedValue([
+      { id: 'node-1', acl: null },
+    ]);
     importTaskService.findOne.mockResolvedValue({
       id: 'task-hidden',
       kbId: 'kb-1',

@@ -3,9 +3,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 const IMPORT_TASKS_TABLE = 'import_tasks';
 const AUTO_CREATED_NODE_ID_COLUMN = 'auto_created_node_id';
 
-export class AddImportTaskAutoCreatedNodeId1747100000000
-  implements MigrationInterface
-{
+export class AddImportTaskAutoCreatedNodeId1747100000000 implements MigrationInterface {
   name = 'AddImportTaskAutoCreatedNodeId1747100000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

@@ -1,4 +1,8 @@
-import { BadRequestException, ForbiddenException, HttpStatus } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  HttpStatus,
+} from '@nestjs/common';
 import { Readable } from 'node:stream';
 import {
   OpenVikingRequestException,

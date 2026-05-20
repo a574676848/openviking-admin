@@ -94,8 +94,10 @@ export class DocumentContentCodec {
 
     return {
       editor: coreModule.BlockNoteEditor.create(),
-      blocksToYDoc: yjsModule.blocksToYDoc,
-      yDocToBlocks: yjsModule.yDocToBlocks,
+      blocksToYDoc: (editor, blocks, fragmentName) =>
+        yjsModule.blocksToYDoc(editor, blocks, fragmentName),
+      yDocToBlocks: (editor, document, fragmentName) =>
+        yjsModule.yDocToBlocks(editor, document, fragmentName),
     };
   }
 }

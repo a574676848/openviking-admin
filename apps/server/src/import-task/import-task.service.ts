@@ -298,10 +298,9 @@ export class ImportTaskService {
       .replace(/-{2,}/g, '-')
       .replace(/^[-_.]+|[-_.]+$/g, '');
     const baseSegment = normalized.length > 0 ? normalized : 'git';
-    const uniqueSuffix = randomUUID().replace(/-/g, '').slice(
-      0,
-      GIT_TASK_TARGET_SEGMENT_SUFFIX_LENGTH,
-    );
+    const uniqueSuffix = randomUUID()
+      .replace(/-/g, '')
+      .slice(0, GIT_TASK_TARGET_SEGMENT_SUFFIX_LENGTH);
     return `${baseSegment}-${uniqueSuffix}`;
   }
 
@@ -739,9 +738,7 @@ export class ImportTaskService {
       return this.taskRepo.findById(task.id, task.tenantId);
     } catch (error) {
       const message = error instanceof Error ? error.message : '未知错误';
-      this.logger.warn(
-        `Retry pre-sync for task ${task.id} failed: ${message}`,
-      );
+      this.logger.warn(`Retry pre-sync for task ${task.id} failed: ${message}`);
       return null;
     }
   }
@@ -836,7 +833,11 @@ export class ImportTaskService {
       throw new ForbiddenException('当前用户无权访问该知识库');
     }
 
-    const targetNode = await this.findTargetNodeByUri(kbId, tenantId, targetUri);
+    const targetNode = await this.findTargetNodeByUri(
+      kbId,
+      tenantId,
+      targetUri,
+    );
     if (targetNode) {
       this.knowledgeNodeAclService.assertCanReadNode(
         targetNode,
@@ -871,7 +872,9 @@ export class ImportTaskService {
       })),
     );
 
-    return visibleTasks.filter((entry) => entry.visible).map((entry) => entry.task);
+    return visibleTasks
+      .filter((entry) => entry.visible)
+      .map((entry) => entry.task);
   }
 
   private async assertCanAccessImportTask(
@@ -914,10 +917,7 @@ export class ImportTaskService {
     }
 
     if (task.autoCreatedNodeId) {
-      const node = await this.findAutoCreatedNode(
-        task,
-        autoNodeCache,
-      );
+      const node = await this.findAutoCreatedNode(task, autoNodeCache);
       return Boolean(
         node && this.knowledgeNodeAclService.canReadNode(node, accessContext),
       );
@@ -1050,10 +1050,7 @@ export class ImportTaskService {
   private async runInTenantTransaction<T>(operation: () => Promise<T>) {
     const existingQueryRunner = this.request?.tenantQueryRunner;
     if (existingQueryRunner) {
-      return this.runWithQueryRunnerTransaction(
-        existingQueryRunner,
-        operation,
-      );
+      return this.runWithQueryRunnerTransaction(existingQueryRunner, operation);
     }
 
     const queryRunner = (

@@ -318,7 +318,9 @@ export class AuthController {
   }
 
   private getFrontendUrl() {
-    return this.configService.get<string>('FRONTEND_URL') ?? DEFAULT_FRONTEND_URL;
+    return (
+      this.configService.get<string>('FRONTEND_URL') ?? DEFAULT_FRONTEND_URL
+    );
   }
 
   private escapeHtml(value: string) {

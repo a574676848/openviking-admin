@@ -12,7 +12,6 @@ import { CreateNodeDto, UpdateNodeDto } from './dto/node.dto';
 import { IKnowledgeNodeRepository } from './domain/repositories/knowledge-node.repository.interface';
 import type {
   KnowledgeNodeIndexStatus,
-  KnowledgeNodeKind,
   KnowledgeNodeModel,
 } from './domain/knowledge-node.model';
 import { KNOWLEDGE_BASE_REPOSITORY } from '../knowledge-base/domain/repositories/knowledge-base.repository.interface';

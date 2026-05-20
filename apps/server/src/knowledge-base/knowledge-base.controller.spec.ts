@@ -41,7 +41,9 @@ describe('KnowledgeBaseController', () => {
       { id: 'kb-hidden', name: '受限库' },
     ]);
     knowledgeTreeService.findByKb.mockImplementation(async (kbId: string) =>
-      kbId === 'kb-visible' ? [{ id: 'node-1', acl: null }] : [{ id: 'node-2', acl: { isPublic: false } }],
+      kbId === 'kb-visible'
+        ? [{ id: 'node-1', acl: null }]
+        : [{ id: 'node-2', acl: { isPublic: false } }],
     );
     knowledgeNodeAclService.filterReadableNodes.mockImplementation(
       (items: Array<{ acl: { isPublic?: boolean } | null }>) =>

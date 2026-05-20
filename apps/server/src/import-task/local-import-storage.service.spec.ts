@@ -74,7 +74,6 @@ describe('LocalImportStorageService', () => {
     expect(stored.originalName).toBe('面授课堂系统-需求分析文档.md');
   });
 
-
   it('会拒绝不在白名单内的文件格式', async () => {
     await expect(
       service.saveFiles('tenant-a', 'kb-1', [

@@ -1,7 +1,7 @@
 import { Injectable, Inject, Scope } from '@nestjs/common';
 import { REQUEST } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, type FindManyOptions } from 'typeorm';
+import { Repository } from 'typeorm';
 import { AuditLog } from '../../entities/audit-log.entity';
 import {
   AuditActionStat,

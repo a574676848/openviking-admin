@@ -17,13 +17,6 @@ import type { KnowledgeNodeModel } from '../../knowledge-tree/domain/knowledge-n
 import type { ImportTaskModel } from '../../import-task/domain/import-task.model';
 import { Principal, TraceContext } from '../domain/capability.types';
 
-interface SearchResource {
-  uri: string;
-  score: number;
-  abstract?: string;
-  title?: string;
-}
-
 interface GrepMatch {
   line: number;
   uri: string;
@@ -281,10 +274,7 @@ export class KnowledgeCapabilityGateway {
   ) {
     const tenantId = this.requireTenantId(principal);
     const accessPrincipal = this.toNodeAccessPrincipal(principal);
-    await this.knowledgeBaseService.findOne(
-      String(input.kbId),
-      tenantId,
-    );
+    await this.knowledgeBaseService.findOne(String(input.kbId), tenantId);
     await this.assertKnowledgeBaseVisible(
       String(input.kbId),
       tenantId,
@@ -360,7 +350,10 @@ export class KnowledgeCapabilityGateway {
         parentNodeId,
         tenantId,
       );
-      this.knowledgeNodeAclService.assertCanReadNode(parentNode, accessPrincipal);
+      this.knowledgeNodeAclService.assertCanReadNode(
+        parentNode,
+        accessPrincipal,
+      );
       targetUri = parentNode.vikingUri;
     } else {
       await this.knowledgeBaseService.findOne(
@@ -422,11 +415,10 @@ export class KnowledgeCapabilityGateway {
   async listDocumentImports(principal: Principal) {
     const tenantId = this.requireTenantId(principal);
     const accessPrincipal = this.toNodeAccessPrincipal(principal);
-    const allowedUris = await this.knowledgeNodeAclService.getAllowedUris(
+    const items = await this.importTaskService.findAll(
       tenantId,
       accessPrincipal,
     );
-    const items = await this.importTaskService.findAll(tenantId, accessPrincipal);
     return {
       items: items.map((item) => this.toImportTaskItem(item)),
     };
@@ -729,7 +721,9 @@ export class KnowledgeCapabilityGateway {
     return principal.tenantId;
   }
 
-  private toNodeAccessPrincipal(principal: Principal): KnowledgeNodeAccessPrincipal {
+  private toNodeAccessPrincipal(
+    principal: Principal,
+  ): KnowledgeNodeAccessPrincipal {
     return {
       userId: principal.userId,
       role: principal.role ?? null,
@@ -756,8 +750,8 @@ export class KnowledgeCapabilityGateway {
     }
 
     return (
-      this.knowledgeNodeAclService.filterReadableNodes(nodes, principal).length >
-      0
+      this.knowledgeNodeAclService.filterReadableNodes(nodes, principal)
+        .length > 0
     );
   }
 
@@ -810,7 +804,9 @@ export class KnowledgeCapabilityGateway {
     principal: KnowledgeNodeAccessPrincipal,
     allowedUris: string[],
   ) {
-    if (!(await this.canAccessImportTask(task, tenantId, principal, allowedUris))) {
+    if (
+      !(await this.canAccessImportTask(task, tenantId, principal, allowedUris))
+    ) {
       throw new ForbiddenException('当前用户无权访问该导入任务');
     }
   }

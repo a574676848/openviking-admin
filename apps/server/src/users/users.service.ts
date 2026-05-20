@@ -10,7 +10,6 @@ import { Repository } from 'typeorm';
 import { USER_REPOSITORY } from './domain/repositories/user.repository.interface';
 import type { IUserRepository } from './domain/repositories/user.repository.interface';
 import { CreateUserDto, UpdateUserDto } from './dto/user.dto';
-import type { UserModel } from './domain/user.model';
 import { Tenant } from '../tenant/entities/tenant.entity';
 
 @Injectable()

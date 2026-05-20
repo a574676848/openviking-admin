@@ -176,7 +176,9 @@ export class DashboardImportTaskStatsService {
   ): Promise<PlatformImportTaskStats> {
     const total = await repo.count({ where });
     const failed = await repo.count({ where: { ...where, status: 'failed' } });
-    const running = await repo.count({ where: { ...where, status: 'running' } });
+    const running = await repo.count({
+      where: { ...where, status: 'running' },
+    });
     const recentTasks = await repo.find({
       where,
       order: { createdAt: 'DESC' },

@@ -55,7 +55,12 @@ export class TenantMigrationTask {
   @Column({ name: 'precheck_result', type: 'jsonb', nullable: true })
   precheckResult: Record<string, unknown> | null;
 
-  @Column({ name: 'created_by_id', type: 'varchar', length: 64, nullable: true })
+  @Column({
+    name: 'created_by_id',
+    type: 'varchar',
+    length: 64,
+    nullable: true,
+  })
   createdById: string | null;
 
   @Column({

@@ -242,7 +242,7 @@ describe('CapabilityCatalogService', () => {
           ? RequestMethod.POST
           : contract.http.method === 'DELETE'
             ? RequestMethod.DELETE
-          : RequestMethod.GET;
+            : RequestMethod.GET;
 
       expect(controllerRoute).toEqual(
         expect.objectContaining({

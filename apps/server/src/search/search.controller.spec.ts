@@ -62,7 +62,7 @@ describe('SearchController audit', () => {
       },
     } as unknown as AuthenticatedRequest;
 
-    controller.find(findParams, findReq);
+    await controller.find(findParams, findReq);
 
     expect(searchService.find).toHaveBeenCalledWith(
       findParams,
@@ -86,7 +86,10 @@ describe('SearchController audit', () => {
       },
     } as unknown as AuthenticatedRequest;
 
-    controller.grep({ pattern: 'acl', uri: 'viking://resources/tenant-alpha' } as never, grepReq);
+    await controller.grep(
+      { pattern: 'acl', uri: 'viking://resources/tenant-alpha' },
+      grepReq,
+    );
 
     expect(searchService.grep).toHaveBeenCalledWith(
       'acl',

@@ -101,7 +101,11 @@ export class DocumentService {
     userRole: string,
     accessContext?: DocumentAccessContext,
   ): Promise<DocumentMetadata> {
-    const node = await this.requireDocumentNode(nodeId, tenantId, accessContext);
+    const node = await this.requireDocumentNode(
+      nodeId,
+      tenantId,
+      accessContext,
+    );
     const canWrite = DOCUMENT_WRITE_ROLE_SET.has(userRole);
     const contentUri = this.resolveCurrentContentUri(node);
 
@@ -133,7 +137,11 @@ export class DocumentService {
     tenantId: string | null,
     accessContext?: DocumentAccessContext,
   ): Promise<DocumentContentSnapshot> {
-    const node = await this.requireDocumentNode(nodeId, tenantId, accessContext);
+    const node = await this.requireDocumentNode(
+      nodeId,
+      tenantId,
+      accessContext,
+    );
     const draft = await this.documentDraftRepository.findByNode(
       node.id,
       tenantId,
@@ -171,7 +179,11 @@ export class DocumentService {
       this.documentSessionRegistry.assertNoActiveWriteSession(nodeId);
     }
 
-    const node = await this.requireDocumentNode(nodeId, tenantId, accessContext);
+    const node = await this.requireDocumentNode(
+      nodeId,
+      tenantId,
+      accessContext,
+    );
     const markdown = this.documentContentCodec.blocksToMarkdown(blocks);
     const draft = await this.documentDraftRepository.saveMarkdown(
       node.id,
@@ -211,7 +223,11 @@ export class DocumentService {
       this.documentSessionRegistry.assertNoActiveWriteSession(nodeId);
     }
 
-    const node = await this.requireDocumentNode(nodeId, tenantId, accessContext);
+    const node = await this.requireDocumentNode(
+      nodeId,
+      tenantId,
+      accessContext,
+    );
     const draft = await this.documentDraftRepository.saveMarkdown(
       node.id,
       tenantId,
@@ -244,13 +260,20 @@ export class DocumentService {
     actor?: AuditActorSnapshot | null,
     accessContext?: DocumentAccessContext,
   ): Promise<DocumentIndexResult> {
-    const node = await this.requireDocumentNode(nodeId, tenantId, accessContext);
+    const node = await this.requireDocumentNode(
+      nodeId,
+      tenantId,
+      accessContext,
+    );
     const draft = await this.documentDraftRepository.findByNode(
       node.id,
       tenantId,
     );
-    const markdown =
-      await this.resolveDocumentMarkdown(node, tenantId, draft?.markdown);
+    const markdown = await this.resolveDocumentMarkdown(
+      node,
+      tenantId,
+      draft?.markdown,
+    );
     const connection = await this.resolveOpenVikingConnection(tenantId);
     const contentUri = this.resolveIndexedContentUri(node);
     const draftVersion = draft?.version ?? node.draftVersion;
@@ -362,7 +385,11 @@ export class DocumentService {
     actor?: AuditActorSnapshot | null,
     accessContext?: DocumentAccessContext,
   ): Promise<DocumentAssetUploadResult> {
-    const node = await this.requireDocumentNode(nodeId, tenantId, accessContext);
+    const node = await this.requireDocumentNode(
+      nodeId,
+      tenantId,
+      accessContext,
+    );
     const connection = await this.resolveOpenVikingConnection(tenantId);
     const containerUri = this.resolveDocumentContainerUri(node);
     const assetsUri = this.joinResourceUri(
@@ -436,7 +463,11 @@ export class DocumentService {
     filename: string,
     accessContext?: DocumentAccessContext,
   ): Promise<DocumentAssetStream> {
-    const node = await this.requireDocumentNode(nodeId, tenantId, accessContext);
+    const node = await this.requireDocumentNode(
+      nodeId,
+      tenantId,
+      accessContext,
+    );
     const connection = await this.resolveOpenVikingConnection(tenantId);
     const containerUri = this.resolveDocumentContainerUri(node);
     const assetFileName = this.normalizeAssetFileName(filename);
@@ -966,14 +997,12 @@ export class DocumentService {
 
     return resources
       .filter(
-        (
-          item,
-        ): item is { uri: string; isDir?: boolean; rel_path?: string } =>
+        (item): item is { uri: string; isDir?: boolean; rel_path?: string } =>
           Boolean(
             item &&
-              typeof item === 'object' &&
-              typeof (item as { uri?: unknown }).uri === 'string' &&
-              (item as { isDir?: unknown }).isDir === false,
+            typeof item === 'object' &&
+            typeof (item as { uri?: unknown }).uri === 'string' &&
+            (item as { isDir?: unknown }).isDir === false,
           ),
       )
       .map((item) => ({

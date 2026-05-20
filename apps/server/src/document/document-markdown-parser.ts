@@ -7,7 +7,6 @@ import {
   DocumentInlineContent,
   DocumentStyledText,
   DocumentTableCell,
-  DocumentTableContent,
   EMPTY_DOCUMENT_PARAGRAPH,
   LINE_BREAK,
   TAB_WIDTH,

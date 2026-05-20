@@ -243,14 +243,17 @@ export class DocumentCollabGateway implements OnModuleInit, OnModuleDestroy {
           }
 
           const hocuspocusPeer = peer as HocuspocusPeer;
-          hocuspocusPeer.hocuspocusConnection = this.hocuspocus.handleConnection(
-            hocuspocusPeer.websocket,
-            hocuspocusPeer.request,
-          );
+          hocuspocusPeer.hocuspocusConnection =
+            this.hocuspocus.handleConnection(
+              hocuspocusPeer.websocket,
+              hocuspocusPeer.request,
+            );
         },
         message: (peer: Peer, message: Message) => {
           const hocuspocusPeer = peer as HocuspocusPeer;
-          hocuspocusPeer.hocuspocusConnection?.handleMessage(message.uint8Array());
+          hocuspocusPeer.hocuspocusConnection?.handleMessage(
+            message.uint8Array(),
+          );
         },
         close: (peer: Peer, event) => {
           const hocuspocusPeer = peer as HocuspocusPeer;
@@ -452,9 +455,9 @@ export class DocumentCollabGateway implements OnModuleInit, OnModuleDestroy {
   ): boolean {
     return Boolean(
       context.loadedMarkdownLength &&
-        context.loadedMarkdownLength > 0 &&
-        !context.skippedInitialEmptyStore &&
-        this.isEmptyDocumentBlocks(blocks),
+      context.loadedMarkdownLength > 0 &&
+      !context.skippedInitialEmptyStore &&
+      this.isEmptyDocumentBlocks(blocks),
     );
   }
 

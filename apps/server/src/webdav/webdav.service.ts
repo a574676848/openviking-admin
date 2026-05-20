@@ -115,11 +115,6 @@ interface WebdavTargetKnowledgeNode {
   nodeSegments: string[];
 }
 
-interface WebdavWritableFileTarget {
-  knowledgeBaseId: string;
-  node: WebdavKnowledgeNode;
-}
-
 interface WebdavKnowledgeBaseLike {
   id: string;
   name: string;

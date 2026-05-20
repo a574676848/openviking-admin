@@ -255,7 +255,12 @@ export class TenantMigrationService {
 
     const tenant = await this.findTenant(task.tenantRecordId);
     try {
-      await this.updateTask(task.id, 'running', '准备目标存储', TASK_PROGRESS.READY);
+      await this.updateTask(
+        task.id,
+        'running',
+        '准备目标存储',
+        TASK_PROGRESS.READY,
+      );
       await this.schemaInitializer.initialize({
         tenantId: tenant.tenantId,
         isolationLevel: task.targetLevel,
@@ -321,7 +326,12 @@ export class TenantMigrationService {
         },
       });
 
-      await this.updateTask(task.id, 'succeeded', '迁移完成', TASK_PROGRESS.DONE);
+      await this.updateTask(
+        task.id,
+        'succeeded',
+        '迁移完成',
+        TASK_PROGRESS.DONE,
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : '未知错误';
       this.logger.error(`租户 ${task.tenantId} 数据库迁移失败：${message}`);
@@ -339,7 +349,12 @@ export class TenantMigrationService {
   ) {
     const task = await this.findTask(taskId);
     try {
-      await this.updateTask(task.id, 'running', '执行平台公共表 migration', TASK_PROGRESS.READY);
+      await this.updateTask(
+        task.id,
+        'running',
+        '执行平台公共表 migration',
+        TASK_PROGRESS.READY,
+      );
       const migrations = await this.dataSource.runMigrations({
         transaction: 'all',
       });
@@ -354,7 +369,12 @@ export class TenantMigrationService {
           migrations: migrations.map((migration) => migration.name),
         },
       });
-      await this.updateTask(task.id, 'succeeded', '平台公共表迁移完成', TASK_PROGRESS.DONE);
+      await this.updateTask(
+        task.id,
+        'succeeded',
+        '平台公共表迁移完成',
+        TASK_PROGRESS.DONE,
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : '未知错误';
       this.logger.error(`平台公共表迁移失败：${message}`);
@@ -370,7 +390,9 @@ export class TenantMigrationService {
     return this.tenantService.findOneByIdOrTenantId(identifier);
   }
 
-  private async precheckLargeDatabase(dbConfig: DbConfig): Promise<PrecheckItem> {
+  private async precheckLargeDatabase(
+    dbConfig: DbConfig,
+  ): Promise<PrecheckItem> {
     if (!dbConfig.database) {
       return {
         name: '独立数据库配置',
@@ -463,7 +485,10 @@ export class TenantMigrationService {
         throw new Error(`LARGE 租户 ${tenantId} 缺少目标数据库配置。`);
       }
       return {
-        dataSource: await this.dynamicDS.getTenantDataSource(tenantId, dbConfig),
+        dataSource: await this.dynamicDS.getTenantDataSource(
+          tenantId,
+          dbConfig,
+        ),
         schema: 'public',
         release: false,
       };
@@ -540,7 +565,9 @@ export class TenantMigrationService {
       return;
     }
 
-    const columnSql = columns.map((column) => this.quoteIdentifier(column)).join(', ');
+    const columnSql = columns
+      .map((column) => this.quoteIdentifier(column))
+      .join(', ');
     const valueSql = columns.map((_, index) => `$${index + 1}`).join(', ');
     const updateColumns = columns.filter((column) => column !== 'id');
     const updateSql = updateColumns
@@ -591,7 +618,11 @@ export class TenantMigrationService {
     return rows.map((row: { columnName: string }) => row.columnName);
   }
 
-  private async tableExists(dataSource: DataSource, schema: string, table: string) {
+  private async tableExists(
+    dataSource: DataSource,
+    schema: string,
+    table: string,
+  ) {
     const rows = await dataSource.query(
       `
         SELECT EXISTS (

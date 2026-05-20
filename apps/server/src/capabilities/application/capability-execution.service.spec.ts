@@ -95,7 +95,7 @@ describe('CapabilityExecutionService', () => {
     expect(result.data).toEqual({
       items: [{ uri: 'viking://resources/tenants/tenant-1/doc-1', score: 0.9 }],
     });
-    expect((authorization.authorize as jest.Mock).mock.calls.length).toBe(1);
+    expect(authorization.authorize.mock.calls.length).toBe(1);
     expect((observability.recordSuccess as jest.Mock).mock.calls.length).toBe(
       1,
     );
@@ -129,7 +129,9 @@ describe('CapabilityExecutionService', () => {
     gateway.grep = jest.fn().mockRejectedValue(new Error('OV timeout'));
     observability.recordFailure = jest
       .fn()
-      .mockRejectedValue(new TypeError("Cannot read properties of undefined (reading 'error')"));
+      .mockRejectedValue(
+        new TypeError("Cannot read properties of undefined (reading 'error')"),
+      );
 
     await expect(
       service.execute(
@@ -145,7 +147,9 @@ describe('CapabilityExecutionService', () => {
       ),
     ).rejects.toThrow('OV timeout');
 
-    expect((observability.recordFailure as jest.Mock).mock.calls.length).toBe(1);
+    expect((observability.recordFailure as jest.Mock).mock.calls.length).toBe(
+      1,
+    );
   });
 
   it('should record rejection when rate limit is hit', async () => {

@@ -220,7 +220,9 @@ describe('TaskWorkerService', () => {
     const scheduleSpy = jest
       .spyOn(
         service as unknown as {
-          scheduleDelayedStatsSync(task: Pick<ImportTask, 'id' | 'tenantId'>): void;
+          scheduleDelayedStatsSync(
+            task: Pick<ImportTask, 'id' | 'tenantId'>,
+          ): void;
         },
         'scheduleDelayedStatsSync',
       )
@@ -312,7 +314,7 @@ describe('TaskWorkerService', () => {
     const defaultDataSource = {
       getRepository: jest.fn((entity) => {
         if (entity === Tenant) return tenantRepo;
-          throw new Error(`unexpected repository: ${entity?.name ?? entity}`);
+        throw new Error(`unexpected repository: ${entity?.name ?? entity}`);
       }),
     };
     const largeDataSource = {
@@ -809,9 +811,9 @@ describe('TaskWorkerService', () => {
       }
     ).processTask(task);
 
-    expect(documentSessionRegistry.assertNoActiveWriteSession).toHaveBeenCalledWith(
-      'node-new-doc',
-    );
+    expect(
+      documentSessionRegistry.assertNoActiveWriteSession,
+    ).toHaveBeenCalledWith('node-new-doc');
     expect(ovClient.request).not.toHaveBeenCalledWith(
       expect.anything(),
       expect.stringContaining('/api/v1/fs?'),
