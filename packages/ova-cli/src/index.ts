@@ -17,6 +17,7 @@ import { handleConfigure } from './commands/configure';
 import { handleSetup } from './commands/setup';
 import { handleInit } from './commands/init';
 import { handleBootstrap } from './commands/bootstrap';
+import { notifyCliUpdateIfAvailable } from './update-check';
 
 const packageMetadata = require('../package.json') as { name: string; version: string };
 const credentialStore = new FileCredentialStore();
@@ -103,6 +104,8 @@ export async function bootstrap(argv = process.argv.slice(2)) {
         process.exitCode = 1;
         return;
     }
+
+    await notifyCliUpdateIfAvailable(packageMetadata, options);
 
     switch (group) {
         case 'auth':

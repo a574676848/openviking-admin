@@ -27,6 +27,12 @@ ova --help
 ova -h
 ```
 
+CLI 会在普通文本命令执行时按天检查一次 npm 最新版本；发现新版本后只输出提示和更新命令，不会自动升级，也不会影响 `--output json|jsonl` 的机器可读输出。如需临时关闭检查：
+
+```bash
+OVA_CLI_UPDATE_CHECK=0 ova doctor
+```
+
 仓库提供可重复执行的一键安装脚本，重复运行会更新全局 `ova`：
 
 ```bash
