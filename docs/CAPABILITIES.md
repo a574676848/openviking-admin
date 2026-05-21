@@ -17,33 +17,33 @@
 
 ## 当前能力
 
-| 能力                      | 说明                                   | HTTP                                              | CLI                                   | MCP 工具                  | 最低角色          |
-| ------------------------- | -------------------------------------- | ------------------------------------------------- | ------------------------------------- | ------------------------- | ----------------- |
-| `knowledge.search`        | 在租户知识域内执行语义搜索             | `POST /api/v1/knowledge/search`                   | `ova knowledge search`                | `knowledge.search`        | `tenant_viewer`   |
-| `knowledge.grep`          | 在租户知识域内执行文本匹配             | `POST /api/v1/knowledge/grep`                     | `ova knowledge grep`                  | `knowledge.grep`          | `tenant_viewer`   |
-| `resources.list`          | 列出租户授权范围内的资源               | `GET /api/v1/resources`                           | `ova resources list`                  | `resources.list`          | `tenant_operator` |
-| `resources.tree`          | 获取租户资源树                         | `GET /api/v1/resources/tree`                      | `ova resources tree`                  | `resources.tree`          | `tenant_operator` |
-| `knowledgeBases.list`     | 列出当前租户未归档的可导入知识库       | `GET /api/v1/capability/knowledge-bases`          | `ova kb list`                         | `knowledgeBases.list`     | `tenant_viewer`   |
-| `knowledgeBases.detail`   | 查看未归档知识库详情与导入根路径       | `GET /api/v1/capability/knowledge-bases/:id`      | `ova kb detail`                       | `knowledgeBases.detail`   | `tenant_viewer`   |
-| `knowledgeBases.delete`   | 删除当前租户 ACL 可见的知识库          | `DELETE /api/v1/capability/knowledge-bases/:id`   | `ova kb delete --id <kbId>`           | `knowledgeBases.delete`   | `tenant_operator` |
-| `knowledgeTree.list`      | 列出未归档知识库下可作为导入目标的节点 | `GET /api/v1/capability/knowledge-bases/:id/tree` | `ova tree list`                       | `knowledgeTree.list`      | `tenant_viewer`   |
-| `knowledgeTree.detail`    | 查看知识树节点详情与导入路径           | `GET /api/v1/capability/knowledge-tree/:id`       | `ova tree detail`                     | `knowledgeTree.detail`    | `tenant_viewer`   |
-| `knowledgeTree.delete`    | 删除当前租户 ACL 可见的知识树节点      | `DELETE /api/v1/capability/knowledge-tree/:id`    | `ova tree delete --id <nodeId>`       | `knowledgeTree.delete`    | `tenant_operator` |
-| `documents.import.create` | 创建本地、URL 或 manifest 文档导入任务 | `POST /api/v1/capability/import-tasks/documents`；本地文件上传：`POST /api/v1/capability/import-tasks/local-upload` | `ova documents import` | `documents.import.create` | `tenant_operator` |
-| `documents.import.status` | 查看文档导入任务进度                   | `GET /api/v1/capability/import-tasks/:id`         | `ova documents import status`         | `documents.import.status` | `tenant_viewer`   |
-| `documents.import.list`   | 列出当前租户文档导入任务               | `GET /api/v1/capability/import-tasks`             | `ova documents import list`           | `documents.import.list`   | `tenant_viewer`   |
-| `documents.import.cancel` | 取消排队中的文档导入任务               | `POST /api/v1/capability/import-tasks/:id/cancel` | `ova documents import cancel`         | `documents.import.cancel` | `tenant_operator` |
-| `documents.import.retry`  | 重试失败或已取消的文档导入任务         | `POST /api/v1/capability/import-tasks/:id/retry`  | `ova documents import retry`          | `documents.import.retry`  | `tenant_operator` |
-| `documents.import.events` | 查看文档导入任务进度事件快照           | `GET /api/v1/capability/import-tasks/:id/events`  | `ova documents import status --watch` | `documents.import.events` | `tenant_viewer`   |
-| `documents.index.status`  | 查看文档草稿与索引同步状态             | `GET /api/v1/capability/documents/:id/index`      | `ova documents index status`          | `documents.index.status`  | `tenant_viewer`   |
-| `documents.index.rebuild` | 使用最新草稿重建文档索引               | `POST /api/v1/capability/documents/:id/index/rebuild` | `ova documents index rebuild`     | `documents.index.rebuild` | `tenant_operator` |
-| `documents.draft.grep`    | 对 Admin 侧文档草稿正文执行文本匹配    | `POST /api/v1/capability/documents/:id/draft/grep`   | `ova documents draft grep`        | `documents.draft.grep`    | `tenant_viewer`   |
+| 能力                      | 说明                                   | HTTP                                                                                                                | CLI                                   | MCP 工具                  | 最低角色          |
+| ------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------- | ------------------------- | ----------------- |
+| `knowledge.search`        | 在租户知识域内执行语义搜索             | `POST /api/v1/knowledge/search`                                                                                     | `ova knowledge search`                | `knowledge.search`        | `tenant_viewer`   |
+| `knowledge.grep`          | 在租户知识域内执行文本匹配             | `POST /api/v1/knowledge/grep`                                                                                       | `ova knowledge grep`                  | `knowledge.grep`          | `tenant_viewer`   |
+| `resources.list`          | 列出租户授权范围内的资源               | `GET /api/v1/resources`                                                                                             | `ova resources list`                  | `resources.list`          | `tenant_operator` |
+| `resources.tree`          | 获取租户资源树                         | `GET /api/v1/resources/tree`                                                                                        | `ova resources tree`                  | `resources.tree`          | `tenant_operator` |
+| `knowledgeBases.list`     | 列出当前租户未归档的可导入知识库       | `GET /api/v1/capability/knowledge-bases`                                                                            | `ova kb list`                         | `knowledgeBases.list`     | `tenant_viewer`   |
+| `knowledgeBases.detail`   | 查看未归档知识库详情与导入根路径       | `GET /api/v1/capability/knowledge-bases/:id`                                                                        | `ova kb detail`                       | `knowledgeBases.detail`   | `tenant_viewer`   |
+| `knowledgeBases.delete`   | 删除当前租户 ACL 可见的知识库          | `DELETE /api/v1/capability/knowledge-bases/:id`                                                                     | `ova kb delete --id <kbId>`           | `knowledgeBases.delete`   | `tenant_operator` |
+| `knowledgeTree.list`      | 列出未归档知识库下可作为导入目标的节点 | `GET /api/v1/capability/knowledge-bases/:id/tree`                                                                   | `ova tree list`                       | `knowledgeTree.list`      | `tenant_viewer`   |
+| `knowledgeTree.detail`    | 查看知识树节点详情与导入路径           | `GET /api/v1/capability/knowledge-tree/:id`                                                                         | `ova tree detail`                     | `knowledgeTree.detail`    | `tenant_viewer`   |
+| `knowledgeTree.delete`    | 删除当前租户 ACL 可见的知识树节点      | `DELETE /api/v1/capability/knowledge-tree/:id`                                                                      | `ova tree delete --id <nodeId>`       | `knowledgeTree.delete`    | `tenant_operator` |
+| `documents.import.create` | 创建本地、URL 或 manifest 文档导入任务 | `POST /api/v1/capability/import-tasks/documents`；本地文件上传：`POST /api/v1/capability/import-tasks/local-upload` | `ova documents import`                | `documents.import.create` | `tenant_operator` |
+| `documents.import.status` | 查看文档导入任务进度                   | `GET /api/v1/capability/import-tasks/:id`                                                                           | `ova documents import status`         | `documents.import.status` | `tenant_viewer`   |
+| `documents.import.list`   | 列出当前租户文档导入任务               | `GET /api/v1/capability/import-tasks`                                                                               | `ova documents import list`           | `documents.import.list`   | `tenant_viewer`   |
+| `documents.import.cancel` | 取消排队中的文档导入任务               | `POST /api/v1/capability/import-tasks/:id/cancel`                                                                   | `ova documents import cancel`         | `documents.import.cancel` | `tenant_operator` |
+| `documents.import.retry`  | 重试失败或已取消的文档导入任务         | `POST /api/v1/capability/import-tasks/:id/retry`                                                                    | `ova documents import retry`          | `documents.import.retry`  | `tenant_operator` |
+| `documents.import.events` | 查看文档导入任务进度事件快照           | `GET /api/v1/capability/import-tasks/:id/events`                                                                    | `ova documents import status --watch` | `documents.import.events` | `tenant_viewer`   |
+| `documents.index.status`  | 查看文档草稿与索引同步状态             | `GET /api/v1/capability/documents/:id/index`                                                                        | `ova documents index status`          | `documents.index.status`  | `tenant_viewer`   |
+| `documents.index.rebuild` | 使用最新草稿重建文档索引               | `POST /api/v1/capability/documents/:id/index/rebuild`                                                               | `ova documents index rebuild`         | `documents.index.rebuild` | `tenant_operator` |
+| `documents.draft.grep`    | 对 Admin 侧文档草稿正文执行文本匹配    | `POST /api/v1/capability/documents/:id/draft/grep`                                                                  | `ova documents draft grep`            | `documents.draft.grep`    | `tenant_viewer`   |
 
 `knowledge.*`、`resources.*`、`knowledgeBases.*`、`knowledgeTree.*` 这些 capability 在通过租户与 minimumRole 校验后，还会继续按知识节点 ACL 过滤返回结果；删除能力 `knowledgeBases.delete` 与 `knowledgeTree.delete` 也会先做同一套节点 ACL 校验，再执行业务删除，并同时写入 capability 调用审计与领域删除审计。
 
 ## WebDAV 说明
 
-WebDAV 入口是外部客户端同步 adapter，不是 capability 本体，因此不会出现在 capability catalog 中。它复用 capability API key 进行 Basic Auth，路径租户和 `username` 均支持租户记录 UUID 或租户唯一标识，二者必须解析到同一租户，`password` 使用 capability API key。目录浏览走 `PROPFIND`，文档叶子 `GET` 复用 `DocumentService.loadContent()`，会优先返回最新草稿；没有草稿时才回退到节点 `contentUri` 或文档容器内已有正文叶子。写入侧当前支持 `MKCOL` 创建目录、`PUT` 新建或覆盖受支持文件、`DELETE` 删除知识库、叶子文件或空目录，以及 `MOVE` 重命名知识库，或在同一知识库内重命名、移动文件与目录；`PUT` 新建和覆盖文件都会直接保存草稿并标记索引过期，不再派生本地导入任务。`MOVE` 只调整 Admin 侧知识树元数据，不修改稳定资源容器 URI。
+WebDAV 入口是外部客户端同步 adapter，不是 capability 本体，因此不会出现在 capability catalog 中。它复用 capability API key 进行 Basic Auth，路径租户和 `username` 均支持租户记录 UUID 或租户唯一标识，二者必须解析到同一租户，`password` 使用 capability API key。目录浏览走 `PROPFIND`，文档叶子 `GET` 优先返回最新草稿；没有草稿且存在 `contentUri` 时直接流式读取 OpenViking 正文，没有 `contentUri` 时才回退到文档容器内已有正文叶子。写入侧当前支持 `MKCOL` 创建目录、`PUT` 新建或覆盖受支持文件、`DELETE` 删除知识库、叶子文件或空目录，以及 `MOVE` 重命名知识库，或在同一知识库内重命名、移动文件与目录；`PUT` 新建和覆盖文件都会直接保存草稿并标记索引过期，不再派生本地导入任务。`MOVE` 只调整 Admin 侧知识树元数据，不修改稳定资源容器 URI。
 
 ## 能力契约
 

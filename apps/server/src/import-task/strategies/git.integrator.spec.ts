@@ -1,3 +1,6 @@
+import { mkdtemp, rm } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { IntegrationType } from '../../common/constants/system.enum';
 import { GitIntegrator } from './git.integrator';
 import type { PlatformInjectConfig } from './platform-integrator.interface';
@@ -33,21 +36,27 @@ class GitLabApiSuccessGitIntegrator extends GitIntegrator {
   public archiveUrl?: string;
   public archiveHeaders?: Record<string, string>;
 
-  protected async downloadGitLabArchiveBuffer(
+  protected async downloadGitLabArchiveFile(
     archiveUrl: string,
     headers: Record<string, string>,
-  ): Promise<Buffer> {
+  ): Promise<string> {
     this.archiveUrl = archiveUrl;
     this.archiveHeaders = headers;
-    return Buffer.from('gitlab-api-zip');
+    return 'gitlab-api-archive.zip';
   }
 }
 
 describe('GitIntegrator', () => {
   const integrator = new FallbackOnlyGitIntegrator();
+  let tempDir: string;
 
-  afterEach(() => {
+  beforeEach(async () => {
+    tempDir = await mkdtemp(path.join(os.tmpdir(), 'ov-git-integrator-'));
+  });
+
+  afterEach(async () => {
     jest.restoreAllMocks();
+    await rm(tempDir, { recursive: true, force: true });
   });
 
   it('GitHub 应优先通过 API 下载 archive', async () => {
@@ -58,7 +67,11 @@ describe('GitIntegrator', () => {
       }),
     );
 
-    const result = await new GitIntegrator().resolveConfig(
+    const result = await new GitIntegrator({
+      get: jest.fn((key: string, fallback?: string) =>
+        key === 'LOCAL_IMPORT_UPLOAD_DIR' ? tempDir : fallback,
+      ),
+    } as never).resolveConfig(
       {
         type: IntegrationType.GITHUB,
         credentials: { token: 'gh-token' },
@@ -75,11 +88,16 @@ describe('GitIntegrator', () => {
         }),
       }),
     );
-    expect(result.tempFile).toEqual({
-      fileName: 'openviking-knowdge-main.zip',
-      buffer: Buffer.from('api-zip'),
-      mimeType: 'application/zip',
-    });
+    expect(result.tempFile).toEqual(
+      expect.objectContaining({
+        fileName: 'openviking-knowdge-main.zip',
+        filePath: expect.stringContaining(
+          path.join(tempDir, 'openviking-git-archives'),
+        ),
+        cleanupAfterUpload: true,
+        mimeType: 'application/zip',
+      }),
+    );
     expect(result.waitForCompletion).toBe(false);
   });
 
@@ -106,7 +124,8 @@ describe('GitIntegrator', () => {
     );
     expect(result.tempFile).toEqual({
       fileName: 'repo-main.zip',
-      buffer: Buffer.from('gitlab-api-zip'),
+      filePath: 'gitlab-api-archive.zip',
+      cleanupAfterUpload: true,
       mimeType: 'application/zip',
     });
     expect(result.waitForCompletion).toBe(false);

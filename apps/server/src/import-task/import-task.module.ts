@@ -40,6 +40,11 @@ import { LocalImportStorageService } from './local-import-storage.service';
       useClass: TypeOrmImportTaskRepository,
     },
   ],
-  exports: [ImportTaskService, TaskWorkerService, IMPORT_TASK_REPOSITORY],
+  exports: [
+    ImportTaskService,
+    TaskWorkerService,
+    LocalImportStorageService,
+    IMPORT_TASK_REPOSITORY,
+  ],
 })
 export class ImportTaskModule {}

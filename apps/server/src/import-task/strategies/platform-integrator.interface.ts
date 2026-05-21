@@ -2,7 +2,9 @@ import { Integration } from '../../tenant/entities/integration.entity';
 
 export interface PlatformTempFile {
   fileName: string;
-  buffer: Buffer;
+  buffer?: Buffer;
+  filePath?: string;
+  cleanupAfterUpload?: boolean;
   mimeType: string | null;
 }
 

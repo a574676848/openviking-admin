@@ -1,12 +1,18 @@
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
+import { createWriteStream } from 'node:fs';
+import { mkdir, rm } from 'node:fs/promises';
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
-import { Injectable, Logger } from '@nestjs/common';
+import path from 'node:path';
+import { Readable } from 'node:stream';
+import { Injectable, Logger, Optional } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   IPlatformIntegrator,
   PlatformInjectConfig,
 } from './platform-integrator.interface';
 import { Integration } from '../../tenant/entities/integration.entity';
+import { LOCAL_IMPORT_UPLOAD_CONFIG } from '../constants';
 
 const SUPPORTED_GIT_INTEGRATION_TYPES = ['github', 'gitlab'];
 const PUBLIC_GITHUB_HOSTS = ['github.com', 'www.github.com'];
@@ -17,6 +23,8 @@ const ARCHIVE_MIME_TYPE = 'application/zip';
 const API_TIMEOUT_MS = 120_000;
 const CLI_TIMEOUT_MS = 120_000;
 const CLI_MAX_BUFFER_BYTES = 200 * 1024 * 1024;
+const DEFAULT_ARCHIVE_MAX_BYTES = 200 * 1024 * 1024;
+const GIT_ARCHIVE_MAX_BYTES_ENV = 'GIT_ARCHIVE_MAX_BYTES';
 const MASKED_CREDENTIAL = '***';
 const GITHUB_CLI = 'gh';
 const GITLAB_CLI = 'glab';
@@ -46,6 +54,9 @@ interface GitArchiveStrategy {
 @Injectable()
 export class GitIntegrator implements IPlatformIntegrator {
   private readonly logger = new Logger(GitIntegrator.name);
+
+  constructor(@Optional() private readonly configService?: ConfigService) {}
+
   supports(type: string): boolean {
     return SUPPORTED_GIT_INTEGRATION_TYPES.includes(type);
   }
@@ -108,22 +119,23 @@ export class GitIntegrator implements IPlatformIntegrator {
       repoInfo.platform === 'gitlab'
         ? this.buildGitLabApiHeaders(token)
         : this.buildGithubApiHeaders(token);
-    const buffer =
+    const filePath =
       repoInfo.platform === 'gitlab'
-        ? await this.downloadGitLabArchiveBuffer(archiveUrl, headers)
-        : await this.fetchArchiveBuffer(archiveUrl, headers);
+        ? await this.downloadGitLabArchiveFile(archiveUrl, headers)
+        : await this.fetchArchiveFile(archiveUrl, headers);
 
     return {
       tempFile: {
         fileName: this.buildArchiveFileName(repoInfo),
-        buffer,
+        filePath,
+        cleanupAfterUpload: true,
         mimeType: ARCHIVE_MIME_TYPE,
       },
       waitForCompletion: GIT_ARCHIVE_WAIT_FOR_COMPLETION,
     };
   }
 
-  protected async fetchArchiveBuffer(
+  protected async fetchArchiveFile(
     archiveUrl: string,
     headers: Record<string, string>,
   ) {
@@ -143,21 +155,28 @@ export class GitIntegrator implements IPlatformIntegrator {
         `HTTP ${response.status} ${response.statusText}: ${await this.readResponsePreview(response)}`,
       );
     }
-    return Buffer.from(await response.arrayBuffer());
+    const contentLength = Number(response.headers.get('content-length') ?? 0);
+    this.assertArchiveContentLength(contentLength);
+    if (!response.body) {
+      throw new Error('Git archive 下载响应缺少正文');
+    }
+    return this.writeArchiveStreamToTempFile(
+      Readable.fromWeb(response.body as never),
+    );
   }
 
-  protected async downloadGitLabArchiveBuffer(
+  protected async downloadGitLabArchiveFile(
     archiveUrl: string,
     headers: Record<string, string>,
   ) {
-    return this.requestArchiveBuffer(archiveUrl, headers);
+    return this.requestArchiveFile(archiveUrl, headers);
   }
 
-  private requestArchiveBuffer(
+  private requestArchiveFile(
     archiveUrl: string,
     headers: Record<string, string>,
     redirects = 0,
-  ): Promise<Buffer> {
+  ): Promise<string> {
     return new Promise((resolve, reject) => {
       const url = new URL(archiveUrl);
       const request = url.protocol === 'http:' ? httpRequest : httpsRequest;
@@ -170,7 +189,7 @@ export class GitIntegrator implements IPlatformIntegrator {
             reject(new Error('HTTP archive 下载重定向次数过多'));
             return;
           }
-          this.requestArchiveBuffer(
+          this.requestArchiveFile(
             new URL(location, url).toString(),
             headers,
             redirects + 1,
@@ -179,11 +198,19 @@ export class GitIntegrator implements IPlatformIntegrator {
             .catch(reject);
           return;
         }
-        const chunks: Buffer[] = [];
-        response.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
-        response.on('end', () => {
-          const buffer = Buffer.concat(chunks);
-          if (statusCode < 200 || statusCode >= 300) {
+        const contentLength = Number(response.headers['content-length'] ?? 0);
+        try {
+          this.assertArchiveContentLength(contentLength);
+        } catch (error) {
+          response.resume();
+          reject(error);
+          return;
+        }
+        if (statusCode < 200 || statusCode >= 300) {
+          const chunks: Buffer[] = [];
+          response.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
+          response.on('end', () => {
+            const buffer = Buffer.concat(chunks);
             reject(
               new Error(
                 `HTTP ${statusCode} ${response.statusMessage}: ${this.maskSensitiveText(
@@ -191,15 +218,86 @@ export class GitIntegrator implements IPlatformIntegrator {
                 )}`,
               ),
             );
-            return;
-          }
-          resolve(buffer);
-        });
+          });
+          return;
+        }
+        this.writeArchiveStreamToTempFile(response).then(resolve).catch(reject);
       });
       req.setTimeout(API_TIMEOUT_MS, () => req.destroy(new Error('请求超时')));
       req.on('error', reject);
       req.end();
     });
+  }
+
+  private assertArchiveContentLength(contentLength: number) {
+    const archiveMaxBytes = this.resolveArchiveMaxBytes();
+    if (Number.isFinite(contentLength) && contentLength > archiveMaxBytes) {
+      throw new Error(
+        `Git archive 超过大小限制 ${Math.round(archiveMaxBytes / 1024 / 1024)}MB`,
+      );
+    }
+  }
+
+  private resolveArchiveMaxBytes() {
+    const configured = Number(
+      this.configService?.get<string>(GIT_ARCHIVE_MAX_BYTES_ENV),
+    );
+    return Number.isFinite(configured) && configured > 0
+      ? configured
+      : DEFAULT_ARCHIVE_MAX_BYTES;
+  }
+
+  private async writeArchiveStreamToTempFile(stream: Readable) {
+    const filePath = await this.createArchiveTempFilePath();
+    const output = createWriteStream(filePath, { flags: 'wx' });
+    let totalSize = 0;
+
+    try {
+      for await (const chunk of stream) {
+        const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+        totalSize += buffer.length;
+        if (totalSize > this.resolveArchiveMaxBytes()) {
+          throw new Error(
+            `Git archive 超过大小限制 ${Math.round(this.resolveArchiveMaxBytes() / 1024 / 1024)}MB`,
+          );
+        }
+        if (!output.write(buffer)) {
+          await new Promise((resolve) => output.once('drain', resolve));
+        }
+      }
+      await new Promise<void>((resolve, reject) => {
+        output.end(() => resolve());
+        output.on('error', reject);
+      });
+      return filePath;
+    } catch (error) {
+      output.destroy();
+      await rm(filePath, { force: true });
+      throw error;
+    }
+  }
+
+  private async createArchiveTempFilePath() {
+    const archiveTempDir = this.resolveArchiveTempDir();
+    await mkdir(archiveTempDir, { recursive: true });
+    return path.join(
+      archiveTempDir,
+      `archive-${Date.now()}-${Math.random().toString(36).slice(2)}.zip`,
+    );
+  }
+
+  private resolveArchiveTempDir() {
+    const configured = this.configService?.get<string>(
+      LOCAL_IMPORT_UPLOAD_CONFIG.STORAGE_DIR_ENV,
+    );
+    return path.resolve(
+      configured ||
+        path.join(
+          process.cwd(),
+          ...LOCAL_IMPORT_UPLOAD_CONFIG.DEFAULT_STORAGE_SEGMENTS,
+        ),
+      LOCAL_IMPORT_UPLOAD_CONFIG.GIT_ARCHIVE_SEGMENT,
+    );
   }
 
   protected async resolveByArchiveCli(
@@ -213,14 +311,15 @@ export class GitIntegrator implements IPlatformIntegrator {
       throw new Error(`未检测到 ${cli} CLI`);
     }
 
-    const output =
+    const filePath =
       repoInfo.platform === 'gitlab'
         ? await this.downloadGitLabArchiveByCli(repoInfo, token)
         : await this.downloadGithubArchiveByCli(repoInfo, token);
     return {
       tempFile: {
         fileName: this.buildArchiveFileName(repoInfo),
-        buffer: output,
+        filePath,
+        cleanupAfterUpload: true,
         mimeType: ARCHIVE_MIME_TYPE,
       },
       waitForCompletion: GIT_ARCHIVE_WAIT_FOR_COMPLETION,
@@ -321,7 +420,7 @@ export class GitIntegrator implements IPlatformIntegrator {
         ? ''
         : `?sha=${encodeURIComponent(repoInfo.ref)}`
     }`;
-    return this.execCli(
+    return this.execCliToArchiveFile(
       GITLAB_CLI,
       ['api', '--hostname', repoInfo.host, endpoint],
       {
@@ -340,7 +439,7 @@ export class GitIntegrator implements IPlatformIntegrator {
         `GitHub 仓库地址不支持多级 group：${repoInfo.projectPath}`,
       );
     }
-    return this.execCli(
+    return this.execCliToArchiveFile(
       GITHUB_CLI,
       [
         'api',
@@ -390,6 +489,78 @@ export class GitIntegrator implements IPlatformIntegrator {
           resolve(Buffer.from(stdout));
         },
       );
+    });
+  }
+
+  private async execCliToArchiveFile(
+    command: string,
+    args: string[],
+    env: Record<string, string>,
+  ): Promise<string> {
+    const filePath = await this.createArchiveTempFilePath();
+    return new Promise((resolve, reject) => {
+      const output = createWriteStream(filePath, { flags: 'wx' });
+      const child = spawn(command, args, {
+        env: { ...process.env, ...env },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      const stderrChunks: Buffer[] = [];
+      let totalSize = 0;
+      let settled = false;
+      const timeout = setTimeout(() => child.kill('SIGTERM'), CLI_TIMEOUT_MS);
+
+      const fail = async (error: Error) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        clearTimeout(timeout);
+        output.destroy();
+        await rm(filePath, { force: true });
+        reject(error);
+      };
+
+      child.stdout.on('data', (chunk: Buffer) => {
+        totalSize += chunk.length;
+        if (totalSize > this.resolveArchiveMaxBytes()) {
+          child.kill('SIGTERM');
+          void fail(
+            new Error(
+              `Git archive 超过大小限制 ${Math.round(this.resolveArchiveMaxBytes() / 1024 / 1024)}MB`,
+            ),
+          );
+          return;
+        }
+        if (!output.write(chunk)) {
+          child.stdout.pause();
+          output.once('drain', () => child.stdout.resume());
+        }
+      });
+
+      child.stderr.on('data', (chunk) => stderrChunks.push(Buffer.from(chunk)));
+      child.on('error', (error) => void fail(error));
+      child.on('close', (code) => {
+        clearTimeout(timeout);
+        if (settled) {
+          return;
+        }
+        if (code !== 0) {
+          void fail(
+            new Error(
+              `${command} ${args.join(' ')} exited with ${code}: ${Buffer.concat(
+                stderrChunks,
+              )
+                .toString('utf8')
+                .slice(0, 200)}`,
+            ),
+          );
+          return;
+        }
+        output.end(() => {
+          settled = true;
+          resolve(filePath);
+        });
+      });
     });
   }
 

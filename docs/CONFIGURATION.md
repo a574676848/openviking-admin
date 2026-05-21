@@ -8,29 +8,37 @@
 
 ### 后端 (`apps/server/.env`)
 
-| 变量              | 类型    | 默认值                               | 必填 | 说明                                                                                      |
-| ----------------- | ------- | ------------------------------------ | ---- | ----------------------------------------------------------------------------------------- |
-| `DB_HOST`         | string  | `localhost`                          | 是   | PostgreSQL 主机地址                                                                       |
-| `DB_PORT`         | number  | `5432`                               | 是   | PostgreSQL 端口                                                                           |
-| `DB_USER`         | string  | `postgres`                           | 是   | PostgreSQL 用户名                                                                         |
-| `DB_PASS`         | string  | —                                    | 是   | PostgreSQL 密码                                                                           |
-| `DB_NAME`         | string  | `openviking_admin`                   | 是   | 数据库名称                                                                                |
-| `JWT_SECRET`      | string  | `ov-admin-secret-change-in-prod`     | 是   | JWT 签名密钥，生产环境必须修改                                                            |
-| `ENCRYPTION_KEY`  | string  | `ov-default-key-32-chars-length-!!!` | 否   | AES-256-CBC 加密密钥，用于保护集成凭证。不足 32 字节自动填充                              |
-| `OV_BASE_URL`     | string  | —                                    | 否   | OpenViking 引擎地址，仅在数据库默认 OV 配置缺失时作为回退                                 |
-| `OV_API_KEY`      | string  | —                                    | 否   | OpenViking API 密钥，仅在数据库默认 OV 配置缺失时作为回退                                 |
-| `OV_ACCOUNT`      | string  | `default`                            | 否   | OpenViking 默认账户，仅在数据库默认 OV 配置缺失时作为回退                                 |
-| `OV_USER`         | string  | —                                    | 否   | OpenViking 默认用户标识，使用 root key 调租户资源接口时必须配置                            |
-| `RERANK_ENDPOINT` | string  | —                                    | 否   | 推荐填写完整 Rerank 地址，例如 `http://host:port/v1/rerank`，仅在数据库默认 OV 配置缺失时作为回退 |
-| `RERANK_API_KEY`  | string  | —                                    | 否   | OpenAI 兼容 Rerank Bearer Token，仅在数据库默认 OV 配置缺失时作为回退                     |
-| `RERANK_MODEL`    | string  | —                                    | 否   | Rerank 模型名称，仅在数据库默认 OV 配置缺失时作为回退                                     |
-| `FRONTEND_URL`    | string  | `http://localhost:6002`              | 是   | 前端地址，用于 CORS 白名单                                                                |
-| `PORT`            | number  | `6001`                               | 否   | 后端监听端口                                                                              |
-| `NODE_ENV`        | string  | `development`                        | 否   | 运行环境: `development` / `production`                                                    |
-| `WEBDAV_ACCESS_LOG_VERBOSE` | boolean | `false`                     | 否   | 是否输出所有 WebDAV 请求的脱敏明细日志；默认只在 WebDAV 请求失败时输出 `http.request.webdav` 事件 |
-| `DB_SYNCHRONIZE`  | boolean | `false`                              | 否   | 是否允许 TypeORM 自动同步表结构。默认关闭；生产环境若设置为 `true` 会在启动期直接拒绝启动 |
-| `LOCAL_IMPORT_UPLOAD_DIR` | string | `./storage/import-uploads` | 生产必填 | 本地文档上传暂存目录；Admin Worker 会读取该目录下的受控上传文件并转传 OpenViking `temp_upload` |
-| `LOCAL_IMPORT_KEEP_FILES_AFTER_DONE` | boolean | `false` | 否 | 本地导入成功后是否保留暂存文件 |
+| 变量                                     | 类型    | 默认值                               | 必填     | 说明                                                                                              |
+| ---------------------------------------- | ------- | ------------------------------------ | -------- | ------------------------------------------------------------------------------------------------- |
+| `DB_HOST`                                | string  | `localhost`                          | 是       | PostgreSQL 主机地址                                                                               |
+| `DB_PORT`                                | number  | `5432`                               | 是       | PostgreSQL 端口                                                                                   |
+| `DB_USER`                                | string  | `postgres`                           | 是       | PostgreSQL 用户名                                                                                 |
+| `DB_PASS`                                | string  | —                                    | 是       | PostgreSQL 密码                                                                                   |
+| `DB_NAME`                                | string  | `openviking_admin`                   | 是       | 数据库名称                                                                                        |
+| `JWT_SECRET`                             | string  | `ov-admin-secret-change-in-prod`     | 是       | JWT 签名密钥，生产环境必须修改                                                                    |
+| `ENCRYPTION_KEY`                         | string  | `ov-default-key-32-chars-length-!!!` | 否       | AES-256-CBC 加密密钥，用于保护集成凭证。不足 32 字节自动填充                                      |
+| `OV_BASE_URL`                            | string  | —                                    | 否       | OpenViking 引擎地址，仅在数据库默认 OV 配置缺失时作为回退                                         |
+| `OV_API_KEY`                             | string  | —                                    | 否       | OpenViking API 密钥，仅在数据库默认 OV 配置缺失时作为回退                                         |
+| `OV_ACCOUNT`                             | string  | `default`                            | 否       | OpenViking 默认账户，仅在数据库默认 OV 配置缺失时作为回退                                         |
+| `OV_USER`                                | string  | —                                    | 否       | OpenViking 默认用户标识，使用 root key 调租户资源接口时必须配置                                   |
+| `RERANK_ENDPOINT`                        | string  | —                                    | 否       | 推荐填写完整 Rerank 地址，例如 `http://host:port/v1/rerank`，仅在数据库默认 OV 配置缺失时作为回退 |
+| `RERANK_API_KEY`                         | string  | —                                    | 否       | OpenAI 兼容 Rerank Bearer Token，仅在数据库默认 OV 配置缺失时作为回退                             |
+| `RERANK_MODEL`                           | string  | —                                    | 否       | Rerank 模型名称，仅在数据库默认 OV 配置缺失时作为回退                                             |
+| `FRONTEND_URL`                           | string  | `http://localhost:6002`              | 是       | 前端地址，用于 CORS 白名单                                                                        |
+| `PORT`                                   | number  | `6001`                               | 否       | 后端监听端口                                                                                      |
+| `NODE_ENV`                               | string  | `development`                        | 否       | 运行环境: `development` / `production`                                                            |
+| `WEBDAV_ACCESS_LOG_VERBOSE`              | boolean | `false`                              | 否       | 是否输出所有 WebDAV 请求的脱敏明细日志；默认只在 WebDAV 请求失败时输出 `http.request.webdav` 事件 |
+| `DB_SYNCHRONIZE`                         | boolean | `false`                              | 否       | 是否允许 TypeORM 自动同步表结构。默认关闭；生产环境若设置为 `true` 会在启动期直接拒绝启动         |
+| `LOCAL_IMPORT_UPLOAD_DIR`                | string  | `./storage/import-uploads`           | 生产必填 | 本地文档上传暂存目录；Admin Worker 会读取该目录下的受控上传文件并转传 OpenViking `temp_upload`    |
+| `LOCAL_IMPORT_KEEP_FILES_AFTER_DONE`     | boolean | `false`                              | 否       | 本地导入成功后是否保留暂存文件                                                                    |
+| `RESOURCE_RETENTION_CLEANUP_INTERVAL_MS` | number  | `21600000`                           | 否       | 资源保留期清理任务间隔，默认 6 小时                                                               |
+| `SEARCH_LOG_RETENTION_DAYS`              | number  | `90`                                 | 否       | `search_logs` 保留天数                                                                            |
+| `AUDIT_LOG_RETENTION_DAYS`               | number  | `180`                                | 否       | `audit_logs` 保留天数                                                                             |
+| `MCP_SESSION_RETENTION_DAYS`             | number  | `7`                                  | 否       | MCP session/event 兜底保留天数；过期 session/event 仍按内置 TTL 优先清理                          |
+| `LOCAL_IMPORT_RETENTION_DAYS`            | number  | `7`                                  | 否       | 本地导入受控上传目录中失败或保留文件的兜底清理天数                                                |
+| `DYNAMIC_DATASOURCE_IDLE_TTL_MS`         | number  | `1800000`                            | 否       | LARGE 租户独立库连接池空闲淘汰时间，默认 30 分钟                                                  |
+| `TENANT_CACHE_TTL_MS`                    | number  | `600000`                             | 否       | 租户隔离配置内存缓存 TTL，默认 10 分钟                                                            |
+| `GIT_ARCHIVE_MAX_BYTES`                  | number  | `209715200`                          | 否       | Git archive API/CLI 下载流式写入的最大字节数，默认 200MB                                          |
 
 开发环境启动策略：
 
@@ -47,10 +55,10 @@
 
 ### 前端 (`apps/web/.env.local`)
 
-| 变量                   | 类型   | 默认值                  | 必填 | 说明 |
-| ---------------------- | ------ | ----------------------- | ---- | ---- |
+| 变量                   | 类型   | 默认值                  | 必填       | 说明                                                                                                                          |
+| ---------------------- | ------ | ----------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | `BACKEND_URL`          | string | `http://localhost:6001` | 运行期必填 | Web 服务端 API 代理目标地址，也是 WebDAV 客户端配置页展示的后端域名；Docker 镜像构建期不需要，容器启动后由 Route Handler 读取 |
-| `NEXT_PUBLIC_APP_NAME` | string | `OpenViking Admin`      | 否   | 应用显示名称 |
+| `NEXT_PUBLIC_APP_NAME` | string | `OpenViking Admin`      | 否         | 应用显示名称                                                                                                                  |
 
 ---
 
@@ -58,16 +66,16 @@
 
 通过 `SettingsService` 管理，支持数据库默认配置和租户级覆盖。默认 OV 配置优先读取 `DEFAULT_OV_CONFIG`，缺失或字段为空时读取环境变量补齐，最后兼容旧版分散配置键。
 
-| 配置键              | 类型        | 说明                                     | 作用范围 |
-| ------------------- | ----------- | ---------------------------------------- | -------- |
-| `DEFAULT_OV_CONFIG` | JSON string | 默认 OpenViking 连接配置，可整体加密存储 | 默认     |
-| `ov.base_url`       | string      | 旧版 OpenViking 引擎地址，作为兼容回退   | 默认     |
-| `ov.api_key`        | string      | 旧版 OpenViking API 密钥，作为兼容回退   | 默认     |
-| `ov.account`        | string      | 旧版 OpenViking 账户名，作为兼容回退     | 默认     |
-| `ov.user`           | string      | 旧版 OpenViking 用户标识，作为兼容回退   | 默认     |
-| `rerank.endpoint`   | string      | OpenAI 兼容 Rerank Base URL，作为兼容回退 | 默认     |
-| `rerank.api_key`    | string      | OpenAI 兼容 Rerank Bearer Token，作为兼容回退 | 默认  |
-| `rerank.model`      | string      | Rerank 模型名称，作为兼容回退             | 默认     |
+| 配置键              | 类型        | 说明                                          | 作用范围 |
+| ------------------- | ----------- | --------------------------------------------- | -------- |
+| `DEFAULT_OV_CONFIG` | JSON string | 默认 OpenViking 连接配置，可整体加密存储      | 默认     |
+| `ov.base_url`       | string      | 旧版 OpenViking 引擎地址，作为兼容回退        | 默认     |
+| `ov.api_key`        | string      | 旧版 OpenViking API 密钥，作为兼容回退        | 默认     |
+| `ov.account`        | string      | 旧版 OpenViking 账户名，作为兼容回退          | 默认     |
+| `ov.user`           | string      | 旧版 OpenViking 用户标识，作为兼容回退        | 默认     |
+| `rerank.endpoint`   | string      | OpenAI 兼容 Rerank Base URL，作为兼容回退     | 默认     |
+| `rerank.api_key`    | string      | OpenAI 兼容 Rerank Bearer Token，作为兼容回退 | 默认     |
+| `rerank.model`      | string      | Rerank 模型名称，作为兼容回退                 | 默认     |
 
 `DEFAULT_OV_CONFIG` 推荐结构：
 
@@ -91,19 +99,19 @@
 
 ### 核心字段约束
 
-| 字段 | 说明 |
-| ---- | ---- |
-| `tenant_id` | 租户命名空间 ID，全局唯一，用于数据隔离与租户路由 |
-| `status` | 租户启用状态，使用 `active` / `disabled` 表达是否可用 |
+| 字段         | 说明                                                                 |
+| ------------ | -------------------------------------------------------------------- |
+| `tenant_id`  | 租户命名空间 ID，全局唯一，用于数据隔离与租户路由                    |
+| `status`     | 租户启用状态，使用 `active` / `disabled` 表达是否可用                |
 | `deleted_at` | 软删除时间；为空表示有效租户，非空表示该租户已被归档且默认查询不返回 |
 
 ### 隔离等级 (`isolation_level`)
 
-| 值       | 说明              | 数据库行为                                              |
-| -------- | ----------------- | ------------------------------------------------------- |
-| `small`  | 字段级逻辑隔离    | 所有租户共享 `public` schema，通过 `tenant_id` 字段过滤 |
+| 值       | 说明              | 数据库行为                                                           |
+| -------- | ----------------- | -------------------------------------------------------------------- |
+| `small`  | 字段级逻辑隔离    | 所有租户共享 `public` schema，通过 `tenant_id` 字段过滤              |
 | `medium` | Schema 级物理隔离 | 业务表创建到 `tenant_{id}` schema，运行期通过 `SET search_path` 切换 |
-| `large`  | 独立数据库隔离    | 业务表使用独立 `DataSource` 连接池，身份数据仍保留在公共控制平面 |
+| `large`  | 独立数据库隔离    | 业务表使用独立 `DataSource` 连接池，身份数据仍保留在公共控制平面     |
 
 身份中心说明：
 

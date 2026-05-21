@@ -63,6 +63,6 @@ describe('FeishuIntegrator', () => {
         mimeType: 'text/markdown;charset=utf-8',
       },
     });
-    expect(result.tempFile?.buffer.toString('utf8')).toContain('正文内容');
+    expect(result.tempFile?.buffer!.toString('utf8')).toContain('正文内容');
   });
 });

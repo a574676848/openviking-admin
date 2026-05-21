@@ -1,4 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { rm } from 'node:fs/promises';
 import {
   DataSource,
   In,
@@ -264,6 +265,7 @@ export class TaskWorkerService implements OnModuleInit {
             conn,
             targetNode,
             task.targetUri,
+            task.sourceName,
             resourceStats.vectorCount,
           );
         }
@@ -704,6 +706,7 @@ export class TaskWorkerService implements OnModuleInit {
     },
     node: TargetKnowledgeNode,
     targetUri: string,
+    sourceName?: string | null,
     vectorCount?: number | null,
   ) {
     const treeData = await this.ovClient.request(
@@ -730,16 +733,21 @@ export class TaskWorkerService implements OnModuleInit {
       this.logger.warn(`文档叶子 ${node.id} 的内容资源数量为 0。`);
       return;
     }
-    if (leafResources.length > 1) {
+
+    const contentResource = this.resolveDocumentContentResource(
+      leafResources,
+      sourceName,
+    );
+    if (!contentResource) {
       this.logger.warn(
-        `文档叶子 ${node.id} 的内容资源数量异常，期望 1 个，实际 ${leafResources.length} 个。可能处于协作保存并发状态或存在孤儿文件，跳过 contentUri 覆盖。`,
+        `文档叶子 ${node.id} 的内容资源数量异常，期望能按来源文件名唯一匹配，实际 ${leafResources.length} 个。可能处于协作保存并发状态或存在孤儿文件，跳过 contentUri 覆盖。`,
       );
       return;
     }
 
     const indexedVersion = node.draftVersion ?? node.indexedVersion ?? 0;
     await context.nodeRepo.update(node.id, {
-      contentUri: leafResources[0].uri,
+      contentUri: contentResource.uri,
       indexStatus: 'clean',
       indexedVersion,
       ...(vectorCount !== undefined ? { vectorCount } : {}),
@@ -747,6 +755,47 @@ export class TaskWorkerService implements OnModuleInit {
       indexError: null,
       updatedAt: new Date(),
     });
+  }
+
+  private resolveDocumentContentResource(
+    leafResources: Array<{ uri: string; isDir?: boolean }>,
+    sourceName?: string | null,
+  ) {
+    if (leafResources.length === 1) {
+      return leafResources[0];
+    }
+
+    const normalizedSourceName = this.normalizeResourceFileName(sourceName);
+    if (!normalizedSourceName) {
+      return null;
+    }
+
+    const matchedResources = leafResources.filter(
+      (resource) =>
+        this.normalizeResourceFileName(
+          this.extractResourceFileName(resource.uri),
+        ) === normalizedSourceName,
+    );
+    return matchedResources.length === 1 ? matchedResources[0] : null;
+  }
+
+  private extractResourceFileName(uri: string) {
+    const normalizedUri = uri.endsWith('/') ? uri.slice(0, -1) : uri;
+    const fileName = normalizedUri.slice(normalizedUri.lastIndexOf('/') + 1);
+    try {
+      return decodeURIComponent(fileName);
+    } catch {
+      return fileName;
+    }
+  }
+
+  private normalizeResourceFileName(value?: string | null) {
+    return (
+      value
+        ?.trim()
+        .toLowerCase()
+        .replace(/[\s_]+/g, '') || null
+    );
   }
 
   private async injectResourceWithPaths(
@@ -872,18 +921,26 @@ export class TaskWorkerService implements OnModuleInit {
     },
     file: {
       fileName: string;
-      buffer: Buffer;
+      buffer?: Buffer;
+      filePath?: string;
+      cleanupAfterUpload?: boolean;
       mimeType: string | null;
     },
   ) {
-    const response = await this.ovClient.uploadTempFile(
-      conn,
-      OPENVIKING_RESOURCE_ENDPOINTS.TEMP_UPLOAD,
-      file,
-      { user: conn.user || undefined },
-      { serviceLabel: 'OpenViking Resources' },
-    );
-    return this.extractTempFileId(response);
+    try {
+      const response = await this.ovClient.uploadTempFile(
+        conn,
+        OPENVIKING_RESOURCE_ENDPOINTS.TEMP_UPLOAD,
+        file,
+        { user: conn.user || undefined },
+        { serviceLabel: 'OpenViking Resources' },
+      );
+      return this.extractTempFileId(response);
+    } finally {
+      if (file.cleanupAfterUpload && file.filePath) {
+        await rm(file.filePath, { force: true });
+      }
+    }
   }
 
   private extractTempFileId(response: unknown) {

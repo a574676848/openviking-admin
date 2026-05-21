@@ -45,6 +45,10 @@ describe('WebdavService 日志', () => {
         updatedAt: new Date('2026-05-12T00:00:00.000Z'),
       }),
     };
+    const webdavMarkdownContentService =
+      (overrides.webdavMarkdownContentService as Record<string, unknown>) ?? {
+        load: jest.fn(),
+      };
     const tenantCacheService = {
       getIsolationConfigByTenantRecordId: jest.fn(
         async (identifier: string) => ({
@@ -63,6 +67,7 @@ describe('WebdavService 日志', () => {
       {} as never,
       documentSessionRegistry as never,
       documentService as never,
+      webdavMarkdownContentService as never,
     );
     const logger: LoggerStub = {
       warn: jest.fn(),

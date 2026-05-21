@@ -128,7 +128,7 @@ export class McpSessionService {
     }));
   }
 
-  private async cleanupExpiredRecords() {
+  async cleanupExpiredRecords() {
     const now = new Date();
     await this.eventRepo.delete([
       { expiresAt: LessThan(now) },

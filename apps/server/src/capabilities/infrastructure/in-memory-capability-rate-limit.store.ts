@@ -15,6 +15,7 @@ export class InMemoryCapabilityRateLimitStore implements CapabilityRateLimitStor
     windowMs: number,
     now: number,
   ): Promise<RateLimitBucketConsumeResult> {
+    this.cleanupExpired(now);
     const current = this.buckets.get(key);
 
     if (!current || now - current.windowStartedAt >= current.windowMs) {
@@ -43,9 +44,22 @@ export class InMemoryCapabilityRateLimitStore implements CapabilityRateLimitStor
   }
 
   async entries() {
+    this.cleanupExpired(Date.now());
     return Array.from(this.buckets.entries()).map(([key, state]) => ({
       key,
       state,
     }));
+  }
+
+  cleanupExpired(now: number) {
+    let deleted = 0;
+    for (const [key, state] of this.buckets.entries()) {
+      if (now - state.windowStartedAt < state.windowMs) {
+        continue;
+      }
+      this.buckets.delete(key);
+      deleted += 1;
+    }
+    return deleted;
   }
 }

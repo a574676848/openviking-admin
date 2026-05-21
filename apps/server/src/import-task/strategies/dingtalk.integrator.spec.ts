@@ -77,7 +77,7 @@ describe('DingTalkIntegrator', () => {
       }),
     );
     expect(result.tempFile?.fileName).toBe('钉钉方案.md');
-    expect(result.tempFile?.buffer.toString('utf8')).toContain('钉钉正文');
+    expect(result.tempFile?.buffer!.toString('utf8')).toContain('钉钉正文');
   });
 
   it('没有 operatorId 时应直接失败，避免向 OpenViking 透传 dingtalk_token', async () => {

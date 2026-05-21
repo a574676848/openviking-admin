@@ -29,6 +29,7 @@ import {
   WEBDAV_ROOT_PATH,
   WEBDAV_TEXT_CONTENT_TYPE,
 } from './webdav.constants';
+import { WebdavMarkdownContentService } from './webdav-markdown-content.service';
 
 const WEBDAV_REALM = 'OpenViking WebDAV';
 const WEBDAV_XML_CONTENT_TYPE = 'application/xml; charset=utf-8';
@@ -141,6 +142,7 @@ export class WebdavService {
     private readonly dataSource: DataSource,
     private readonly documentSessionRegistry: DocumentSessionRegistry,
     private readonly documentService: DocumentService,
+    private readonly webdavMarkdownContentService: WebdavMarkdownContentService,
   ) {}
 
   async buildResponse(
@@ -1087,18 +1089,23 @@ export class WebdavService {
     }
 
     try {
-      const snapshot = await this.documentService.loadContent(
-        node.id,
+      const content = await this.webdavMarkdownContentService.load(
+        node,
         tenantScope,
+        principal,
       );
-      commonHeaders['Content-Length'] = String(
-        Buffer.byteLength(snapshot.markdown, 'utf8'),
-      );
+      if (content.contentLength) {
+        commonHeaders['Content-Length'] = content.contentLength;
+      } else if (typeof content.body === 'string') {
+        commonHeaders['Content-Length'] = String(
+          Buffer.byteLength(content.body, 'utf8'),
+        );
+      }
 
       return {
         status: 200,
         headers: commonHeaders,
-        body: snapshot.markdown,
+        body: content.body,
       };
     } catch {
       return this.createBadGatewayResponse('WebDAV 正文读取失败。');

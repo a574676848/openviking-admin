@@ -123,6 +123,6 @@ const DOCUMENT_ASSET_DEDUP_ENV = {
           : inMemoryStore,
     },
   ],
-  exports: [DocumentService, DocumentContentCodec],
+  exports: [DocumentService, DocumentContentCodec, DocumentDraftRepository],
 })
 export class DocumentModule {}

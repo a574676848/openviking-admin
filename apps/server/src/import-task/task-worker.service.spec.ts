@@ -717,6 +717,76 @@ describe('TaskWorkerService', () => {
     });
   });
 
+  it('文档目录存在多个叶子时应按来源文件名唯一匹配正文 contentUri', async () => {
+    const nodeRepo = {
+      update: jest.fn(),
+    };
+    const ovClient = {
+      request: jest.fn().mockResolvedValue({
+        result: [
+          {
+            uri: 'viking://resources/tenants/rag/kb-1/node-file/高级查询.md',
+            isDir: false,
+          },
+          {
+            uri: 'viking://resources/tenants/rag/kb-1/node-file/EQL_数据查询使用指南.md',
+            isDir: false,
+          },
+          {
+            uri: 'viking://resources/tenants/rag/kb-1/node-file/查询条件构造/',
+            isDir: true,
+          },
+        ],
+      }),
+      uploadTempFile: jest.fn(),
+    };
+    const service = createService({
+      defaultDataSource: { getRepository: jest.fn() },
+      ovClient,
+    });
+
+    await (
+      service as unknown as {
+        syncDocumentContentUri(
+          context: { nodeRepo: typeof nodeRepo },
+          conn: {
+            baseUrl: string;
+            apiKey: string;
+            account: string;
+            user: string;
+          },
+          node: { id: string; draftVersion?: number; indexedVersion?: number },
+          targetUri: string,
+          sourceName?: string | null,
+          vectorCount?: number | null,
+        ): Promise<void>;
+      }
+    ).syncDocumentContentUri(
+      { nodeRepo },
+      {
+        baseUrl: 'http://ov.local',
+        apiKey: 'ov-key',
+        account: 'rag',
+        user: 'worker-user',
+      },
+      { id: 'node-file', draftVersion: 2, indexedVersion: 1 },
+      'viking://resources/tenants/rag/kb-1/node-file/',
+      'EQL 数据查询使用指南.md',
+      15,
+    );
+
+    expect(nodeRepo.update).toHaveBeenCalledWith('node-file', {
+      contentUri:
+        'viking://resources/tenants/rag/kb-1/node-file/EQL_数据查询使用指南.md',
+      indexStatus: 'clean',
+      indexedVersion: 2,
+      vectorCount: 15,
+      lastIndexedAt: expect.any(Date),
+      indexError: null,
+      updatedAt: expect.any(Date),
+    });
+  });
+
   it('自动创建的新文档节点首次导入时不应预清空 OpenViking 容器', async () => {
     const tenant = createTenant('small-a', TenantIsolationLevel.SMALL);
     const task = {

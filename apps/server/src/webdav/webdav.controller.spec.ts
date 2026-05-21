@@ -22,6 +22,7 @@ import { OVClientService } from '../common/ov-client.service';
 import { OvConfigResolverService } from '../settings/ov-config-resolver.service';
 import { DocumentService } from '../document/document.service';
 import { WebdavController } from './webdav.controller';
+import { WebdavMarkdownContentService } from './webdav-markdown-content.service';
 import { WebdavService } from './webdav.service';
 import { TenantIsolationLevel } from '../common/constants/system.enum';
 
@@ -180,6 +181,13 @@ describe('WebdavController', () => {
     ),
   };
 
+  const webdavMarkdownContentService = {
+    load: jest.fn(async () => ({
+      body: '# 标题\n正文',
+      contentLength: String(Buffer.byteLength('# 标题\n正文', 'utf8')),
+    })),
+  };
+
   const capabilityCredentialService = {
     resolvePrincipalFromApiKey: jest.fn(async () => ({
       tenantId: principal.tenantId,
@@ -323,6 +331,10 @@ describe('WebdavController', () => {
         { provide: KnowledgeTreeService, useValue: knowledgeTreeService },
         { provide: DocumentSessionRegistry, useValue: documentSessionRegistry },
         { provide: DocumentService, useValue: documentService },
+        {
+          provide: WebdavMarkdownContentService,
+          useValue: webdavMarkdownContentService,
+        },
         { provide: DataSource, useValue: dataSource },
       ],
     }).compile();
@@ -499,6 +511,10 @@ describe('WebdavController', () => {
     ovClientService.requestStream.mockResolvedValue({
       stream: Readable.from(['# 标题\n正文']),
       contentType: 'text/markdown; charset=utf-8',
+      contentLength: String(Buffer.byteLength('# 标题\n正文', 'utf8')),
+    });
+    webdavMarkdownContentService.load.mockResolvedValue({
+      body: '# 标题\n正文',
       contentLength: String(Buffer.byteLength('# 标题\n正文', 'utf8')),
     });
   });
@@ -714,26 +730,18 @@ describe('WebdavController', () => {
 
     expect(response.headers['content-type']).toContain('text/markdown');
     expect(response.text).toBe('# 标题\n正文');
-    expect(documentService.loadContent).toHaveBeenCalledWith(
-      'node-file',
+    expect(webdavMarkdownContentService.load).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'node-file' }),
       'tenant-a',
+      expect.objectContaining({ userId: principal.userId }),
     );
     expect(ovClientService.requestStream).not.toHaveBeenCalled();
   });
 
   it('GET 叶子节点应优先返回文档草稿正文', async () => {
-    documentService.loadContent.mockResolvedValueOnce({
-      nodeId: 'node-file',
-      kbId: 'kb-1',
-      name: '说明.md',
-      contentUri:
-        'viking://resources/tenants/tenant-a/kb-1/node-file/content.md',
-      draftVersion: 2,
-      indexedVersion: 1,
-      indexStatus: 'dirty',
-      markdown: '# 草稿标题\n草稿正文',
-      blocks: [],
-      updatedAt: new Date('2026-05-10T00:00:00.000Z'),
+    webdavMarkdownContentService.load.mockResolvedValueOnce({
+      body: '# 草稿标题\n草稿正文',
+      contentLength: String(Buffer.byteLength('# 草稿标题\n草稿正文', 'utf8')),
     });
 
     const response = await webdavRequest(
@@ -760,7 +768,7 @@ describe('WebdavController', () => {
 
     expect(response.headers.allow).toContain('PROPFIND');
     expect(response.text).toContain('当前仅支持');
-    expect(documentService.loadContent).not.toHaveBeenCalled();
+    expect(webdavMarkdownContentService.load).not.toHaveBeenCalled();
     expect(ovClientService.requestStream).not.toHaveBeenCalled();
   });
 
@@ -772,12 +780,12 @@ describe('WebdavController', () => {
       )
       .expect(405);
 
-    expect(documentService.loadContent).not.toHaveBeenCalled();
+    expect(webdavMarkdownContentService.load).not.toHaveBeenCalled();
     expect(ovClientService.requestStream).not.toHaveBeenCalled();
   });
 
   it('GET 正文上游失败时应返回 WebDAV 文本错误', async () => {
-    documentService.loadContent.mockRejectedValueOnce(
+    webdavMarkdownContentService.load.mockRejectedValueOnce(
       new HttpException('上游拒绝读取', 400),
     );
 
@@ -805,7 +813,7 @@ describe('WebdavController', () => {
       )
       .expect(404);
 
-    expect(documentService.loadContent).not.toHaveBeenCalled();
+    expect(webdavMarkdownContentService.load).not.toHaveBeenCalled();
     expect(ovClientService.requestStream).not.toHaveBeenCalled();
   });
 
@@ -834,9 +842,10 @@ describe('WebdavController', () => {
       )
       .expect(200);
 
-    expect(documentService.loadContent).toHaveBeenCalledWith(
-      'node-denied',
+    expect(webdavMarkdownContentService.load).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'node-denied' }),
       'tenant-a',
+      expect.objectContaining({ userId: 'user-b' }),
     );
     expect(ovClientService.requestStream).not.toHaveBeenCalled();
   });
@@ -854,7 +863,7 @@ describe('WebdavController', () => {
 
     expect(response.headers['content-type']).toContain('text/markdown');
     expect(response.text ?? '').toBe('');
-    expect(documentService.loadContent).not.toHaveBeenCalled();
+    expect(webdavMarkdownContentService.load).not.toHaveBeenCalled();
     expect(ovClientService.requestStream).not.toHaveBeenCalled();
   });
 

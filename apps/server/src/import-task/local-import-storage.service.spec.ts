@@ -1,4 +1,11 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  utimes,
+  writeFile,
+} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -115,5 +122,19 @@ describe('LocalImportStorageService', () => {
 
     expect(readable.fileName).toBeTruthy();
     expect(readable.buffer.toString('utf8')).toBe('guide');
+  });
+
+  it('会清理本地导入目录下过期的 Git archive 临时文件', async () => {
+    const archiveDir = path.join(tempDir, 'openviking-git-archives');
+    const archivePath = path.join(archiveDir, 'archive-old.zip');
+    await mkdir(archiveDir, { recursive: true });
+    await writeFile(archivePath, 'zip');
+    const oldTime = new Date(Date.now() - 10 * 24 * 60 * 60_000);
+    await utimes(archivePath, oldTime, oldTime);
+
+    const result = await service.cleanupExpiredManagedFiles(24 * 60 * 60_000);
+
+    expect(result.deletedFiles).toBe(1);
+    await expect(readFile(archivePath)).rejects.toThrow();
   });
 });

@@ -7,6 +7,7 @@ import { KnowledgeTreeModule } from '../knowledge-tree/knowledge-tree.module';
 import { SettingsModule } from '../settings/settings.module';
 import { DocumentModule } from '../document/document.module';
 import { WebdavController } from './webdav.controller';
+import { WebdavMarkdownContentService } from './webdav-markdown-content.service';
 import { WebdavService } from './webdav.service';
 
 @Module({
@@ -20,6 +21,6 @@ import { WebdavService } from './webdav.service';
     forwardRef(() => DocumentModule),
   ],
   controllers: [WebdavController],
-  providers: [WebdavService],
+  providers: [WebdavService, WebdavMarkdownContentService],
 })
 export class WebdavModule {}

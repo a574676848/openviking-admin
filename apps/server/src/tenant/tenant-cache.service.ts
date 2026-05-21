@@ -1,4 +1,5 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable, Inject, Optional } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { TENANT_REPOSITORY } from './domain/repositories/tenant.repository.interface';
 import type { ITenantRepository } from './domain/repositories/tenant.repository.interface';
 
@@ -16,15 +17,21 @@ interface IsolationConfig {
 
 @Injectable()
 export class TenantCacheService {
-  private cache = new Map<string, IsolationConfig>();
+  private cache = new Map<
+    string,
+    { value: IsolationConfig; expiresAt: number }
+  >();
 
   constructor(
     @Inject(TENANT_REPOSITORY)
     private readonly repo: ITenantRepository,
+    @Optional() private readonly config?: ConfigService,
   ) {}
 
   async getIsolationConfig(tenantId: string) {
-    if (this.cache.has(tenantId)) return this.cache.get(tenantId);
+    const cached = this.cache.get(tenantId);
+    if (cached && cached.expiresAt > Date.now()) return cached.value;
+    if (cached) this.cache.delete(tenantId);
 
     const tenant = await this.repo.findByTenantId(tenantId);
     if (!tenant) return null;
@@ -34,7 +41,10 @@ export class TenantCacheService {
       level: tenant.isolationLevel,
       dbConfig: tenant.dbConfig ?? undefined,
     };
-    this.cache.set(tenantId, config);
+    this.cache.set(tenantId, {
+      value: config,
+      expiresAt: Date.now() + this.resolveCacheTtlMs(),
+    });
     return config;
   }
 
@@ -49,5 +59,22 @@ export class TenantCacheService {
 
   invalidate(tenantId: string) {
     this.cache.delete(tenantId);
+  }
+
+  cleanupExpired(now = Date.now()) {
+    let deleted = 0;
+    for (const [tenantId, entry] of this.cache.entries()) {
+      if (entry.expiresAt > now) {
+        continue;
+      }
+      this.cache.delete(tenantId);
+      deleted += 1;
+    }
+    return deleted;
+  }
+
+  private resolveCacheTtlMs() {
+    const ttlMs = Number(this.config?.get<string>('TENANT_CACHE_TTL_MS'));
+    return Number.isFinite(ttlMs) && ttlMs > 0 ? ttlMs : 10 * 60_000;
   }
 }

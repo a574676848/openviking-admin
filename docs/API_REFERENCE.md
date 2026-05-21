@@ -25,8 +25,8 @@ WebDAV 不走 `/api/v1` 前缀，根路径为 `/webdav/:tenantId/`。`:tenantId`
 
 ### 认证方式
 
-| 方式                                           | 说明                                                                                                    |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| 方式                                           | 说明                                                                                                              |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
 | `Authorization: Basic base64(tenantId:apiKey)` | `username` 可使用租户记录 UUID 或租户唯一标识，且必须与路径租户解析到同一租户；`password` 使用 capability API key |
 
 ### 支持的方法
@@ -42,7 +42,7 @@ WebDAV 不走 `/api/v1` 前缀，根路径为 `/webdav/:tenantId/`。`:tenantId`
 | `DELETE`   | `/webdav/:tenantId/:kbName[/:nodeName...]` | 删除知识库、叶子文件或空目录，成功返回 `204 No Content`                     |
 | `MOVE`     | `/webdav/:tenantId/:kbName[/:nodeName...]` | 重命名知识库，或在同一知识库内重命名/移动文件与目录，成功返回 `201 Created` |
 
-WebDAV 响应不使用统一 JSON envelope。知识库始终映射为目录资源，知识树节点分为目录节点（`collection`）与文档叶子（`document`）。`GET` / `HEAD` 仅面向 ACL 允许访问的文档叶子；目录资源仍通过 `PROPFIND` 浏览。文档叶子会同时维护稳定资源容器 URI 与当前正文 `contentUri`，`GET` 会复用 `DocumentService.loadContent()`，优先返回最新草稿；没有草稿时再回退到 `contentUri` 或容器内已有正文叶子。`MKCOL`、`PUT`、`DELETE` 与 `MOVE` 需要至少 `tenant_operator` 权限；成功后分别写入 `webdav_mkcol`、`webdav_put_create`、`webdav_put_update`、`webdav_delete` 或 `webdav_move` 审计日志。
+WebDAV 响应不使用统一 JSON envelope。知识库始终映射为目录资源，知识树节点分为目录节点（`collection`）与文档叶子（`document`）。`GET` / `HEAD` 仅面向 ACL 允许访问的文档叶子；目录资源仍通过 `PROPFIND` 浏览。文档叶子会同时维护稳定资源容器 URI 与当前正文 `contentUri`，`GET` 优先返回最新草稿；没有草稿且存在 `contentUri` 时会直接流式转发 OpenViking 正文，避免大量同步时把每篇 Markdown 完整驻留在服务端内存；没有 `contentUri` 时再回退到文档容器内已有正文叶子。`MKCOL`、`PUT`、`DELETE` 与 `MOVE` 需要至少 `tenant_operator` 权限；成功后分别写入 `webdav_mkcol`、`webdav_put_create`、`webdav_put_update`、`webdav_delete` 或 `webdav_move` 审计日志。
 
 ### 资源映射
 
@@ -50,7 +50,7 @@ WebDAV 响应不使用统一 JSON envelope。知识库始终映射为目录资�
 - `/webdav/:tenantId/:kbName/` 映射到知识库目录，`Depth: 1` 返回该知识库下的一级知识树节点。
 - `/webdav/:tenantId/:kbName/:nodeName...` 按知识树父子关系继续下钻；目录节点继续映射为目录资源，文档叶子映射为文件资源。
 - WebDAV 复用知识树节点 ACL；无权限节点不会出现在目录列表中，直接访问时返回未找到类错误，避免泄露资源存在性。
-- 叶子节点的 `GET` 会复用文档服务正文读取链路，并优先返回最新草稿；`HEAD` 仅返回 WebDAV 元信息，不主动下载正文。
+- 叶子节点的 `GET` 会优先返回最新草稿；没有草稿且存在 `contentUri` 时流式读取 OpenViking 正文；`HEAD` 仅返回 WebDAV 元信息，不主动下载正文。
 - 资源响应会返回 `displayname`、`resourcetype`、`getcontenttype`、`getcontentlength`、`getetag`、`getlastmodified` 与 `creationdate`。
 - 当前读侧 `href` 对外使用知识库名和节点名路径，便于标准 WebDAV 客户端直接挂载租户根目录并浏览全部可访问知识库。
 - 为兼容 `sunmagicshow/obsidian-webdav` 一类客户端的写权限探测，只要 `PUT` 或 `DELETE` 目标路径最后一段命中 `.webdav_write_test_*` 前缀，服务端都会直接返回合成成功响应，不会读取正文、持久化任何资源，也不会创建导入任务或删除真实节点。
@@ -436,24 +436,24 @@ LDAP / AD 域账号直接登录。服务端会使用租户 LDAP 集成中的 `bi
 
 文档导入能力用于让 HTTP、CLI、MCP 和 Skill 在同一套契约下完成“选择目标知识库/知识树节点、创建导入任务、查看进度”。这些接口仍走 capability 鉴权，响应保持 `{ data, meta, traceId, error }` 信封。Capability HTTP 入口统一使用 `/api/v1/capability/*` 命名空间，避免与控制台 JWT 业务接口路径冲突。
 
-| Capability                | Method | Path                                          | 说明                         |
-| ------------------------- | ------ | --------------------------------------------- | ---------------------------- |
-| `knowledgeBases.list`     | `GET`  | `/api/v1/capability/knowledge-bases`          | 列出当前租户可导入的知识库   |
-| `knowledgeBases.detail`   | `GET`  | `/api/v1/capability/knowledge-bases/:id`      | 查看知识库详情与导入根路径   |
-| `knowledgeBases.delete`   | `DELETE` | `/api/v1/capability/knowledge-bases/:id`    | 删除 ACL 可见的知识库        |
-| `knowledgeTree.list`      | `GET`  | `/api/v1/capability/knowledge-bases/:id/tree` | 列出知识库下可导入节点       |
-| `knowledgeTree.detail`    | `GET`  | `/api/v1/capability/knowledge-tree/:id`       | 查看知识树节点详情与导入路径 |
-| `knowledgeTree.delete`    | `DELETE` | `/api/v1/capability/knowledge-tree/:id`     | 删除 ACL 可见的知识树节点    |
-| `documents.import.create` | `POST` | `/api/v1/capability/import-tasks/documents`   | 创建文档导入任务             |
-| `documents.import.create` | `POST` | `/api/v1/capability/import-tasks/local-upload` | 上传本地文件并创建导入任务   |
-| `documents.import.status` | `GET`  | `/api/v1/capability/import-tasks/:id`         | 查看导入进度                 |
-| `documents.import.list`   | `GET`  | `/api/v1/capability/import-tasks`             | 列出导入任务                 |
-| `documents.import.cancel` | `POST` | `/api/v1/capability/import-tasks/:id/cancel`  | 取消排队中的导入任务         |
-| `documents.import.retry`  | `POST` | `/api/v1/capability/import-tasks/:id/retry`   | 重试失败或已取消任务         |
-| `documents.import.events` | `GET`  | `/api/v1/capability/import-tasks/:id/events`  | 查看进度事件快照             |
-| `documents.index.status`  | `GET`  | `/api/v1/capability/documents/:id/index`      | 查看文档索引状态             |
-| `documents.index.rebuild` | `POST` | `/api/v1/capability/documents/:id/index/rebuild` | 使用最新草稿重建索引      |
-| `documents.draft.grep`    | `POST` | `/api/v1/capability/documents/:id/draft/grep` | 检索 Admin 侧文档草稿正文 |
+| Capability                | Method   | Path                                             | 说明                         |
+| ------------------------- | -------- | ------------------------------------------------ | ---------------------------- |
+| `knowledgeBases.list`     | `GET`    | `/api/v1/capability/knowledge-bases`             | 列出当前租户可导入的知识库   |
+| `knowledgeBases.detail`   | `GET`    | `/api/v1/capability/knowledge-bases/:id`         | 查看知识库详情与导入根路径   |
+| `knowledgeBases.delete`   | `DELETE` | `/api/v1/capability/knowledge-bases/:id`         | 删除 ACL 可见的知识库        |
+| `knowledgeTree.list`      | `GET`    | `/api/v1/capability/knowledge-bases/:id/tree`    | 列出知识库下可导入节点       |
+| `knowledgeTree.detail`    | `GET`    | `/api/v1/capability/knowledge-tree/:id`          | 查看知识树节点详情与导入路径 |
+| `knowledgeTree.delete`    | `DELETE` | `/api/v1/capability/knowledge-tree/:id`          | 删除 ACL 可见的知识树节点    |
+| `documents.import.create` | `POST`   | `/api/v1/capability/import-tasks/documents`      | 创建文档导入任务             |
+| `documents.import.create` | `POST`   | `/api/v1/capability/import-tasks/local-upload`   | 上传本地文件并创建导入任务   |
+| `documents.import.status` | `GET`    | `/api/v1/capability/import-tasks/:id`            | 查看导入进度                 |
+| `documents.import.list`   | `GET`    | `/api/v1/capability/import-tasks`                | 列出导入任务                 |
+| `documents.import.cancel` | `POST`   | `/api/v1/capability/import-tasks/:id/cancel`     | 取消排队中的导入任务         |
+| `documents.import.retry`  | `POST`   | `/api/v1/capability/import-tasks/:id/retry`      | 重试失败或已取消任务         |
+| `documents.import.events` | `GET`    | `/api/v1/capability/import-tasks/:id/events`     | 查看进度事件快照             |
+| `documents.index.status`  | `GET`    | `/api/v1/capability/documents/:id/index`         | 查看文档索引状态             |
+| `documents.index.rebuild` | `POST`   | `/api/v1/capability/documents/:id/index/rebuild` | 使用最新草稿重建索引         |
+| `documents.draft.grep`    | `POST`   | `/api/v1/capability/documents/:id/draft/grep`    | 检索 Admin 侧文档草稿正文    |
 
 导入任务列表、详情、状态和 capability 投影会返回 `createdBy`、`updatedBy`。创建任务时两个字段均为当前操作者；重试和取消会更新 `updatedBy`；Worker 自动推进任务状态不会覆盖人工操作人。capability `documents.import.status`、`documents.import.list`、`documents.import.events`、`documents.import.cancel` 与 `documents.import.retry` 在最低角色校验通过后，还会继续按目标知识库/节点 ACL 收敛。
 
@@ -598,15 +598,15 @@ MCP JSON-RPC 消息接口。
 
 数据库迁移平台接口需要 `super_admin`。平台公共表迁移会执行控制库 TypeORM migration；租户业务存储迁移会读取租户当前 `isolationLevel` / `dbConfig`，按既有规格准备目标存储并补齐业务表结构。
 
-| Method | Path                                | 说明                                             |
-| ------ | ----------------------------------- | ------------------------------------------------ |
-| `GET`  | `/api/v1/tenant-migrations/tenants` | 获取可迁移租户列表                               |
-| `POST` | `/api/v1/tenant-migrations/precheck` | 执行租户业务存储预检，不写入业务数据             |
-| `POST` | `/api/v1/tenant-migrations/tasks`   | 创建租户业务存储迁移任务                         |
-| `POST` | `/api/v1/tenant-migrations/platform/precheck` | 执行平台公共表 migration 预检          |
-| `POST` | `/api/v1/tenant-migrations/platform/tasks` | 创建平台公共表 migration 任务              |
-| `GET`  | `/api/v1/tenant-migrations/tasks`   | 获取最近 50 条迁移任务                           |
-| `GET`  | `/api/v1/tenant-migrations/tasks/:id` | 获取单个迁移任务详情                           |
+| Method | Path                                          | 说明                                 |
+| ------ | --------------------------------------------- | ------------------------------------ |
+| `GET`  | `/api/v1/tenant-migrations/tenants`           | 获取可迁移租户列表                   |
+| `POST` | `/api/v1/tenant-migrations/precheck`          | 执行租户业务存储预检，不写入业务数据 |
+| `POST` | `/api/v1/tenant-migrations/tasks`             | 创建租户业务存储迁移任务             |
+| `POST` | `/api/v1/tenant-migrations/platform/precheck` | 执行平台公共表 migration 预检        |
+| `POST` | `/api/v1/tenant-migrations/platform/tasks`    | 创建平台公共表 migration 任务        |
+| `GET`  | `/api/v1/tenant-migrations/tasks`             | 获取最近 50 条迁移任务               |
+| `GET`  | `/api/v1/tenant-migrations/tasks/:id`         | 获取单个迁移任务详情                 |
 
 租户业务存储迁移请求体：
 
@@ -682,16 +682,16 @@ MCP JSON-RPC 消息接口。
 
 需要 JWT 和租户上下文。
 
-| Method   | Path                              | 说明             |
-| -------- | --------------------------------- | ---------------- |
-| `GET`    | `/api/v1/knowledge-tree`          | 获取知识树节点   |
-| `GET`    | `/api/v1/knowledge-tree/graph`    | 获取知识图谱     |
-| `GET`    | `/api/v1/knowledge-tree/:id`      | 获取知识节点详情 |
-| `GET`    | `/api/v1/knowledge-tree/:id/lineage` | 获取节点谱系与同级节点 |
-| `POST`   | `/api/v1/knowledge-tree`          | 创建知识节点     |
-| `PATCH`  | `/api/v1/knowledge-tree/:id`      | 更新知识节点     |
-| `DELETE` | `/api/v1/knowledge-tree/:id`      | 删除知识节点并刷新知识库指标 |
-| `PATCH`  | `/api/v1/knowledge-tree/:id/move` | 移动节点         |
+| Method   | Path                                 | 说明                         |
+| -------- | ------------------------------------ | ---------------------------- |
+| `GET`    | `/api/v1/knowledge-tree`             | 获取知识树节点               |
+| `GET`    | `/api/v1/knowledge-tree/graph`       | 获取知识图谱                 |
+| `GET`    | `/api/v1/knowledge-tree/:id`         | 获取知识节点详情             |
+| `GET`    | `/api/v1/knowledge-tree/:id/lineage` | 获取节点谱系与同级节点       |
+| `POST`   | `/api/v1/knowledge-tree`             | 创建知识节点                 |
+| `PATCH`  | `/api/v1/knowledge-tree/:id`         | 更新知识节点                 |
+| `DELETE` | `/api/v1/knowledge-tree/:id`         | 删除知识节点并刷新知识库指标 |
+| `PATCH`  | `/api/v1/knowledge-tree/:id/move`    | 移动节点                     |
 
 删除知识树节点由服务层统一先调用 OpenViking `/api/v1/fs` 删除节点对应资源，再删除 Admin 侧节点元数据：叶子文件使用 `recursive=false`，目录节点使用 `recursive=true`。递归删除时按子节点优先顺序清理，避免本地元数据先消失后留下 OpenViking 残留资源。
 
@@ -712,15 +712,15 @@ MCP JSON-RPC 消息接口。
 
 需要 JWT 和租户上下文。文档编辑接口面向在线编辑器，路径统一使用 `/api/v1/editor`，避免与导入任务管理的“文档处理中心”混淆。写入类接口需要至少 `tenant_operator` 权限。
 
-| Method | Path                                      | 说明                                      |
-|--------|-------------------------------------------|-------------------------------------------|
-| `GET`  | `/api/v1/editor/:nodeId`                  | 获取文档元数据、索引状态、当前权限和协作入口信息 |
-| `GET`  | `/api/v1/editor/:nodeId/content`          | 读取最新草稿正文并转换为编辑器 JSON             |
-| `PUT`  | `/api/v1/editor/:nodeId/content`          | 将编辑器 JSON 转换为 Markdown 并保存为草稿      |
-| `GET`  | `/api/v1/editor/:nodeId/index`            | 查看文档草稿与索引同步状态                     |
-| `POST` | `/api/v1/editor/:nodeId/index`            | 使用最新草稿写入 OpenViking 并更新索引          |
-| `POST` | `/api/v1/editor/:nodeId/assets`           | 上传图片到文档容器的 `assets/` 子目录           |
-| `GET`  | `/api/v1/editor/:nodeId/assets/*path`     | 流式读取文档图片资产                            |
+| Method | Path                                  | 说明                                             |
+| ------ | ------------------------------------- | ------------------------------------------------ |
+| `GET`  | `/api/v1/editor/:nodeId`              | 获取文档元数据、索引状态、当前权限和协作入口信息 |
+| `GET`  | `/api/v1/editor/:nodeId/content`      | 读取最新草稿正文并转换为编辑器 JSON              |
+| `PUT`  | `/api/v1/editor/:nodeId/content`      | 将编辑器 JSON 转换为 Markdown 并保存为草稿       |
+| `GET`  | `/api/v1/editor/:nodeId/index`        | 查看文档草稿与索引同步状态                       |
+| `POST` | `/api/v1/editor/:nodeId/index`        | 使用最新草稿写入 OpenViking 并更新索引           |
+| `POST` | `/api/v1/editor/:nodeId/assets`       | 上传图片到文档容器的 `assets/` 子目录            |
+| `GET`  | `/api/v1/editor/:nodeId/assets/*path` | 流式读取文档图片资产                             |
 
 正文保存只更新 Admin 侧草稿并把文档节点标记为 `dirty`，不会主动触发 OpenViking 语义化或向量化。用户在编辑器点击“更新索引”，或通过 `documents.index.rebuild` capability，才会将最新草稿写入 OpenViking `/api/v1/content/write` 并提交索引刷新；已有正文写入使用非等待模式，避免接口被 Engine 向量化过程阻塞。如果文档稳定资源容器尚未在 OpenViking 落盘，服务端会降级为 `temp_upload` 加 `/api/v1/resources` 注入，创建 `{nodeId}/content.md` 后再回写真实 `contentUri`。文档索引成功后，服务端会按当前知识库的文档节点重新聚合 `docCount` 与 `vectorCount`，并回写到 `knowledge_bases`，用于控制台知识库列表指标展示。资产上传字段名为 `files`，单次最多 10 个文件，单文件最大 10MB，允许 `.png`、`.jpg`、`.jpeg`、`.gif`、`.webp` 和 `.svg`。服务端会对同一文档 `assets/` 目录内的图片做基于内容哈希的精确去重，并通过 `local/redis` 双驱动缓存去重索引，避免每次上传都重复遍历资源树。SVG 读取代理会强制下载，并返回 `X-Content-Type-Options: nosniff`。
 
@@ -776,14 +776,14 @@ MCP JSON-RPC 消息接口。
 
 保留给控制台和历史搜索页面使用。Capability 搜索入口见 `/api/v1/knowledge/search`。
 
-| Method | Path                               | 说明           |
-| ------ | ---------------------------------- | -------------- |
-| `POST` | `/api/v1/search/find`              | 语义检索       |
+| Method | Path                               | 说明                            |
+| ------ | ---------------------------------- | ------------------------------- |
+| `POST` | `/api/v1/search/find`              | 语义检索                        |
 | `POST` | `/api/v1/search/grep`              | 文本匹配（结果按节点 ACL 过滤） |
-| `GET`  | `/api/v1/search/analysis`          | 无答案基础分析 |
-| `GET`  | `/api/v1/search/stats-deep`        | 深度检索统计   |
-| `GET`  | `/api/v1/search/logs`              | 最近检索日志   |
-| `POST` | `/api/v1/search/logs/:id/feedback` | 提交检索反馈   |
+| `GET`  | `/api/v1/search/analysis`          | 无答案基础分析                  |
+| `GET`  | `/api/v1/search/stats-deep`        | 深度检索统计                    |
+| `GET`  | `/api/v1/search/logs`              | 最近检索日志                    |
+| `POST` | `/api/v1/search/logs/:id/feedback` | 提交检索反馈                    |
 
 其中：
 

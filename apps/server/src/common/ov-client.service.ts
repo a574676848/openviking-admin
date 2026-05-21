@@ -1,3 +1,4 @@
+import { openAsBlob } from 'node:fs';
 import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { Readable } from 'node:stream';
 
@@ -24,7 +25,8 @@ export interface OVRequestOptions {
 
 export interface OVTempFileUploadInput {
   fileName: string;
-  buffer: Uint8Array;
+  buffer?: Uint8Array;
+  filePath?: string;
   mimeType?: string | null;
 }
 
@@ -180,14 +182,18 @@ export class OVClientService {
     }
     Object.assign(headers, options?.headers ?? {});
 
+    if (!file.filePath && !file.buffer) {
+      throw new Error('OpenViking 临时文件上传缺少文件内容');
+    }
     const formData = new FormData();
-    formData.append(
-      'file',
-      new Blob([file.buffer as unknown as BlobPart], {
-        type: file.mimeType || 'application/octet-stream',
-      }),
-      file.fileName,
-    );
+    const fileBlob = file.filePath
+      ? await openAsBlob(file.filePath, {
+          type: file.mimeType || 'application/octet-stream',
+        })
+      : new Blob([file.buffer as unknown as BlobPart], {
+          type: file.mimeType || 'application/octet-stream',
+        });
+    formData.append('file', fileBlob, file.fileName);
 
     return this.requestFormData(url, headers, formData, meta, options);
   }

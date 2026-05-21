@@ -18,6 +18,7 @@ interface DbConfig {
 export class DynamicDataSourceService implements OnModuleDestroy {
   private readonly logger = new Logger(DynamicDataSourceService.name);
   private pool = new Map<string, DataSource>();
+  private readonly lastUsedAt = new Map<string, number>();
 
   private readonly CORE_ENTITIES = [
     KnowledgeNode,
@@ -33,8 +34,12 @@ export class DynamicDataSourceService implements OnModuleDestroy {
   ): Promise<DataSource> {
     if (this.pool.has(tenantId)) {
       const ds = this.pool.get(tenantId)!;
-      if (ds.isInitialized) return ds;
+      if (ds.isInitialized) {
+        this.lastUsedAt.set(tenantId, Date.now());
+        return ds;
+      }
       this.pool.delete(tenantId);
+      this.lastUsedAt.delete(tenantId);
     }
 
     this.logger.log(
@@ -60,6 +65,7 @@ export class DynamicDataSourceService implements OnModuleDestroy {
     try {
       await ds.initialize();
       this.pool.set(tenantId, ds);
+      this.lastUsedAt.set(tenantId, Date.now());
       return ds;
     } catch (err) {
       const message = err instanceof Error ? err.message : '未知错误';
@@ -74,6 +80,30 @@ export class DynamicDataSourceService implements OnModuleDestroy {
     for (const ds of this.pool.values()) {
       if (ds.isInitialized) await ds.destroy();
     }
+    this.pool.clear();
+    this.lastUsedAt.clear();
+  }
+
+  async evictIdleTenants(maxIdleMs: number) {
+    if (maxIdleMs <= 0) {
+      return 0;
+    }
+
+    const now = Date.now();
+    let evicted = 0;
+    for (const [tenantId, ds] of this.pool.entries()) {
+      const lastUsedAt = this.lastUsedAt.get(tenantId) ?? 0;
+      if (now - lastUsedAt < maxIdleMs) {
+        continue;
+      }
+      this.pool.delete(tenantId);
+      this.lastUsedAt.delete(tenantId);
+      if (ds.isInitialized) {
+        await ds.destroy();
+      }
+      evicted += 1;
+    }
+    return evicted;
   }
 
   getPoolStatus() {

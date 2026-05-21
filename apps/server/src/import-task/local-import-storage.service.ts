@@ -1,6 +1,14 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
+import {
+  mkdir,
+  readdir,
+  readFile,
+  rm,
+  stat,
+  unlink,
+  writeFile,
+} from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
@@ -123,6 +131,31 @@ export class LocalImportStorageService {
     }
   }
 
+  async cleanupExpiredManagedFiles(retentionMs: number) {
+    if (retentionMs <= 0) {
+      return { deletedFiles: 0, deletedDirectories: 0 };
+    }
+
+    const cutoffTime = Date.now() - retentionMs;
+    const managed = await this.cleanupDirectory(
+      this.managedRoot,
+      this.managedRoot,
+      cutoffTime,
+      true,
+    );
+    const gitArchives = await this.cleanupDirectory(
+      this.gitArchiveRoot,
+      this.gitArchiveRoot,
+      cutoffTime,
+      true,
+    );
+    return {
+      deletedFiles: managed.deletedFiles + gitArchives.deletedFiles,
+      deletedDirectories:
+        managed.deletedDirectories + gitArchives.deletedDirectories,
+    };
+  }
+
   shouldCleanupAfterDone() {
     return (
       this.config.get<string>(
@@ -149,6 +182,13 @@ export class LocalImportStorageService {
     return path.resolve(
       this.baseDir,
       LOCAL_IMPORT_UPLOAD_CONFIG.MANAGED_UPLOAD_SEGMENT,
+    );
+  }
+
+  private get gitArchiveRoot() {
+    return path.resolve(
+      this.baseDir,
+      LOCAL_IMPORT_UPLOAD_CONFIG.GIT_ARCHIVE_SEGMENT,
     );
   }
 
@@ -219,5 +259,70 @@ export class LocalImportStorageService {
   private sanitizeFileName(value: string) {
     const baseName = path.basename(value).trim() || 'upload';
     return baseName.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120);
+  }
+
+  private async cleanupDirectory(
+    dirPath: string,
+    boundaryPath: string,
+    cutoffTime: number,
+    isRoot = false,
+  ): Promise<{ deletedFiles: number; deletedDirectories: number }> {
+    let entries;
+    try {
+      entries = await readdir(dirPath, { withFileTypes: true });
+    } catch {
+      return { deletedFiles: 0, deletedDirectories: 0 };
+    }
+
+    let deletedFiles = 0;
+    let deletedDirectories = 0;
+    for (const entry of entries) {
+      const entryPath = path.join(dirPath, entry.name);
+      if (!this.isPathWithin(boundaryPath, entryPath)) {
+        continue;
+      }
+      if (entry.isDirectory()) {
+        const result = await this.cleanupDirectory(
+          entryPath,
+          boundaryPath,
+          cutoffTime,
+        );
+        deletedFiles += result.deletedFiles;
+        deletedDirectories += result.deletedDirectories;
+        continue;
+      }
+
+      if (!entry.isFile()) {
+        continue;
+      }
+      const info = await stat(entryPath).catch(() => null);
+      if (!info || info.mtimeMs > cutoffTime) {
+        continue;
+      }
+      await rm(entryPath, { force: true });
+      deletedFiles += 1;
+    }
+
+    if (!isRoot) {
+      const remaining = await readdir(dirPath).catch(() => []);
+      if (remaining.length === 0) {
+        await rm(dirPath, { recursive: true, force: true });
+        deletedDirectories += 1;
+      }
+    }
+
+    return { deletedFiles, deletedDirectories };
+  }
+
+  private isPathWithin(rootPath: string, targetPath: string) {
+    const relative = path.relative(
+      path.resolve(rootPath),
+      path.resolve(targetPath),
+    );
+    return (
+      Boolean(relative) &&
+      !relative.startsWith('..') &&
+      !path.isAbsolute(relative)
+    );
   }
 }
