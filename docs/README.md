@@ -65,6 +65,14 @@
 | `OpenViking 多维度安全隔离与合规矩阵.png` | 展示 Small、Medium、Large 多租户隔离和合规边界 |
 | `基于 MCP 与 Rerank 的高精准检索流.png` | 展示 AI 客户端、MCP、检索和重排序链路 |
 | `企业数字资产自动化加工流水线.png` | 展示多源导入、加工、索引和知识资产沉淀流程 |
+| `login_page.png` | 登录页与 SSO 登录方式选择 |
+| `platform_home.png` | 平台首页总览 |
+| `tenant_home.png` | 租户首页与知识库概览 |
+| `knowledge_bases.png` | 知识库管理界面 |
+| `graph.png` | 知识图谱与检索轨迹可视化 |
+| `documents_task.png` | 导入任务监控与状态管理 |
+| `documents_import.png` | 文档导入来源选择 |
+| `site_page.png` | 知识站点公开页面 |
 
 ## 示例代码
 

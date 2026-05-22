@@ -325,8 +325,8 @@ export function KnowledgeSiteShell({
   }, []);
 
   useEffect(() => {
-    setRecentDocuments(readRecentKnowledgeDocuments());
-  }, [hydrated, pathname]);
+    setRecentDocuments(readRecentKnowledgeDocuments(user?.tenantId));
+  }, [hydrated, pathname, user?.tenantId]);
 
   useEffect(() => {
     if (!hydrated || isLoading) {

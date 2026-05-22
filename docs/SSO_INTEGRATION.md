@@ -238,6 +238,8 @@ ova setup \
 
 ## 前端集成
 
+![登录页 SSO 选择](../docs/images/login_page.png)
+
 登录页 (`/login`) 自动检测租户可用的 SSO 方式：
 
 1. 用户输入租户标识后，调用 `GET /api/v1/tenants/check-auth/:code`

@@ -273,8 +273,8 @@ export default function KnowledgeSiteIndexPage() {
       return;
     }
 
-    setRecentDocuments(readRecentKnowledgeDocuments());
-  }, [hydrated]);
+    setRecentDocuments(readRecentKnowledgeDocuments(user?.tenantId));
+  }, [hydrated, user?.tenantId]);
 
   useEffect(() => {
     if (!hydrated || isLoading || !user) {

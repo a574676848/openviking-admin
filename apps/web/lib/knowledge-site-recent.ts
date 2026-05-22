@@ -7,20 +7,26 @@ export interface RecentKnowledgeDocument {
   visitedAt: string;
 }
 
-const RECENT_DOCUMENTS_STORAGE_KEY = "ov_site_recent_documents";
+const RECENT_DOCUMENTS_STORAGE_KEY_PREFIX = "ov_site_recent_documents";
 const MAX_RECENT_DOCUMENTS = 8;
+
+function buildStorageKey(tenantId: string | null | undefined): string {
+  return tenantId
+    ? `${RECENT_DOCUMENTS_STORAGE_KEY_PREFIX}:${tenantId}`
+    : RECENT_DOCUMENTS_STORAGE_KEY_PREFIX;
+}
 
 function canUseStorage() {
   return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
 }
 
-export function readRecentKnowledgeDocuments(): RecentKnowledgeDocument[] {
+export function readRecentKnowledgeDocuments(tenantId?: string | null): RecentKnowledgeDocument[] {
   if (!canUseStorage()) {
     return [];
   }
 
   try {
-    const rawValue = window.localStorage.getItem(RECENT_DOCUMENTS_STORAGE_KEY);
+    const rawValue = window.localStorage.getItem(buildStorageKey(tenantId));
     if (!rawValue) {
       return [];
     }
@@ -48,6 +54,7 @@ export function readRecentKnowledgeDocuments(): RecentKnowledgeDocument[] {
 
 export function writeRecentKnowledgeDocument(
   document: Omit<RecentKnowledgeDocument, "visitedAt">,
+  tenantId?: string | null,
 ): RecentKnowledgeDocument[] {
   if (!canUseStorage()) {
     return [];
@@ -57,12 +64,12 @@ export function writeRecentKnowledgeDocument(
     ...document,
     visitedAt: new Date().toISOString(),
   };
-  const deduped = readRecentKnowledgeDocuments().filter(
+  const deduped = readRecentKnowledgeDocuments(tenantId).filter(
     (item) => !(item.kbId === document.kbId && item.nodeId === document.nodeId),
   );
   const nextDocuments = [nextEntry, ...deduped].slice(0, MAX_RECENT_DOCUMENTS);
   window.localStorage.setItem(
-    RECENT_DOCUMENTS_STORAGE_KEY,
+    buildStorageKey(tenantId),
     JSON.stringify(nextDocuments),
   );
   return nextDocuments;

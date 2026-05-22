@@ -33,6 +33,7 @@ import {
 } from "@/lib/knowledge-site-routes";
 import { KNOWLEDGE_NODE_KIND_COLLECTION } from "@/app/console/knowledge-tree/knowledge-tree.constants";
 import { writeRecentKnowledgeDocument } from "@/lib/knowledge-site-recent";
+import { useApp } from "@/components/app-provider";
 import { useRouter } from "next/navigation";
 
 interface DocumentMetadata {
@@ -229,6 +230,7 @@ function KnowledgeSiteDocumentContent({
   nodeId: string;
 }) {
   const { tree, setActiveNodeMetadata } = useKnowledgeSite();
+  const { user } = useApp();
   const router = useRouter();
   const [metadata, setMetadata] = useState<DocumentMetadata | null>(null);
   const [status, setStatus] = useState<LoadStatus>("loading");
@@ -271,7 +273,7 @@ function KnowledgeSiteDocumentContent({
         kbId: nextMetadata.kbId,
         nodeId: nextMetadata.nodeId,
         name: nextMetadata.name,
-      });
+      }, user?.tenantId);
     } catch (error: unknown) {
       setMetadata(null);
       setStatus("error");

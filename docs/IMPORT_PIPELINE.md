@@ -6,6 +6,8 @@
 
 导入流水线负责把飞书、钉钉、Git 仓库、本地文件、URL 和 manifest 清单等来源转化为 OpenViking 可索引、可检索、可权限控制的知识资产。WebDAV 只用于外部客户端访问知识资源，不作为文档导入来源。
 
+![文档导入来源选择](../docs/images/documents_import.png)
+
 ---
 
 ## 导入流水线架构
@@ -302,6 +304,8 @@ Capability 与 CLI 导入入口面向不依赖平台集成凭证的来源，`sou
 ---
 
 ## 7. 任务状态监控
+
+![导入任务管理](../docs/images/documents_task.png)
 
 ### 查看任务列表
 

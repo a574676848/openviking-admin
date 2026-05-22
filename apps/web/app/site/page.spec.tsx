@@ -138,7 +138,7 @@ describe("KnowledgeSiteIndexPage", () => {
 
   it("展示知识空间首页、知识库列表和最近访问", async () => {
     window.localStorage.setItem(
-      "ov_site_recent_documents",
+      "ov_site_recent_documents:tenant-alpha",
       JSON.stringify([
         {
           kbId: "kb-1",
