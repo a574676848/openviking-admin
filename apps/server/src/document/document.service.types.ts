@@ -27,6 +27,7 @@ export interface DocumentMetadata {
   indexError: string | null;
   readOnly: boolean;
   canWrite: boolean;
+  draftReady: boolean;
   collab: {
     path: string;
     documentName: string;
@@ -54,6 +55,11 @@ export interface DocumentIndexResult {
 
 export interface DocumentSaveOptions {
   assertNoActiveWriteSession?: boolean;
+}
+
+export interface DocumentLoadOptions {
+  // 控制从 OV 引擎拉取正文的最长等待时间；超时会抛错而不是无限期持有上游连接。
+  ovFetchTimeoutMs?: number;
 }
 
 export interface DocumentAssetUploadFile {

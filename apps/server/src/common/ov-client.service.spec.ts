@@ -15,6 +15,51 @@ describe('OVClientService', () => {
     global.fetch = fetchMock;
   });
 
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('getHealth 成功时应返回健康响应', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      headers: {
+        get: () => 'application/json; charset=utf-8',
+      },
+      text: async () => JSON.stringify({ status: 'ok', version: '0.3.16' }),
+      json: async () => ({ status: 'ok', version: '0.3.16' }),
+    });
+
+    await expect(service.getHealth('http://ov.local')).resolves.toEqual({
+      status: 'ok',
+      version: '0.3.16',
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://ov.local/health',
+      expect.objectContaining({
+        method: 'GET',
+        signal: expect.any(Object),
+      }),
+    );
+  });
+
+  it('getHealth 超时后应返回 null', async () => {
+    jest.useFakeTimers();
+    fetchMock.mockImplementation(
+      async (_url: string, init?: { signal?: AbortSignal }) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+          });
+        }),
+    );
+
+    const healthPromise = service.getHealth('http://ov.local', { timeoutMs: 10 });
+
+    await jest.advanceTimersByTimeAsync(10);
+
+    await expect(healthPromise).resolves.toBeNull();
+  });
+
   it('遇到可重试的 503 时应重试并最终成功', async () => {
     fetchMock
       .mockResolvedValueOnce({

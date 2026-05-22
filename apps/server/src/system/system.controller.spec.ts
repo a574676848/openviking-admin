@@ -93,6 +93,41 @@ describe('SystemController', () => {
         }),
       }),
     );
+    expect(ovClient.request).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ baseUrl: 'http://ov.test' }),
+      '/api/v1/observer/queue',
+      'GET',
+      undefined,
+      undefined,
+      expect.objectContaining({ timeoutMs: 2500 }),
+    );
+    expect(ovClient.request).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ baseUrl: 'http://ov.test' }),
+      '/api/v1/observer/vikingdb',
+      'GET',
+      undefined,
+      undefined,
+      expect.objectContaining({ timeoutMs: 2500 }),
+    );
+  });
+
+  it('queue 应透传带超时的监控请求', async () => {
+    ovClient.request.mockResolvedValue({ result: { status: 'ok' } });
+
+    await expect(controller.queue(req)).resolves.toEqual({
+      result: { status: 'ok' },
+    });
+
+    expect(ovClient.request).toHaveBeenCalledWith(
+      expect.objectContaining({ baseUrl: 'http://ov.test' }),
+      '/api/v1/observer/queue',
+      'GET',
+      undefined,
+      undefined,
+      expect.objectContaining({ timeoutMs: 2500 }),
+    );
   });
 
   it('未启用自定义 OV 的租户访问系统状态应被拒绝', async () => {

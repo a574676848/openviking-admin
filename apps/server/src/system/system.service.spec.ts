@@ -225,5 +225,23 @@ describe('SystemService', () => {
       { tenantId: 'tenant-medium', tenantName: '中租户', value: 7 },
       { tenantId: 'tenant-small', tenantName: '小租户', value: 4 },
     ]);
+    expect(ovClient.request).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ baseUrl: 'http://ov.local' }),
+      '/api/v1/observer/queue',
+      'GET',
+      undefined,
+      undefined,
+      expect.objectContaining({ timeoutMs: 2500 }),
+    );
+    expect(ovClient.request).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ baseUrl: 'http://ov.local' }),
+      '/api/v1/observer/vikingdb',
+      'GET',
+      undefined,
+      undefined,
+      expect.objectContaining({ timeoutMs: 2500 }),
+    );
   });
 });

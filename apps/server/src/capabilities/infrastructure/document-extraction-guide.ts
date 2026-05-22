@@ -1,11 +1,11 @@
-type DocumentExtractionScenario =
+export type DocumentExtractionScenario =
   | 'general'
   | 'api'
   | 'runbook'
   | 'faq'
   | 'repository';
 
-interface ExtractionExample {
+export interface ExtractionExample {
   scenario: DocumentExtractionScenario;
   title: string;
   source: string;

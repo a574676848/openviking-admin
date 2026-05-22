@@ -42,6 +42,7 @@ interface OVRequestErrorResponse {
 }
 
 const DEFAULT_RETRY_DELAY_MS = 200;
+const DEFAULT_HEALTH_TIMEOUT_MS = 1_500;
 const RETRIABLE_STATUS_CODES = new Set([408, 429, 502, 503, 504]);
 const JSON_CONTENT_TYPE_MARKER = 'json';
 const RESPONSE_PREVIEW_LIMIT = 160;
@@ -198,10 +199,21 @@ export class OVClientService {
     return this.requestFormData(url, headers, formData, meta, options);
   }
 
-  async getHealth(baseUrl: string) {
+  async getHealth(baseUrl: string, options?: OVRequestOptions) {
     try {
-      const res = await fetch(`${baseUrl}/health`);
-      return (await res.json()) as Record<string, unknown>;
+      return (await this.requestJson(
+        `${baseUrl}/health`,
+        'GET',
+        {},
+        undefined,
+        undefined,
+        {
+          timeoutMs: DEFAULT_HEALTH_TIMEOUT_MS,
+          retryCount: 0,
+          serviceLabel: 'OpenViking Health',
+          ...options,
+        },
+      )) as Record<string, unknown>;
     } catch {
       return null;
     }

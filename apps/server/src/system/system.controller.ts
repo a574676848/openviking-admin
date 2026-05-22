@@ -33,6 +33,7 @@ const CUSTOM_OV_CONFIG_FIELDS: Array<keyof TenantOvConfig> = [
   'rerankApiKey',
   'rerankModel',
 ];
+const SYSTEM_OV_OBSERVER_TIMEOUT_MS = 2_500;
 
 /** 解析 OV 文本表格为结构化行数据 */
 function parseOVTable(tableStr: string): Array<Record<string, string>> {
@@ -153,7 +154,11 @@ export class SystemController {
   async queue(@Req() req: AuthenticatedRequest) {
     await this.ensureTenantHasCustomOvConfig(req.tenantScope);
     const conn = await this.resolveOVConnection(req.tenantScope);
-    return this.ovClient.request(conn, '/api/v1/observer/queue');
+        return this.ovClient.request(conn, '/api/v1/observer/queue', 'GET', undefined, undefined, {
+          timeoutMs: SYSTEM_OV_OBSERVER_TIMEOUT_MS,
+          retryCount: 0,
+          serviceLabel: 'OpenViking Queue',
+        });
   }
 
   @Get('stats')
@@ -161,8 +166,16 @@ export class SystemController {
     await this.ensureTenantHasCustomOvConfig(req.tenantScope);
     const conn = await this.resolveOVConnection(req.tenantScope);
     const results = await Promise.allSettled([
-      this.ovClient.request(conn, '/api/v1/observer/queue'),
-      this.ovClient.request(conn, '/api/v1/observer/vikingdb'),
+          this.ovClient.request(conn, '/api/v1/observer/queue', 'GET', undefined, undefined, {
+            timeoutMs: SYSTEM_OV_OBSERVER_TIMEOUT_MS,
+            retryCount: 0,
+            serviceLabel: 'OpenViking Queue',
+          }),
+          this.ovClient.request(conn, '/api/v1/observer/vikingdb', 'GET', undefined, undefined, {
+            timeoutMs: SYSTEM_OV_OBSERVER_TIMEOUT_MS,
+            retryCount: 0,
+            serviceLabel: 'OpenViking VikingDB',
+          }),
     ]);
 
     const queueRaw =

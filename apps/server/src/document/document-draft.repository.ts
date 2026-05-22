@@ -70,6 +70,28 @@ export class DocumentDraftRepository {
     return this.toModel(await this.repo.save(draft));
   }
 
+  async deleteByNode(nodeId: string, tenantId: string | null): Promise<void> {
+    await this.repo.delete({ nodeId, tenantId: tenantId ?? undefined });
+  }
+
+  async deleteOrphanDrafts(
+    tenantId: string | null,
+    knowledgeNodeTableName = 'knowledge_node',
+  ): Promise<number> {
+    const qb = this.repo
+      .createQueryBuilder('draft')
+      .where(
+        `draft."nodeId" NOT IN (SELECT id FROM "${knowledgeNodeTableName}")`,
+      );
+    if (tenantId) {
+      qb.andWhere('draft."tenantId" = :tenantId', { tenantId });
+    }
+    const orphans = await qb.getMany();
+    if (orphans.length === 0) return 0;
+    await this.repo.remove(orphans);
+    return orphans.length;
+  }
+
   private toModel(draft: DocumentDraft): DocumentDraftModel {
     return {
       id: draft.id,

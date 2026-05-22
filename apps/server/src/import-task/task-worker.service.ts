@@ -35,6 +35,7 @@ import type { TenantModel } from '../tenant/domain/tenant.model';
 import { OvConfigResolverService } from '../settings/ov-config-resolver.service';
 import { buildTenantIdentityWhere } from '../tenant/tenant-identity.util';
 import { KnowledgeNode } from '../knowledge-tree/entities/knowledge-node.entity';
+import { DocumentDraft } from '../document/entities/document-draft.entity';
 import { DocumentSessionRegistry } from '../common/document-session-registry';
 
 interface TenantTaskContext {
@@ -755,6 +756,52 @@ export class TaskWorkerService implements OnModuleInit {
       indexError: null,
       updatedAt: new Date(),
     });
+
+    // 草稿预热：异步下载内容到 draft，不阻塞主流程
+    this.warmDraftAfterImport(context, conn, node, contentResource.uri).catch(
+      (err) =>
+        this.logger.warn(
+          `草稿预热失败 [nodeId=${node.id}]: ${err instanceof Error ? err.message : String(err)}`,
+        ),
+    );
+  }
+
+  private async warmDraftAfterImport(
+    context: TenantTaskContext,
+    conn: { baseUrl: string; apiKey: string; account: string; user: string },
+    node: TargetKnowledgeNode,
+    contentUri: string,
+  ): Promise<void> {
+    const downloadPath = `/api/v1/fs/download?uri=${encodeURIComponent(contentUri)}`;
+    const response = await this.ovClient.requestStream(
+      conn,
+      downloadPath,
+      'GET',
+      undefined,
+      { user: conn.user || undefined },
+      { serviceLabel: '草稿预热下载' },
+    );
+    const chunks: Buffer[] = [];
+    for await (const chunk of response.stream) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    const markdown = Buffer.concat(chunks).toString('utf-8');
+    if (!markdown || markdown.trim().length === 0) return;
+
+    const draftRepo = context.nodeRepo.manager.getRepository(DocumentDraft);
+    const existing = await draftRepo.findOne({
+      where: { nodeId: node.id, tenantId: node.tenantId ?? undefined },
+    });
+    const nextVersion = (existing?.version ?? 0) + 1;
+    const draft = draftRepo.create({
+      ...existing,
+      tenantId: node.tenantId,
+      nodeId: node.id,
+      markdown,
+      version: nextVersion,
+    });
+    await draftRepo.save(draft);
+    await context.nodeRepo.update(node.id, { draftVersion: nextVersion });
   }
 
   private resolveDocumentContentResource(

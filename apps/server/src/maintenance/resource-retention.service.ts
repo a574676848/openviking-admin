@@ -15,6 +15,7 @@ import { McpSessionEvent } from '../mcp/entities/mcp-session-event.entity';
 import { McpSessionService } from '../mcp/mcp-session.service';
 import { SearchLog } from '../search/entities/search-log.entity';
 import { TenantCacheService } from '../tenant/tenant-cache.service';
+import { DocumentDraftRepository } from '../document/document-draft.repository';
 
 const RETENTION_ENV = {
   CLEANUP_INTERVAL_MS: 'RESOURCE_RETENTION_CLEANUP_INTERVAL_MS',
@@ -56,6 +57,7 @@ export class ResourceRetentionService implements OnModuleInit, OnModuleDestroy {
     private readonly localImportStorage: LocalImportStorageService,
     private readonly dynamicDataSourceService: DynamicDataSourceService,
     private readonly tenantCacheService: TenantCacheService,
+    private readonly documentDraftRepository: DocumentDraftRepository,
   ) {}
 
   onModuleInit() {
@@ -142,9 +144,15 @@ export class ResourceRetentionService implements OnModuleInit, OnModuleDestroy {
         ),
       );
     const expiredTenantCaches = this.tenantCacheService.cleanupExpired(now);
+    const orphanDrafts = await this.documentDraftRepository
+      .deleteOrphanDrafts(null)
+      .catch((err) => {
+        this.logger.warn(`孤儿草稿清理失败: ${this.formatError(err)}`);
+        return 0;
+      });
 
     this.logger.log(
-      `资源保留期清理完成: search_logs=${searchLogs}, audit_logs=${auditLogs}, mcp_events=${mcpEvents}, mcp_sessions=${mcpSessions}, local_files=${localFiles.deletedFiles}, local_dirs=${localFiles.deletedDirectories}, evicted_datasources=${evictedDataSources}, tenant_cache=${expiredTenantCaches}`,
+      `资源保留期清理完成: search_logs=${searchLogs}, audit_logs=${auditLogs}, mcp_events=${mcpEvents}, mcp_sessions=${mcpSessions}, local_files=${localFiles.deletedFiles}, local_dirs=${localFiles.deletedDirectories}, evicted_datasources=${evictedDataSources}, tenant_cache=${expiredTenantCaches}, orphan_drafts=${orphanDrafts}`,
     );
   }
 

@@ -63,6 +63,7 @@ import {
   type DocumentAssetUploadResult,
   type DocumentContentSnapshot,
   type DocumentIndexResult,
+  type DocumentLoadOptions,
   type DocumentMetadata,
   type DocumentSaveOptions,
   type DocumentSaveResult,
@@ -108,6 +109,11 @@ export class DocumentService {
     );
     const canWrite = DOCUMENT_WRITE_ROLE_SET.has(userRole);
     const contentUri = this.resolveCurrentContentUri(node);
+    const draft = await this.documentDraftRepository.findByNode(
+      node.id,
+      tenantId,
+    );
+    const draftReady = draft !== null || !contentUri;
 
     return {
       nodeId: node.id,
@@ -122,6 +128,7 @@ export class DocumentService {
       indexError: node.indexError,
       readOnly: !canWrite,
       canWrite,
+      draftReady,
       collab: {
         path: DOCUMENT_COLLAB_PATH,
         documentName: contentUri
@@ -136,6 +143,7 @@ export class DocumentService {
     nodeId: string,
     tenantId: string | null,
     accessContext?: DocumentAccessContext,
+    options?: DocumentLoadOptions,
   ): Promise<DocumentContentSnapshot> {
     const node = await this.requireDocumentNode(
       nodeId,
@@ -151,6 +159,7 @@ export class DocumentService {
       node,
       tenantId,
       draft?.markdown,
+      options,
     );
 
     return {
@@ -363,6 +372,39 @@ export class DocumentService {
     }
   }
 
+  /**
+   * 草稿预热：从 OV 下载文档内容并写入草稿，但不标记 indexStatus 为 dirty。
+   * 用于导入完成后提前准备好草稿，让用户进入编辑时无需等待 OV 下载。
+   */
+  async warmDraft(
+    nodeId: string,
+    tenantId: string | null,
+    contentUri: string,
+  ): Promise<void> {
+    try {
+      const markdown = await this.downloadMarkdown(
+        contentUri,
+        tenantId,
+      );
+      if (!markdown || markdown.trim().length === 0) {
+        return;
+      }
+      const draft = await this.documentDraftRepository.saveMarkdown(
+        nodeId,
+        tenantId,
+        markdown,
+      );
+      // 只同步 draftVersion，不修改 indexStatus
+      await this.knowledgeTreeService.syncIndexState(nodeId, tenantId, {
+        draftVersion: draft.version,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `草稿预热失败 [nodeId=${nodeId}]: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
   private async refreshKnowledgeBaseStats(
     node: KnowledgeNodeModel,
     tenantId: string | null,
@@ -539,14 +581,16 @@ export class DocumentService {
   private async downloadMarkdown(
     contentUri: string,
     tenantId: string | null,
+    options?: DocumentLoadOptions,
   ): Promise<string> {
     const connection = await this.resolveOpenVikingConnection(tenantId);
-    return this.downloadMarkdownWithConnection(connection, contentUri);
+    return this.downloadMarkdownWithConnection(connection, contentUri, options);
   }
 
   private async downloadMarkdownWithConnection(
     connection: OVConnection,
     contentUri: string,
+    options?: DocumentLoadOptions,
   ): Promise<string> {
     const response = await this.ovClientService.requestStream(
       connection,
@@ -554,7 +598,10 @@ export class DocumentService {
       'GET',
       undefined,
       this.createRequestMeta(connection),
-      { serviceLabel: DOCUMENT_CONTENT_DOWNLOAD_LABEL },
+      {
+        serviceLabel: DOCUMENT_CONTENT_DOWNLOAD_LABEL,
+        timeoutMs: options?.ovFetchTimeoutMs,
+      },
     );
 
     return this.readStreamAsUtf8(response.stream);
@@ -563,28 +610,34 @@ export class DocumentService {
   private async loadStoredMarkdown(
     node: KnowledgeNodeModel,
     tenantId: string | null,
+    options?: DocumentLoadOptions,
   ): Promise<string> {
     const contentUri = this.resolveCurrentContentUri(node);
     if (contentUri) {
-      return this.downloadMarkdown(contentUri, tenantId);
+      return this.downloadMarkdown(contentUri, tenantId, options);
     }
-    return this.loadImportedDirectoryMarkdown(node, tenantId);
+    return this.loadImportedDirectoryMarkdown(node, tenantId, options);
   }
 
   private async resolveDocumentMarkdown(
     node: KnowledgeNodeModel,
     tenantId: string | null,
     draftMarkdown?: string | null,
+    options?: DocumentLoadOptions,
   ): Promise<string> {
     const contentUri = this.resolveCurrentContentUri(node);
     if (draftMarkdown !== undefined && draftMarkdown !== null) {
       if (draftMarkdown.trim().length > 0 || contentUri) {
         return draftMarkdown;
       }
-      const storedMarkdown = await this.loadStoredMarkdown(node, tenantId);
+      const storedMarkdown = await this.loadStoredMarkdown(
+        node,
+        tenantId,
+        options,
+      );
       return storedMarkdown.trim().length > 0 ? storedMarkdown : draftMarkdown;
     }
-    return this.loadStoredMarkdown(node, tenantId);
+    return this.loadStoredMarkdown(node, tenantId, options);
   }
 
   private async loadIndexedMarkdown(
@@ -597,6 +650,7 @@ export class DocumentService {
   private async loadImportedDirectoryMarkdown(
     node: KnowledgeNodeModel,
     tenantId: string | null,
+    options?: DocumentLoadOptions,
   ): Promise<string> {
     if (!node.vikingUri?.endsWith(DOCUMENT_DIRECTORY_URI_SUFFIX)) {
       return '';
@@ -611,7 +665,10 @@ export class DocumentService {
         'GET',
         undefined,
         this.createRequestMeta(connection),
-        { serviceLabel: DOCUMENT_RESOURCE_TREE_LABEL },
+        {
+          serviceLabel: DOCUMENT_RESOURCE_TREE_LABEL,
+          timeoutMs: options?.ovFetchTimeoutMs,
+        },
       );
     } catch (error) {
       if (this.isOpenVikingNotFound(error)) {
@@ -630,6 +687,7 @@ export class DocumentService {
       const content = await this.downloadMarkdownWithConnection(
         connection,
         leaf.uri,
+        options,
       );
       if (content.trim()) {
         parts.push(content.trimEnd());

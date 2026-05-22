@@ -361,6 +361,8 @@ describe('DocumentCollabGateway', () => {
     expect(documentService.loadContent).toHaveBeenCalledWith(
       'node-1',
       TENANT_SCOPE,
+      undefined,
+      expect.objectContaining({ ovFetchTimeoutMs: expect.any(Number) }),
     );
     expect(documentContentCodec.markdownToYDoc).toHaveBeenCalledWith('# 文档');
     expect(yDoc).toBeInstanceOf(Y.Doc);

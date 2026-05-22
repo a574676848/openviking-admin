@@ -100,6 +100,7 @@ const EMPTY_VALUE = '';
 const OV_QUEUE_PATH = '/api/v1/observer/queue';
 const OV_VIKINGDB_PATH = '/api/v1/observer/vikingdb';
 const OV_HEALTH_PATH = '/health';
+const SYSTEM_OV_OBSERVER_TIMEOUT_MS = 2_500;
 
 @Injectable()
 export class SystemService {
@@ -299,8 +300,30 @@ export class SystemService {
       uniqueTargets.map(async (target) => {
         const [health, queue, vikingdb] = await Promise.allSettled([
           this.ovClient.getHealth(target.connection.baseUrl),
-          this.ovClient.request(target.connection, OV_QUEUE_PATH),
-          this.ovClient.request(target.connection, OV_VIKINGDB_PATH),
+              this.ovClient.request(
+                target.connection,
+                OV_QUEUE_PATH,
+                'GET',
+                undefined,
+                undefined,
+                {
+                  timeoutMs: SYSTEM_OV_OBSERVER_TIMEOUT_MS,
+                  retryCount: 0,
+                  serviceLabel: 'OpenViking Queue',
+                },
+              ),
+              this.ovClient.request(
+                target.connection,
+                OV_VIKINGDB_PATH,
+                'GET',
+                undefined,
+                undefined,
+                {
+                  timeoutMs: SYSTEM_OV_OBSERVER_TIMEOUT_MS,
+                  retryCount: 0,
+                  serviceLabel: 'OpenViking VikingDB',
+                },
+              ),
         ]);
 
         return {

@@ -45,6 +45,9 @@ const CROSSWS_NODE_ADAPTER_MODULE = 'crossws/adapters/node';
 const DOCUMENT_COLLAB_GATEWAY_NAME = 'openviking-document-collab';
 const DOCUMENT_COLLAB_DEBOUNCE_MS = 30_000;
 const DOCUMENT_COLLAB_MAX_DEBOUNCE_MS = 60_000;
+// OV 引擎拉取正文的最大等待时间：超时直接抛错而不是把租户 DB 连接锁在 Hocuspocus 队列里，
+// 避免 /api/v1/readyz 等其他接口因 DB 连接池耗尽而无响应。
+const DOCUMENT_COLLAB_OV_FETCH_TIMEOUT_MS = 8_000;
 const DOCUMENT_COLLAB_TOKEN_QUERY_PARAM = 'token';
 const DOCUMENT_COLLAB_ACCESS_TOKEN_QUERY_PARAM = 'access_token';
 const DOCUMENT_COLLAB_SHUTDOWN_CLOSE_CODE = 1001;
@@ -396,7 +399,12 @@ export class DocumentCollabGateway implements OnModuleInit, OnModuleDestroy {
       const snapshot = await this.withTenantRequestContext(
         context.tenantScope,
         async (_knowledgeTreeService, documentService) =>
-          documentService.loadContent(context.nodeId, context.tenantScope),
+          documentService.loadContent(
+            context.nodeId,
+            context.tenantScope,
+            undefined,
+            { ovFetchTimeoutMs: DOCUMENT_COLLAB_OV_FETCH_TIMEOUT_MS },
+          ),
       );
       this.logger.log(
         `协作文档加载 nodeId=${context.nodeId} tenantScope=${context.tenantScope ?? 'global'} markdownLength=${snapshot.markdown.length}`,

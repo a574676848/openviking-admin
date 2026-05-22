@@ -819,6 +819,94 @@ describe('DocumentService', () => {
       BadRequestException,
     );
   });
+
+  describe('warmDraft', () => {
+    it('应下载 OV 内容并保存为草稿，不标记为 dirty', async () => {
+      const markdown = '# 预热内容\n\n这是导入后的正文。';
+      ovClientService.requestStream.mockResolvedValue({
+        stream: Readable.from([Buffer.from(markdown, 'utf-8')]),
+        headers: {},
+      });
+      knowledgeTreeService.findOne.mockResolvedValue(createNode({}));
+      documentDraftRepository.saveMarkdown.mockResolvedValue({
+        version: 1,
+        markdown,
+      });
+      knowledgeTreeService.syncIndexState.mockResolvedValue(createNode({ draftVersion: 1 }));
+
+      await service.warmDraft('node-1', 'tenant-1', OLD_CONTENT_URI);
+
+      expect(documentDraftRepository.saveMarkdown).toHaveBeenCalledWith(
+        'node-1',
+        'tenant-1',
+        markdown,
+      );
+      // 不应该设置 indexStatus 为 dirty
+      expect(knowledgeTreeService.syncIndexState).toHaveBeenCalledWith(
+        'node-1',
+        'tenant-1',
+        { draftVersion: 1 },
+      );
+    });
+
+    it('内容为空时不应写入草稿', async () => {
+      ovClientService.requestStream.mockResolvedValue({
+        stream: Readable.from([Buffer.from('   ', 'utf-8')]),
+        headers: {},
+      });
+      knowledgeTreeService.findOne.mockResolvedValue(createNode({}));
+
+      await service.warmDraft('node-1', 'tenant-1', OLD_CONTENT_URI);
+
+      expect(documentDraftRepository.saveMarkdown).not.toHaveBeenCalled();
+    });
+
+    it('下载失败时应静默捕获异常', async () => {
+      ovClientService.requestStream.mockRejectedValue(new Error('网络超时'));
+      knowledgeTreeService.findOne.mockResolvedValue(createNode({}));
+
+      // 不应抛出异常
+      await expect(
+        service.warmDraft('node-1', 'tenant-1', OLD_CONTENT_URI),
+      ).resolves.toBeUndefined();
+    });
+  });
+
+  describe('getMetadata - draftReady', () => {
+    it('有草稿时 draftReady 应为 true', async () => {
+      knowledgeTreeService.findOne.mockResolvedValue(createNode({}));
+      documentDraftRepository.findByNode.mockResolvedValue({
+        version: 1,
+        markdown: '# 内容',
+      });
+
+      const result = await service.getMetadata('node-1', 'tenant-1', 'tenant_admin');
+
+      expect(result.draftReady).toBe(true);
+    });
+
+    it('无草稿但无 contentUri 时 draftReady 应为 true', async () => {
+      knowledgeTreeService.findOne.mockResolvedValue(
+        createNode({ contentUri: null }),
+      );
+      documentDraftRepository.findByNode.mockResolvedValue(null);
+
+      const result = await service.getMetadata('node-1', 'tenant-1', 'tenant_admin');
+
+      expect(result.draftReady).toBe(true);
+    });
+
+    it('无草稿但有 contentUri 时 draftReady 应为 false', async () => {
+      knowledgeTreeService.findOne.mockResolvedValue(
+        createNode({ contentUri: OLD_CONTENT_URI }),
+      );
+      documentDraftRepository.findByNode.mockResolvedValue(null);
+
+      const result = await service.getMetadata('node-1', 'tenant-1', 'tenant_admin');
+
+      expect(result.draftReady).toBe(false);
+    });
+  });
 });
 
 function createNode(

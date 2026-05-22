@@ -42,6 +42,7 @@ interface DocumentMetadata {
   contentUri: string | null;
   readOnly: boolean;
   canWrite: boolean;
+  draftReady: boolean;
   collab: {
     path: string;
     documentName: string;
@@ -74,6 +75,9 @@ const INITIAL_EDITOR_STATE: DocumentEditorState = {
   status: "loading",
   message: "正文加载中",
 };
+
+const DRAFT_WARM_POLL_INTERVAL_MS = 2500;
+const DRAFT_WARM_MAX_POLLS = 24; // 最多轮询 60 秒
 
 const META_BADGE_BASE_CLASS =
   "inline-flex h-9 items-center gap-2 rounded-[var(--radius-pill)] border border-[var(--border)] bg-[var(--bg-elevated)]/72 px-3 text-[13px] text-[var(--text-muted)] shadow-[0_10px_30px_rgba(15,23,42,0.04)] backdrop-blur-sm";
@@ -354,6 +358,35 @@ function KnowledgeSiteDocumentContent({
     void loadMetadata();
   }, [loadMetadata]);
 
+  // 草稿预热轮询：当 draftReady === false 时，每 2.5s 轮询一次直到就绪
+  useEffect(() => {
+    if (!metadata || metadata.draftReady !== false) return;
+    let cancelled = false;
+    let polls = 0;
+    const timer = setInterval(async () => {
+      if (cancelled || polls >= DRAFT_WARM_MAX_POLLS) {
+        clearInterval(timer);
+        return;
+      }
+      polls += 1;
+      try {
+        const fresh = await apiClient.get<DocumentMetadata>(
+          buildEditorMetadataEndpoint(nodeId),
+        );
+        if (!cancelled && fresh.draftReady) {
+          setMetadata(fresh);
+          clearInterval(timer);
+        }
+      } catch {
+        // 静默重试
+      }
+    }, DRAFT_WARM_POLL_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [metadata?.draftReady, nodeId]);
+
   useEffect(() => {
     if (metadata) {
       setActiveNodeMetadata({ updatedAt: metadata.updatedAt });
@@ -543,7 +576,29 @@ function KnowledgeSiteDocumentContent({
 
             {/* Editor Section */}
             <div className="min-h-0 flex-1 pl-12 pr-4 pb-10 md:pl-14 md:pr-6 lg:pl-16 lg:pr-8 flex flex-col">
-              {metadata ? (
+              {metadata && !metadata.draftReady ? (
+                <div className="flex flex-1 min-h-[600px] items-center justify-center">
+                  <div className="flex flex-col items-center gap-5">
+                    <div className="relative flex h-16 w-16 items-center justify-center">
+                      <span className="absolute inset-0 animate-ping rounded-full bg-[var(--brand-muted)] opacity-60" />
+                      <span className="absolute inset-0 animate-[pulse_2s_ease-in-out_infinite] rounded-full border-2 border-[var(--brand)] opacity-30" />
+                      <LoaderCircle
+                        size={28}
+                        strokeWidth={2}
+                        className="relative animate-spin text-[var(--brand)]"
+                      />
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-medium text-[var(--text-primary)]">
+                        正在预热文档内容
+                      </p>
+                      <p className="mt-1 text-xs text-[var(--text-muted)]">
+                        首次加载时需从远端同步，请稍候…
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : metadata ? (
                 <div className="flex-1 min-h-[600px]">
                   <DocumentEditor
                     nodeId={metadata.nodeId}

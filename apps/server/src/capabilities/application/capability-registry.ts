@@ -25,6 +25,7 @@ type GatewayHandlerName = keyof Pick<
   | 'getDocumentIndexStatus'
   | 'rebuildDocumentIndex'
   | 'grepDocumentDraft'
+  | 'getDocumentExtractionGuide'
 >;
 
 interface CapabilityRegistryEntry {

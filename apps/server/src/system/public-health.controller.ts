@@ -3,6 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { DataSource } from 'typeorm';
 import { OVClientService } from '../common/ov-client.service';
 
+const READYZ_CHECK_TIMEOUT_MS = 2_000;
+
 @Controller()
 export class PublicHealthController {
   constructor(
@@ -22,8 +24,10 @@ export class PublicHealthController {
 
   @Get('readyz')
   async readyz() {
-    const dbReady = await this.checkDatabase();
-    const ovReady = await this.checkOpenViking();
+    const [dbReady, ovReady] = await Promise.all([
+      this.checkDatabase(),
+      this.checkOpenViking(),
+    ]);
     const ready = dbReady && ovReady;
 
     return {
@@ -38,7 +42,7 @@ export class PublicHealthController {
 
   private async checkDatabase() {
     try {
-      await this.dataSource.query('SELECT 1');
+      await this.raceWithTimeout(this.dataSource.query('SELECT 1'));
       return true;
     } catch {
       return false;
@@ -51,7 +55,29 @@ export class PublicHealthController {
       return false;
     }
 
-    const health = await this.ovClient.getHealth(baseUrl);
-    return !!health;
+    try {
+      const health = await this.raceWithTimeout(
+        this.ovClient.getHealth(baseUrl),
+      );
+      return !!health;
+    } catch {
+      return false;
+    }
+  }
+
+  // readyz 不能因为上游 OV / DB 长时间无响应而被一起拖死，统一加超时保护。
+  private raceWithTimeout<T>(task: Promise<T>): Promise<T> {
+    let timer: NodeJS.Timeout | undefined;
+    const timeout = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(
+        () => reject(new Error('readyz 检查超时')),
+        READYZ_CHECK_TIMEOUT_MS,
+      );
+    });
+    return Promise.race([task, timeout]).finally(() => {
+      if (timer) {
+        clearTimeout(timer);
+      }
+    }) as Promise<T>;
   }
 }

@@ -31,6 +31,7 @@ import {
 } from '../common/audit-actor.types';
 import { KnowledgeNode } from './entities/knowledge-node.entity';
 import { TenantCacheService } from '../tenant/tenant-cache.service';
+import { DocumentDraftRepository } from '../document/document-draft.repository';
 
 type OpenVikingDeleteConfig = Partial<Omit<OVConnection, 'user'>> & {
   user?: string | null;
@@ -69,6 +70,7 @@ export class KnowledgeTreeService {
     @Optional()
     private readonly dynamicDataSourceService?: DynamicDataSourceService,
     @Optional() private readonly tenantCacheService?: TenantCacheService,
+    @Optional() private readonly documentDraftRepository?: DocumentDraftRepository,
   ) {}
 
   async findByKb(
@@ -437,6 +439,9 @@ export class KnowledgeTreeService {
         ovConfig,
         this.shouldDeleteRecursively(node),
       );
+    }
+    if (this.documentDraftRepository) {
+      await this.documentDraftRepository.deleteByNode(node.id, tenantId);
     }
     await this.nodeRepo.remove(node);
   }
