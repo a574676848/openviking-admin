@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuditLog } from '../audit/entities/audit-log.entity';
 import { CommonModule } from '../common/common.module';
+import { DocumentModule } from '../document/document.module';
 import { ImportTaskModule } from '../import-task/import-task.module';
 import { McpSession } from '../mcp/entities/mcp-session.entity';
 import { McpSessionEvent } from '../mcp/entities/mcp-session-event.entity';
@@ -19,6 +20,7 @@ import { ResourceRetentionService } from './resource-retention.service';
       McpSessionEvent,
     ]),
     CommonModule,
+    DocumentModule,
     ImportTaskModule,
     McpModule,
     TenantModule,
