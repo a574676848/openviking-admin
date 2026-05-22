@@ -92,6 +92,7 @@ OpenViking Admin 的设计目标，是把这些问题作为平台能力解决，
 | `documents.index.status`  | `GET /api/v1/capability/documents/:id/index`      | `ova documents index status`          | `documents.index.status`  |
 | `documents.index.rebuild` | `POST /api/v1/capability/documents/:id/index/rebuild` | `ova documents index rebuild`     | `documents.index.rebuild` |
 | `documents.draft.grep`    | `POST /api/v1/capability/documents/:id/draft/grep`   | `ova documents draft grep`        | `documents.draft.grep`    |
+| `documents.extract.guide` | `GET /api/v1/capability/documents/extract/guide`     | `ova documents extract guide`     | `documents.extract.guide` |
 
 ## 快速开始
 
@@ -177,6 +178,7 @@ npm run ova -- documents import "https://example.com/product.pdf" --kb <kbId> --
 npm run ova -- documents index status --node <nodeId>
 npm run ova -- documents index rebuild --node <nodeId>
 npm run ova -- documents draft grep --node <nodeId> --pattern "关键词"
+npm run ova -- documents extract guide --scenario api
 ```
 
 生产或客户端机器上建议安装独立 CLI：

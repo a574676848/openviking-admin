@@ -454,6 +454,7 @@ LDAP / AD 域账号直接登录。服务端会使用租户 LDAP 集成中的 `bi
 | `documents.index.status`  | `GET`    | `/api/v1/capability/documents/:id/index`         | 查看文档索引状态             |
 | `documents.index.rebuild` | `POST`   | `/api/v1/capability/documents/:id/index/rebuild` | 使用最新草稿重建索引         |
 | `documents.draft.grep`    | `POST`   | `/api/v1/capability/documents/:id/draft/grep`    | 检索 Admin 侧文档草稿正文    |
+| `documents.extract.guide` | `GET`    | `/api/v1/capability/documents/extract/guide`     | 返回文档萃取规范与示例       |
 
 导入任务列表、详情、状态和 capability 投影会返回 `createdBy`、`updatedBy`。创建任务时两个字段均为当前操作者；重试和取消会更新 `updatedBy`；Worker 自动推进任务状态不会覆盖人工操作人。capability `documents.import.status`、`documents.import.list`、`documents.import.events`、`documents.import.cancel` 与 `documents.import.retry` 在最低角色校验通过后，还会继续按目标知识库/节点 ACL 收敛。
 
@@ -474,6 +475,8 @@ LDAP / AD 域账号直接登录。服务端会使用租户 LDAP 集成中的 `bi
 导入任务响应中的 `sourceName` 用于展示来源名称。创建任务时可传 `sourceName`，批量 `sourceUrls` 可传同下标的 `sourceNames`；未显式传入时，服务层会统一为 Git 解析仓库名，为 `url`、`local`、`manifest` 解析来源路径末尾文件名。飞书、钉钉等企业文档创建自动文档节点时会先从 URL 路径解析展示名，Worker 读取平台文档后再写入解析出的真实文档名。历史任务或无法解析名称的来源可能返回 `null`，调用端应回退展示 `sourceUrl`。
 
 Capability 与 CLI 导入入口的 `sourceType` 支持 `local`、`url`、`manifest`。本地文件导入使用 `/api/v1/capability/import-tasks/local-upload`，支持 `x-capability-key`、`Authorization: Bearer <capability_access_token>` 和 `Authorization: Bearer <session_key>`，最低角色同样是 `tenant_operator`。飞书、钉钉、Git 等需要集成凭证的来源走导入任务 API 或控制台集成流程，并提供 `integrationId`。`parentNodeId` 可省略，省略时导入到知识库根路径。`local`、`url`、`feishu`、`dingtalk` 会在所选知识树目录下自动创建文档子节点，并把任务 `targetUri` 指向该文档节点稳定资源容器；`git` 仍导入到资源目录，不自动创建知识树文档节点，且每个 Git 任务会使用独立资源目录。
+
+`GET /api/v1/capability/documents/extract/guide` 支持可选查询参数 `scenario=general|api|runbook|faq|repository`。返回值会同时包含 OpenViking 检索特性摘要、萃取规范、检查清单和结构化示例，适合给 Agent、文档流水线或人工审校直接使用。
 
 ## 可观测性接口
 

@@ -43,7 +43,7 @@ ova bootstrap --path <repo>
 
 也就是一次完成：
 
-- 用户级 `setup`：写入 MCP 配置、安装全局 Skill。
+- 用户级 `setup`：写入 MCP 配置与凭证。
 - 仓库级 `init`：生成 capability 快照、落盘本地 Skill、向 `AGENTS.md` / `CLAUDE.md` 注入 OpenViking 调用规则。
 
 如果只想安装 CLI 而不初始化环境，可直接使用 `npm install -g @openviking-admin/ova-cli`。
@@ -96,9 +96,8 @@ ova setup --credential session-key
 - `~/.claude.json`
 - `~/.cursor/mcp.json`
 - `~/.codex/config.toml`
-- `~/.claude/skills/openviking-admin/SKILL.md`
-- `~/.cursor/skills/openviking-admin/SKILL.md`
-- `~/.agents/skills/openviking-admin/SKILL.md`
+
+`setup` 不会写入任何 skill 文件。skill 写入由 `init` 和 `bootstrap` 负责。
 
 MCP 配置按固定 server 名 `openviking` 增量合并：重复执行只刷新同名 `openviking` 配置，不会删除其他 MCP server、Codex 的 `[projects.*]` 配置或客户端的其他顶层配置。Codex 写入使用 `mcp-remote` 适配 SSE MCP，并保留既有 TOML 段落；如果 JSON 配置中的 `mcpServers` 已存在但不是对象，CLI 会拒绝写入，避免覆盖异常结构。
 
@@ -178,7 +177,7 @@ ova configure \
 
 无浏览器或不能回跳本机时，仍可单独执行 `ova auth sso --ticket <ticket>`。
 
-`configure` 只负责 profile 和凭证准备；如果要连带写入 MCP / Skills / Prompt 注入，应使用 `setup` 或 `bootstrap`。
+`configure` 只负责 profile 和凭证准备；如果要连带写入 MCP，应使用 `setup` 或 `bootstrap`；如果要写入 Skills / Prompt 注入，应使用 `init` 或 `bootstrap`。
 
 ## 登录
 
@@ -311,6 +310,12 @@ ova documents import retry --task <taskId>
 ```
 
 文档导入来源限定为 `local`、`url`、`manifest`。WebDAV 只用于外部客户端访问知识资源，不作为导入来源。
+
+查看面向 OpenViking 检索链路的文档萃取规范：
+
+```bash
+ova documents extract guide --scenario api --output json
+```
 
 ## 换证
 

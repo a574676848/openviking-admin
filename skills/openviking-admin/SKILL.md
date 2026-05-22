@@ -47,6 +47,7 @@ MCP -> OVA CLI -> 配置指引
   - `knowledgeTree.detail`
   - `documents.import.create`
   - `documents.import.status`
+  - `documents.extract.guide`
 - 当前 MCP 客户端可通过 `tools/list` 看到上述 capability。
 - 用户明确说明已经配置 OpenViking MCP server。
 
@@ -69,6 +70,7 @@ MCP -> OVA CLI -> 配置指引
 | 导入任务列表 | `documents.import.list` |
 | 取消导入 | `documents.import.cancel` |
 | 重试导入 | `documents.import.retry` |
+| 获取萃取规范 | `documents.extract.guide` |
 
 文档导入来源仅使用 `local`、`url`、`manifest`。WebDAV 不作为导入来源。
 
@@ -110,6 +112,7 @@ npm run ova -- capabilities list --output json
 | 导入任务列表 | `ova documents import list --output json` |
 | 取消导入 | `ova documents import cancel --task <taskId> --output json` |
 | 重试导入 | `ova documents import retry --task <taskId> --output json` |
+| 获取萃取规范 | `ova documents extract guide --scenario <scenario> --output json` |
 
 ## 第三步：MCP 和 CLI 都不可用时给出配置指引
 

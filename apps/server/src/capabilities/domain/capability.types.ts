@@ -17,7 +17,8 @@ export type CapabilityId =
   | 'documents.import.events'
   | 'documents.index.status'
   | 'documents.index.rebuild'
-  | 'documents.draft.grep';
+  | 'documents.draft.grep'
+  | 'documents.extract.guide';
 
 export type CapabilityVersion = 'v1';
 

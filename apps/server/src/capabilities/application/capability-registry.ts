@@ -615,6 +615,39 @@ export const capabilityRegistry: Record<CapabilityId, CapabilityRegistryEntry> =
         cli: { command: 'ova documents draft grep' },
       },
     },
+    'documents.extract.guide': {
+      gatewayHandler: 'getDocumentExtractionGuide',
+      contract: {
+        id: 'documents.extract.guide',
+        version: 'v1',
+        displayName: 'Documents Extract Guide',
+        description: '返回面向 OpenViking 检索链路的文档萃取规范与示例',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            scenario: {
+              type: 'string',
+              description:
+                '可选场景：general、api、runbook、faq、repository',
+            },
+          },
+        },
+        outputSchema: {
+          type: 'object',
+          properties: {
+            item: { type: 'object' },
+          },
+        },
+        permissionRequirement: 'tenant',
+        minimumRole: 'tenant_viewer',
+        auditLevel: 'standard',
+        http: {
+          method: 'GET',
+          path: capabilityHttpPath('/documents/extract/guide'),
+        },
+        cli: { command: 'ova documents extract guide' },
+      },
+    },
   };
 
 export function getCapabilityContracts(): CapabilityContract[] {

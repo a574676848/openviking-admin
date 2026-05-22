@@ -16,6 +16,7 @@ import type { KnowledgeBaseModel } from '../../knowledge-base/domain/knowledge-b
 import type { KnowledgeNodeModel } from '../../knowledge-tree/domain/knowledge-node.model';
 import type { ImportTaskModel } from '../../import-task/domain/import-task.model';
 import { Principal, TraceContext } from '../domain/capability.types';
+import { buildDocumentExtractionGuide } from './document-extraction-guide';
 
 interface GrepMatch {
   line: number;
@@ -585,6 +586,13 @@ export class KnowledgeCapabilityGateway {
         ...match,
       })),
     };
+  }
+
+  async getDocumentExtractionGuide(
+    _principal: Principal,
+    input: Record<string, unknown>,
+  ) {
+    return buildDocumentExtractionGuide(input);
   }
 
   private toKnowledgeBaseItem(item: KnowledgeBaseModel) {

@@ -19,7 +19,9 @@ export async function handleBootstrap(
         await handleConfigure(options, store);
     }
 
-    const setupSummary = shouldRunSetup(options) ? await runSetup(options, store) : null;
+    const setupSummary = shouldRunSetup(options)
+        ? await runSetup(options, store, { writeSkillAssets: true })
+        : null;
     const initSummary = shouldRunInit(options) ? await runInit(options, store) : null;
 
     emitBootstrapSummary(options, {

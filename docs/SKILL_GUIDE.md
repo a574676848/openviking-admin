@@ -107,6 +107,7 @@ CLI 模式适合有本地 profile 的 Agent 宿主机。Agent 不需要自己管
 - `documents.index.status`：优先执行 `ova documents index status --node <nodeId> --output json`，不可用时回退到 `GET /api/v1/capability/documents/:id/index`。
 - `documents.index.rebuild`：优先执行 `ova documents index rebuild --node <nodeId> --output json`，不可用时回退到 `POST /api/v1/capability/documents/:id/index/rebuild`。
 - `documents.draft.grep`：优先执行 `ova documents draft grep --node <nodeId> --pattern <keyword> --output json`，不可用时回退到 `POST /api/v1/capability/documents/:id/draft/grep`。
+- `documents.extract.guide`：优先执行 `ova documents extract guide --scenario <scenario> --output json`，不可用时回退到 `GET /api/v1/capability/documents/extract/guide`。
 
 始终保留响应中的 `traceId`。
 ```

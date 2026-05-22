@@ -635,7 +635,7 @@ describe("ova cli", () => {
     );
   });
 
-  it("应该通过 setup 自动写入 MCP 配置和全局 skill", async () => {
+  it("应该通过 setup 自动写入 MCP 配置但不写入 skill", async () => {
     setStateFile(
       buildStateFile({
         accessToken: createToken(3600),
@@ -657,6 +657,8 @@ describe("ova cli", () => {
 
     await bootstrap([
       "setup",
+      "--path",
+      "E:\\repo",
       "--editor",
       "claude,cursor,codex",
       "--output",
@@ -667,14 +669,14 @@ describe("ova cli", () => {
     expect(findWritePath(".cursor\\mcp.json")).toBeTruthy();
     expect(findWritePath(".codex\\config.toml")).toBeTruthy();
     expect(
-      findWritePath(".claude\\skills\\openviking-admin\\SKILL.md"),
-    ).toBeTruthy();
+      findWritePath("E:\\repo\\.claude\\skills\\openviking-admin\\SKILL.md"),
+    ).toBeFalsy();
     expect(
-      findWritePath(".cursor\\skills\\openviking-admin\\SKILL.md"),
-    ).toBeTruthy();
+      findWritePath("E:\\repo\\.cursor\\skills\\openviking-admin\\SKILL.md"),
+    ).toBeFalsy();
     expect(
-      findWritePath(".agents\\skills\\openviking-admin\\SKILL.md"),
-    ).toBeTruthy();
+      findWritePath("E:\\repo\\.agents\\skills\\openviking-admin\\SKILL.md"),
+    ).toBeFalsy();
     expect(stdoutWrite).toHaveBeenCalledWith(
       expect.stringContaining('"credentialType": "api-key"'),
     );
@@ -929,6 +931,9 @@ describe("ova cli", () => {
     ]);
 
     expect(findWritePath(".claude.json")).toBeTruthy();
+    expect(
+      findWritePath("E:\\repo\\.claude\\skills\\openviking-admin\\SKILL.md"),
+    ).toBeTruthy();
     expect(findWritePath("E:\\repo\\AGENTS.md")).toBeTruthy();
     expect(stdoutWrite).toHaveBeenCalledWith(
       expect.stringContaining('"setup"'),

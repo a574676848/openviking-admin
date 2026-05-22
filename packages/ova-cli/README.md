@@ -189,6 +189,7 @@ ova knowledge search --query "多租户隔离" --limit 5
 ova knowledge grep --pattern "tenant" --uri "viking://resources/tenants/acme/"
 ova resources list --uri "viking://resources/tenants/acme/"
 ova resources tree --uri "viking://resources/tenants/acme/" --depth 2
+ova documents extract guide --scenario api --output json
 ```
 
 ## 换证

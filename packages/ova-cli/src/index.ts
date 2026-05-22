@@ -71,6 +71,7 @@ function printUsage() {
   ova documents index status --node <nodeId> [--profile dev] [--output json|jsonl]
   ova documents index rebuild --node <nodeId> [--profile dev] [--output json|jsonl]
   ova documents draft grep --node <nodeId> --pattern "关键词" [--profile dev] [--output json|jsonl]
+    ova documents extract guide [--scenario general|api|runbook|faq|repository] [--profile dev] [--output json|jsonl]
   ova config show [--env debug] [--output json|jsonl]
   ova config set --server http://localhost:6001 [--env debug] [--output json|jsonl]
   ova config use --env debug [--output json|jsonl]

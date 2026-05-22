@@ -38,8 +38,11 @@
 | `documents.index.status`  | 查看文档草稿与索引同步状态             | `GET /api/v1/capability/documents/:id/index`                                                                        | `ova documents index status`          | `documents.index.status`  | `tenant_viewer`   |
 | `documents.index.rebuild` | 使用最新草稿重建文档索引               | `POST /api/v1/capability/documents/:id/index/rebuild`                                                               | `ova documents index rebuild`         | `documents.index.rebuild` | `tenant_operator` |
 | `documents.draft.grep`    | 对 Admin 侧文档草稿正文执行文本匹配    | `POST /api/v1/capability/documents/:id/draft/grep`                                                                  | `ova documents draft grep`            | `documents.draft.grep`    | `tenant_viewer`   |
+| `documents.extract.guide` | 返回面向 OV 检索链路的萃取规范与示例   | `GET /api/v1/capability/documents/extract/guide`                                                                    | `ova documents extract guide`         | `documents.extract.guide` | `tenant_viewer`   |
 
 `knowledge.*`、`resources.*`、`knowledgeBases.*`、`knowledgeTree.*` 这些 capability 在通过租户与 minimumRole 校验后，还会继续按知识节点 ACL 过滤返回结果；删除能力 `knowledgeBases.delete` 与 `knowledgeTree.delete` 也会先做同一套节点 ACL 校验，再执行业务删除，并同时写入 capability 调用审计与领域删除审计。
+
+`documents.extract.guide` 是一个只读规范能力，用于把 OpenViking 的语义召回、ACL/URI scope、文本匹配、rerank 与索引刷新约束投影成结构化萃取规则，便于 Agent、CLI 与 MCP 客户端直接消费。
 
 ## WebDAV 说明
 

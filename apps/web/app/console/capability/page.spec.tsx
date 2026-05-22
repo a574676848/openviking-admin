@@ -151,7 +151,19 @@ describe("CapabilityPage", () => {
       apiKey: "cap_live_12345678",
       expiresAt: "2026-05-28T00:00:00.000Z",
     });
-    fetchMock.mockResolvedValueOnce({ ok: true });
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            apiBaseUrl: "https://backend.example.com/api/v1",
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      )
+      .mockResolvedValueOnce({ ok: true });
 
     await renderPage();
 
@@ -208,7 +220,13 @@ describe("CapabilityPage", () => {
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://localhost:3000/api/v1/mcp/sse?key=cap_live_12345678",
+      "/console/capability/config",
+      expect.objectContaining({
+        cache: "no-store",
+      }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://backend.example.com/api/v1/mcp/sse?key=cap_live_12345678",
       expect.objectContaining({
         method: "GET",
         headers: { Accept: "text/event-stream" },
@@ -225,7 +243,7 @@ describe("CapabilityPage", () => {
     });
 
     expect(clipboardWriteMock).toHaveBeenCalledWith(
-      expect.stringContaining('"url": "http://localhost:3000/api/v1/mcp/sse?key=<YOUR_API_KEY>"'),
+      expect.stringContaining('"url": "https://backend.example.com/api/v1/mcp/sse?key=<YOUR_API_KEY>"'),
     );
   });
 
@@ -264,7 +282,19 @@ describe("CapabilityPage", () => {
         },
       ],
     });
-    fetchMock.mockResolvedValueOnce({ ok: true });
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            apiBaseUrl: "https://backend.example.com/api/v1",
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      )
+      .mockResolvedValueOnce({ ok: true });
 
     await renderPage();
 
@@ -279,7 +309,7 @@ describe("CapabilityPage", () => {
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://localhost:3000/api/v1/mcp/sse?key=ov-sk-runner87654321",
+      "https://backend.example.com/api/v1/mcp/sse?key=ov-sk-runner87654321",
       expect.objectContaining({
         method: "GET",
       }),

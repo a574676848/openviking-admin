@@ -30,8 +30,8 @@ import type {
 const CLIENT_CONFIG_COPY_KEY = "config";
 const COPY_RESET_DELAY_MS = 1600;
 const CONNECTION_TEST_TIMEOUT_MS = 2500;
-const MCP_SSE_PATH = "/api/v1/mcp/sse";
 const CAPABILITY_API_BASE_PATH = "/api/v1";
+const CAPABILITY_CONFIG_ENDPOINT = "/console/capability/config";
 const FALLBACK_API_KEY_TTL_SECONDS = 30 * 24 * 60 * 60;
 
 const DEFAULT_DIAGNOSTIC: ConnectionDiagnostic = {
@@ -46,6 +46,10 @@ type ClientPreset = {
   label: string;
   hint: string;
   buildSnippet: (input: { apiBaseUrl: string; mcpUrl: string }) => string[];
+};
+
+type CapabilityConfigPayload = {
+  apiBaseUrl?: string;
 };
 
 const clientPresets: ClientPreset[] = [
@@ -156,9 +160,13 @@ export default function CapabilityPage() {
   const [apiKeyOption, setApiKeyOption] = useState<CredentialOption | null>(null);
   const [selectedTtl, setSelectedTtl] = useState<string>(String(FALLBACK_API_KEY_TTL_SECONDS));
   const [diagnostic, setDiagnostic] = useState<ConnectionDiagnostic>(DEFAULT_DIAGNOSTIC);
-
-  const sseUrl = typeof window !== "undefined" ? `${window.location.origin}${MCP_SSE_PATH}` : "";
-  const apiBaseUrl = typeof window !== "undefined" ? `${window.location.origin}${CAPABILITY_API_BASE_PATH}` : CAPABILITY_API_BASE_PATH;
+  const fallbackApiBaseUrl = useMemo(
+    () => resolveCapabilityApiBaseUrl(process.env.NEXT_PUBLIC_BACKEND_URL),
+    [],
+  );
+  const [runtimeApiBaseUrl, setRuntimeApiBaseUrl] = useState<string | null>(null);
+  const apiBaseUrl = runtimeApiBaseUrl ?? fallbackApiBaseUrl;
+  const sseUrl = `${apiBaseUrl}/mcp/sse`;
 
   const activeConnection = useMemo(() => {
     if (activeCredentialId === "__new__" && newlyCreatedKey) {
@@ -256,6 +264,33 @@ export default function CapabilityPage() {
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    let shouldIgnore = false;
+
+    async function loadCapabilityConfig() {
+      setRuntimeApiBaseUrl(null);
+
+      try {
+        const response = await fetch(CAPABILITY_CONFIG_ENDPOINT, {
+          cache: "no-store",
+        });
+        const payload = await safeReadCapabilityConfigPayload(response);
+
+        if (!shouldIgnore && response.ok && payload.apiBaseUrl) {
+          setRuntimeApiBaseUrl(payload.apiBaseUrl);
+        }
+      } catch {
+        // 保留构建期配置或同源回退，避免配置接口异常时页面不可用。
+      }
+    }
+
+    void loadCapabilityConfig();
+
+    return () => {
+      shouldIgnore = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -741,4 +776,42 @@ export default function CapabilityPage() {
       ) : null}
     </div>
   );
+}
+
+function resolveCapabilityApiBaseUrl(resolvedBaseUrl?: string, fallbackHost?: string) {
+  if (resolvedBaseUrl) {
+    const origin = resolveBackendOrigin(resolvedBaseUrl);
+    return `${origin}${CAPABILITY_API_BASE_PATH}`;
+  }
+
+  if (typeof window !== "undefined") {
+    if (fallbackHost) {
+      return `${window.location.protocol}//${fallbackHost}${CAPABILITY_API_BASE_PATH}`;
+    }
+    return `${window.location.origin}${CAPABILITY_API_BASE_PATH}`;
+  }
+
+  return fallbackHost
+    ? `https://${fallbackHost}${CAPABILITY_API_BASE_PATH}`
+    : CAPABILITY_API_BASE_PATH;
+}
+
+function resolveBackendOrigin(baseUrl: string) {
+  try {
+    const parsed = new URL(baseUrl);
+    return `${parsed.protocol}//${parsed.host}`;
+  } catch {
+    return baseUrl.replace(/\/+$/, "");
+  }
+}
+
+async function safeReadCapabilityConfigPayload(
+  response: Response,
+): Promise<CapabilityConfigPayload> {
+  try {
+    const payload = (await response.json()) as CapabilityConfigPayload;
+    return payload && typeof payload === "object" ? payload : {};
+  } catch {
+    return {};
+  }
 }

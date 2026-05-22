@@ -31,6 +31,18 @@ MCP 是协议入口，不是独立业务层。MCP 暴露的工具来自统一 ca
 | `documents.index.status` | `documents.index.status` | 查看文档草稿与索引同步状态 |
 | `documents.index.rebuild` | `documents.index.rebuild` | 使用最新草稿重建文档索引 |
 | `documents.draft.grep` | `documents.draft.grep` | 对 Admin 侧文档草稿正文执行文本匹配 |
+| `documents.extract.guide` | `documents.extract.guide` | 返回面向 OV 检索链路的文档萃取规范与示例 |
+
+示例：
+
+```json
+{
+  "name": "documents.extract.guide",
+  "arguments": {
+    "scenario": "api"
+  }
+}
+```
 
 ## 获取凭证
 
@@ -67,7 +79,6 @@ ova setup
 `setup` 会自动：
 
 - 生成 OpenViking MCP remote 配置
-- 安装全局 OpenViking Skill
 - 在需要时自动签发 API key 或 session key
 
 如果还要把当前仓库的 `AGENTS.md` / `CLAUDE.md` 与 repo-local Skill 一起初始化，应执行：

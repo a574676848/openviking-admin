@@ -41,6 +41,7 @@ ova documents import retry --task <taskId> --output json
 ova documents index status --node <nodeId> --output json
 ova documents index rebuild --node <nodeId> --output json
 ova documents draft grep --node <nodeId> --pattern "关键词" --output json
+ova documents extract guide --scenario api --output json
 ```
 
 ## HTTP 回退调用
@@ -124,6 +125,7 @@ curl "http://localhost:6001/api/v1/import-tasks/:id/events" \
 | `documents.index.status` | `ova documents index status` | `GET /api/v1/capability/documents/:id/index` |
 | `documents.index.rebuild` | `ova documents index rebuild` | `POST /api/v1/capability/documents/:id/index/rebuild` |
 | `documents.draft.grep` | `ova documents draft grep` | `POST /api/v1/capability/documents/:id/draft/grep` |
+| `documents.extract.guide` | `ova documents extract guide` | `GET /api/v1/capability/documents/extract/guide` |
 
 ## 关于 capability 映射刷新
 

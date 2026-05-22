@@ -19,6 +19,7 @@ describe('CapabilityCatalogService', () => {
         expect.objectContaining({ id: 'knowledgeTree.list' }),
         expect.objectContaining({ id: 'knowledgeTree.delete' }),
         expect.objectContaining({ id: 'documents.import.create' }),
+        expect.objectContaining({ id: 'documents.extract.guide' }),
       ]),
     );
   });
@@ -29,6 +30,7 @@ describe('CapabilityCatalogService', () => {
       expect.arrayContaining([
         expect.objectContaining({ name: 'knowledge.search' }),
         expect.objectContaining({ name: 'resources.tree' }),
+        expect.objectContaining({ name: 'documents.extract.guide' }),
       ]),
     );
   });
@@ -229,6 +231,16 @@ describe('CapabilityCatalogService', () => {
         method: Reflect.getMetadata(
           METHOD_METADATA,
           CapabilitiesController.prototype.grepDocumentDraft,
+        ),
+      },
+      'documents.extract.guide': {
+        path: Reflect.getMetadata(
+          PATH_METADATA,
+          CapabilitiesController.prototype.getDocumentExtractionGuide,
+        ),
+        method: Reflect.getMetadata(
+          METHOD_METADATA,
+          CapabilitiesController.prototype.getDocumentExtractionGuide,
         ),
       },
     };

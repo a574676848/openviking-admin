@@ -21,7 +21,11 @@ export async function handleDocuments(
       await handleDocumentDraft(options, store, output);
       return;
     }
-    throw new Error("未知 documents 命令，请使用 ova documents import、index 或 draft");
+    if (command === "extract") {
+      await handleDocumentExtract(options, store, output);
+      return;
+    }
+    throw new Error("未知 documents 命令，请使用 ova documents import、index、draft 或 extract");
   }
 
   const action =
@@ -219,6 +223,60 @@ async function handleDocumentDraftGrep(
         ...items.map((item) => `L${String(item.line)} ${String(item.nodeId)}\n  ${String(item.content)}`),
       ].join("\n"),
     items,
+  );
+}
+
+async function handleDocumentExtract(
+  options: Record<string, string | boolean>,
+  store: CredentialStore,
+  output: ReturnType<typeof resolveOutputMode>,
+) {
+  const action =
+    typeof options._ === "string"
+      ? options._
+      : String(options.action ?? "guide");
+  if (action !== "guide") {
+    throw new Error("未知 documents extract 命令，请使用 ova documents extract guide");
+  }
+
+  const searchParams = new URLSearchParams();
+  if (options.scenario) {
+    searchParams.set("scenario", String(options.scenario));
+  }
+  const suffix = searchParams.size > 0 ? `?${searchParams.toString()}` : "";
+  const response = await callApi(
+    `${CAPABILITY_API_BASE}/documents/extract/guide${suffix}`,
+    {},
+    options,
+    store,
+  );
+  const item = (response.data as Record<string, unknown>).item as Record<
+    string,
+    unknown
+  >;
+  const features = ((item.openvikingFeatures ?? []) as Array<Record<string, unknown>>)
+    .map(
+      (feature) =>
+        `- ${String(feature.feature)}: ${String(feature.implication)}`,
+    )
+    .slice(0, 4);
+  const checklist = ((item.checklist ?? []) as string[])
+    .map((line) => `- ${line}`)
+    .slice(0, 6);
+
+  emitOutput(
+    output,
+    response,
+    () =>
+      [
+        `traceId: ${String(response.traceId ?? "")}`,
+        `${String(item.title ?? "文档萃取规范")} scenario=${String(item.scenario ?? "general")}`,
+        "OV 特性约束:",
+        ...features,
+        "萃取检查项:",
+        ...checklist,
+      ].join("\n"),
+    [item],
   );
 }
 

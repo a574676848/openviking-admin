@@ -51,6 +51,10 @@ interface EditorWriteResult {
     skillPath: string;
 }
 
+interface SetupExecutionOptions {
+    writeSkillAssets?: boolean;
+}
+
 export interface SetupSummary {
     profile: string;
     serverUrl: string;
@@ -175,11 +179,16 @@ export function emitBootstrapSummary(modeOptions: Record<string, string | boolea
 export async function runSetup(
     options: Record<string, string | boolean>,
     store: CredentialStore,
+    executionOptions: SetupExecutionOptions = {},
 ): Promise<SetupSummary> {
     const profileContext = persistSetupOptions(options, store);
     const credential = await resolveMcpCredential(options, store, profileContext.profile);
     const mcpUrl = buildMcpUrl(profileContext.profile.serverUrl, credential);
-    const editors = resolveEditors(options).map((editor) => configureEditor(editor, mcpUrl));
+    const projectPath = resolve(String(options.path ?? process.cwd()));
+    const writeSkillAssets = executionOptions.writeSkillAssets === true;
+    const editors = resolveEditors(options).map((editor) =>
+        configureEditor(editor, mcpUrl, projectPath, writeSkillAssets),
+    );
 
     return {
         profile: profileContext.profileName,
@@ -464,26 +473,37 @@ function resolveEditors(options: Record<string, string | boolean>): SupportedEdi
     return values;
 }
 
-function configureEditor(editor: SupportedEditor, mcpUrl: string): EditorWriteResult {
+function configureEditor(
+    editor: SupportedEditor,
+    mcpUrl: string,
+    projectPath: string,
+    writeSkillAssets: boolean,
+): EditorWriteResult {
     if (editor === 'claude') {
         const configPath = join(homedir(), '.claude.json');
         upsertJsonMcpConfig(configPath, buildMcpEntry(mcpUrl));
-        const skillPath = join(homedir(), '.claude', 'skills', 'openviking-admin', 'SKILL.md');
-        writeSkillAsset(skillPath);
+        const skillPath = join(projectPath, '.claude', 'skills', 'openviking-admin', 'SKILL.md');
+        if (writeSkillAssets) {
+            writeSkillAsset(skillPath);
+        }
         return { editor, configPath, skillPath };
     }
     if (editor === 'cursor') {
         const configPath = join(homedir(), '.cursor', 'mcp.json');
         upsertJsonMcpConfig(configPath, buildMcpEntry(mcpUrl));
-        const skillPath = join(homedir(), '.cursor', 'skills', 'openviking-admin', 'SKILL.md');
-        writeSkillAsset(skillPath);
+        const skillPath = join(projectPath, '.cursor', 'skills', 'openviking-admin', 'SKILL.md');
+        if (writeSkillAssets) {
+            writeSkillAsset(skillPath);
+        }
         return { editor, configPath, skillPath };
     }
 
     const configPath = join(homedir(), '.codex', 'config.toml');
     upsertTomlMcpConfig(configPath, mcpUrl);
-    const skillPath = join(homedir(), '.agents', 'skills', 'openviking-admin', 'SKILL.md');
-    writeSkillAsset(skillPath);
+    const skillPath = join(projectPath, '.agents', 'skills', 'openviking-admin', 'SKILL.md');
+    if (writeSkillAssets) {
+        writeSkillAsset(skillPath);
+    }
     return { editor, configPath, skillPath };
 }
 

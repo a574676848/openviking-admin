@@ -478,6 +478,25 @@ export class CapabilitiesController {
     );
   }
 
+  @Get('capability/documents/extract/guide')
+  async getDocumentExtractionGuide(
+    @Query() query: Record<string, string>,
+    @Headers('x-capability-key') capabilityKey: string | undefined,
+    @Headers('authorization') authorization: string | undefined,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.executeCapability(
+      'documents.extract.guide',
+      query,
+      this.resolveClientType('http'),
+      req,
+      res,
+      capabilityKey,
+      authorization,
+    );
+  }
+
   private async executeCapability(
     capabilityId: CapabilityId,
     input: Record<string, unknown>,
