@@ -440,6 +440,7 @@ describe('Capability Platform (e2e)', () => {
       expect.any(Array),
       'tenant-1',
       expect.objectContaining({ id: 'user-1' }),
+      expect.objectContaining({ userId: 'user-1', role: 'tenant_operator' }),
     );
   });
 

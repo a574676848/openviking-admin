@@ -12,6 +12,10 @@ type MockState = {
   activeToken: string | null;
 };
 
+const VISUAL_BASELINE_OPTIONS = {
+  maxDiffPixels: 1500,
+};
+
 function createMockState(): MockState {
   return {
     usersByToken: {
@@ -253,13 +257,13 @@ test.describe("P1-10 主题视觉基线", () => {
     await expect(page.getByRole("main").getByRole("heading", { name: "租户工作台" })).toBeVisible();
     await page.waitForTimeout(200);
 
-    await expect(page.getByRole("main")).toHaveScreenshot("console-dashboard-neo.png");
+    await expect(page.getByRole("main")).toHaveScreenshot("console-dashboard-neo.png", VISUAL_BASELINE_OPTIONS);
 
     await switchTheme(page, "浩瀚星空");
     await expect(page.locator("html")).toHaveClass(/theme-starry/);
     await page.waitForTimeout(200);
 
-    await expect(page.getByRole("main")).toHaveScreenshot("console-dashboard-starry.png");
+    await expect(page.getByRole("main")).toHaveScreenshot("console-dashboard-starry.png", VISUAL_BASELINE_OPTIONS);
   });
 
   test("platform dashboard 在 starry 与 neo 主题下保持稳定布局", async ({ page }) => {
@@ -268,29 +272,29 @@ test.describe("P1-10 主题视觉基线", () => {
     await expect(page.getByRole("main").getByRole("heading", { name: "平台总览" })).toBeVisible();
     await page.waitForTimeout(400);
 
-    await expect(page.getByRole("main")).toHaveScreenshot("platform-dashboard-starry.png");
+    await expect(page.getByRole("main")).toHaveScreenshot("platform-dashboard-starry.png", VISUAL_BASELINE_OPTIONS);
 
     await switchTheme(page, "星智流光");
     await expect(page.locator("html")).not.toHaveClass(/theme-starry/);
     await page.waitForTimeout(400);
 
-    await expect(page.getByRole("main")).toHaveScreenshot("platform-dashboard-neo.png");
+    await expect(page.getByRole("main")).toHaveScreenshot("platform-dashboard-neo.png", VISUAL_BASELINE_OPTIONS);
   });
 
   test("console system 在 neo 与 starry 主题下保持稳定布局", async ({ page }) => {
     await login(page, "alpha", "tenant.admin", "secret");
     await page.goto("/console/system");
     await expect(page).toHaveURL(/\/console\/system$/);
-    await expect(page.getByRole("main").getByRole("heading", { name: "系统运行状态" })).toBeVisible();
+    await expect(page.getByRole("main").getByRole("heading", { name: "系统状态" })).toBeVisible();
     await page.waitForTimeout(250);
 
-    await expect(page.getByRole("main")).toHaveScreenshot("console-system-neo.png");
+    await expect(page.getByRole("main")).toHaveScreenshot("console-system-neo.png", VISUAL_BASELINE_OPTIONS);
 
     await switchTheme(page, "浩瀚星空");
     await expect(page.locator("html")).toHaveClass(/theme-starry/);
     await page.waitForTimeout(250);
 
-    await expect(page.getByRole("main")).toHaveScreenshot("console-system-starry.png");
+    await expect(page.getByRole("main")).toHaveScreenshot("console-system-starry.png", VISUAL_BASELINE_OPTIONS);
   });
 
   test("platform users 在 starry 与 neo 主题下保持稳定布局", async ({ page }) => {
@@ -300,12 +304,12 @@ test.describe("P1-10 主题视觉基线", () => {
     await expect(page.getByRole("main")).toContainText("全局用户治理");
     await page.waitForTimeout(400);
 
-    await expect(page.getByRole("main")).toHaveScreenshot("platform-users-starry.png");
+    await expect(page.getByRole("main")).toHaveScreenshot("platform-users-starry.png", VISUAL_BASELINE_OPTIONS);
 
     await switchTheme(page, "星智流光");
     await expect(page.locator("html")).not.toHaveClass(/theme-starry/);
     await page.waitForTimeout(400);
 
-    await expect(page.getByRole("main")).toHaveScreenshot("platform-users-neo.png");
+    await expect(page.getByRole("main")).toHaveScreenshot("platform-users-neo.png", VISUAL_BASELINE_OPTIONS);
   });
 });

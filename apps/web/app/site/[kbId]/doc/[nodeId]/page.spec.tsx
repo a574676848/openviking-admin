@@ -214,6 +214,7 @@ describe("KnowledgeSiteDocumentPage", () => {
           contentUri: "viking://doc/content.md",
           readOnly: false,
           canWrite: true,
+          draftReady: true,
           collab: {
             path: "/collab",
             documentName: "document:tenant-a:node-doc",
@@ -228,7 +229,7 @@ describe("KnowledgeSiteDocumentPage", () => {
 
     expect(container.textContent).toContain("产品知识库");
     expect(container.textContent).toContain("协作方案");
-  expect(container.textContent).toContain("已连接");
+    expect(container.textContent).toContain("已连接");
     expect(container.textContent).toContain("1 位协作者在线");
     expect(container.textContent).toContain("重连");
     expect(container.textContent).toContain("手动保存");

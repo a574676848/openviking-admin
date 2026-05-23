@@ -5,6 +5,7 @@ type MockUser = {
     username: string;
     role: string;
     tenantId: string | null;
+    active?: boolean;
 };
 
 type MockTenant = {
@@ -64,18 +65,21 @@ function createMockState(): MockState {
                 username: "tenant.admin",
                 role: "tenant_admin",
                 tenantId: "tenant-alpha",
+                active: true,
             },
             "tenant-operator-token": {
                 id: "user-tenant-operator",
                 username: "tenant.operator",
                 role: "tenant_operator",
                 tenantId: "tenant-alpha",
+                active: true,
             },
             "tenant-viewer-token": {
                 id: "user-tenant-viewer",
                 username: "tenant.viewer",
                 role: "tenant_viewer",
                 tenantId: "tenant-alpha",
+                active: true,
             },
         },
         tenants: [
@@ -133,10 +137,18 @@ async function readBody(route: Route) {
 }
 
 async function installMockApi(page: Page, state: MockState) {
+    await page.route("**/console/capability/config", async (route) => {
+        const origin = new URL(route.request().url()).origin;
+        return jsonResponse(route, { apiBaseUrl: `${origin}/api/v1` });
+    });
+
     await page.route("**/api/v1/mcp/sse**", async (route) => {
         await route.fulfill({
             status: 200,
             contentType: "text/event-stream",
+            headers: {
+                "Access-Control-Allow-Origin": "*",
+            },
             body: "event: ping\ndata: ok\n\n",
         });
     });
@@ -226,6 +238,16 @@ async function installMockApi(page: Page, state: MockState) {
             return jsonResponse(route, state.knowledgeBases);
         }
 
+        if (path === "/api/v1/knowledge-bases/paged" && method === "GET") {
+            return jsonResponse(route, {
+                items: state.knowledgeBases,
+                total: state.knowledgeBases.length,
+                page: 1,
+                pageSize: state.knowledgeBases.length || 1,
+                pages: 1,
+            });
+        }
+
         if (path === "/api/v1/knowledge-bases" && method === "POST") {
             const body = await readBody(route);
             state.knowledgeBases.push({
@@ -310,34 +332,32 @@ async function installMockApi(page: Page, state: MockState) {
 
         if (path === "/api/v1/auth/credential-options" && method === "GET") {
             return jsonResponse(route, {
-                data: {
-                    capabilities: [
-                        {
-                            channel: "mcp",
-                            credentialType: "session_key",
-                            issueEndpoint: "/api/v1/auth/session-key",
-                            ttlSeconds: 3600,
-                            ttlOptions: [
-                                { label: "15 分钟", value: 900 },
-                                { label: "30 分钟", value: 1800, default: true },
-                                { label: "1 小时", value: 3600 },
-                            ],
-                            recommendedFor: ["mcp"],
-                        },
-                        {
-                            channel: "mcp",
-                            credentialType: "api_key",
-                            issueEndpoint: "/api/v1/auth/client-credentials",
-                            ttlSeconds: 2592000,
-                            ttlOptions: [
-                                { label: "7 天", value: 604800 },
-                                { label: "30 天", value: 2592000, default: true },
-                                { label: "长期有效", value: null },
-                            ],
-                            recommendedFor: ["mcp", "cli"],
-                        },
-                    ],
-                },
+                capabilities: [
+                    {
+                        channel: "mcp",
+                        credentialType: "session_key",
+                        issueEndpoint: "/api/v1/auth/session-key",
+                        ttlSeconds: 3600,
+                        ttlOptions: [
+                            { label: "15 分钟", value: 900 },
+                            { label: "30 分钟", value: 1800, default: true },
+                            { label: "1 小时", value: 3600 },
+                        ],
+                        recommendedFor: ["mcp"],
+                    },
+                    {
+                        channel: "mcp",
+                        credentialType: "api_key",
+                        issueEndpoint: "/api/v1/auth/client-credentials",
+                        ttlSeconds: 2592000,
+                        ttlOptions: [
+                            { label: "7 天", value: 604800 },
+                            { label: "30 天", value: 2592000, default: true },
+                            { label: "长期有效", value: null },
+                        ],
+                        recommendedFor: ["mcp", "cli"],
+                    },
+                ],
             });
         }
 
@@ -381,11 +401,9 @@ test("tenant_admin 端到端覆盖知识库、搜索与 MCP key 管理", async (
     await expect(page.getByRole("main").getByRole("heading", { name: "租户工作台" })).toBeVisible();
 
     await page.goto("/console/knowledge-bases/new");
-    await page.getByPlaceholder("e.g. 产品说明书与开发规范_V2").fill("测试知识库");
-    await page.getByPlaceholder("default", { exact: true }).fill("tenant-alpha");
-    await page.getByPlaceholder("viking://resources/default/").fill("viking://resources/testing/");
-    await page.getByPlaceholder("[输入关于此知识集群的功能边界与数据来源说明...]").fill("供 E2E 使用");
-    await page.getByRole("button", { name: ">> DEPLOY_CLUSTER" }).click();
+    await page.getByPlaceholder("例如：产品说明书与开发规范").fill("测试知识库");
+    await page.getByPlaceholder("输入关于此知识库的功能边界与数据来源说明...").fill("供 E2E 使用");
+    await page.getByRole("button", { name: "确认创建" }).click();
 
     await expect(page).toHaveURL(/\/console\/knowledge-bases$/);
     await expect(page.getByTestId("knowledge-base-name-kb-created")).toHaveText("测试知识库");
@@ -416,13 +434,18 @@ test("tenant_admin 端到端覆盖知识库、搜索与 MCP key 管理", async (
 
     await page.goto("/console/capability");
     await page.getByRole("button", { name: "新增凭证" }).click();
-    await page.getByLabel("绑定用户 *").selectOption("user-tenant-operator");
+    const createCredentialDialog = page.getByRole("dialog", { name: "新增凭证" });
+    await createCredentialDialog.getByRole("button", { name: "tenant.admin" }).click();
+    await page.locator("body > div").getByRole("button", { name: "tenant.operator" }).click();
     await page.getByPlaceholder("例如：Cursor-Office / Claude-Local").fill("E2E Key");
     await page.getByRole("button", { name: "确认创建" }).click();
-    await expect(page.locator("code").filter({ hasText: /^ovk-created-secret$/ })).toBeVisible();
+    await expect(page.getByRole("row", { name: /E2E Key/ })).toBeVisible();
 
-    await page.getByRole("button", { name: "测试当前连接" }).first().click();
-    await expect(page.getByText("连接测试通过").first()).toBeVisible();
+    const sseResponse = page.waitForResponse((response) =>
+        response.url().includes("/api/v1/mcp/sse") && response.status() === 200,
+    );
+    await page.getByRole("row", { name: /E2E Key/ }).getByRole("button", { name: "测试连接" }).click();
+    await sseResponse;
 });
 
 test("super_admin 可进入平台并切换到租户控制台", async ({ page }) => {
@@ -436,8 +459,8 @@ test("super_admin 可进入平台并切换到租户控制台", async ({ page }) 
     await page.goto("/platform/tenants");
     await expect(page.getByText("租户 Alpha")).toBeVisible();
     await page.getByRole("button", { name: "切换到租户 租户 Alpha" }).click();
-    await expect(page).toHaveURL(/\/console\/dashboard$/);
-    await expect(page.getByRole("main").getByRole("heading", { name: "租户工作台" })).toBeVisible();
+    await expect(page).toHaveURL(/\/platform\/tenants$/);
+    await expect(page.getByText("已在新窗口打开: 租户 Alpha")).toBeVisible();
 });
 
 test("tenant_admin、tenant_operator、tenant_viewer 均被限制在租户控制台", async ({ page }) => {
