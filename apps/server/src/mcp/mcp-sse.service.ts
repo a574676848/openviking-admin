@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 import { McpSessionService } from './mcp-session.service';
 
 const MCP_SSE_POLL_INTERVAL_MS = 1000;
+const MCP_SSE_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 const SSE_CONTENT_TYPE = 'text/event-stream; charset=utf-8';
 const SSE_CACHE_CONTROL = 'no-cache, no-transform';
 const SSE_CONNECTION = 'keep-alive';
@@ -49,6 +50,18 @@ export class McpSseService {
     return new Observable<MessageEvent>((subscriber) => {
       let polling = false;
       let session: { sessionId: string; endpoint: string } | null = null;
+      let idleTimer: ReturnType<typeof setTimeout> | null = null;
+
+      const resetIdleTimer = () => {
+        if (idleTimer) {
+          clearTimeout(idleTimer);
+        }
+        idleTimer = setTimeout(() => {
+          subscriber.complete();
+        }, MCP_SSE_IDLE_TIMEOUT_MS);
+      };
+
+      resetIdleTimer();
 
       const flushEvents = async () => {
         if (!session) {
@@ -68,6 +81,7 @@ export class McpSseService {
               data: event.payload,
               type: event.type ?? 'message',
             });
+            resetIdleTimer();
           }
           await this.mcpSessionService.touchSession(session.sessionId);
         } finally {
@@ -98,6 +112,9 @@ export class McpSseService {
 
       const cleanup = () => {
         clearInterval(timer);
+        if (idleTimer) {
+          clearTimeout(idleTimer);
+        }
         if (session) {
           void this.mcpSessionService.closeSession(session.sessionId);
         }

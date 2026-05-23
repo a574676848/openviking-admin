@@ -6,6 +6,7 @@ import { KnowledgeCapabilityGateway } from '../infrastructure/knowledge-capabili
 import { CapabilityRateLimitService } from '../infrastructure/capability-rate-limit.service';
 import type { CapabilityContext } from '../domain/capability.types';
 import { CapabilityRateLimitException } from '../infrastructure/capability-rate-limit.exception';
+import { CapabilityTimeoutException } from '../infrastructure/capability-timeout.exception';
 import { CapabilitySchemaValidatorService } from './capability-schema-validator.service';
 
 describe('CapabilityExecutionService', () => {
@@ -212,4 +213,34 @@ describe('CapabilityExecutionService', () => {
       1,
     );
   });
+
+  it('should throw CAPABILITY_TIMEOUT when gateway handler hangs', async () => {
+    rateLimit.assertAllowed = jest.fn();
+    gateway.search = jest
+      .fn()
+      .mockReturnValue(
+        new Promise((_resolve) => {
+          /* never resolves */
+        }),
+      );
+
+    const setTimeoutSpy = jest
+      .spyOn(global, 'setTimeout')
+      .mockImplementation(((cb: () => void, _ms?: number) => {
+        cb();
+        return 0 as unknown as ReturnType<typeof setTimeout>;
+      }) as typeof setTimeout);
+
+    try {
+      await expect(
+        service.execute('knowledge.search', { query: '超时测试' }, context),
+      ).rejects.toThrow(CapabilityTimeoutException);
+
+      expect((observability.recordFailure as jest.Mock).mock.calls.length).toBe(
+        1,
+      );
+    } finally {
+      setTimeoutSpy.mockRestore();
+    }
+  }, 10_000);
 });

@@ -10,6 +10,7 @@ import { CapabilityObservabilityService } from './capability-observability.servi
 import { KnowledgeCapabilityGateway } from '../infrastructure/knowledge-capability.gateway';
 import { CapabilityRateLimitService } from '../infrastructure/capability-rate-limit.service';
 import { CapabilityRateLimitException } from '../infrastructure/capability-rate-limit.exception';
+import { CapabilityTimeoutException } from '../infrastructure/capability-timeout.exception';
 import {
   CapabilityContext,
   CapabilityId,
@@ -17,6 +18,57 @@ import {
 } from '../domain/capability.types';
 import { getCapabilityRegistryEntry } from './capability-registry';
 import { CapabilitySchemaValidatorService } from './capability-schema-validator.service';
+
+const DEFAULT_CAPABILITY_TIMEOUT_MS = 30_000;
+const IMPORT_CAPABILITY_TIMEOUT_MS = 120_000;
+const DB_CAPABILITY_TIMEOUT_MS = 15_000;
+const IN_MEMORY_CAPABILITY_TIMEOUT_MS = 10_000;
+
+const LONG_RUNNING_CAPABILITIES: ReadonlySet<CapabilityId> = new Set([
+  'documents.import.create',
+  'documents.import.cancel',
+  'documents.import.retry',
+  'documents.index.rebuild',
+]);
+
+const DB_ONLY_CAPABILITIES: ReadonlySet<CapabilityId> = new Set([
+  'knowledgeBases.list',
+  'knowledgeBases.detail',
+  'knowledgeBases.delete',
+  'knowledgeTree.list',
+  'knowledgeTree.detail',
+  'knowledgeTree.delete',
+  'documents.import.status',
+  'documents.import.list',
+  'documents.import.events',
+  'documents.index.status',
+]);
+
+const IN_MEMORY_CAPABILITIES: ReadonlySet<CapabilityId> = new Set([
+  'documents.draft.grep',
+  'documents.extract.guide',
+]);
+
+function resolveCapabilityTimeoutMs(capabilityId: CapabilityId): number {
+  if (LONG_RUNNING_CAPABILITIES.has(capabilityId)) {
+    return IMPORT_CAPABILITY_TIMEOUT_MS;
+  }
+  if (DB_ONLY_CAPABILITIES.has(capabilityId)) {
+    return DB_CAPABILITY_TIMEOUT_MS;
+  }
+  if (IN_MEMORY_CAPABILITIES.has(capabilityId)) {
+    return IN_MEMORY_CAPABILITY_TIMEOUT_MS;
+  }
+  return DEFAULT_CAPABILITY_TIMEOUT_MS;
+}
+
+function timeoutAfter(ms: number, capabilityId: CapabilityId): Promise<never> {
+  return new Promise((_resolve, reject) => {
+    setTimeout(() => {
+      reject(new CapabilityTimeoutException(capabilityId, ms));
+    }, ms);
+  });
+}
 
 @Injectable()
 export class CapabilityExecutionService {
@@ -55,11 +107,15 @@ export class CapabilityExecutionService {
       );
 
       const gatewayHandler = registryEntry.gatewayHandler;
-      const data = await this.knowledgeCapabilityGateway[gatewayHandler](
-        context.principal,
-        input,
-        context.trace,
-      );
+      const timeoutMs = resolveCapabilityTimeoutMs(capabilityId);
+      const data = await Promise.race([
+        this.knowledgeCapabilityGateway[gatewayHandler](
+          context.principal,
+          input,
+          context.trace,
+        ),
+        timeoutAfter(timeoutMs, capabilityId),
+      ]);
       this.capabilitySchemaValidator.validateOutput(contract, data);
 
       const result: CapabilityInvocationResult = {
