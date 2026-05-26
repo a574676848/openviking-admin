@@ -870,8 +870,8 @@ function DocumentCollaborativeEditor({
   // 协作连接超时后降级为 REST 编辑器（拥有完整的 Prosemirror History 撤销/恢复支持）
   if (fallbackToRest) {
     return (
-      <div className="space-y-4 py-4">
-        <div className="rounded-[var(--radius-base)] border border-[color:color-mix(in_srgb,var(--warning)_36%,var(--border))] bg-[color:color-mix(in_srgb,var(--warning)_11%,var(--bg-card))] px-4 py-4 shadow-[var(--shadow-base)]">
+      <div className="flex h-full min-h-0 flex-1 flex-col gap-4 py-4">
+        <div className="shrink-0 rounded-[var(--radius-base)] border border-[color:color-mix(in_srgb,var(--warning)_36%,var(--border))] bg-[color:color-mix(in_srgb,var(--warning)_11%,var(--bg-card))] px-4 py-4 shadow-[var(--shadow-base)]">
           <div className="flex items-start gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[color:color-mix(in_srgb,var(--warning)_16%,transparent)] text-[var(--warning)]">
               <AlertCircle size={18} strokeWidth={1.9} />
@@ -889,12 +889,14 @@ function DocumentCollaborativeEditor({
             </div>
           </div>
         </div>
-        <DocumentRestEditor
-          nodeId={nodeId}
-          readOnly={readOnly}
-          saveRequestId={saveRequestId}
-          onStateChange={onStateChange}
-        />
+        <div className="min-h-0 flex-1 overflow-hidden">
+          <DocumentRestEditor
+            nodeId={nodeId}
+            readOnly={readOnly}
+            saveRequestId={saveRequestId}
+            onStateChange={onStateChange}
+          />
+        </div>
       </div>
     );
   }

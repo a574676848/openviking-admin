@@ -59,7 +59,7 @@
 | ---------------------- | ------ | ----------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | `BACKEND_URL`          | string | `http://localhost:6001` | 运行期必填 | Web 服务端 API 代理目标地址，也是 WebDAV 客户端配置页展示的后端域名；Docker 镜像构建期不需要，容器启动后由 Route Handler 读取 |
 | `NEXT_PUBLIC_APP_NAME` | string | `OpenViking Admin`      | 否         | 应用显示名称                                                                                                                  |
-| `CSP_CONNECT_SRC`      | string | —                       | 否         | 生产环境 `Content-Security-Policy` 的 `connect-src` 白名单，支持空格或逗号分隔，例如 `https://app.example.com wss://collab.example.com` |
+| `CSP_CONNECT_SRC`      | string | —                       | 否         | 生产环境 `Content-Security-Policy` 的 `connect-src` 额外白名单，支持空格或逗号分隔；未配置时会自动从 `BACKEND_URL` / `NEXT_PUBLIC_BACKEND_URL` 派生对应的 `http(s)` 与 `ws(s)` 源 |
 
 ---
 

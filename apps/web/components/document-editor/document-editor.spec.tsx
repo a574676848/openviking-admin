@@ -111,11 +111,13 @@ vi.mock("./document-collaboration", () => ({
 
 vi.mock("@blocknote/mantine", () => ({
   BlockNoteView: ({
+    className,
     editable,
     onChange,
     slashMenu,
     children,
   }: {
+    className?: string;
     editable?: boolean;
     onChange?: () => void;
     slashMenu?: boolean;
@@ -123,6 +125,7 @@ vi.mock("@blocknote/mantine", () => ({
   }) => (
     <div
       aria-label="BlockNote 编辑器"
+      className={className}
       data-editable={String(editable)}
       data-slash-menu={String(slashMenu)}
     >
@@ -625,6 +628,47 @@ describe("DocumentEditor", () => {
       );
       expect(container.textContent).toContain("点击上方“重连”重新进入在线协作");
       expect(getMock).toHaveBeenCalledWith("/editor/node-doc/content");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("协作超时回退到本地编辑时，REST 编辑器保留内部滚动容器", async () => {
+    vi.useFakeTimers();
+    getMock.mockResolvedValueOnce({
+      nodeId: "node-doc",
+      kbId: "kb-1",
+      name: "协作方案",
+      contentUri: "viking://content.md",
+      blocks: [{ id: "block-1", type: "paragraph", content: [] }],
+      updatedAt: "2026-05-12T08:00:00.000Z",
+    });
+
+    try {
+      await renderEditor(0, false, {
+        path: "/collab",
+        documentName: "document:tenant-a:node-doc",
+      });
+
+      await act(async () => {
+        vi.advanceTimersByTime(5000);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      const editor = container.querySelector(".ov-document-editor");
+      const scrollContainer = editor?.parentElement;
+      const surfaceContainer = scrollContainer?.parentElement;
+      const restContainer = surfaceContainer?.parentElement;
+      const fallbackContainer = restContainer?.parentElement;
+
+      expect(scrollContainer?.className).toContain("overflow-y-auto");
+      expect(surfaceContainer?.className).toContain("h-full");
+      expect(surfaceContainer?.className).toContain("min-h-0");
+      expect(restContainer?.className).toContain("min-h-0");
+      expect(restContainer?.className).toContain("flex-1");
+      expect(fallbackContainer?.className).toContain("h-full");
+      expect(fallbackContainer?.className).toContain("min-h-0");
     } finally {
       vi.useRealTimers();
     }

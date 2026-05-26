@@ -2,17 +2,39 @@ import type { NextConfig } from "next";
 
 const isDevLike = process.env.NODE_ENV !== "production";
 
-function readConnectSrcAllowList(): string {
-  const rawValue = process.env.CSP_CONNECT_SRC?.trim();
-  if (!rawValue) {
-    return "";
+const CONNECT_SRC_ENV_SEPARATOR = /[\s,]+/;
+
+function splitConnectSrc(value: string | undefined): string[] {
+  return (value ?? "")
+    .trim()
+    .split(CONNECT_SRC_ENV_SEPARATOR)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function resolveConnectSrcFromUrl(value: string | undefined): string[] {
+  if (!value?.trim()) {
+    return [];
   }
 
-  return rawValue
-    .split(/[\s,]+/)
-    .map((value) => value.trim())
-    .filter(Boolean)
-    .join(" ");
+  try {
+    const url = new URL(value.trim());
+    const httpSource = `${url.protocol}//${url.host}`;
+    const websocketProtocol = url.protocol === "https:" ? "wss:" : "ws:";
+    return [httpSource, `${websocketProtocol}//${url.host}`];
+  } catch {
+    return [];
+  }
+}
+
+function readConnectSrcAllowList(): string {
+  const sources = new Set([
+    ...splitConnectSrc(process.env.CSP_CONNECT_SRC),
+    ...resolveConnectSrcFromUrl(process.env.BACKEND_URL),
+    ...resolveConnectSrcFromUrl(process.env.NEXT_PUBLIC_BACKEND_URL),
+  ]);
+
+  return [...sources].join(" ");
 }
 
 const cspHeader = [
