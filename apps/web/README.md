@@ -97,7 +97,7 @@ pnpm dev
 
 服务默认运行在 `http://localhost:6002`。
 
-生产环境会从 `BACKEND_URL` / `NEXT_PUBLIC_BACKEND_URL` 自动派生 CSP `connect-src` 的 HTTP 与 WebSocket 源；`CSP_CONNECT_SRC` 仅用于追加其他跨域连接白名单。
+生产环境由 Web Proxy 在请求期从 `BACKEND_URL` / `NEXT_PUBLIC_BACKEND_URL` 自动派生 CSP `connect-src` 的 HTTP 与 WebSocket 源；`CSP_CONNECT_SRC` 仅用于追加其他跨域连接白名单。
 
 ## 设计规范
 
