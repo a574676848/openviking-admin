@@ -1,0 +1,14 @@
+project: openviking-knowdge
+governanceVersion: 1
+defaultMode: incremental
+primaryScope:
+  - knowledge-base-management
+artifacts:
+  testCases: test-governance/test-cases.md
+  reports: test-governance/reports/
+  clarifications: test-governance/reports/clarifications.md
+  evidence:
+    logs: test-governance/evidence/logs/
+    screenshots: test-governance/evidence/screenshots/
+    traces: test-governance/evidence/traces/
+lastUpdated: 2026-05-24

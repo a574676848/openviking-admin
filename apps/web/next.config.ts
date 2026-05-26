@@ -2,11 +2,24 @@ import type { NextConfig } from "next";
 
 const isDevLike = process.env.NODE_ENV !== "production";
 
+function readConnectSrcAllowList(): string {
+  const rawValue = process.env.CSP_CONNECT_SRC?.trim();
+  if (!rawValue) {
+    return "";
+  }
+
+  return rawValue
+    .split(/[\s,]+/)
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .join(" ");
+}
+
 const cspHeader = [
   "default-src 'self'",
   isDevLike
     ? "connect-src 'self' ws: wss: http://127.0.0.1:* http://localhost:*"
-    : "connect-src 'self'",
+    : `connect-src 'self' ${readConnectSrcAllowList()}`.trim(),
   isDevLike
     ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
     : "script-src 'self' 'unsafe-inline'",

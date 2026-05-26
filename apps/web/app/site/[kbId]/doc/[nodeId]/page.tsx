@@ -579,7 +579,7 @@ function KnowledgeSiteDocumentContent({
             {/* Editor Section */}
             <div className="min-h-0 flex-1 pl-12 pr-4 pb-10 md:pl-14 md:pr-6 lg:pl-16 lg:pr-8 flex flex-col">
               {metadata && !metadata.draftReady ? (
-                <div className="flex flex-1 min-h-[600px] items-center justify-center">
+                <div className="flex flex-1 min-h-0 items-center justify-center">
                   <div className="flex flex-col items-center gap-5">
                     <div className="relative flex h-16 w-16 items-center justify-center">
                       <span className="absolute inset-0 animate-ping rounded-full bg-[var(--brand-muted)] opacity-60" />
@@ -601,7 +601,7 @@ function KnowledgeSiteDocumentContent({
                   </div>
                 </div>
               ) : metadata ? (
-                <div className="flex-1 min-h-[600px]">
+                <div className="flex flex-1 min-h-0 flex-col overflow-hidden">
                   <DocumentEditor
                     nodeId={metadata.nodeId}
                     readOnly={editorReadOnly}

@@ -89,6 +89,7 @@ pnpm install
 # 编辑 .env.local
 # BACKEND_URL=http://localhost:6001
 # NEXT_PUBLIC_APP_NAME=OpenViking Admin
+# CSP_CONNECT_SRC=https://app.example.com wss://collab.example.com
 
 # 启动开发服务
 pnpm dev
