@@ -7,6 +7,10 @@
 [![Node.js Version](https://img.shields.io/badge/Node.js-v20+-green.svg)](https://nodejs.org/)
 [![PostgreSQL](https://img.shields.io/badge/Database-PostgreSQL-blue.svg)](https://www.postgresql.org/)
 
+<p align="center">
+  <img src="./docs/images/openviking-admin-promo.gif" alt="OpenViking Admin — Enterprise AI Knowledge OS" width="100%">
+</p>
+
 OpenViking Admin 是基于 OpenViking 核心能力构建的企业级私域 AI 知识管理平台，面向需要数据安全、租户隔离、检索精度和 AI Agent 接入能力的组织。它把企业散落在文档、知识库、代码仓库和业务系统中的私域知识，沉淀为可治理、可审计、可被安全调用的知识底座。
 
 本项目在 OpenViking 的语义索引与算力引擎能力之上，补齐企业管理侧的租户、用户、知识导入、权限、审计、SSO、MCP、CLI、HTTP API 和 Skill 接入能力。
