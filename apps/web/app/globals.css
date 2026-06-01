@@ -32,7 +32,7 @@
   --danger:  #D93025;
   --info:    #16A34A;
 
-  --font-stack-sans: var(--font-inter), "PingFang SC", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
+  --font-stack-sans: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", ui-sans-serif, system-ui, sans-serif;
 
   /* 文档编辑器专属变量 */
   --editor-body-size: 16px;

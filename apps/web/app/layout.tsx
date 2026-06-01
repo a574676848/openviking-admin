@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import { Toaster } from "sonner";
 import "@blocknote/mantine/style.css";
 import "./globals.css";
@@ -8,8 +7,6 @@ import { ConfirmProvider } from "@/components/ui/ConfirmProvider";
 import { AppProvider } from "@/components/app-provider";
 import { MeteorShower } from "@/components/ui/meteor-shower";
 import { DataWisps } from "@/components/ui/data-wisps";
-
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
   title: "OpenViking 知识管理平台",
@@ -23,7 +20,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN" className="h-full" suppressHydrationWarning>
-      <body suppressHydrationWarning className={`${inter.variable} min-h-full bg-[var(--bg-base)] text-[var(--text-primary)] antialiased transition-colors duration-300 vector-space-bg`}>
+      <body suppressHydrationWarning className="min-h-full bg-[var(--bg-base)] text-[var(--text-primary)] antialiased transition-colors duration-300 vector-space-bg">
         <AppProvider>
           <ConfirmProvider>
             <DataWisps />
