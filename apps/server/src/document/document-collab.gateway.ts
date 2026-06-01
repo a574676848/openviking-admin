@@ -68,6 +68,7 @@ interface DocumentTenantRuntimeContext {
   tenantScope: string | null;
   tenantDataSource?: DataSource;
   tenantQueryRunner?: QueryRunner;
+  tenantSchemaName?: string | null;
 }
 
 interface DocumentCollabContext {
@@ -634,6 +635,7 @@ export class DocumentCollabGateway implements OnModuleInit, OnModuleDestroy {
     return {
       tenantDataSource: runtimeContext.tenantDataSource,
       tenantQueryRunner: runtimeContext.tenantQueryRunner,
+      tenantSchemaName: runtimeContext.tenantSchemaName,
     };
   }
 
@@ -669,12 +671,14 @@ export class DocumentCollabGateway implements OnModuleInit, OnModuleDestroy {
     if (isolationConfig.level === TenantIsolationLevel.MEDIUM) {
       const queryRunner = this.defaultDataSource.createQueryRunner();
       await queryRunner.connect();
+      const schemaName = `tenant_${isolationConfig.tenantId.replace(/-/g, '_')}`;
       await queryRunner.query(
-        `SET search_path TO "tenant_${isolationConfig.tenantId.replace(/-/g, '_')}", public`,
+        `SET search_path TO "${schemaName}", public`,
       );
       return {
         tenantScope,
         tenantQueryRunner: queryRunner,
+        tenantSchemaName: schemaName,
       };
     }
 

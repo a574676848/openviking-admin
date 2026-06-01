@@ -28,6 +28,7 @@ describe('ImportTaskService', () => {
   const nodeRepo = {
     find: jest.fn(),
     findOne: jest.fn(),
+    save: jest.fn(),
     createWithGeneratedUri: jest.fn(),
     createFileWithGeneratedUri: jest.fn(),
     remove: jest.fn(),
@@ -78,6 +79,7 @@ describe('ImportTaskService', () => {
     kbRepo.save.mockImplementation(async (kb) => kb);
     nodeRepo.find.mockResolvedValue([]);
     nodeRepo.findOne.mockResolvedValue(null);
+    nodeRepo.save.mockImplementation(async (payload) => payload);
     nodeRepo.createWithGeneratedUri.mockImplementation(async (payload) => ({
       id: `node-${payload.name}`,
       tenantId: payload.tenantId,
@@ -1403,6 +1405,92 @@ describe('ImportTaskService', () => {
     await service.syncResult('task-sync-kb', 'tenant-a');
 
     expect(taskRepo.update).toHaveBeenCalledWith('task-sync-kb', {
+      nodeCount: 7,
+      vectorCount: 9,
+    });
+    expect(kbRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'kb-1',
+        docCount: 46,
+        vectorCount: 540,
+        updatedAt: expect.any(Date),
+      }),
+    );
+  });
+
+  it('同步按钮应补偿回填文档 contentUri 并刷新知识库聚合统计', async () => {
+    settings.resolveOVConfig.mockResolvedValue({
+      baseUrl: 'http://ov.local',
+      apiKey: 'ov-key',
+      account: 'tenant-a',
+      user: 'worker-user',
+      rerankEndpoint: null,
+      rerankModel: null,
+    });
+    taskRepo.findById.mockResolvedValue({
+      id: 'task-sync-doc',
+      tenantId: 'tenant-a',
+      kbId: 'kb-1',
+      sourceName: '同步补偿文档.md',
+      targetUri: 'viking://resources/tenants/tenant-a/kb-1/node-1/',
+    });
+    nodeRepo.findOne.mockResolvedValueOnce({
+      id: 'node-1',
+      tenantId: 'tenant-a',
+      kbId: 'kb-1',
+      name: '同步补偿文档.md',
+      kind: 'document',
+      vikingUri: 'viking://resources/tenants/tenant-a/kb-1/node-1/',
+      contentUri: null,
+      indexStatus: 'pending',
+      draftVersion: 0,
+      indexedVersion: 0,
+      vectorCount: null,
+      lastIndexedAt: null,
+      indexError: null,
+      createdAt: new Date('2026-04-29T00:00:00.000Z'),
+      updatedAt: new Date('2026-04-29T00:00:00.000Z'),
+    });
+    kbRepo.findById.mockResolvedValueOnce({
+      id: 'kb-1',
+      tenantId: 'tenant-a',
+      vikingUri: 'viking://resources/tenant-a/kb-1/',
+      docCount: 0,
+      vectorCount: 0,
+      updatedAt: new Date('2026-04-29T00:00:00.000Z'),
+    });
+    ovClient.request
+      .mockResolvedValueOnce({
+        result: { children_count: 3, descendant_count: 4 },
+      })
+      .mockResolvedValueOnce({ result: { count: 9 } })
+      .mockResolvedValueOnce({
+        result: [
+          {
+            uri: 'viking://resources/tenants/tenant-a/kb-1/node-1/同步补偿文档.md',
+            isDir: false,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        result: { children_count: 40, descendant_count: 6 },
+      })
+      .mockResolvedValueOnce({ result: { count: 540 } });
+    nodeRepo.save.mockImplementation(async (payload) => payload);
+
+    await service.syncResult('task-sync-doc', 'tenant-a');
+
+    expect(nodeRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'node-1',
+        contentUri:
+          'viking://resources/tenants/tenant-a/kb-1/node-1/同步补偿文档.md',
+        indexStatus: 'clean',
+        vectorCount: 9,
+        updatedAt: expect.any(Date),
+      }),
+    );
+    expect(taskRepo.update).toHaveBeenCalledWith('task-sync-doc', {
       nodeCount: 7,
       vectorCount: 9,
     });

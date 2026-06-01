@@ -11,6 +11,10 @@ import {
   OPENVIKING_RESOURCE_ENDPOINTS,
   OPENVIKING_RESOURCE_INJECT_DEFAULT_WAIT,
   QUEUE_CONFIG,
+  OV_INJECT_TIMEOUT_MS,
+  OV_DELETE_TIMEOUT_MS,
+  OV_STATS_TIMEOUT_MS,
+  OV_STREAM_TIMEOUT_MS,
 } from './constants';
 import { OVClientService } from '../common/ov-client.service';
 import { DynamicDataSourceService } from '../common/dynamic-datasource.service';
@@ -469,10 +473,12 @@ export class TaskWorkerService implements OnModuleInit {
           account: rawConn.account || 'default',
           user: rawConn.user || '',
         };
+        const taskModel = this.toTaskModel(task);
         const taskStats = await this.fetchResourceStats(
           conn,
           this.toEngineResourceUri(task.targetUri),
         );
+        await this.compensateDocumentImport(context, conn, taskModel, taskStats);
         await context.taskRepo.update(task.id, {
           ...taskStats,
           updatedAt: new Date(),
@@ -480,7 +486,7 @@ export class TaskWorkerService implements OnModuleInit {
         await this.refreshKnowledgeBaseStats(
           context,
           conn,
-          this.toTaskModel(task),
+          taskModel,
         );
         if ((taskStats.vectorCount ?? 0) > 0) {
           this.scheduledStatsSyncTaskIds.delete(taskRef.id);
@@ -541,6 +547,7 @@ export class TaskWorkerService implements OnModuleInit {
         'GET',
         undefined,
         { user: conn.user || undefined },
+        { timeoutMs: OV_STATS_TIMEOUT_MS },
       );
       const statResult = statData?.result as
         | Record<string, unknown>
@@ -553,6 +560,7 @@ export class TaskWorkerService implements OnModuleInit {
           'GET',
           undefined,
           { user: conn.user || undefined },
+          { timeoutMs: OV_STATS_TIMEOUT_MS },
         );
         nodeCount = this.countTreeItems(treeData?.result);
       }
@@ -563,6 +571,7 @@ export class TaskWorkerService implements OnModuleInit {
         'GET',
         undefined,
         { user: conn.user || undefined },
+        { timeoutMs: OV_STATS_TIMEOUT_MS },
       );
       const vecResult = vecData?.result as Record<string, unknown> | undefined;
 
@@ -607,6 +616,36 @@ export class TaskWorkerService implements OnModuleInit {
       vectorCount: stats.vectorCount,
       updatedAt: new Date(),
     });
+  }
+
+  private async compensateDocumentImport(
+    context: TenantTaskContext,
+    conn: {
+      baseUrl: string;
+      apiKey: string;
+      account: string;
+      user: string;
+    },
+    task: ImportTaskModel,
+    resourceStats: Partial<Pick<ImportTaskModel, 'vectorCount'>>,
+  ) {
+    const targetNode = await this.findTargetNode(
+      context,
+      task.tenantId,
+      task.targetUri,
+    );
+    if (!targetNode || !this.isDocumentNode(targetNode)) {
+      return;
+    }
+
+    await this.syncDocumentContentUri(
+      context,
+      conn,
+      targetNode,
+      task.targetUri,
+      task.sourceName,
+      resourceStats.vectorCount,
+    );
   }
 
   private async findTargetNode(
@@ -686,7 +725,7 @@ export class TaskWorkerService implements OnModuleInit {
         'DELETE',
         undefined,
         { user: conn.user || undefined },
-        { serviceLabel: 'OpenViking 资源删除' },
+        { serviceLabel: 'OpenViking 资源删除', timeoutMs: OV_DELETE_TIMEOUT_MS },
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : '未知错误';
@@ -718,7 +757,7 @@ export class TaskWorkerService implements OnModuleInit {
       'GET',
       undefined,
       { user: conn.user || undefined },
-      { serviceLabel: 'OpenViking 资源树' },
+      { serviceLabel: 'OpenViking 资源树', timeoutMs: OV_STATS_TIMEOUT_MS },
     );
     const resources = Array.isArray(treeData?.result) ? treeData.result : [];
     const leafResources = resources.filter(
@@ -779,7 +818,7 @@ export class TaskWorkerService implements OnModuleInit {
       'GET',
       undefined,
       { user: conn.user || undefined },
-      { serviceLabel: '草稿预热下载' },
+      { serviceLabel: '草稿预热下载', timeoutMs: OV_STREAM_TIMEOUT_MS },
     );
     const chunks: Buffer[] = [];
     for await (const chunk of response.stream) {
@@ -867,9 +906,14 @@ export class TaskWorkerService implements OnModuleInit {
         body.path = path;
       }
       const result = await this.ovClient
-        .request(conn, OPENVIKING_RESOURCE_ENDPOINTS.INJECT, 'POST', body, {
-          user: conn.user || undefined,
-        })
+        .request(
+          conn,
+          OPENVIKING_RESOURCE_ENDPOINTS.INJECT,
+          'POST',
+          body,
+          { user: conn.user || undefined },
+          { timeoutMs: OV_INJECT_TIMEOUT_MS },
+        )
         .catch((error) => {
           lastError = error;
           fallbackErrors.push(this.formatFallbackError(path, error));

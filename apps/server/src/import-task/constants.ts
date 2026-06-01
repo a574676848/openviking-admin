@@ -58,3 +58,9 @@ export const OPENVIKING_RESOURCE_ENDPOINTS = {
 
 /** OpenViking 资源注入默认等待策略 */
 export const OPENVIKING_RESOURCE_INJECT_DEFAULT_WAIT = false;
+
+/** Worker OV 调用超时（毫秒） */
+export const OV_INJECT_TIMEOUT_MS = 120_000;
+export const OV_DELETE_TIMEOUT_MS = 120_000;
+export const OV_STATS_TIMEOUT_MS = 30_000;
+export const OV_STREAM_TIMEOUT_MS = 60_000;

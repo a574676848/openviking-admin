@@ -4,4 +4,5 @@ import type { DataSource, QueryRunner } from 'typeorm';
 export interface RepositoryRequest {
   tenantQueryRunner?: QueryRunner;
   tenantDataSource?: DataSource;
+  tenantSchemaName?: string | null;
 }

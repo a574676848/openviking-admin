@@ -30,6 +30,7 @@ export class TenantGuard implements CanActivate {
     const tenantRecordId =
       user.role === SystemRoles.SUPER_ADMIN ? null : user.tenantId;
     request.tenantScope = null;
+    request.tenantSchemaName = null;
 
     try {
       if (tenantRecordId) {
@@ -61,22 +62,12 @@ export class TenantGuard implements CanActivate {
         }
 
         if (config.level === TenantIsolationLevel.MEDIUM) {
-          const schemaName = `tenant_${config.tenantId.replace(/-/g, '_')}`;
-          const queryRunner = this.defaultDataSource.createQueryRunner();
-          await queryRunner.connect();
-          await queryRunner.query(`SET search_path TO "${schemaName}", public`);
-          request.tenantQueryRunner = queryRunner;
-        } else {
-          const queryRunner = this.defaultDataSource.createQueryRunner();
-          await queryRunner.connect();
-          await queryRunner.query(`SET search_path TO public`);
-          request.tenantQueryRunner = queryRunner;
+          request.tenantSchemaName = `tenant_${config.tenantId.replace(/-/g, '_')}`;
         }
+
+        await this.acquireTenantQueryRunner(request);
       } else {
-        const queryRunner = this.defaultDataSource.createQueryRunner();
-        await queryRunner.connect();
-        await queryRunner.query(`SET search_path TO public`);
-        request.tenantQueryRunner = queryRunner;
+        await this.acquireTenantQueryRunner(request);
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : '未知错误';
@@ -85,5 +76,22 @@ export class TenantGuard implements CanActivate {
     }
 
     return true;
+  }
+
+  private async acquireTenantQueryRunner(
+    request: AuthenticatedRequest,
+  ): Promise<void> {
+    const queryRunner = this.defaultDataSource.createQueryRunner();
+    await queryRunner.connect();
+
+    if (request.tenantSchemaName) {
+      await queryRunner.query(
+        `SET search_path TO "${request.tenantSchemaName}", public`,
+      );
+    } else {
+      await queryRunner.query('SET search_path TO public');
+    }
+
+    request.tenantQueryRunner = queryRunner;
   }
 }

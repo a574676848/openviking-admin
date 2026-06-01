@@ -19,6 +19,10 @@ export class DynamicDataSourceService implements OnModuleDestroy {
   private readonly logger = new Logger(DynamicDataSourceService.name);
   private pool = new Map<string, DataSource>();
   private readonly lastUsedAt = new Map<string, number>();
+  private readonly pendingInitializations = new Map<
+    string,
+    Promise<DataSource>
+  >();
 
   private readonly CORE_ENTITIES = [
     KnowledgeNode,
@@ -42,6 +46,25 @@ export class DynamicDataSourceService implements OnModuleDestroy {
       this.lastUsedAt.delete(tenantId);
     }
 
+    const pending = this.pendingInitializations.get(tenantId);
+    if (pending) {
+      return pending;
+    }
+
+    const initPromise = this.initializeTenantDataSource(tenantId, dbConfig);
+    this.pendingInitializations.set(tenantId, initPromise);
+
+    try {
+      return await initPromise;
+    } finally {
+      this.pendingInitializations.delete(tenantId);
+    }
+  }
+
+  private async initializeTenantDataSource(
+    tenantId: string,
+    dbConfig: DbConfig,
+  ): Promise<DataSource> {
     this.logger.log(
       `>> Establishing robust connection for LARGE tenant: ${tenantId}`,
     );
@@ -82,6 +105,7 @@ export class DynamicDataSourceService implements OnModuleDestroy {
     }
     this.pool.clear();
     this.lastUsedAt.clear();
+    this.pendingInitializations.clear();
   }
 
   async evictIdleTenants(maxIdleMs: number) {

@@ -13,6 +13,7 @@ export interface AuthenticatedRequest extends Request {
   tenantScope: string | null;
   tenantDataSource?: DataSource;
   tenantQueryRunner?: QueryRunner;
+  tenantSchemaName?: string | null;
   requestId?: string;
   traceId?: string;
 }

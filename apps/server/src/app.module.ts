@@ -138,6 +138,11 @@ async function createDevelopmentAwareDataSource(
           migrationsRun: false,
           synchronize: config.get('DB_SYNCHRONIZE', 'false') === 'true',
           logging: !isProduction,
+          extra: {
+            max: 30,
+            connectionTimeoutMillis: 5000,
+            statement_timeout: 30000,
+          },
         };
       },
     }),

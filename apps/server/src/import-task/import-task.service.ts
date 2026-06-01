@@ -556,6 +556,7 @@ export class ImportTaskService {
         conn,
         this.toEngineResourceUri(task.targetUri),
       );
+      await this.compensateDocumentImportFromOpenViking(task, conn, stats);
       await this.taskRepo.update(id, stats);
       await this.refreshKnowledgeBaseStatsFromOpenViking(task, conn);
       return this.findOne(id, tenantId, accessContext);
@@ -616,6 +617,74 @@ export class ImportTaskService {
     });
   }
 
+  private async compensateDocumentImportFromOpenViking(
+    task: ImportTaskModel,
+    conn: {
+      baseUrl: string;
+      apiKey: string;
+      account: string;
+      user: string;
+    },
+    stats: Partial<Pick<ImportTaskModel, 'vectorCount'>>,
+  ) {
+    const targetNode = await this.findTargetNodeByUri(
+      task.kbId,
+      task.tenantId,
+      task.targetUri,
+    );
+    if (!targetNode || targetNode.kind !== 'document') {
+      return;
+    }
+
+    const treeData = await this.ovClient.request(
+      conn,
+      `/api/v1/fs/tree?uri=${encodeURIComponent(
+        this.toEngineResourceUri(task.targetUri),
+      )}&depth=1`,
+      'GET',
+      undefined,
+      { user: conn.user || undefined },
+    );
+    const resources = Array.isArray(treeData?.result) ? treeData.result : [];
+    const leafResources = resources.filter(
+      (item): item is { uri: string; isDir?: boolean } =>
+        Boolean(
+          item &&
+            typeof item === 'object' &&
+            typeof (item as { uri?: unknown }).uri === 'string' &&
+            (item as { isDir?: unknown }).isDir === false,
+        ),
+    );
+    if (leafResources.length === 0) {
+      this.logger.warn(`文档叶子 ${targetNode.id} 的内容资源数量为 0。`);
+      return;
+    }
+
+    const contentResource = this.resolveDocumentContentResource(
+      leafResources,
+      task.sourceName,
+    );
+    if (!contentResource) {
+      this.logger.warn(
+        `文档叶子 ${targetNode.id} 的内容资源数量异常，期望能按来源文件名唯一匹配，实际 ${leafResources.length} 个。跳过同步按钮补偿的 contentUri 覆盖。`,
+      );
+      return;
+    }
+
+    await this.nodeRepo.save({
+      ...targetNode,
+      contentUri: contentResource.uri,
+      indexStatus: 'clean',
+      indexedVersion: targetNode.draftVersion ?? targetNode.indexedVersion ?? 0,
+      ...(stats.vectorCount !== undefined
+        ? { vectorCount: stats.vectorCount }
+        : {}),
+      lastIndexedAt: new Date(),
+      indexError: null,
+      updatedAt: new Date(),
+    });
+  }
+
   private async fetchResourceStats(
     conn: {
       baseUrl: string;
@@ -658,6 +727,25 @@ export class ImportTaskService {
       nodeCount,
       vectorCount: this.toNonNegativeNumber(vecResult?.count),
     };
+  }
+
+  private resolveDocumentContentResource(
+    leafResources: Array<{ uri: string; isDir?: boolean }>,
+    sourceName?: string | null,
+  ) {
+    if (leafResources.length === 1) {
+      return leafResources[0];
+    }
+
+    const normalizedSourceName = sourceName?.trim().toLowerCase();
+    if (!normalizedSourceName) {
+      return null;
+    }
+
+    const matched = leafResources.filter((resource) =>
+      resource.uri.toLowerCase().endsWith(`/${normalizedSourceName}`),
+    );
+    return matched.length === 1 ? matched[0] : null;
   }
 
   async retry(

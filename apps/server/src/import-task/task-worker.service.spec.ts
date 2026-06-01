@@ -393,6 +393,7 @@ describe('TaskWorkerService', () => {
         wait: false,
       }),
       { user: 'worker-user' },
+      { timeoutMs: 120_000 },
     );
     expect(ovClient.request).toHaveBeenCalledWith(
       expect.objectContaining({ account: 'large-a' }),
@@ -404,6 +405,7 @@ describe('TaskWorkerService', () => {
         appSecret: expect.anything(),
       }),
       { user: 'worker-user' },
+      { timeoutMs: 120_000 },
     );
     expect(ovClient.uploadTempFile).toHaveBeenCalledWith(
       expect.objectContaining({ account: 'large-a' }),
@@ -525,6 +527,7 @@ describe('TaskWorkerService', () => {
         wait: false,
       },
       { user: 'worker-user' },
+      { timeoutMs: 120_000 },
     );
     expect(ovClient.request).toHaveBeenCalledWith(
       expect.objectContaining({ account: 'small-a' }),
@@ -532,6 +535,7 @@ describe('TaskWorkerService', () => {
       'GET',
       undefined,
       { user: 'worker-user' },
+      { timeoutMs: 30_000 },
     );
     expect(ovClient.request).toHaveBeenCalledWith(
       expect.objectContaining({ account: 'small-a' }),
@@ -539,6 +543,7 @@ describe('TaskWorkerService', () => {
       'GET',
       undefined,
       { user: 'worker-user' },
+      { timeoutMs: 30_000 },
     );
     expect(taskRepo.update).toHaveBeenNthCalledWith(2, 'local-task', {
       status: TaskStatus.DONE,
@@ -704,7 +709,7 @@ describe('TaskWorkerService', () => {
       'GET',
       undefined,
       { user: 'worker-user' },
-      { serviceLabel: 'OpenViking 资源树' },
+      { serviceLabel: 'OpenViking 资源树', timeoutMs: 30_000 },
     );
     expect(nodeRepo.update).toHaveBeenCalledWith('node-file', {
       contentUri:
@@ -901,6 +906,7 @@ describe('TaskWorkerService', () => {
         to: 'viking://resources/tenants/small-a/kb-1/node-new-doc/',
       }),
       { user: 'worker-user' },
+      { timeoutMs: 120_000 },
     );
     expect(nodeRepo.update).toHaveBeenCalledWith('node-new-doc', {
       contentUri:
@@ -1219,6 +1225,7 @@ describe('TaskWorkerService', () => {
         to: 'viking://resources/tenants/test3/kb-1/imports/git/',
       }),
       { user: 'worker-user' },
+      { timeoutMs: 120_000 },
     );
     expect(ovClient.request).toHaveBeenNthCalledWith(
       2,
@@ -1230,6 +1237,7 @@ describe('TaskWorkerService', () => {
         to: 'viking://resources/tenants/test3/kb-1/imports/git/',
       }),
       { user: 'worker-user' },
+      { timeoutMs: 120_000 },
     );
     const resourceInjectCalls = ovClient.request.mock.calls.filter(
       ([, path, method]) => path === '/api/v1/resources' && method === 'POST',
@@ -1241,6 +1249,7 @@ describe('TaskWorkerService', () => {
       'POST',
       expect.not.objectContaining({ fallback_paths: expect.anything() }),
       { user: 'worker-user' },
+      { timeoutMs: 120_000 },
     );
     expect(ovClient.request).toHaveBeenCalledWith(
       expect.objectContaining({ account: 'test3' }),
@@ -1248,6 +1257,7 @@ describe('TaskWorkerService', () => {
       'POST',
       expect.not.objectContaining({ config: expect.anything() }),
       { user: 'worker-user' },
+      { timeoutMs: 120_000 },
     );
   });
 
@@ -1356,6 +1366,7 @@ describe('TaskWorkerService', () => {
         wait: false,
       }),
       { user: 'worker-user' },
+      { timeoutMs: 120_000 },
     );
   });
 
@@ -1464,6 +1475,7 @@ describe('TaskWorkerService', () => {
         wait: false,
       }),
       { user: 'worker-user' },
+      { timeoutMs: 120_000 },
     );
   });
 
@@ -1483,6 +1495,27 @@ describe('TaskWorkerService', () => {
       findOne: jest.fn().mockResolvedValue(task),
       update: jest.fn(),
     };
+    const nodeRepo = {
+      findOne: jest.fn().mockResolvedValue({
+        id: 'node-1',
+        tenantId: 'test3',
+        kbId: 'kb-1',
+        name: '延迟补偿文档.md',
+        kind: 'document',
+        vikingUri: 'viking://resources/tenants/test3/kb-1/imports/git/',
+        contentUri: null,
+        draftVersion: 0,
+        indexedVersion: 0,
+      }),
+      update: jest.fn(),
+      manager: {
+        getRepository: jest.fn(() => ({
+          findOne: jest.fn().mockResolvedValue(null),
+          create: jest.fn((payload) => payload),
+          save: jest.fn(),
+        })),
+      },
+    };
     const kbRepo = {
       findOne: jest.fn().mockResolvedValue({
         id: 'kb-1',
@@ -1496,7 +1529,7 @@ describe('TaskWorkerService', () => {
         if (entity === Tenant) return tenantRepo;
         if (entity === ImportTask) return taskRepo;
         if (entity === Integration) return { findOne: jest.fn() };
-        if (entity === KnowledgeNode) return { findOne: jest.fn() };
+        if (entity === KnowledgeNode) return nodeRepo;
         if (entity === KnowledgeBase) return kbRepo;
         throw new Error('unexpected repository');
       }),
@@ -1517,9 +1550,22 @@ describe('TaskWorkerService', () => {
         })
         .mockResolvedValueOnce({ result: { count: 9 } })
         .mockResolvedValueOnce({
+          result: [
+            {
+              uri: 'viking://resources/tenants/test3/kb-1/imports/git/延迟补偿文档.md',
+              isDir: false,
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
           result: { children_count: 40, descendant_count: 6 },
         })
         .mockResolvedValueOnce({ result: { count: 540 } }),
+      requestStream: jest.fn().mockResolvedValue({
+        stream: (async function* () {
+          yield Buffer.from('# delayed compensation');
+        })(),
+      }),
       uploadTempFile: jest.fn(),
     };
     const service = createService({
@@ -1542,6 +1588,15 @@ describe('TaskWorkerService', () => {
       vectorCount: 9,
       updatedAt: expect.any(Date),
     });
+    expect(nodeRepo.update).toHaveBeenCalledWith(
+      'node-1',
+      expect.objectContaining({
+        contentUri:
+          'viking://resources/tenants/test3/kb-1/imports/git/延迟补偿文档.md',
+        indexStatus: 'clean',
+        vectorCount: 9,
+      }),
+    );
     expect(kbRepo.update).toHaveBeenCalledWith('kb-1', {
       docCount: 46,
       vectorCount: 540,
@@ -1645,6 +1700,7 @@ describe('TaskWorkerService', () => {
         path: 'https://plain-token@git.exexm.com/epaas-product/exe-cloud-business-center',
       }),
       { user: 'worker-user' },
+      { timeoutMs: 120_000 },
     );
     expect(ovClient.request).toHaveBeenNthCalledWith(
       2,
@@ -1655,6 +1711,7 @@ describe('TaskWorkerService', () => {
         path: 'http://oauth2:plain-token@git.exexm.com/epaas-product/exe-cloud-business-center',
       }),
       { user: 'worker-user' },
+      { timeoutMs: 120_000 },
     );
   });
 
@@ -1813,6 +1870,7 @@ describe('TaskWorkerService', () => {
         to: 'viking://resources/tenants/small-a/kb-1/imports/url/',
       }),
       { user: 'worker-user' },
+      { timeoutMs: 120_000 },
     );
   });
 
@@ -1869,6 +1927,7 @@ describe('TaskWorkerService', () => {
         to: 'viking://resources/tenants/test3/kb-1/imports/url/',
       }),
       { user: 'worker-user' },
+      { timeoutMs: 120_000 },
     );
   });
 });
