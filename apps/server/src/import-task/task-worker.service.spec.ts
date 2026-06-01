@@ -1604,6 +1604,7 @@ describe('TaskWorkerService', () => {
     });
   });
 
+
   it('OpenViking 返回注入失败时应继续尝试 Git fallback path', async () => {
     const tenant = createTenant('test3', TenantIsolationLevel.MEDIUM);
     const task = {

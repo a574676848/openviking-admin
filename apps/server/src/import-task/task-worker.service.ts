@@ -811,7 +811,7 @@ export class TaskWorkerService implements OnModuleInit {
     node: TargetKnowledgeNode,
     contentUri: string,
   ): Promise<void> {
-    const downloadPath = `/api/v1/fs/download?uri=${encodeURIComponent(contentUri)}`;
+    const downloadPath = `/api/v1/content/download?uri=${encodeURIComponent(contentUri)}`;
     const response = await this.ovClient.requestStream(
       conn,
       downloadPath,
