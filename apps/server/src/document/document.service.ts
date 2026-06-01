@@ -309,17 +309,18 @@ export class DocumentService {
         connection,
         indexedContentUri,
       );
+      const hasIndexedVectors = (vectorCount ?? 0) > 0;
       const indexedAt = new Date();
       const touched = await this.knowledgeTreeService.syncIndexState(
         node.id,
         tenantId,
         {
           contentUri: indexedContentUri,
-          indexStatus: 'clean',
+          indexStatus: hasIndexedVectors ? 'clean' : 'indexing',
           draftVersion,
-          indexedVersion: draftVersion,
+          indexedVersion: hasIndexedVectors ? draftVersion : node.indexedVersion,
           vectorCount,
-          lastIndexedAt: indexedAt,
+          lastIndexedAt: hasIndexedVectors ? indexedAt : node.lastIndexedAt,
           indexError: null,
         },
         actor,

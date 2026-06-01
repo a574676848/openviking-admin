@@ -596,6 +596,62 @@ describe('DocumentService', () => {
     });
   });
 
+  it('索引后向量数仍为 0 时不应过早标记为 clean', async () => {
+    const node = createNode({
+      contentUri: `${CONTAINER_URI}content.md`,
+      draftVersion: 3,
+      indexedVersion: 2,
+      vectorCount: 1,
+      lastIndexedAt: UPDATED_AT,
+    });
+    knowledgeTreeService.findOne.mockResolvedValue(node);
+    documentDraftRepository.findByNode.mockResolvedValue({
+      nodeId: 'node-1',
+      tenantId: 'tenant-1',
+      version: 4,
+      markdown: '# 最新草稿',
+      updatedAt: UPDATED_AT,
+    });
+    knowledgeTreeService.syncIndexState.mockImplementation(
+      async (
+        _nodeId: string,
+        _tenantId: string | null,
+        state: Record<string, unknown>,
+      ) => ({
+        ...node,
+        ...state,
+        updatedAt: UPDATED_AT,
+      }),
+    );
+    ovClientService.request
+      .mockResolvedValueOnce({ result: { status: 'success' } })
+      .mockResolvedValueOnce({ result: { count: 0 } });
+
+    const result = await service.indexContent('node-1', 'tenant-1');
+
+    expect(knowledgeTreeService.syncIndexState).toHaveBeenLastCalledWith(
+      'node-1',
+      'tenant-1',
+      expect.objectContaining({
+        contentUri: `${CONTAINER_URI}content.md`,
+        indexStatus: 'indexing',
+        draftVersion: 4,
+        indexedVersion: 2,
+        vectorCount: 0,
+        lastIndexedAt: UPDATED_AT,
+      }),
+      undefined,
+    );
+    expect(result).toMatchObject({
+      contentUri: `${CONTAINER_URI}content.md`,
+      draftVersion: 4,
+      indexedVersion: 2,
+      indexStatus: 'indexing',
+      vectorCount: 0,
+      lastIndexedAt: UPDATED_AT,
+    });
+  });
+
   it('应该上传资产到 assets 子目录并返回相对路径', async () => {
     knowledgeTreeService.findOne.mockResolvedValue(createNode({}));
     ovClientService.uploadTempFile.mockResolvedValue({
