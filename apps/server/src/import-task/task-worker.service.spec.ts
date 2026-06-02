@@ -1597,6 +1597,7 @@ describe('TaskWorkerService', () => {
         vectorCount: 9,
       }),
     );
+    expect(nodeRepo.update).toHaveBeenCalledWith('node-1', { draftVersion: 1 });
     expect(kbRepo.update).toHaveBeenCalledWith('kb-1', {
       docCount: 46,
       vectorCount: 540,

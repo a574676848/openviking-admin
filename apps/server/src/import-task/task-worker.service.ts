@@ -479,6 +479,7 @@ export class TaskWorkerService implements OnModuleInit {
           this.toEngineResourceUri(task.targetUri),
         );
         await this.compensateDocumentImport(context, conn, taskModel, taskStats);
+        await this.compensateDocumentDraft(context, conn, taskModel);
         await context.taskRepo.update(task.id, {
           ...taskStats,
           updatedAt: new Date(),
@@ -645,6 +646,35 @@ export class TaskWorkerService implements OnModuleInit {
       task.targetUri,
       task.sourceName,
       resourceStats.vectorCount,
+    );
+  }
+
+  private async compensateDocumentDraft(
+    context: TenantTaskContext,
+    conn: {
+      baseUrl: string;
+      apiKey: string;
+      account: string;
+      user: string;
+    },
+    task: ImportTaskModel,
+  ) {
+    const targetNode = await this.findTargetNode(
+      context,
+      task.tenantId,
+      task.targetUri,
+    );
+    if (!targetNode || !this.isDocumentNode(targetNode) || !targetNode.contentUri) {
+      return;
+    }
+    if ((targetNode.draftVersion ?? 0) > 0) {
+      return;
+    }
+    await this.warmDraftAfterImport(
+      context,
+      conn,
+      targetNode,
+      targetNode.contentUri,
     );
   }
 

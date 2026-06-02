@@ -339,6 +339,38 @@ describe('DocumentService', () => {
     expect(result.markdown).toBe('# 导入正文');
   });
 
+  it('无草稿但有正文时应在读取时懒回填草稿', async () => {
+    knowledgeTreeService.findOne.mockResolvedValue(
+      createNode({ contentUri: OLD_CONTENT_URI, draftVersion: 0 }),
+    );
+    documentDraftRepository.findByNode.mockResolvedValueOnce(null);
+    ovClientService.requestStream.mockResolvedValueOnce({
+      stream: Readable.from(['# 远端正文']),
+    });
+    documentDraftRepository.saveMarkdown.mockResolvedValueOnce({
+      nodeId: 'node-1',
+      tenantId: 'tenant-1',
+      markdown: '# 远端正文',
+      version: 1,
+      updatedAt: UPDATED_AT,
+    });
+
+    const result = await service.loadContent('node-1', 'tenant-1');
+
+    expect(documentDraftRepository.saveMarkdown).toHaveBeenCalledWith(
+      'node-1',
+      'tenant-1',
+      '# 远端正文',
+    );
+    expect(knowledgeTreeService.syncIndexState).toHaveBeenCalledWith(
+      'node-1',
+      'tenant-1',
+      { draftVersion: 1 },
+    );
+    expect(result.draftVersion).toBe(1);
+    expect(result.markdown).toBe('# 远端正文');
+  });
+
   it('保存正文时应该只写入草稿并标记索引过期', async () => {
     const node = createNode({ contentUri: OLD_CONTENT_URI });
     knowledgeTreeService.findOne.mockResolvedValue(node);

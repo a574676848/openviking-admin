@@ -150,7 +150,7 @@ export class DocumentService {
       tenantId,
       accessContext,
     );
-    const draft = await this.documentDraftRepository.findByNode(
+    let draft = await this.documentDraftRepository.findByNode(
       node.id,
       tenantId,
     );
@@ -161,6 +161,20 @@ export class DocumentService {
       draft?.markdown,
       options,
     );
+    if (
+      !draft &&
+      contentUri &&
+      markdown.trim().length > 0
+    ) {
+      draft = await this.documentDraftRepository.saveMarkdown(
+        node.id,
+        tenantId,
+        markdown,
+      );
+      await this.knowledgeTreeService.syncIndexState(node.id, tenantId, {
+        draftVersion: draft.version,
+      });
+    }
 
     return {
       nodeId: node.id,
