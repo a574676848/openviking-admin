@@ -994,6 +994,39 @@ describe('DocumentService', () => {
 
       expect(result.draftReady).toBe(false);
     });
+
+    it('无草稿但可预热成功时 metadata 应同步回填 draftReady', async () => {
+      const markdown = '# 预热成功';
+      knowledgeTreeService.findOne.mockResolvedValue(
+        createNode({ contentUri: OLD_CONTENT_URI }),
+      );
+      documentDraftRepository.findByNode
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({
+          version: 1,
+          markdown,
+        });
+      ovClientService.requestStream.mockResolvedValue({
+        stream: Readable.from([Buffer.from(markdown, 'utf-8')]),
+        headers: {},
+      });
+      documentDraftRepository.saveMarkdown.mockResolvedValue({
+        version: 1,
+        markdown,
+      });
+      knowledgeTreeService.syncIndexState.mockResolvedValue(
+        createNode({ draftVersion: 1 }),
+      );
+
+      const result = await service.getMetadata('node-1', 'tenant-1', 'tenant_admin');
+
+      expect(documentDraftRepository.saveMarkdown).toHaveBeenCalledWith(
+        'node-1',
+        'tenant-1',
+        markdown,
+      );
+      expect(result.draftReady).toBe(true);
+    });
   });
 });
 

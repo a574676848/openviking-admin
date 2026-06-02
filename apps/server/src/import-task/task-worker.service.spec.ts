@@ -191,7 +191,7 @@ describe('TaskWorkerService', () => {
     });
   });
 
-  it('启动补偿扫描应只调度成功但向量数为 0 的近期任务', async () => {
+  it('启动补偿扫描应调度近期完成任务并保留旧的向量补偿场景', async () => {
     const tenant = createTenant('small-a', TenantIsolationLevel.SMALL);
     const candidate = {
       ...createTask('stats-sync-task', 'small-a', TaskStatus.DONE),
@@ -238,7 +238,6 @@ describe('TaskWorkerService', () => {
       expect.objectContaining({
         where: expect.objectContaining({
           status: TaskStatus.DONE,
-          vectorCount: 0,
         }),
         order: { updatedAt: 'DESC' },
         take: 50,
@@ -246,6 +245,61 @@ describe('TaskWorkerService', () => {
     );
     expect(scheduleSpy).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'stats-sync-task' }),
+    );
+  });
+
+  it('启动补偿扫描应包含向量已生成的近期完成任务，交由后续逻辑判断是否仍需补偿草稿', async () => {
+    const tenant = createTenant('small-a', TenantIsolationLevel.SMALL);
+    const candidate = {
+      ...createTask('draft-only-task', 'small-a', TaskStatus.DONE),
+      sourceType: 'git',
+      nodeCount: 1,
+      vectorCount: 3,
+      updatedAt: new Date(),
+    } as ImportTask;
+    const tenantRepo = {
+      find: jest.fn().mockResolvedValue([tenant]),
+    };
+    const taskRepo = {
+      find: jest.fn().mockResolvedValue([candidate]),
+    };
+    const defaultDataSource = {
+      getRepository: jest.fn((entity) => {
+        if (entity === Tenant) return tenantRepo;
+        if (entity === ImportTask) return taskRepo;
+        if (entity === Integration) return { findOne: jest.fn() };
+        if (entity === KnowledgeNode) return { findOne: jest.fn() };
+        if (entity === KnowledgeBase) return { findOne: jest.fn() };
+        throw new Error(`unexpected repository: ${entity?.name ?? entity}`);
+      }),
+    };
+    const service = createService({ defaultDataSource });
+    const scheduleSpy = jest
+      .spyOn(
+        service as unknown as {
+          scheduleDelayedStatsSync(
+            task: Pick<ImportTask, 'id' | 'tenantId'>,
+          ): void;
+        },
+        'scheduleDelayedStatsSync',
+      )
+      .mockImplementation(() => undefined);
+
+    await (
+      service as unknown as {
+        recoverStatsSyncTasks(): Promise<void>;
+      }
+    ).recoverStatsSyncTasks();
+
+    expect(taskRepo.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.not.objectContaining({
+          vectorCount: 0,
+        }),
+      }),
+    );
+    expect(scheduleSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'draft-only-task' }),
     );
   });
 
@@ -1601,6 +1655,123 @@ describe('TaskWorkerService', () => {
     expect(kbRepo.update).toHaveBeenCalledWith('kb-1', {
       docCount: 46,
       vectorCount: 540,
+      updatedAt: expect.any(Date),
+    });
+  });
+
+  it('延迟统计同步在向量已生成但草稿缺失时仍应补写 draft', async () => {
+    const tenant = createTenant('rag', TenantIsolationLevel.SMALL);
+    const task = {
+      ...createTask('draft-repair-task', 'rag', TaskStatus.DONE),
+      sourceType: 'git',
+      targetUri:
+        'viking://resources/tenants/rag/8d0a0d56-5f40-4971-b1fd-3a5a4fa4af69/56bdb170-4835-4cc7-a549-f14b8fd5c0e8/',
+      nodeCount: 1,
+      vectorCount: 3,
+    } as ImportTask;
+    const tenantRepo = {
+      findOne: jest.fn().mockResolvedValue(tenant),
+    };
+    const taskRepo = {
+      findOne: jest.fn().mockResolvedValue(task),
+      update: jest.fn(),
+    };
+    const draftRepo = {
+      findOne: jest.fn().mockResolvedValue(null),
+      create: jest.fn((payload) => payload),
+      save: jest.fn(),
+    };
+    const nodeRepo = {
+      findOne: jest.fn().mockResolvedValue({
+        id: 'node-rag',
+        tenantId: 'rag',
+        kbId: 'kb-rag',
+        name: '企业知识库总览与检索路由.md',
+        kind: 'document',
+        vikingUri:
+          'viking://resources/tenants/rag/8d0a0d56-5f40-4971-b1fd-3a5a4fa4af69/56bdb170-4835-4cc7-a549-f14b8fd5c0e8/',
+        contentUri:
+          'viking://resources/tenants/rag/8d0a0d56-5f40-4971-b1fd-3a5a4fa4af69/56bdb170-4835-4cc7-a549-f14b8fd5c0e8/企业知识库总览与检索路由.md',
+        draftVersion: 0,
+        indexedVersion: 0,
+      }),
+      update: jest.fn(),
+      manager: {
+        getRepository: jest.fn(() => draftRepo),
+      },
+    };
+    const kbRepo = {
+      findOne: jest.fn().mockResolvedValue({
+        id: 'kb-rag',
+        tenantId: 'rag',
+        vikingUri:
+          'viking://resources/tenants/rag/8d0a0d56-5f40-4971-b1fd-3a5a4fa4af69/',
+      }),
+      update: jest.fn(),
+    };
+    const defaultDataSource = {
+      getRepository: jest.fn((entity) => {
+        if (entity === Tenant) return tenantRepo;
+        if (entity === ImportTask) return taskRepo;
+        if (entity === Integration) return { findOne: jest.fn() };
+        if (entity === KnowledgeNode) return nodeRepo;
+        if (entity === KnowledgeBase) return kbRepo;
+        throw new Error('unexpected repository');
+      }),
+    };
+    const ovConfigResolver = {
+      resolve: jest.fn().mockResolvedValue({
+        baseUrl: 'http://ov.local',
+        apiKey: 'ov-key',
+        account: 'rag',
+        user: 'worker-user',
+      }),
+    };
+    const ovClient = {
+      request: jest
+        .fn()
+        .mockResolvedValueOnce({
+          result: { children_count: 1, descendant_count: 1 },
+        })
+        .mockResolvedValueOnce({ result: { count: 3 } })
+        .mockResolvedValueOnce({
+          result: { children_count: 10, descendant_count: 1 },
+        })
+        .mockResolvedValueOnce({ result: { count: 3 } }),
+      requestStream: jest.fn().mockResolvedValue({
+        stream: (async function* () {
+          yield Buffer.from('# repaired draft');
+        })(),
+      }),
+      uploadTempFile: jest.fn(),
+    };
+    const service = createService({
+      defaultDataSource,
+      ovConfigResolver,
+      ovClient,
+    });
+
+    await (
+      service as unknown as {
+        syncDelayedTaskStats(
+          task: Pick<ImportTaskModel, 'id' | 'tenantId'>,
+          attempt: number,
+        ): Promise<void>;
+      }
+    ).syncDelayedTaskStats({ id: task.id, tenantId: task.tenantId }, 0);
+
+    expect(draftRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        nodeId: 'node-rag',
+        tenantId: 'rag',
+        markdown: '# repaired draft',
+        version: 1,
+      }),
+    );
+    expect(nodeRepo.update).toHaveBeenCalledWith('node-rag', { draftVersion: 1 });
+    expect(taskRepo.update).toHaveBeenCalledWith(task.id, {
+      nodeCount: 2,
+      vectorCount: 3,
       updatedAt: expect.any(Date),
     });
   });

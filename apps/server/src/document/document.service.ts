@@ -109,10 +109,17 @@ export class DocumentService {
     );
     const canWrite = DOCUMENT_WRITE_ROLE_SET.has(userRole);
     const contentUri = this.resolveCurrentContentUri(node);
-    const draft = await this.documentDraftRepository.findByNode(
+    let draft = await this.documentDraftRepository.findByNode(
       node.id,
       tenantId,
     );
+    if (!draft && contentUri) {
+      await this.warmDraft(node.id, tenantId, contentUri);
+      draft = await this.documentDraftRepository.findByNode(
+        node.id,
+        tenantId,
+      );
+    }
     const draftReady = draft !== null || !contentUri;
 
     return {

@@ -363,7 +363,6 @@ export class TaskWorkerService implements OnModuleInit {
           where: {
             status: TaskStatus.DONE,
             sourceType: In([...STATS_SYNC_SOURCE_TYPES]),
-            vectorCount: 0,
             updatedAt: MoreThanOrEqual(since),
           },
           order: { updatedAt: 'DESC' },
@@ -461,7 +460,11 @@ export class TaskWorkerService implements OnModuleInit {
         const task = await context.taskRepo.findOne({
           where: { id: taskRef.id, tenantId: taskRef.tenantId },
         });
-        if (!task || !this.shouldSyncStatsCandidate(this.toTaskModel(task))) {
+        const taskModel = task ? this.toTaskModel(task) : null;
+        if (
+          !taskModel ||
+          !(await this.shouldSyncStatsCandidate(context, taskModel))
+        ) {
           this.scheduledStatsSyncTaskIds.delete(taskRef.id);
           return false;
         }
@@ -473,14 +476,13 @@ export class TaskWorkerService implements OnModuleInit {
           account: rawConn.account || 'default',
           user: rawConn.user || '',
         };
-        const taskModel = this.toTaskModel(task);
         const taskStats = await this.fetchResourceStats(
           conn,
-          this.toEngineResourceUri(task.targetUri),
+          this.toEngineResourceUri(taskModel.targetUri),
         );
         await this.compensateDocumentImport(context, conn, taskModel, taskStats);
         await this.compensateDocumentDraft(context, conn, taskModel);
-        await context.taskRepo.update(task.id, {
+        await context.taskRepo.update(taskModel.id, {
           ...taskStats,
           updatedAt: new Date(),
         });
@@ -502,13 +504,33 @@ export class TaskWorkerService implements OnModuleInit {
     }
   }
 
-  private shouldSyncStatsCandidate(task: ImportTaskModel) {
-    return (
-      task.status === TaskStatus.DONE &&
-      STATS_SYNC_SOURCE_TYPES.includes(
+  private async shouldSyncStatsCandidate(
+    context: TenantTaskContext,
+    task: ImportTaskModel,
+  ) {
+    if (
+      task.status !== TaskStatus.DONE ||
+      !STATS_SYNC_SOURCE_TYPES.includes(
         task.sourceType as (typeof STATS_SYNC_SOURCE_TYPES)[number],
-      ) &&
-      task.vectorCount === 0
+      )
+    ) {
+      return false;
+    }
+
+    if (task.vectorCount === 0) {
+      return true;
+    }
+
+    const targetNode = await this.findTargetNode(
+      context,
+      task.tenantId,
+      task.targetUri,
+    );
+    return Boolean(
+      targetNode &&
+        this.isDocumentNode(targetNode) &&
+        targetNode.contentUri &&
+        (targetNode.draftVersion ?? 0) === 0,
     );
   }
 
