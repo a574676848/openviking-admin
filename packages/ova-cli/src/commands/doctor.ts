@@ -54,6 +54,12 @@ export async function handleDoctor(
     const output = resolveOutputMode(options);
     const { profileName, profile } = readProfile(store, options);
     const checks: Array<Record<string, unknown>> = [];
+    const hasCredential = Boolean(
+        profile.accessToken ||
+            profile.capabilityAccessToken ||
+            profile.sessionKey ||
+            profile.apiKey,
+    );
 
     checks.push({
         name: 'profile.state',
@@ -80,12 +86,23 @@ export async function handleDoctor(
     });
 
     try {
-        const response = await fetch(`${profile.serverUrl}/api/v1/capabilities`);
-        checks.push({
-            name: 'capabilities',
-            ok: response.ok,
-            statusCode: response.status,
-        });
+        if (hasCredential) {
+            await callApi('/api/v1/capabilities', {}, options, store);
+            checks.push({
+                name: 'capabilities',
+                ok: true,
+                statusCode: 200,
+                authMode: 'credential',
+            });
+        } else {
+            const response = await fetch(`${profile.serverUrl}/api/v1/capabilities`);
+            checks.push({
+                name: 'capabilities',
+                ok: response.ok || response.status === 401,
+                statusCode: response.status,
+                authMode: 'anonymous',
+            });
+        }
     } catch (error) {
         checks.push({
             name: 'capabilities',

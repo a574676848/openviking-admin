@@ -2,7 +2,7 @@
 
 OpenViking Admin 支持 Model Context Protocol (MCP)，让 Claude、Cursor、IDE 和其他 MCP 客户端以标准 `tools/list`、`tools/call` 方式访问企业私域知识能力。
 
-MCP 是协议入口，不是独立业务层。MCP 暴露的工具来自统一 capability catalog，工具调用最终仍进入能力平台。
+MCP 是协议入口，不是独立业务层。MCP 暴露的工具来自统一 capability catalog，工具调用最终仍进入能力平台。`tools/list` 会按当前 API key 或 session key 解析出的租户与角色过滤，客户端看不到无权使用的工具。
 
 ![基于 MCP 与 Rerank 的高精准检索流](<./images/基于 MCP 与 Rerank 的高精准检索流.png>)
 
@@ -228,6 +228,6 @@ curl -X POST "http://localhost:6001/api/v1/mcp/message?sessionId=<id>&sessionTok
 | 问题 | 原因 | 处理 |
 |------|------|------|
 | SSE 连接立即断开 | API key 或 session key 无效 | 重新换证，确认凭证未被吊销 |
-| `tools/list` 为空 | 服务端 capability catalog 未加载 | 检查服务启动日志和 `/api/v1/capabilities` |
+| `tools/list` 为空 | 当前凭证下没有可见 capability，或 capability catalog 未加载 | 先确认当前账号角色，再检查服务启动日志和 `/api/v1/capabilities` |
 | `tools/call` 返回 403 | 当前用户角色低于 capability `minimumRole` | 更换账号或调整租户角色 |
 | 工具调用返回空 | 租户知识库为空或 URI scope 不匹配 | 检查知识导入状态和资源 URI |

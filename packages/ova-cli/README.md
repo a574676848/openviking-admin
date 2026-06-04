@@ -221,7 +221,7 @@ ova doctor --output json
 ova doctor --output jsonl
 ```
 
-`doctor` 会检查 profile 状态、token 过期时间、`/api/capabilities` 可达性，以及有凭证时的 `/api/auth/whoami`。
+`doctor` 会检查 profile 状态、token 过期时间、`/api/capabilities` 可达性，以及有凭证时的 `/api/auth/whoami`。当 profile 已保存凭证时，`doctor` 会按当前凭证请求 `/api/capabilities`；没有凭证时只做匿名连通性探测。
 
 ## 开发
 

@@ -333,7 +333,7 @@ LDAP / AD 域账号直接登录。服务端会使用租户 LDAP 集成中的 `bi
 
 ### GET /api/v1/capabilities
 
-返回 capability catalog。
+返回按当前凭证过滤后的 capability catalog。未携带登录态、capability access token、session key 或 API key 时返回 401。
 
 响应：
 

@@ -11,6 +11,19 @@ const ROLE_WEIGHT: Record<UserRole, number> = {
 
 @Injectable()
 export class CapabilityAuthorizationService {
+  canAccess(contract: CapabilityContract, principal: Principal) {
+    if (contract.permissionRequirement === 'tenant' && !principal.tenantId) {
+      return false;
+    }
+
+    if (!contract.minimumRole) {
+      return true;
+    }
+
+    const principalRole = this.resolvePrincipalRole(principal);
+    return (ROLE_WEIGHT[principalRole] ?? 0) >= ROLE_WEIGHT[contract.minimumRole];
+  }
+
   authorize(contract: CapabilityContract, principal: Principal) {
     if (contract.permissionRequirement === 'tenant' && !principal.tenantId) {
       throw new ForbiddenException('当前 capability 需要租户上下文');
@@ -20,12 +33,15 @@ export class CapabilityAuthorizationService {
       return;
     }
 
-    const principalRole = (principal.role ??
-      SystemRoles.TENANT_VIEWER) as UserRole;
+    const principalRole = this.resolvePrincipalRole(principal);
     if ((ROLE_WEIGHT[principalRole] ?? 0) < ROLE_WEIGHT[contract.minimumRole]) {
       throw new ForbiddenException(
         `当前 capability 至少需要 ${contract.minimumRole} 权限`,
       );
     }
+  }
+
+  private resolvePrincipalRole(principal: Principal): UserRole {
+    return (principal.role ?? SystemRoles.TENANT_VIEWER) as UserRole;
   }
 }

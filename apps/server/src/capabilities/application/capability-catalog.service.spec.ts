@@ -4,8 +4,14 @@ import { CapabilitiesController } from '../capabilities.controller';
 import { CapabilityCatalogService } from './capability-catalog.service';
 
 describe('CapabilityCatalogService', () => {
+  function createService(canAccess = true) {
+    return new CapabilityCatalogService({
+      canAccess: jest.fn(() => canAccess),
+    } as never);
+  }
+
   it('should expose flattened capability contracts', () => {
-    const service = new CapabilityCatalogService();
+    const service = createService();
     const capabilities = service.listCapabilities();
 
     expect(capabilities).toEqual(
@@ -25,7 +31,7 @@ describe('CapabilityCatalogService', () => {
   });
 
   it('should build MCP tools from capability contracts', () => {
-    const service = new CapabilityCatalogService();
+    const service = createService();
     expect(service.toMcpTools()).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ name: 'knowledge.search' }),
@@ -36,7 +42,7 @@ describe('CapabilityCatalogService', () => {
   });
 
   it('should keep catalog, HTTP route, CLI command and MCP tool names aligned', () => {
-    const service = new CapabilityCatalogService();
+    const service = createService();
     const contracts = service.listCapabilities();
     const toolNames = service
       .toMcpTools()
@@ -264,5 +270,32 @@ describe('CapabilityCatalogService', () => {
       );
       expect(contract.cli.command.startsWith('ova ')).toBe(true);
     }
+  });
+
+  it('should filter contracts and MCP tools by principal access', () => {
+    const service = new CapabilityCatalogService({
+      canAccess: jest.fn((contract) => contract.minimumRole !== 'tenant_operator'),
+    } as never);
+    const principal = {
+      userId: 'user-1',
+      tenantId: 'tenant-1',
+      role: 'tenant_viewer',
+      scope: 'tenant',
+      credentialType: 'jwt_access_token',
+      clientType: 'service',
+      ovConfig: {
+        baseUrl: 'http://ov.local',
+        apiKey: 'secret',
+        account: 'default',
+      },
+    };
+
+    const capabilities = service.listCapabilitiesForPrincipal(principal);
+    const tools = service.toMcpToolsForPrincipal(principal);
+
+    expect(capabilities.every((item) => item.minimumRole !== 'tenant_operator')).toBe(
+      true,
+    );
+    expect(tools.every((item) => item.name !== 'resources.tree')).toBe(true);
   });
 });

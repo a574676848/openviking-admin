@@ -43,12 +43,21 @@ export class CapabilitiesController {
   ) {}
 
   @Get('capabilities')
-  listCapabilities(
+  async listCapabilities(
+    @Headers('x-capability-key') capabilityKey: string | undefined,
+    @Headers('authorization') authorization: string | undefined,
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
     const trace = ensureRequestTrace(req, res);
-    const capabilities = this.capabilityDiscoveryService.listCapabilities();
+    const principal = await this.resolvePrincipal(
+      capabilityKey,
+      authorization,
+      this.resolveClientType('http'),
+    );
+    const capabilities = this.capabilityDiscoveryService.listCapabilities(
+      principal,
+    );
     return {
       data: capabilities,
       meta: {

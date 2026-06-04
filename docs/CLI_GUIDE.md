@@ -252,7 +252,7 @@ ova capabilities list
 ova capabilities inspect --id knowledge.search
 ```
 
-`capabilities list` 会读取 `/api/v1/capabilities`，因此 CLI 命令树和服务端 capability catalog 保持一致。
+`capabilities list` 会读取 `/api/v1/capabilities`，并按当前 profile 中可用的凭证返回当前角色真正可见的 capability，因此 CLI 命令树和服务端 capability catalog 保持一致。
 
 ## 能力调用
 

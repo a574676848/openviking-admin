@@ -274,7 +274,10 @@ export class McpProtocolService {
     const { method, params } = body;
 
     if (method === 'tools/list') {
-      return { tools: this.capabilityCatalogService.toMcpTools() };
+      const principal = await this.resolvePrincipalFromCredential(credential);
+      return {
+        tools: this.capabilityCatalogService.toMcpToolsForPrincipal(principal),
+      };
     }
 
     if (method === 'tools/call') {

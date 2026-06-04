@@ -17,7 +17,7 @@ describe('McpProtocolService', () => {
     enqueueEvent: jest.fn(),
   };
   const capabilityCatalogService = {
-    toMcpTools: jest.fn(() => [{ name: 'knowledge.search' }]),
+    toMcpToolsForPrincipal: jest.fn(() => [{ name: 'knowledge.search' }]),
   };
   const capabilityExecutionService = {
     execute: jest.fn(async () => ({ data: { items: [] } })),
@@ -68,6 +68,9 @@ describe('McpProtocolService', () => {
         tools: [{ name: 'knowledge.search' }],
       },
     });
+    expect(capabilityCatalogService.toMcpToolsForPrincipal).toHaveBeenCalledWith(
+      principal,
+    );
   });
 
   it('无 id 的 notification 不应写入 JSON-RPC 响应事件', async () => {

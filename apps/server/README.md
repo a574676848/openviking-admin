@@ -74,8 +74,11 @@ pnpm typeorm migration:revert -d src/data-source.ts
 能力发现：
 
 ```bash
-curl "http://localhost:6001/api/capabilities"
+curl "http://localhost:6001/api/capabilities" \
+  -H "Authorization: Bearer <ACCESS_TOKEN>"
 ```
+
+`GET /api/capabilities` 需要携带 capability 凭证或登录态，并且只返回当前租户与角色实际可见的 capability。
 
 仓内 CLI 调用：
 
@@ -98,7 +101,7 @@ npm run ova -- knowledge search --query "多租户隔离"
 | `GET /api/capability/keys` | 查询租户内 capability key |
 | `POST /api/capability/keys` | 为租户内指定用户签发 capability key |
 | `DELETE /api/capability/keys/:id` | 吊销租户内 capability key |
-| `GET /api/capabilities` | capability catalog |
+| `GET /api/capabilities` | 按当前凭证过滤后的 capability catalog |
 | `GET /api/observability/capabilities` | capability 观测快照 |
 | `GET /api/observability/capabilities/prometheus` | Prometheus 指标导出 |
 | `GET /api/mcp/sse` | MCP SSE 会话入口 |

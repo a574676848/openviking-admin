@@ -129,4 +129,37 @@ describe('CapabilityAuthorizationService', () => {
       ),
     ).not.toThrow();
   });
+
+  it('should expose boolean access checks for discovery filtering', () => {
+    expect(
+      service.canAccess(
+        {
+          id: 'resources.tree',
+          version: 'v1',
+          displayName: 'Resources Tree',
+          description: 'tree',
+          inputSchema: { type: 'object', properties: {} },
+          outputSchema: { type: 'object', properties: {} },
+          permissionRequirement: 'tenant',
+          minimumRole: 'tenant_operator',
+          auditLevel: 'standard',
+          http: { method: 'GET', path: '/api/resources/tree' },
+          cli: { command: 'ova resources tree' },
+        },
+        {
+          userId: 'user-1',
+          tenantId: 'tenant-1',
+          role: 'tenant_viewer',
+          scope: 'tenant',
+          credentialType: 'jwt_access_token',
+          clientType: 'service',
+          ovConfig: {
+            baseUrl: 'http://ov.local',
+            apiKey: 'secret',
+            account: 'default',
+          },
+        },
+      ),
+    ).toBe(false);
+  });
 });

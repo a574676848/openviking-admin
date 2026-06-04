@@ -52,6 +52,8 @@ WebDAV 入口是外部客户端同步 adapter，不是 capability 本体，因�
 
 每个能力契约都是四种入口的单一事实源，当前由 `CapabilityCatalogService` 提供。
 
+`GET /api/v1/capabilities` 与 MCP `tools/list` 不再返回固定全量目录，而是会先解析当前 `Principal`，再按 `minimumRole` 与租户上下文过滤，只暴露当前凭证真正可访问的 capability。
+
 ```json
 {
   "id": "knowledge.search",
@@ -92,7 +94,7 @@ WebDAV 入口是外部客户端同步 adapter，不是 capability 本体，因�
 | ----- | ----------------------------------------------- | -------------------------------------------------------------------- |
 | HTTP  | 后端系统、网关、自动化脚本、无本地 CLI 的 Agent | 直接暴露 RESTful capability 接口                                     |
 | CLI   | 开发者机器、CI、运维终端、Agent 宿主机          | 提供本地 profile、自动刷新、结构化输出和诊断命令                     |
-| MCP   | Claude、Cursor、IDE 等原生 MCP 客户端           | 把 capability catalog 投影为 `tools/list`，把调用映射为 `tools/call` |
+| MCP   | Claude、Cursor、IDE 等原生 MCP 客户端           | 把按当前凭证过滤后的 capability catalog 投影为 `tools/list`，把调用映射为 `tools/call` |
 | Skill | Codex、Claude Skills、企业 Agent 平台           | 编排 HTTP 或 CLI，不定义新协议，不模拟 MCP                           |
 
 ## 认证与凭证

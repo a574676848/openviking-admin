@@ -51,7 +51,7 @@ describe('Capability Platform (e2e)', () => {
     ]),
   };
   const catalogService = {
-    toMcpTools: jest.fn(() => [
+    toMcpToolsForPrincipal: jest.fn(() => [
       {
         name: 'knowledge.search',
         description: 'Search knowledge',
@@ -263,6 +263,16 @@ describe('Capability Platform (e2e)', () => {
       .expect(401);
   });
 
+  it('能力目录接口应按当前凭证返回过滤后的 capability 列表', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/capabilities')
+      .set('Authorization', 'Bearer jwt-token')
+      .expect(200);
+
+    expect(response.body.data[0].id).toBe('knowledge.search');
+    expect(discoveryService.listCapabilities).toHaveBeenCalledWith(principal);
+  });
+
   it('命名空间化能力接口应避开业务路由并支持 API Key', async () => {
     const response = await request(app.getHttpServer())
       .get('/api/capability/knowledge-bases')
@@ -377,6 +387,7 @@ describe('Capability Platform (e2e)', () => {
       's-1',
       expect.stringContaining('"tools"'),
     );
+    expect(catalogService.toMcpToolsForPrincipal).toHaveBeenCalledWith(principal);
   });
 
   it('MCP tools/call 应映射 capability execution', async () => {

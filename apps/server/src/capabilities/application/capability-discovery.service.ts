@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { CapabilityCatalogService } from './capability-catalog.service';
-import { CapabilityId } from '../domain/capability.types';
+import { CapabilityId, Principal } from '../domain/capability.types';
 
 @Injectable()
 export class CapabilityDiscoveryService {
@@ -8,8 +8,12 @@ export class CapabilityDiscoveryService {
     private readonly capabilityCatalogService: CapabilityCatalogService,
   ) {}
 
-  listCapabilities() {
-    return this.capabilityCatalogService.listCapabilities();
+  listCapabilities(principal?: Principal) {
+    if (!principal) {
+      return this.capabilityCatalogService.listCapabilities();
+    }
+
+    return this.capabilityCatalogService.listCapabilitiesForPrincipal(principal);
   }
 
   getCapability(id: CapabilityId) {
