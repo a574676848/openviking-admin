@@ -4,6 +4,8 @@ import {
 } from './capability-rate-limit.store';
 import { RedisCapabilityRateLimitStore } from './redis-capability-rate-limit.store';
 
+const CLUSTER_HASH_TAG_PATTERN = /\{[^}]+\}/;
+
 class FakeRedisPipeline {
   private readonly commands: Array<{
     type: 'hmget' | 'pttl';
@@ -42,6 +44,7 @@ class FakeRedisClient {
   private readonly expiresAt = new Map<string, number>();
   private readonly registry = new Map<string, Set<string>>();
   private currentTime = 0;
+  readonly evalKeys: Array<{ bucketKey: string; registryKey: string }> = [];
 
   async eval(
     _script: string,
@@ -51,6 +54,7 @@ class FakeRedisClient {
     nowText: string,
     windowMsText: string,
   ) {
+    this.evalKeys.push({ bucketKey, registryKey });
     const now = Number(nowText);
     const windowMs = Number(windowMsText);
     this.currentTime = now;
@@ -187,5 +191,14 @@ describe('RedisCapabilityRateLimitStore', () => {
         },
       },
     ]);
+    expect(client.evalKeys[0]).toEqual({
+      bucketKey:
+        'openviking:test:rate-limit:{capability-rate-limit}:bucket:tenant:tenant-1',
+      registryKey: 'openviking:test:rate-limit:{capability-rate-limit}:keys',
+    });
+    expect(client.evalKeys[0].bucketKey.match(CLUSTER_HASH_TAG_PATTERN)?.[0]).toBe(
+      client.evalKeys[0].registryKey.match(CLUSTER_HASH_TAG_PATTERN)?.[0],
+    );
   });
+
 });

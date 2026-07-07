@@ -627,11 +627,7 @@ export class ImportTaskService {
     },
     stats: Partial<Pick<ImportTaskModel, 'vectorCount'>>,
   ) {
-    const targetNode = await this.findTargetNodeByUri(
-      task.kbId,
-      task.tenantId,
-      task.targetUri,
-    );
+    const targetNode = await this.findDocumentCompensationTargetNode(task);
     if (!targetNode || targetNode.kind !== 'document') {
       return;
     }
@@ -683,6 +679,23 @@ export class ImportTaskService {
       indexError: null,
       updatedAt: new Date(),
     });
+  }
+
+  private async findDocumentCompensationTargetNode(task: ImportTaskModel) {
+    if (task.autoCreatedNodeId) {
+      const node = await this.nodeRepo.findOne({
+        where: {
+          id: task.autoCreatedNodeId,
+          tenantId: task.tenantId,
+          kbId: task.kbId,
+        },
+      });
+      if (node) {
+        return node;
+      }
+    }
+
+    return this.findTargetNodeByUri(task.kbId, task.tenantId, task.targetUri);
   }
 
   private async fetchResourceStats(

@@ -10,10 +10,13 @@ import { CapabilityTimeoutException } from '../infrastructure/capability-timeout
 import { CapabilitySchemaValidatorService } from './capability-schema-validator.service';
 
 describe('CapabilityExecutionService', () => {
-  const catalog = new CapabilityCatalogService();
+  const authorizeMock = jest.fn();
   const authorization = {
-    authorize: jest.fn(),
-  };
+    authorize: authorizeMock,
+    canAccess: jest.fn(() => true),
+    resolvePrincipalRole: jest.fn(() => 'tenant_viewer'),
+  } as unknown as CapabilityAuthorizationService;
+  const catalog = new CapabilityCatalogService(authorization);
   const observability = {
     recordSuccess: jest.fn(),
     recordFailure: jest.fn(),
@@ -96,7 +99,7 @@ describe('CapabilityExecutionService', () => {
     expect(result.data).toEqual({
       items: [{ uri: 'viking://resources/tenants/tenant-1/doc-1', score: 0.9 }],
     });
-    expect(authorization.authorize.mock.calls.length).toBe(1);
+    expect(authorizeMock.mock.calls.length).toBe(1);
     expect((observability.recordSuccess as jest.Mock).mock.calls.length).toBe(
       1,
     );

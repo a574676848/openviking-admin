@@ -5,7 +5,7 @@ import {
   OnModuleDestroy,
   Optional,
 } from '@nestjs/common';
-import Redis from 'ioredis';
+import Redis, { Cluster, type ClusterNode } from 'ioredis';
 import {
   CAPABILITY_RATE_LIMIT_STORE_OPTIONS,
   type CapabilityRateLimitStore,
@@ -19,6 +19,10 @@ const RATE_LIMIT_BUCKET_HASH_FIELDS = {
   WINDOW_STARTED_AT: 'windowStartedAt',
   WINDOW_MS: 'windowMs',
 } as const;
+
+const RATE_LIMIT_CLUSTER_HASH_TAG = '{capability-rate-limit}';
+const REDIS_NODE_SEPARATOR = ',';
+const REDIS_DEFAULT_PORT = 6379;
 
 const RATE_LIMIT_REDIS_SCRIPT = `
 local bucketKey = KEYS[1]
@@ -70,6 +74,8 @@ interface RedisLikeClient {
   on?(event: 'error', listener: (error: Error) => void): RedisLikeClient;
 }
 
+type RedisClientMode = 'cluster' | 'standalone';
+
 @Injectable()
 export class RedisCapabilityRateLimitStore
   implements CapabilityRateLimitStore, OnModuleDestroy
@@ -79,6 +85,7 @@ export class RedisCapabilityRateLimitStore
   private readonly registryKey: string;
   private readonly options: CapabilityRateLimitStoreOptions;
   private _client?: RedisLikeClient;
+  private clientMode: RedisClientMode | null = null;
 
   constructor(
     @Inject(CAPABILITY_RATE_LIMIT_STORE_OPTIONS)
@@ -87,18 +94,17 @@ export class RedisCapabilityRateLimitStore
     client?: RedisLikeClient,
   ) {
     this.options = options;
-    this.bucketPrefix = `${options.redisKeyPrefix}:bucket`;
-    this.registryKey = `${options.redisKeyPrefix}:keys`;
+    this.bucketPrefix = `${options.redisKeyPrefix}:${RATE_LIMIT_CLUSTER_HASH_TAG}:bucket`;
+    this.registryKey = `${options.redisKeyPrefix}:${RATE_LIMIT_CLUSTER_HASH_TAG}:keys`;
     this._client = client;
+    this.clientMode = client ? 'standalone' : null;
   }
 
   private get client(): RedisLikeClient {
     if (!this._client) {
-      const newClient = this.createClient(this.options);
-      newClient.on?.('error', (err: Error) => {
-        this.logger.warn(`Redis rate limit store 连接错误: ${err.message}`);
-      });
-      this._client = newClient;
+      const client = this.createClusterClient(this.options);
+      this.useClient(client, 'cluster');
+      return client;
     }
     return this._client;
   }
@@ -109,16 +115,18 @@ export class RedisCapabilityRateLimitStore
     windowMs: number,
     now: number,
   ): Promise<RateLimitBucketConsumeResult> {
-    const result = await this.client.eval(
-      RATE_LIMIT_REDIS_SCRIPT,
-      2,
-      this.buildBucketKey(key),
-      this.registryKey,
-      String(now),
-      String(windowMs),
-      RATE_LIMIT_BUCKET_HASH_FIELDS.COUNT,
-      RATE_LIMIT_BUCKET_HASH_FIELDS.WINDOW_STARTED_AT,
-      RATE_LIMIT_BUCKET_HASH_FIELDS.WINDOW_MS,
+    const result = await this.executeWithStandaloneFallback((client) =>
+      client.eval(
+        RATE_LIMIT_REDIS_SCRIPT,
+        2,
+        this.buildBucketKey(key),
+        this.registryKey,
+        String(now),
+        String(windowMs),
+        RATE_LIMIT_BUCKET_HASH_FIELDS.COUNT,
+        RATE_LIMIT_BUCKET_HASH_FIELDS.WINDOW_STARTED_AT,
+        RATE_LIMIT_BUCKET_HASH_FIELDS.WINDOW_MS,
+      ),
     );
     const [count, windowStartedAt, storedWindowMs] = result.map((value) =>
       Number(value),
@@ -133,23 +141,26 @@ export class RedisCapabilityRateLimitStore
   }
 
   async entries() {
-    const bucketKeys = await this.client.smembers(this.registryKey);
+    const bucketKeys = await this.executeWithStandaloneFallback((client) =>
+      client.smembers(this.registryKey),
+    );
     if (bucketKeys.length === 0) {
       return [];
     }
 
-    const pipeline = this.client.pipeline();
-    for (const bucketKey of bucketKeys) {
-      pipeline.hmget(
-        bucketKey,
-        RATE_LIMIT_BUCKET_HASH_FIELDS.COUNT,
-        RATE_LIMIT_BUCKET_HASH_FIELDS.WINDOW_STARTED_AT,
-        RATE_LIMIT_BUCKET_HASH_FIELDS.WINDOW_MS,
-      );
-      pipeline.pttl(bucketKey);
-    }
-
-    const responses = await pipeline.exec();
+    const responses = await this.executeWithStandaloneFallback((client) => {
+      const pipeline = client.pipeline();
+      for (const bucketKey of bucketKeys) {
+        pipeline.hmget(
+          bucketKey,
+          RATE_LIMIT_BUCKET_HASH_FIELDS.COUNT,
+          RATE_LIMIT_BUCKET_HASH_FIELDS.WINDOW_STARTED_AT,
+          RATE_LIMIT_BUCKET_HASH_FIELDS.WINDOW_MS,
+        );
+        pipeline.pttl(bucketKey);
+      }
+      return pipeline.exec();
+    });
     const results: Array<{ key: string; state: RateLimitBucketState }> = [];
     const staleKeys: string[] = [];
 
@@ -182,7 +193,9 @@ export class RedisCapabilityRateLimitStore
     }
 
     if (staleKeys.length > 0) {
-      await this.client.srem(this.registryKey, ...staleKeys);
+      await this.executeWithStandaloneFallback((client) =>
+        client.srem(this.registryKey, ...staleKeys),
+      );
     }
 
     return results;
@@ -214,7 +227,64 @@ export class RedisCapabilityRateLimitStore
       : bucketKey;
   }
 
-  private createClient(options: CapabilityRateLimitStoreOptions) {
+  private async executeWithStandaloneFallback<T>(
+    operation: (client: RedisLikeClient) => Promise<T>,
+  ): Promise<T> {
+    try {
+      return await operation(this.client);
+    } catch (error) {
+      if (!this.shouldFallbackToStandalone(error)) {
+        throw error;
+      }
+
+      this.logger.warn('Redis Cluster 探测失败，降级使用单机 Redis 客户端');
+      this.closeCurrentClient();
+      this.useClient(this.createStandaloneClient(this.options), 'standalone');
+      return operation(this.client);
+    }
+  }
+
+  private shouldFallbackToStandalone(error: unknown) {
+    if (this.clientMode !== 'cluster') {
+      return false;
+    }
+
+    const message = error instanceof Error ? error.message : String(error);
+    return (
+      message.includes('cluster support disabled') ||
+      message.includes('Failed to refresh slots cache')
+    );
+  }
+
+  private useClient(client: RedisLikeClient, mode: RedisClientMode) {
+    client.on?.('error', (err: Error) => {
+      this.logger.warn(`Redis rate limit store 连接错误: ${err.message}`);
+    });
+    this._client = client;
+    this.clientMode = mode;
+  }
+
+  private closeCurrentClient() {
+    try {
+      this._client?.disconnect();
+    } catch {
+      // 切换客户端时忽略关闭失败，后续命令会使用新客户端。
+    }
+    this._client = undefined;
+    this.clientMode = null;
+  }
+
+  private createClusterClient(options: CapabilityRateLimitStoreOptions) {
+    return new Cluster(this.resolveClusterStartupNodes(options), {
+      redisOptions: {
+        password: this.resolveRedisPassword(options),
+        connectTimeout: options.redisConnectTimeoutMs,
+        tls: options.redisTls ? {} : undefined,
+      },
+    }) as unknown as RedisLikeClient;
+  }
+
+  private createStandaloneClient(options: CapabilityRateLimitStoreOptions) {
     if (options.redisUrl) {
       const url = options.redisPassword
         ? this.injectPasswordIntoRedisUrl(
@@ -239,6 +309,59 @@ export class RedisCapabilityRateLimitStore
       redisOptions.password = options.redisPassword;
     }
     return new Redis(redisOptions) as unknown as RedisLikeClient;
+  }
+
+  private resolveClusterStartupNodes(
+    options: CapabilityRateLimitStoreOptions,
+  ): ClusterNode[] {
+    if (!options.redisUrl?.trim()) {
+      return [{ host: options.redisHost, port: options.redisPort }];
+    }
+
+    const nodes = options.redisUrl
+      .split(REDIS_NODE_SEPARATOR)
+      .map((nodeText) => this.parseClusterNode(nodeText.trim()))
+      .filter((node): node is ClusterNode => node !== null);
+
+    return nodes.length > 0
+      ? nodes
+      : [{ host: options.redisHost, port: options.redisPort }];
+  }
+
+  private parseClusterNode(nodeText: string): ClusterNode | null {
+    if (!nodeText) {
+      return null;
+    }
+
+    try {
+      const parsed = nodeText.includes('://')
+        ? new URL(nodeText)
+        : new URL(`redis://${nodeText}`);
+      return {
+        host: parsed.hostname,
+        port: parsed.port ? Number(parsed.port) : REDIS_DEFAULT_PORT,
+      };
+    } catch {
+      throw new Error(`Redis Cluster 节点配置无效：${nodeText}`);
+    }
+  }
+
+  private resolveRedisPassword(options: CapabilityRateLimitStoreOptions) {
+    if (options.redisPassword) {
+      return options.redisPassword;
+    }
+
+    const firstUrl = options.redisUrl?.split(REDIS_NODE_SEPARATOR)[0]?.trim();
+    if (!firstUrl?.includes('://')) {
+      return undefined;
+    }
+
+    try {
+      const parsed = new URL(firstUrl);
+      return parsed.password ? decodeURIComponent(parsed.password) : undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   private injectPasswordIntoRedisUrl(url: string, password: string): string {

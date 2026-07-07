@@ -721,6 +721,11 @@ describe('TaskWorkerService', () => {
         ],
       }),
       uploadTempFile: jest.fn(),
+      requestStream: jest.fn().mockResolvedValue({
+        stream: (async function* () {
+          yield Buffer.from('# slow query');
+        })(),
+      }),
     };
     const service = createService({
       defaultDataSource: { getRepository: jest.fn() },
@@ -840,6 +845,81 @@ describe('TaskWorkerService', () => {
       indexStatus: 'clean',
       indexedVersion: 2,
       vectorCount: 15,
+      lastIndexedAt: expect.any(Date),
+      indexError: null,
+      updatedAt: expect.any(Date),
+    });
+  });
+
+  it('文档目录存在多个叶子时应按来源 basename 匹配转换后的 Markdown 正文', async () => {
+    const nodeRepo = {
+      update: jest.fn(),
+      manager: {
+        getRepository: jest.fn(() => ({
+          findOne: jest.fn().mockResolvedValue(null),
+          create: jest.fn((payload) => payload),
+          save: jest.fn(),
+        })),
+      },
+    };
+    const ovClient = {
+      request: jest.fn().mockResolvedValue({
+        result: [
+          {
+            uri: 'viking://resources/tenants/exe/ba1ca9e6-ebb1-4103-8bb7-bb842b0989a8/b10766ab-4183-465f-9ac0-fb78b1042cac/其他文档.md',
+            isDir: false,
+          },
+          {
+            uri: 'viking://resources/tenants/exe/ba1ca9e6-ebb1-4103-8bb7-bb842b0989a8/b10766ab-4183-465f-9ac0-fb78b1042cac/慢查询典型问题整理.md',
+            isDir: false,
+          },
+        ],
+      }),
+      uploadTempFile: jest.fn(),
+      requestStream: jest.fn().mockResolvedValue({
+        stream: (async function* () {
+          yield Buffer.from('# slow query');
+        })(),
+      }),
+    };
+    const service = createService({
+      defaultDataSource: { getRepository: jest.fn() },
+      ovClient,
+    });
+
+    await (
+      service as unknown as {
+        syncDocumentContentUri(
+          context: { nodeRepo: typeof nodeRepo },
+          conn: {
+            baseUrl: string;
+            apiKey: string;
+            account: string;
+            user: string;
+          },
+          node: { id: string; draftVersion?: number; indexedVersion?: number },
+          targetUri: string,
+          sourceName?: string | null,
+        ): Promise<void>;
+      }
+    ).syncDocumentContentUri(
+      { nodeRepo },
+      {
+        baseUrl: 'http://ov.local',
+        apiKey: 'ov-key',
+        account: 'exe',
+        user: 'worker-user',
+      },
+      { id: 'node-slow-query', draftVersion: 0, indexedVersion: 0 },
+      'viking://resources/tenants/exe/ba1ca9e6-ebb1-4103-8bb7-bb842b0989a8/b10766ab-4183-465f-9ac0-fb78b1042cac/',
+      '慢查询典型问题整理.docx',
+    );
+
+    expect(nodeRepo.update).toHaveBeenCalledWith('node-slow-query', {
+      contentUri:
+        'viking://resources/tenants/exe/ba1ca9e6-ebb1-4103-8bb7-bb842b0989a8/b10766ab-4183-465f-9ac0-fb78b1042cac/慢查询典型问题整理.md',
+      indexStatus: 'clean',
+      indexedVersion: 0,
       lastIndexedAt: expect.any(Date),
       indexError: null,
       updatedAt: expect.any(Date),
@@ -1063,7 +1143,7 @@ describe('TaskWorkerService', () => {
     });
   });
 
-  it('文档正文叶子数量为 0 或多个时应跳过 contentUri 回写', async () => {
+  it('文档正文叶子无法唯一确认时应按节点目录和名称兜底推导 contentUri', async () => {
     const cases = [
       {
         result: [],
@@ -1072,11 +1152,11 @@ describe('TaskWorkerService', () => {
       {
         result: [
           {
-            uri: 'viking://resources/tenants/small-a/kb-1/node-file/old.md',
+            uri: 'viking://resources/tenants/exe/ba1ca9e6-ebb1-4103-8bb7-bb842b0989a8/b10766ab-4183-465f-9ac0-fb78b1042cac/old.md',
             isDir: false,
           },
           {
-            uri: 'viking://resources/tenants/small-a/kb-1/node-file/new.md',
+            uri: 'viking://resources/tenants/exe/ba1ca9e6-ebb1-4103-8bb7-bb842b0989a8/b10766ab-4183-465f-9ac0-fb78b1042cac/new.md',
             isDir: false,
           },
         ],
@@ -1087,10 +1167,22 @@ describe('TaskWorkerService', () => {
     for (const item of cases) {
       const nodeRepo = {
         update: jest.fn(),
+        manager: {
+          getRepository: jest.fn(() => ({
+            findOne: jest.fn().mockResolvedValue(null),
+            create: jest.fn((payload) => payload),
+            save: jest.fn(),
+          })),
+        },
       };
       const ovClient = {
         request: jest.fn().mockResolvedValue({ result: item.result }),
         uploadTempFile: jest.fn(),
+        requestStream: jest.fn().mockResolvedValue({
+          stream: (async function* () {
+            yield Buffer.from('# slow query fallback');
+          })(),
+        }),
       };
       const service = createService({
         defaultDataSource: { getRepository: jest.fn() },
@@ -1107,7 +1199,16 @@ describe('TaskWorkerService', () => {
               account: string;
               user: string;
             },
-            node: { id: string },
+            node: {
+              id: string;
+              tenantId: string;
+              name: string;
+              kind: string;
+              vikingUri: string;
+              contentUri: null;
+              draftVersion: number;
+              indexedVersion: number;
+            },
             targetUri: string,
           ): Promise<void>;
         }
@@ -1116,14 +1217,32 @@ describe('TaskWorkerService', () => {
         {
           baseUrl: 'http://ov.local',
           apiKey: 'ov-key',
-          account: 'small-a',
+          account: 'exe',
           user: 'worker-user',
         },
-        { id: `node-file-${item.label}` },
-        'viking://resources/tenants/small-a/kb-1/node-file/',
+        {
+          id: `node-file-${item.label}`,
+          tenantId: 'exe',
+          name: '慢查询典型问题整理.docx',
+          kind: 'document',
+          vikingUri:
+            'viking://resources/tenants/exe/ba1ca9e6-ebb1-4103-8bb7-bb842b0989a8/b10766ab-4183-465f-9ac0-fb78b1042cac/',
+          contentUri: null,
+          draftVersion: 0,
+          indexedVersion: 0,
+        },
+        'viking://resources/tenants/exe/ba1ca9e6-ebb1-4103-8bb7-bb842b0989a8/b10766ab-4183-465f-9ac0-fb78b1042cac/',
       );
 
-      expect(nodeRepo.update).not.toHaveBeenCalled();
+      expect(nodeRepo.update).toHaveBeenCalledWith(`node-file-${item.label}`, {
+        contentUri:
+          'viking://resources/tenants/exe/ba1ca9e6-ebb1-4103-8bb7-bb842b0989a8/b10766ab-4183-465f-9ac0-fb78b1042cac/慢查询典型问题整理.md',
+        indexStatus: 'clean',
+        indexedVersion: 0,
+        lastIndexedAt: expect.any(Date),
+        indexError: null,
+        updatedAt: expect.any(Date),
+      });
     }
   });
 
@@ -1657,6 +1776,128 @@ describe('TaskWorkerService', () => {
       vectorCount: 540,
       updatedAt: expect.any(Date),
     });
+  });
+
+  it('延迟统计同步应通过自动创建节点 ID 修复空 contentUri', async () => {
+    const tenant = createTenant('exe', TenantIsolationLevel.SMALL);
+    const task = {
+      ...createTask('delayed-content-uri-task', 'exe', TaskStatus.DONE),
+      sourceType: 'local',
+      sourceName: '慢查询典型问题整理.docx',
+      targetUri:
+        'viking://resources/tenants/exe/ba1ca9e6-ebb1-4103-8bb7-bb842b0989a8/b10766ab-4183-465f-9ac0-fb78b1042cac/',
+      autoCreatedNodeId: 'node-slow-query',
+      nodeCount: 1,
+      vectorCount: 8,
+    } as ImportTask;
+    const tenantRepo = {
+      findOne: jest.fn().mockResolvedValue(tenant),
+    };
+    const taskRepo = {
+      findOne: jest.fn().mockResolvedValue(task),
+      update: jest.fn(),
+    };
+    const node = {
+      id: 'node-slow-query',
+      tenantId: 'exe',
+      kbId: 'kb-1',
+      name: '慢查询典型问题整理.docx',
+      kind: 'document',
+      vikingUri:
+        'viking://resources/tenants/exe/ba1ca9e6-ebb1-4103-8bb7-bb842b0989a8/b10766ab-4183-465f-9ac0-fb78b1042cac/',
+      contentUri: null,
+      draftVersion: 0,
+      indexedVersion: 0,
+    };
+    const nodeRepo = {
+      findOne: jest.fn(({ where }) => {
+        if (!Array.isArray(where) && where?.id === 'node-slow-query') {
+          return Promise.resolve(node);
+        }
+        return Promise.resolve(null);
+      }),
+      update: jest.fn(),
+      manager: {
+        getRepository: jest.fn(() => ({
+          findOne: jest.fn().mockResolvedValue(null),
+          create: jest.fn((payload) => payload),
+          save: jest.fn(),
+        })),
+      },
+    };
+    const kbRepo = {
+      findOne: jest.fn().mockResolvedValue({
+        id: 'kb-1',
+        tenantId: 'exe',
+        vikingUri:
+          'viking://resources/tenants/exe/ba1ca9e6-ebb1-4103-8bb7-bb842b0989a8/',
+      }),
+      update: jest.fn(),
+    };
+    const defaultDataSource = {
+      getRepository: jest.fn((entity) => {
+        if (entity === Tenant) return tenantRepo;
+        if (entity === ImportTask) return taskRepo;
+        if (entity === Integration) return { findOne: jest.fn() };
+        if (entity === KnowledgeNode) return nodeRepo;
+        if (entity === KnowledgeBase) return kbRepo;
+        throw new Error('unexpected repository');
+      }),
+    };
+    const ovConfigResolver = {
+      resolve: jest.fn().mockResolvedValue({
+        baseUrl: 'http://ov.local',
+        apiKey: 'ov-key',
+        account: 'exe',
+        user: 'worker-user',
+      }),
+    };
+    const ovClient = {
+      request: jest
+        .fn()
+        .mockResolvedValueOnce({ result: { children_count: 1, descendant_count: 1 } })
+        .mockResolvedValueOnce({ result: { count: 8 } })
+        .mockResolvedValueOnce({ result: [] })
+        .mockResolvedValueOnce({ result: { children_count: 2, descendant_count: 2 } })
+        .mockResolvedValueOnce({ result: { count: 8 } }),
+      uploadTempFile: jest.fn(),
+      requestStream: jest.fn().mockResolvedValue({
+        stream: (async function* () {
+          yield Buffer.from('# slow query delayed');
+        })(),
+      }),
+    };
+    const service = createService({
+      defaultDataSource,
+      ovConfigResolver,
+      ovClient,
+    });
+
+    await (
+      service as unknown as {
+        syncDelayedTaskStats(
+          task: Pick<ImportTaskModel, 'id' | 'tenantId'>,
+          attempt: number,
+        ): Promise<void>;
+      }
+    ).syncDelayedTaskStats({ id: task.id, tenantId: task.tenantId }, 0);
+
+    expect(nodeRepo.findOne).toHaveBeenCalledWith({
+      where: {
+        id: 'node-slow-query',
+        tenantId: 'exe',
+        kbId: 'kb-1',
+      },
+    });
+    expect(nodeRepo.update).toHaveBeenCalledWith(
+      'node-slow-query',
+      expect.objectContaining({
+        contentUri:
+          'viking://resources/tenants/exe/ba1ca9e6-ebb1-4103-8bb7-bb842b0989a8/b10766ab-4183-465f-9ac0-fb78b1042cac/慢查询典型问题整理.md',
+        indexStatus: 'clean',
+        vectorCount: 8,
+      }),
+    );
   });
 
   it('延迟统计同步在向量已生成但草稿缺失时仍应补写 draft', async () => {

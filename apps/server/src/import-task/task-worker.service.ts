@@ -68,6 +68,8 @@ const DELAYED_STATS_SYNC_DELAYS_MS = [10_000, 30_000, 90_000, 180_000, 300_000];
 const STATS_SYNC_SCAN_INTERVAL_MS = 5 * 60_000;
 const STATS_SYNC_LOOKBACK_MS = 24 * 60 * 60_000;
 const STATS_SYNC_SOURCE_TYPES = ['git', 'feishu', 'dingtalk', 'local'] as const;
+const MARKDOWN_CONTENT_EXTENSION = '.md';
+const FILE_EXTENSION_PATTERN = /\.[^/.]+$/;
 
 @Injectable()
 export class TaskWorkerService implements OnModuleInit {
@@ -194,11 +196,7 @@ export class TaskWorkerService implements OnModuleInit {
           reason: `Queue Task: ${task.id}`,
           wait: OPENVIKING_RESOURCE_INJECT_DEFAULT_WAIT,
         };
-        const targetNode = await this.findTargetNode(
-          context,
-          currentTenant.tenantId,
-          task.targetUri,
-        );
+        const targetNode = await this.findTargetNodeForTask(context, task);
         if (targetNode && this.isDocumentNode(targetNode)) {
           this.documentSessionRegistry.assertNoActiveWriteSession(
             targetNode.id,
@@ -521,16 +519,11 @@ export class TaskWorkerService implements OnModuleInit {
       return true;
     }
 
-    const targetNode = await this.findTargetNode(
-      context,
-      task.tenantId,
-      task.targetUri,
-    );
+    const targetNode = await this.findTargetNodeForTask(context, task);
     return Boolean(
       targetNode &&
         this.isDocumentNode(targetNode) &&
-        targetNode.contentUri &&
-        (targetNode.draftVersion ?? 0) === 0,
+        (!targetNode.contentUri || (targetNode.draftVersion ?? 0) === 0),
     );
   }
 
@@ -652,11 +645,7 @@ export class TaskWorkerService implements OnModuleInit {
     task: ImportTaskModel,
     resourceStats: Partial<Pick<ImportTaskModel, 'vectorCount'>>,
   ) {
-    const targetNode = await this.findTargetNode(
-      context,
-      task.tenantId,
-      task.targetUri,
-    );
+    const targetNode = await this.findTargetNodeForTask(context, task);
     if (!targetNode || !this.isDocumentNode(targetNode)) {
       return;
     }
@@ -681,11 +670,7 @@ export class TaskWorkerService implements OnModuleInit {
     },
     task: ImportTaskModel,
   ) {
-    const targetNode = await this.findTargetNode(
-      context,
-      task.tenantId,
-      task.targetUri,
-    );
+    const targetNode = await this.findTargetNodeForTask(context, task);
     if (!targetNode || !this.isDocumentNode(targetNode) || !targetNode.contentUri) {
       return;
     }
@@ -698,6 +683,35 @@ export class TaskWorkerService implements OnModuleInit {
       targetNode,
       targetNode.contentUri,
     );
+  }
+
+  private async findTargetNodeForTask(
+    context: TenantTaskContext,
+    task: Pick<
+      ImportTaskModel,
+      'autoCreatedNodeId' | 'tenantId' | 'kbId' | 'targetUri'
+    >,
+  ): Promise<TargetKnowledgeNode | null> {
+    if (
+      typeof (context.nodeRepo as { findOne?: unknown }).findOne !== 'function'
+    ) {
+      return null;
+    }
+
+    if (task.autoCreatedNodeId) {
+      const node = await context.nodeRepo.findOne({
+        where: {
+          id: task.autoCreatedNodeId,
+          tenantId: task.tenantId,
+          kbId: task.kbId,
+        },
+      });
+      if (node) {
+        return node;
+      }
+    }
+
+    return this.findTargetNode(context, task.tenantId, task.targetUri);
   }
 
   private async findTargetNode(
@@ -821,25 +835,36 @@ export class TaskWorkerService implements OnModuleInit {
           (item as { isDir?: unknown }).isDir === false,
         ),
     );
+    let contentUri: string | null = null;
     if (leafResources.length === 0) {
       this.logger.warn(`文档叶子 ${node.id} 的内容资源数量为 0。`);
-      return;
+    } else {
+      const contentResource = this.resolveDocumentContentResource(
+        leafResources,
+        sourceName,
+      );
+      if (contentResource) {
+        contentUri = contentResource.uri;
+      } else {
+        this.logger.warn(
+          `文档叶子 ${node.id} 的内容资源数量异常，期望能按来源文件名唯一匹配，实际 ${leafResources.length} 个。可能处于协作保存并发状态或存在孤儿文件，尝试按节点信息推导 contentUri。`,
+        );
+      }
     }
 
-    const contentResource = this.resolveDocumentContentResource(
-      leafResources,
-      sourceName,
-    );
-    if (!contentResource) {
+    if (!contentUri) {
+      contentUri = this.buildFallbackDocumentContentUri(node, targetUri);
+      if (!contentUri) {
+        return;
+      }
       this.logger.warn(
-        `文档叶子 ${node.id} 的内容资源数量异常，期望能按来源文件名唯一匹配，实际 ${leafResources.length} 个。可能处于协作保存并发状态或存在孤儿文件，跳过 contentUri 覆盖。`,
+        `文档叶子 ${node.id} 未能从 OpenViking 资源树唯一确认正文 URI，已按 vikingUri/name 推导 contentUri。`,
       );
-      return;
     }
 
     const indexedVersion = node.draftVersion ?? node.indexedVersion ?? 0;
     await context.nodeRepo.update(node.id, {
-      contentUri: contentResource.uri,
+      contentUri,
       indexStatus: 'clean',
       indexedVersion,
       ...(vectorCount !== undefined ? { vectorCount } : {}),
@@ -849,12 +874,31 @@ export class TaskWorkerService implements OnModuleInit {
     });
 
     // 草稿预热：异步下载内容到 draft，不阻塞主流程
-    this.warmDraftAfterImport(context, conn, node, contentResource.uri).catch(
+    this.warmDraftAfterImport(context, conn, node, contentUri).catch(
       (err) =>
         this.logger.warn(
           `草稿预热失败 [nodeId=${node.id}]: ${err instanceof Error ? err.message : String(err)}`,
         ),
     );
+  }
+
+  private buildFallbackDocumentContentUri(
+    node: TargetKnowledgeNode,
+    targetUri: string,
+  ) {
+    const baseName = node.name?.trim().replace(FILE_EXTENSION_PATTERN, '');
+    if (!baseName) {
+      return null;
+    }
+
+    const directoryUri = this.ensureTrailingSlash(
+      this.toEngineResourceUri(node.vikingUri || targetUri),
+    );
+    return `${directoryUri}${baseName}${MARKDOWN_CONTENT_EXTENSION}`;
+  }
+
+  private ensureTrailingSlash(value: string) {
+    return value.endsWith('/') ? value : `${value}/`;
   }
 
   private async warmDraftAfterImport(
@@ -914,7 +958,24 @@ export class TaskWorkerService implements OnModuleInit {
           this.extractResourceFileName(resource.uri),
         ) === normalizedSourceName,
     );
-    return matchedResources.length === 1 ? matchedResources[0] : null;
+    if (matchedResources.length === 1) {
+      return matchedResources[0];
+    }
+
+    const normalizedSourceBaseName = this.normalizeResourceBaseName(sourceName);
+    if (!normalizedSourceBaseName) {
+      return null;
+    }
+
+    const basenameMatchedResources = leafResources.filter(
+      (resource) =>
+        this.normalizeResourceBaseName(
+          this.extractResourceFileName(resource.uri),
+        ) === normalizedSourceBaseName,
+    );
+    return basenameMatchedResources.length === 1
+      ? basenameMatchedResources[0]
+      : null;
   }
 
   private extractResourceFileName(uri: string) {
@@ -934,6 +995,11 @@ export class TaskWorkerService implements OnModuleInit {
         .toLowerCase()
         .replace(/[\s_]+/g, '') || null
     );
+  }
+
+  private normalizeResourceBaseName(value?: string | null) {
+    const normalized = this.normalizeResourceFileName(value);
+    return normalized?.replace(FILE_EXTENSION_PATTERN, '') || null;
   }
 
   private async injectResourceWithPaths(

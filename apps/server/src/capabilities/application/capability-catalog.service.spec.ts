@@ -2,10 +2,12 @@ import { RequestMethod } from '@nestjs/common';
 import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
 import { CapabilitiesController } from '../capabilities.controller';
 import { CapabilityCatalogService } from './capability-catalog.service';
+import type { Principal } from '../domain/capability.types';
 
 describe('CapabilityCatalogService', () => {
   function createService(canAccess = true) {
     return new CapabilityCatalogService({
+      authorize: jest.fn(),
       canAccess: jest.fn(() => canAccess),
     } as never);
   }
@@ -288,7 +290,7 @@ describe('CapabilityCatalogService', () => {
         apiKey: 'secret',
         account: 'default',
       },
-    };
+    } satisfies Principal;
 
     const capabilities = service.listCapabilitiesForPrincipal(principal);
     const tools = service.toMcpToolsForPrincipal(principal);

@@ -1504,6 +1504,91 @@ describe('ImportTaskService', () => {
     );
   });
 
+  it('同步按钮应通过自动创建节点 ID 修复空 contentUri', async () => {
+    settings.resolveOVConfig.mockResolvedValue({
+      baseUrl: 'http://ov.local',
+      apiKey: 'ov-key',
+      account: 'tenant-a',
+      user: 'worker-user',
+      rerankEndpoint: null,
+      rerankModel: null,
+    });
+    taskRepo.findById.mockResolvedValue({
+      id: 'task-sync-auto-doc',
+      tenantId: 'tenant-a',
+      kbId: 'kb-1',
+      sourceName: '自动创建文档.md',
+      targetUri: 'viking://resources/tenants/tenant-a/kb-1/nodes/auto-doc/',
+      autoCreatedNodeId: 'node-auto-doc',
+    });
+    nodeRepo.findOne.mockResolvedValueOnce({
+      id: 'node-auto-doc',
+      tenantId: 'tenant-a',
+      kbId: 'kb-1',
+      name: '自动创建文档.md',
+      kind: 'document',
+      vikingUri: 'viking://resources/tenants/tenant-a/kb-1/nodes/auto-doc/',
+      contentUri: null,
+      indexStatus: 'pending',
+      draftVersion: 0,
+      indexedVersion: 0,
+      vectorCount: null,
+      lastIndexedAt: null,
+      indexError: null,
+      createdAt: new Date('2026-04-29T00:00:00.000Z'),
+      updatedAt: new Date('2026-04-29T00:00:00.000Z'),
+    });
+    kbRepo.findById.mockResolvedValueOnce({
+      id: 'kb-1',
+      tenantId: 'tenant-a',
+      vikingUri: 'viking://resources/tenant-a/kb-1/',
+      docCount: 0,
+      vectorCount: 0,
+      updatedAt: new Date('2026-04-29T00:00:00.000Z'),
+    });
+    ovClient.request
+      .mockResolvedValueOnce({
+        result: { children_count: 0, descendant_count: 1 },
+      })
+      .mockResolvedValueOnce({ result: { count: 6 } })
+      .mockResolvedValueOnce({
+        result: [
+          {
+            uri: 'viking://resources/tenants/tenant-a/kb-1/nodes/auto-doc/自动创建文档.md',
+            isDir: false,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        result: { children_count: 10, descendant_count: 3 },
+      })
+      .mockResolvedValueOnce({ result: { count: 60 } });
+
+    await service.syncResult('task-sync-auto-doc', 'tenant-a');
+
+    expect(nodeRepo.findOne).toHaveBeenCalledWith({
+      where: {
+        id: 'node-auto-doc',
+        tenantId: 'tenant-a',
+        kbId: 'kb-1',
+      },
+    });
+    expect(nodeRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'node-auto-doc',
+        contentUri:
+          'viking://resources/tenants/tenant-a/kb-1/nodes/auto-doc/自动创建文档.md',
+        indexStatus: 'clean',
+        vectorCount: 6,
+        indexError: null,
+      }),
+    );
+    expect(taskRepo.update).toHaveBeenCalledWith('task-sync-auto-doc', {
+      nodeCount: 1,
+      vectorCount: 6,
+    });
+  });
+
   it('显式 targetUri 指向当前知识库节点时允许创建', async () => {
     taskRepo.create.mockImplementation((payload) => payload);
     taskRepo.save.mockImplementation(async (payload) => payload);
